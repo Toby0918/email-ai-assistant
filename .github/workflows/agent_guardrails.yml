@@ -1,0 +1,76 @@
+name: Agent Guardrails
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+
+jobs:
+  quality-gates:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.12.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12.13"
+
+      - name: Show runtime versions
+        run: |
+          python --version
+          python - <<'PY'
+          import sqlite3
+          print("sqlite runtime:", sqlite3.sqlite_version)
+          PY
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then
+            python -m pip install -r requirements.txt
+          fi
+
+      - name: Run architecture guardrails
+        run: |
+          if [ -f tests/test_architecture_constraints.py ]; then
+            python -m unittest discover -s tests -p "test_architecture_constraints.py"
+          else
+            echo "tests/test_architecture_constraints.py not found; skipping."
+          fi
+
+      - name: Run static linter guardrails
+        run: |
+          if [ -f tests/test_static_linter_constraints.py ]; then
+            python -m unittest discover -s tests -p "test_static_linter_constraints.py"
+          else
+            echo "tests/test_static_linter_constraints.py not found; skipping."
+          fi
+
+      - name: Run mechanical rule guardrails
+        run: |
+          if [ -f tests/test_mechanical_rule_constraints.py ]; then
+            python -m unittest discover -s tests -p "test_mechanical_rule_constraints.py"
+          else
+            echo "tests/test_mechanical_rule_constraints.py not found; skipping."
+          fi
+
+      - name: Run full test suite
+        run: |
+          if [ -d tests ]; then
+            python -m unittest discover -s tests
+          else
+            echo "tests/ directory not found; skipping."
+          fi
+
+      - name: Run maintenance scan
+        run: |
+          if [ -f scripts/maintenance_scan.py ]; then
+            python scripts/maintenance_scan.py
+          else
+            echo "scripts/maintenance_scan.py not found; skipping."
+          fi

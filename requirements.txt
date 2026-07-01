@@ -1,0 +1,4 @@
+beautifulsoup4==4.15.0
+openpyxl==3.1.5
+openai==2.44.0
+python-dotenv==1.2.2

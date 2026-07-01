@@ -1,0 +1,113 @@
+:root {
+  color-scheme: light;
+  font-family: Arial, "Microsoft YaHei", sans-serif;
+  background: #f4f6f8;
+  color: #17202a;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+.shell {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) minmax(320px, 1fr);
+  gap: 20px;
+  min-height: 100vh;
+  padding: 24px;
+}
+
+.compose-panel,
+.result-panel {
+  background: #ffffff;
+  border: 1px solid #d9e2ec;
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.topbar,
+.status-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.eyebrow {
+  margin: 0 0 4px;
+  color: #52616f;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+h1,
+h2 {
+  margin: 0 0 16px;
+}
+
+label {
+  display: grid;
+  gap: 6px;
+  margin-top: 16px;
+  font-weight: 700;
+}
+
+input,
+textarea {
+  width: 100%;
+  border: 1px solid #bcccdc;
+  border-radius: 6px;
+  padding: 10px;
+  font: inherit;
+  resize: vertical;
+}
+
+button {
+  border: 0;
+  border-radius: 6px;
+  padding: 10px 16px;
+  background: #146c94;
+  color: #ffffff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+#copy-draft-button {
+  margin-top: 12px;
+  background: #335c67;
+}
+
+dl {
+  display: grid;
+  grid-template-columns: 90px 1fr;
+  gap: 10px 14px;
+}
+
+dt {
+  color: #52616f;
+  font-weight: 700;
+}
+
+dd {
+  margin: 0;
+}
+
+#priority {
+  border-radius: 999px;
+  background: #e3f2fd;
+  color: #0b5c7e;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+@media (max-width: 760px) {
+  .shell {
+    grid-template-columns: 1fr;
+    padding: 14px;
+  }
+}

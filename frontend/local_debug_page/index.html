@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Email AI Assistant</title>
+    <link rel="stylesheet" href="/styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <section class="compose-panel" aria-label="Current email">
+        <div class="topbar">
+          <div>
+            <p class="eyebrow">Local Debug</p>
+            <h1>Email AI Assistant</h1>
+          </div>
+          <button id="analyze-button" type="button">Analyze</button>
+        </div>
+
+        <label>
+          Subject
+          <input id="subject" value="Delivery date confirmation">
+        </label>
+        <label>
+          From
+          <input id="from" value="customer@example.com">
+        </label>
+        <label>
+          To
+          <input id="to" value="sales@example.test">
+        </label>
+        <label>
+          Sent At
+          <input id="sent-at" value="2026-07-01T09:00:00Z">
+        </label>
+        <label>
+          Body
+          <textarea id="body" rows="10">Please confirm delivery date for this order.</textarea>
+        </label>
+      </section>
+
+      <section class="result-panel" aria-label="Analysis result">
+        <div class="status-row">
+          <span id="status">Ready</span>
+          <span id="priority">-</span>
+        </div>
+        <h2 id="summary">No analysis yet</h2>
+        <dl>
+          <dt>Category</dt>
+          <dd id="category">-</dd>
+          <dt>Risks</dt>
+          <dd id="risks">-</dd>
+          <dt>Actions</dt>
+          <dd id="actions">-</dd>
+        </dl>
+        <label>
+          Draft
+          <textarea id="draft" rows="10" readonly></textarea>
+        </label>
+        <button id="copy-draft-button" type="button">Copy draft</button>
+      </section>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>

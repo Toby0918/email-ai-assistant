@@ -1,0 +1,198 @@
+"""Executable architecture constraints for the email AI assistant project.
+
+Run:
+    python -m unittest discover -s tests -p "test_architecture_constraints.py"
+"""
+
+from __future__ import annotations
+
+import ast
+import re
+import unittest
+from pathlib import Path
+
+from scripts.repo_utils import (
+    FORBIDDEN_REPO_FILE_NAMES,
+    FORBIDDEN_REPO_SUFFIXES,
+    has_required_front_matter,
+    is_ignored_by_gitignore,
+    is_text_file,
+    iter_project_files,
+    load_gitignore_patterns,
+    read_text,
+)
+
+ROOT = Path(__file__).resolve().parents[1]
+
+FRONTEND_FORBIDDEN_PATTERNS = {
+    "openai_api_key": r"OPENAI_API_KEY",
+    "openai_secret_key": r"\bsk-[A-Za-z0-9_-]{10,}",
+    "openai_base_url": r"api\.openai\.com",
+    "openai_responses_api": r"/v1/responses",
+    "openai_chat_api": r"/v1/chat/completions",
+    "new_openai_client": r"new\s+OpenAI\s*\(",
+    "openai_import": r"from\s+['\"]openai['\"]|require\(['\"]openai['\"]\)",
+    "env_access": r"process\.env|\.env",
+    "sqlite_access": r"sqlite|sqlite3",
+}
+
+FRONTEND_DANGEROUS_ACTIONS = {
+    "graph_send_mail": r"sendMail\b",
+    "gmail_send": r"gmail\.users\.messages\.send",
+    "archive_action": r"archiveMessage|archive\(",
+    "delete_action": r"deleteMessage|trashMessage|messages\.trash",
+}
+
+
+GITIGNORE_PATTERNS = load_gitignore_patterns(ROOT)
+
+
+def parse_import_roots(path: Path) -> set[str]:
+    # Import roots are enough to enforce the project's layer boundaries.
+    if not path.exists():
+        return set()
+    try:
+        tree = ast.parse(read_text(path))
+    except SyntaxError:
+        return set()
+
+    imports: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                imports.add(alias.name.split(".")[0])
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imports.add(node.module.split(".")[0])
+    return imports
+
+
+class ArchitectureConstraintTests(unittest.TestCase):
+    def test_forbidden_repository_files_are_not_unignored(self) -> None:
+        for path in iter_project_files(ROOT):
+            name = path.name.lower()
+            suffix = path.suffix.lower()
+            if name in FORBIDDEN_REPO_FILE_NAMES or suffix in FORBIDDEN_REPO_SUFFIXES:
+                with self.subTest(path=path):
+                    self.assertTrue(
+                        is_ignored_by_gitignore(path, ROOT, GITIGNORE_PATTERNS),
+                        f"{path} is not ignored",
+                    )
+            with self.subTest(path=path):
+                self.assertFalse(name.endswith(".token"))
+                self.assertFalse(name.endswith(".secret"))
+
+    def test_frontend_does_not_call_openai_or_read_secrets(self) -> None:
+        # Frontend code may call only the backend, never OpenAI or local secrets.
+        frontend = ROOT / "frontend"
+        if not frontend.exists():
+            self.skipTest("frontend/ does not exist yet")
+
+        for path in frontend.rglob("*"):
+            if not path.is_file() or not is_text_file(path):
+                continue
+            text = read_text(path)
+            for rule_name, pattern in FRONTEND_FORBIDDEN_PATTERNS.items():
+                with self.subTest(rule=rule_name, path=path):
+                    self.assertIsNone(re.search(pattern, text, re.IGNORECASE))
+
+    def test_frontend_does_not_perform_dangerous_email_actions(self) -> None:
+        frontend = ROOT / "frontend"
+        if not frontend.exists():
+            self.skipTest("frontend/ does not exist yet")
+
+        for path in frontend.rglob("*"):
+            if not path.is_file() or not is_text_file(path):
+                continue
+            text = read_text(path)
+            for rule_name, pattern in FRONTEND_DANGEROUS_ACTIONS.items():
+                with self.subTest(rule=rule_name, path=path):
+                    self.assertIsNone(re.search(pattern, text, re.IGNORECASE))
+
+    def test_backend_never_imports_frontend(self) -> None:
+        backend = ROOT / "backend"
+        if not backend.exists():
+            self.skipTest("backend/ does not exist yet")
+
+        for path in backend.rglob("*.py"):
+            imports = parse_import_roots(path)
+            with self.subTest(path=path):
+                self.assertNotIn("frontend", imports)
+
+    def test_email_cleaner_has_no_ai_database_or_api_dependency(self) -> None:
+        path = ROOT / "backend" / "email_agent" / "email_cleaner.py"
+        if not path.exists():
+            self.skipTest("email_cleaner.py does not exist yet")
+
+        imports = parse_import_roots(path)
+        forbidden = {"openai", "llm_client", "database", "exporter", "api"}
+        self.assertTrue(imports.isdisjoint(forbidden), imports)
+
+    def test_database_has_no_ai_or_frontend_dependency(self) -> None:
+        path = ROOT / "backend" / "email_agent" / "database.py"
+        if not path.exists():
+            self.skipTest("database.py does not exist yet")
+
+        imports = parse_import_roots(path)
+        forbidden = {"openai", "llm_client", "frontend"}
+        self.assertTrue(imports.isdisjoint(forbidden), imports)
+
+    def test_exporter_has_no_ai_or_frontend_dependency(self) -> None:
+        path = ROOT / "backend" / "email_agent" / "exporter.py"
+        if not path.exists():
+            self.skipTest("exporter.py does not exist yet")
+
+        imports = parse_import_roots(path)
+        forbidden = {"openai", "llm_client", "frontend"}
+        self.assertTrue(imports.isdisjoint(forbidden), imports)
+
+    def test_llm_client_has_no_storage_export_or_frontend_dependency(self) -> None:
+        path = ROOT / "backend" / "email_agent" / "llm_client.py"
+        if not path.exists():
+            self.skipTest("llm_client.py does not exist yet")
+
+        imports = parse_import_roots(path)
+        forbidden = {"database", "exporter", "frontend"}
+        self.assertTrue(imports.isdisjoint(forbidden), imports)
+
+    def test_python_modules_do_not_contain_raw_secret_literals(self) -> None:
+        secret_patterns = {
+            "openai_key": r"\bsk-[A-Za-z0-9_-]{10,}",
+            "oauth_token": r"ya29\.[A-Za-z0-9_-]+",
+            "password_assignment": r"password\s*=\s*['\"][^'\"]+['\"]",
+        }
+        documented_pattern_files = {
+            "linter_constraints.md",
+            "test_static_linter_constraints.py",
+            "test_architecture_constraints.py",
+            "api_key_rules.md",
+        }
+
+        for path in iter_project_files(ROOT):
+            if path.suffix.lower() not in {".py", ".js", ".ts", ".html", ".json", ".md"}:
+                continue
+            if path.name in documented_pattern_files:
+                continue
+            text = read_text(path)
+            for name, pattern in secret_patterns.items():
+                with self.subTest(rule=name, path=path):
+                    matches = list(re.finditer(pattern, text, re.IGNORECASE))
+                    if name == "openai_key":
+                        matches = [
+                            match for match in matches
+                            if not match.group(0).lower().startswith("sk-your-")
+                        ]
+                    self.assertFalse(matches, f"{path} contains possible secret literal")
+
+    def test_docs_markdown_files_have_required_front_matter(self) -> None:
+        docs = ROOT / "docs"
+        if not docs.exists():
+            self.skipTest("docs/ does not exist yet")
+
+        for path in docs.rglob("*.md"):
+            text = read_text(path)
+            with self.subTest(path=path):
+                self.assertTrue(has_required_front_matter(text), f"{path} lacks required front matter")
+
+
+if __name__ == "__main__":
+    unittest.main()
