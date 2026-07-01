@@ -18,8 +18,8 @@ source_type: operation_guide
 | Generated on | 2026-07-01 |
 | Current stage | local_eval_mvp |
 | Git branch | master |
-| Git commit | 2bb9869 |
-| Working tree dirty | no |
+| Git HEAD reference | Run `git rev-parse --short HEAD` in this workspace |
+| Working tree status | Run `git status --short --ignored` in this workspace |
 
 ## Project Summary
 
@@ -129,7 +129,7 @@ source_type: operation_guide
 
 | Status | Count |
 |---|---:|
-| active | 42 |
+| active | 43 |
 | draft | 30 |
 | deprecated | 0 |
 | missing_front_matter | 0 |
@@ -138,7 +138,8 @@ source_type: operation_guide
 
 1. 运行完整测试和维护扫描。
 2. 用虚构样例手动试用本地调试页面。
-3. 继续扩展 golden 样例覆盖中文邮件、报价请求和历史引用。
+3. 提供 GitHub 远程地址后推送第一阶段项目。
+4. 单独确认下一阶段正式邮箱前端路线（Outlook Add-in、Google Workspace Add-on 或浏览器扩展）。
 
 ## Do Not Touch Boundaries
 

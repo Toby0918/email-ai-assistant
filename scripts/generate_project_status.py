@@ -138,8 +138,6 @@ class FileStatus:
 @dataclass(frozen=True)
 class GitStatus:
     branch: str
-    commit: str
-    dirty: bool
 
 
 def run_git_command(args: Sequence[str]) -> str:
@@ -162,9 +160,7 @@ def run_git_command(args: Sequence[str]) -> str:
 
 def get_git_status() -> GitStatus:
     branch = run_git_command(["rev-parse", "--abbrev-ref", "HEAD"])
-    commit = run_git_command(["rev-parse", "--short", "HEAD"])
-    porcelain = run_git_command(["status", "--porcelain"])
-    return GitStatus(branch=branch, commit=commit, dirty=porcelain not in {"", "not available"})
+    return GitStatus(branch=branch)
 
 
 def collect_file_status(paths: Sequence[str]) -> list[FileStatus]:
@@ -252,7 +248,8 @@ def render_next_steps(stage: str) -> str:
         steps = [
             "运行完整测试和维护扫描。",
             "用虚构样例手动试用本地调试页面。",
-            "继续扩展 golden 样例覆盖中文邮件、报价请求和历史引用。",
+            "提供 GitHub 远程地址后推送第一阶段项目。",
+            "单独确认下一阶段正式邮箱前端路线（Outlook Add-in、Google Workspace Add-on 或浏览器扩展）。",
         ]
     elif stage == "first_version_local_debug":
         steps = [
@@ -295,8 +292,8 @@ source_type: operation_guide
 | Generated on | {today} |
 | Current stage | {stage} |
 | Git branch | {git.branch} |
-| Git commit | {git.commit} |
-| Working tree dirty | {format_bool(git.dirty)} |
+| Git HEAD reference | Run `git rev-parse --short HEAD` in this workspace |
+| Working tree status | Run `git status --short --ignored` in this workspace |
 
 ## Project Summary
 

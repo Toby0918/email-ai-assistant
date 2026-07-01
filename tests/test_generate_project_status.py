@@ -56,12 +56,24 @@ class GenerateProjectStatusTests(unittest.TestCase):
         if (ROOT / "tests" / "fixtures" / "sample_emails.json").exists():
             self.assertIn("| Current stage | local_eval_mvp |", report)
 
-    def test_local_eval_next_steps_do_not_repeat_completed_frontend_work(self) -> None:
+    def test_status_log_uses_stable_head_reference(self) -> None:
+        module = load_script_module(SCRIPT, "generate_project_status")
+        report = module.build_project_status()
+
+        self.assertIn("| Git HEAD reference | Run `git rev-parse --short HEAD` in this workspace |", report)
+        self.assertIn("| Working tree status | Run `git status --short --ignored` in this workspace |", report)
+        self.assertNotIn("| Git commit |", report)
+        self.assertNotIn("| Working tree dirty |", report)
+
+    def test_local_eval_next_steps_reflect_first_phase_closeout(self) -> None:
         module = load_script_module(SCRIPT, "generate_project_status")
         report = module.build_project_status()
 
         self.assertIn("运行完整测试和维护扫描", report)
         self.assertIn("用虚构样例手动试用本地调试页面", report)
+        self.assertIn("提供 GitHub 远程地址后推送第一阶段项目", report)
+        self.assertIn("单独确认下一阶段正式邮箱前端路线", report)
+        self.assertNotIn("继续扩展 golden 样例覆盖中文邮件、报价请求和历史引用", report)
         self.assertNotIn("补充前端本地调试页面", report)
 
     def test_shared_repo_utils_are_reported_as_key_files(self) -> None:
