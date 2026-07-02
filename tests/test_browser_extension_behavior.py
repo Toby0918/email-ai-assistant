@@ -129,7 +129,7 @@ class BrowserExtensionBehaviorTests(unittest.TestCase):
           return response;
         }}
 
-        function legacyReadDocument({{ selected = false }} = {{}}) {{
+        function legacyReadDocument({{ selected = false, knownBody = false }} = {{}}) {{
           const subject = new FakeElement({{
             tag: "h1",
             id: "subject",
@@ -143,7 +143,11 @@ class BrowserExtensionBehaviorTests(unittest.TestCase):
             "Received below complaint.",
             "Please respond within 24 hours of receipt.",
           ].join("\\n");
-          const messageBody = new FakeElement({{ tag: "div", text: bodyText }});
+          const messageBody = new FakeElement({{
+            tag: "div",
+            className: knownBody ? "mail-content" : "",
+            text: bodyText,
+          }});
           const body = new FakeElement({{ tag: "body", text: bodyText, children: [subject, messageBody] }});
           return new FakeDocument({{
             title: "Tencent Exmail",
@@ -184,6 +188,16 @@ class BrowserExtensionBehaviorTests(unittest.TestCase):
               throw new Error(`unexpected selected text: ${{result.payload.body_text}}`);
             }}
           }},
+          selected_text_wins_over_known_dom_body: () => {{
+            const result = dispatch(legacyReadDocument({{ selected: true, knownBody: true }}));
+            if (!result.ok) throw new Error(JSON.stringify(result));
+            if (result.source !== "selected_text") {{
+              throw new Error(`expected selected_text, got ${{result.source}}`);
+            }}
+            if (result.payload.body_text !== "Received below complaint.") {{
+              throw new Error(`expected selected text only, got ${{result.payload.body_text}}`);
+            }}
+          }},
           body_selector_alone_is_not_message_context: () => {{
             const result = dispatch(bodySelectorOnlyDocument());
             if (result.ok) throw new Error("body selector alone should not extract");
@@ -209,6 +223,9 @@ class BrowserExtensionBehaviorTests(unittest.TestCase):
 
     def test_legacy_selected_text_fallback_extracts_selection(self) -> None:
         self.run_node_case("legacy_selected_text_fallback_extracts_selection")
+
+    def test_selected_text_wins_over_known_dom_body(self) -> None:
+        self.run_node_case("selected_text_wins_over_known_dom_body")
 
     def test_body_selector_alone_is_not_message_context(self) -> None:
         self.run_node_case("body_selector_alone_is_not_message_context")

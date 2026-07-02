@@ -14,6 +14,21 @@ QUALITY_KEYWORDS = ("complaint", "quality", "defective", "damaged", "投诉", "�
 QUOTE_KEYWORDS = ("quote", "quotation", "rfq", "price", "报价", "询价", "价格")
 INTERNAL_KEYWORDS = ("internal", "internally", "approval", "approve", "reviewer", "内部", "审批", "复核", "审核")
 MARKETING_KEYWORDS = ("marketing", "promotion", "advertisement", "exhibition", "trade show", "brochure", "展会", "推广", "广告")
+MEETING_KEYWORDS = ("meeting", "calendar", "invitation", "invite", "zoom", "会议", "邀请", "日程")
+BOOKING_KEYWORDS = (
+    "booking",
+    "tracking number",
+    "tracking",
+    "original fe",
+    "forwarder",
+    "logistics",
+    "air freight",
+    "sea freight",
+    "订舱",
+    "货代",
+    "追踪",
+    "物流",
+)
 
 
 def build_rule_based_analysis(subject: str, sender: str, clean_body: str) -> dict[str, Any]:
@@ -23,7 +38,7 @@ def build_rule_based_analysis(subject: str, sender: str, clean_body: str) -> dic
     category = _category(text, risks)
     priority = _priority(text, risks)
     summary = _summary(subject, clean_body)
-    actions = _suggested_actions(category, risks)
+    actions = _suggested_actions(category, risks, text)
     result = {
         "summary": summary,
         "priority": priority,
@@ -32,7 +47,7 @@ def build_rule_based_analysis(subject: str, sender: str, clean_body: str) -> dic
         "tags": _tags(category, risks),
         "risk_flags": risks,
         "suggested_actions": actions,
-        "reply_draft": _reply_draft(subject, summary, category, actions[0]["type"]),
+        "reply_draft": _reply_draft(subject, category, actions[0]["type"], text),
     }
     return validate_analysis_result(result)
 
@@ -46,6 +61,10 @@ def _category(text: str, risks: list[dict[str, str]]) -> str:
         return "contract"
     if _contains(text, *INTERNAL_KEYWORDS):
         return "internal"
+    if _is_booking_context(text):
+        return "order_followup"
+    if _is_meeting_context(text):
+        return "customer_inquiry"
     if _contains(text, *QUOTE_KEYWORDS):
         return "customer_inquiry"
     if _contains(text, *DELIVERY_KEYWORDS):
@@ -70,8 +89,8 @@ def _risk_flags(text: str) -> list[dict[str, str]]:
     if _contains(text, *PAYMENT_KEYWORDS):
         level = "high" if _contains(text, "overdue", "逾期") else "medium"
         risks.append(_risk("payment_risk", level, "Email mentions payment or invoice."))
-    if _contains(text, *DELIVERY_KEYWORDS):
-        risks.append(_risk("delivery_risk", "low", "Email mentions delivery or shipment."))
+    if _contains(text, *DELIVERY_KEYWORDS) or _is_booking_context(text):
+        risks.append(_risk("delivery_risk", "low", "Email mentions delivery, shipment, or logistics."))
     if _contains(text, *CONTRACT_KEYWORDS):
         risks.append(_risk("contract_risk", "medium", "Email mentions contract terms."))
     if _contains(text, *QUALITY_KEYWORDS):
@@ -105,23 +124,24 @@ def _tags(category: str, risks: list[dict[str, str]]) -> list[str]:
     return [category, *[item["type"] for item in risks]]
 
 
-def _suggested_actions(category: str, risks: list[dict[str, str]]) -> list[dict[str, str]]:
-    action_type = _action_type(category, risks)
+def _suggested_actions(category: str, risks: list[dict[str, str]], text: str) -> list[dict[str, str]]:
+    action_type = _action_type(category, risks, text)
     return [{
         "type": action_type,
-        "description": _action_description(action_type, category),
+        "description": _action_description(action_type, category, text),
         "owner_hint": "account_owner",
         "due_hint": "today",
     }]
 
 
-def _reply_draft(subject: str, summary: str, category: str, action_type: str) -> dict[str, Any]:
+def _reply_draft(subject: str, category: str, action_type: str, text: str) -> dict[str, Any]:
     return {
         "subject": f"Re: {subject}" if subject else "Re: your email",
         "body": (
             "Hello,\n\n"
-            f"Thank you for your email. We have received the request: {summary}\n"
-            f"{_draft_next_step(action_type, category)}\n\n"
+            "Thank you for your email.\n"
+            f"{_draft_context_line(action_type, category, text)}\n"
+            f"{_draft_next_step(action_type, category, text)}\n\n"
             "Best regards"
         ),
         "needs_human_review": True,
@@ -133,13 +153,23 @@ def _contains(text: str, *keywords: str) -> bool:
     return any(keyword in text for keyword in keywords)
 
 
+def _is_meeting_context(text: str) -> bool:
+    return _contains(text, *MEETING_KEYWORDS)
+
+
+def _is_booking_context(text: str) -> bool:
+    return _contains(text, *BOOKING_KEYWORDS)
+
+
 def _has_risk(risks: list[dict[str, str]], risk_type: str) -> bool:
     return any(item["type"] == risk_type for item in risks)
 
 
-def _action_type(category: str, risks: list[dict[str, str]]) -> str:
+def _action_type(category: str, risks: list[dict[str, str]], text: str) -> str:
     if _has_risk(risks, "prompt_injection_risk") or _has_risk(risks, "quality_risk"):
         return "escalate"
+    if _is_meeting_context(text):
+        return "confirm"
     if category == "order_followup":
         return "check_delivery"
     if category in {"payment", "contract"}:
@@ -151,9 +181,13 @@ def _action_type(category: str, risks: list[dict[str, str]]) -> str:
     return "reply"
 
 
-def _action_description(action_type: str, category: str) -> str:
+def _action_description(action_type: str, category: str, text: str) -> str:
     if action_type == "check_delivery":
+        if _is_booking_context(text):
+            return "Check logistics booking, FE, and tracking status before drafting a reply."
         return "Check delivery or shipment status before drafting a reply."
+    if action_type == "confirm" and _is_meeting_context(text):
+        return "Confirm whether the meeting invitation is valid and attendance is needed before replying."
     if action_type == "confirm" and category == "payment":
         return "Confirm payment, invoice, or remittance status before replying."
     if action_type == "confirm" and category == "contract":
@@ -171,9 +205,29 @@ def _action_description(action_type: str, category: str) -> str:
     return "Draft a cautious reply for human review."
 
 
-def _draft_next_step(action_type: str, category: str) -> str:
+def _draft_context_line(action_type: str, category: str, text: str) -> str:
+    if action_type == "confirm" and _is_meeting_context(text):
+        return "We will first verify whether this meeting invitation is valid and whether attendance is needed."
+    if action_type == "check_delivery" and _is_booking_context(text):
+        return "We will check the booking, FE, and tracking details with the responsible logistics owner."
+    if action_type == "prepare_quote":
+        return "We will review the inquiry internally before sharing any price or lead time."
+    if action_type == "escalate" and category == "complaint":
+        return "We will route the quality issue to the responsible owner for review."
+    if category == "internal":
+        return "We will treat this as an internal review item before any external reply."
+    if action_type == "ignore":
+        return "This appears to be reference or marketing material rather than an action request."
+    return "We will review the message and confirm the relevant details before replying."
+
+
+def _draft_next_step(action_type: str, category: str, text: str) -> str:
     if action_type == "check_delivery":
+        if _is_booking_context(text):
+            return "We will confirm the logistics status before giving any tracking or timing update."
         return "We will check the delivery or shipment status before confirming any timing."
+    if action_type == "confirm" and _is_meeting_context(text):
+        return "We will confirm the schedule internally before responding."
     if action_type == "confirm" and category == "payment":
         return "We will verify the invoice, payment, or remittance status before replying."
     if action_type == "confirm" and category == "contract":

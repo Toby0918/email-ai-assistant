@@ -3,8 +3,8 @@
     fields.priority.textContent = textOrDash(analysis.priority);
     fields.summary.textContent = textOrFallback(analysis.summary, "No summary returned");
     fields.category.textContent = textOrDash(analysis.category);
-    fields.risks.textContent = formatList(analysis.risk_flags);
-    fields.actions.textContent = formatList(analysis.suggested_actions);
+    fields.risks.textContent = formatList(analysis.risk_flags, formatRisk);
+    fields.actions.textContent = formatList(analysis.suggested_actions, formatAction);
     fields.draft.value = analysis.reply_draft && analysis.reply_draft.body ? analysis.reply_draft.body : "";
   }
 
@@ -17,11 +17,36 @@
     fields.draft.value = "";
   }
 
-  function formatList(value) {
+  function formatList(value, formatter) {
     if (!Array.isArray(value) || value.length === 0) {
       return "-";
     }
-    return value.map((item) => String(item).trim()).filter(Boolean).join(", ") || "-";
+    return value.map((item) => formatter(item)).filter(Boolean).join(", ") || "-";
+  }
+
+  function formatRisk(item) {
+    if (!isPlainObject(item)) {
+      return textOrFallback(item, "");
+    }
+
+    const type = textOrFallback(item.type, "");
+    const level = textOrFallback(item.level, "");
+    if (type && level) {
+      return `${type} (${level})`;
+    }
+    return type || textOrFallback(item.evidence, "");
+  }
+
+  function formatAction(item) {
+    if (!isPlainObject(item)) {
+      return textOrFallback(item, "");
+    }
+
+    return textOrFallback(item.description, "") || textOrFallback(item.type, "");
+  }
+
+  function isPlainObject(value) {
+    return Boolean(value && typeof value === "object" && !Array.isArray(value));
   }
 
   function textOrDash(value) {

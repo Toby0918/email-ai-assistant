@@ -115,6 +115,17 @@ class RuleAnalyzerTests(unittest.TestCase):
         self.assertIn("prepare the quote details for human review", draft)
         self.assertNotIn("confirm the details", draft)
 
+    def test_reply_draft_avoids_fixed_received_request_template(self) -> None:
+        result = build_rule_based_analysis(
+            subject="Delivery date confirmation",
+            sender="customer@example.test",
+            clean_body="Please confirm delivery date for this order.",
+        )
+
+        draft = result["reply_draft"]["body"].lower()
+        self.assertNotIn("we have received the request", draft)
+        self.assertNotIn("thank you for your email. we have received", draft)
+
     def test_reply_draft_mentions_quality_escalation(self) -> None:
         result = build_rule_based_analysis(
             subject="Quality issue after delivery",
@@ -138,6 +149,35 @@ class RuleAnalyzerTests(unittest.TestCase):
         self.assertEqual(result["category"], "internal")
         self.assertEqual(action["type"], "reply")
         self.assertIn("internal review", draft)
+
+    def test_calendar_invitation_uses_meeting_confirmation_not_quote(self) -> None:
+        result = build_rule_based_analysis(
+            subject="Calendar invitation for shortage review",
+            sender="organizer@example.test",
+            clean_body="This is a synced invitation. Please join the Zoom meeting next Tuesday.",
+        )
+
+        action = result["suggested_actions"][0]
+        draft = result["reply_draft"]["body"].lower()
+        self.assertEqual(action["type"], "confirm")
+        self.assertIn("meeting", action["description"].lower())
+        self.assertIn("meeting invitation", draft)
+        self.assertNotIn("quote", draft)
+
+    def test_booking_tracking_followup_uses_logistics_review_not_quote(self) -> None:
+        result = build_rule_based_analysis(
+            subject="Booking tracking review",
+            sender="logistics@example.test",
+            clean_body="Please check the original FE and tracking number before replying.",
+        )
+
+        action = result["suggested_actions"][0]
+        draft = result["reply_draft"]["body"].lower()
+        self.assertEqual(result["category"], "order_followup")
+        self.assertEqual(action["type"], "check_delivery")
+        self.assertIn("logistics", action["description"].lower())
+        self.assertIn("tracking", draft)
+        self.assertNotIn("quote", draft)
 
     def test_marketing_material_classifies_as_ignore(self) -> None:
         result = build_rule_based_analysis(

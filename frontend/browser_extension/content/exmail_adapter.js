@@ -44,13 +44,6 @@
 
   function extractCurrentEmail() {
     const documents = collectAccessibleDocuments(window);
-    for (const doc of documents) {
-      const payload = extractFromDocument(doc, false);
-      if (payload.body_text) {
-        return { ok: true, source: "dom", payload };
-      }
-    }
-
     const selected = getSelectedEmailContent(documents);
     if (selected) {
       return {
@@ -64,6 +57,13 @@
           body_text: selected,
         },
       };
+    }
+
+    for (const doc of documents) {
+      const payload = extractFromDocument(doc, false);
+      if (payload.body_text) {
+        return { ok: true, source: "dom", payload };
+      }
     }
 
     for (const doc of documents) {
