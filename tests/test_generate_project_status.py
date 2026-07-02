@@ -115,6 +115,7 @@ class GenerateProjectStatusTests(unittest.TestCase):
         self.assertIn("`docs/operations/tencent_exmail_browser_extension_task_brief.md`", report)
         self.assertIn("`tests/test_browser_extension_manifest.py`", report)
         self.assertIn("`tests/test_browser_extension_static.py`", report)
+        self.assertIn("`tests/test_browser_extension_behavior.py`", report)
 
     def test_main_writes_requested_output(self) -> None:
         module = load_script_module(SCRIPT, "generate_project_status")

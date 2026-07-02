@@ -118,6 +118,7 @@ source_type: operation_guide
 | `tests/test_api.py` | yes |
 | `tests/test_browser_extension_manifest.py` | yes |
 | `tests/test_browser_extension_static.py` | yes |
+| `tests/test_browser_extension_behavior.py` | yes |
 
 ## docs Directory Status
 

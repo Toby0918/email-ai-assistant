@@ -137,13 +137,16 @@ class BrowserExtensionStaticTests(unittest.TestCase):
         script = (EXTENSION / "content" / "exmail_adapter.js").read_text(encoding="utf-8")
 
         self.assertIn("hasMessageContext", script)
+        self.assertIn("isReadMessageDocument", script)
         self.assertIn("hasSubjectContext", script)
         self.assertIn("hasHeaderContext", script)
+        self.assertIn("findKnownBodyElement", script)
         self.assertIn("getSelectedEmailContent", script)
         self.assertIn("selectionBelongsToMessage", script)
         self.assertIn("findBodyElement", script)
         self.assertIn("view.getSelection", script)
         self.assertIn("selected_text", script)
+        self.assertIn("dom_fallback", script)
         self.assertIn(
             "Open a Tencent Exmail message or select email body text from that opened message first",
             script,
@@ -154,13 +157,15 @@ class BrowserExtensionStaticTests(unittest.TestCase):
         self.assertNotIn("[role='main']", script)
         self.assertNotIn("firstText(doc, BODY_SELECTORS) ||", script)
         self.assertIn(
-            "return Boolean((hasSubjectContext(doc) || hasHeaderContext(doc)) && findBodyElement(doc));",
+            "return Boolean(isReadMessageDocument(doc) && findBodyElement(doc, allowDocumentBodyFallback));",
             script,
         )
         self.assertIn(
-            "if (!bodyElement) {\n      return false;\n    }",
+            "if (!isReadMessageDocument(doc))",
             script,
         )
+        self.assertIn("allowDocumentBodyFallback", script)
+        self.assertIn("isLikelyExcludedUiElement", script)
 
     def test_exmail_adapter_does_not_log_email_body(self) -> None:
         script = (EXTENSION / "content" / "exmail_adapter.js").read_text(encoding="utf-8")

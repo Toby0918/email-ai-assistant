@@ -1,6 +1,7 @@
 /* global chrome */
 (function () {
   const MESSAGE_TYPE = "EXTRACT_CURRENT_EMAIL";
+  const MIN_BODY_LENGTH = 5;
   const EMPTY_PAYLOAD = {
     subject: "",
     from: "",
@@ -44,7 +45,7 @@
   function extractCurrentEmail() {
     const documents = collectAccessibleDocuments(window);
     for (const doc of documents) {
-      const payload = extractFromDocument(doc);
+      const payload = extractFromDocument(doc, false);
       if (payload.body_text) {
         return { ok: true, source: "dom", payload };
       }
@@ -63,6 +64,13 @@
           body_text: selected,
         },
       };
+    }
+
+    for (const doc of documents) {
+      const payload = extractFromDocument(doc, true);
+      if (payload.body_text) {
+        return { ok: true, source: "dom_fallback", payload };
+      }
     }
 
     return {
@@ -90,12 +98,12 @@
     }
   }
 
-  function extractFromDocument(doc) {
-    if (!hasMessageContext(doc)) {
+  function extractFromDocument(doc, allowDocumentBodyFallback) {
+    if (!hasMessageContext(doc, allowDocumentBodyFallback)) {
       return EMPTY_PAYLOAD;
     }
 
-    const body = findBody(doc);
+    const body = findBody(doc, allowDocumentBodyFallback);
     if (!body) {
       return EMPTY_PAYLOAD;
     }
@@ -113,33 +121,55 @@
     return firstText(doc, SUBJECT_SELECTORS);
   }
 
-  function findBody(doc) {
-    const element = findBodyElement(doc);
+  function findBody(doc, allowDocumentBodyFallback) {
+    const element = findBodyElement(doc, allowDocumentBodyFallback);
     const body = normalizeText(element ? element.innerText || element.textContent : "");
-    if (body.length >= 5) {
+    if (body.length >= MIN_BODY_LENGTH) {
       return body;
     }
     return "";
   }
 
-  function findBodyElement(doc) {
+  function findBodyElement(doc, allowDocumentBodyFallback) {
+    const knownBody = findKnownBodyElement(doc);
+    if (knownBody) {
+      return knownBody;
+    }
+
+    if (
+      allowDocumentBodyFallback &&
+      isReadMessageDocument(doc) &&
+      doc.body &&
+      normalizeText(doc.body.innerText || doc.body.textContent).length >= MIN_BODY_LENGTH
+    ) {
+      return doc.body;
+    }
+
+    return null;
+  }
+
+  function findKnownBodyElement(doc) {
     for (const selector of BODY_SELECTORS) {
       const element = doc.querySelector(selector);
       const text = normalizeText(element ? element.innerText || element.textContent : "");
-      if (text.length >= 5) {
+      if (text.length >= MIN_BODY_LENGTH) {
         return element;
       }
     }
     return null;
   }
 
-  function hasMessageContext(doc) {
+  function hasMessageContext(doc, allowDocumentBodyFallback) {
+    return Boolean(isReadMessageDocument(doc) && findBodyElement(doc, allowDocumentBodyFallback));
+  }
+
+  function isReadMessageDocument(doc) {
     const markerText = normalizeText(doc.body ? doc.body.innerText : "");
     if (!markerText) {
       return false;
     }
 
-    return Boolean((hasSubjectContext(doc) || hasHeaderContext(doc)) && findBodyElement(doc));
+    return Boolean(hasSubjectContext(doc) || hasHeaderContext(doc));
   }
 
   function hasSubjectContext(doc) {
@@ -199,7 +229,7 @@
 
   function getSelectedEmailContent(documents) {
     for (const doc of documents) {
-      if (!hasMessageContext(doc)) {
+      if (!isReadMessageDocument(doc)) {
         continue;
       }
 
@@ -218,17 +248,35 @@
   }
 
   function selectionBelongsToMessage(doc, selection) {
-    const bodyElement = findBodyElement(doc);
-    if (!bodyElement) {
-      return false;
-    }
     if (!selection.rangeCount) {
       return false;
     }
 
     const node = selection.getRangeAt(0).commonAncestorContainer;
     const element = node.nodeType === 1 ? node : node.parentElement || node.parentNode;
-    return Boolean(element && (element === bodyElement || bodyElement.contains(element)));
+    const bodyElement = findKnownBodyElement(doc);
+    if (bodyElement) {
+      return Boolean(element && (element === bodyElement || bodyElement.contains(element)));
+    }
+
+    return Boolean(
+      element &&
+        doc.body &&
+        (element === doc.body || doc.body.contains(element)) &&
+        !isLikelyExcludedUiElement(element, doc.body)
+    );
+  }
+
+  function isLikelyExcludedUiElement(element, stopElement) {
+    let current = element;
+    while (current && current !== stopElement) {
+      const marker = `${current.id || ""} ${current.className || ""}`.toLowerCase();
+      if (/(folder|nav|menu|toolbar|sidebar|compose|search|maillist|mail-list)/.test(marker)) {
+        return true;
+      }
+      current = current.parentElement || current.parentNode;
+    }
+    return false;
   }
 
   function normalizeText(value) {

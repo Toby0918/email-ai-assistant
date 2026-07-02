@@ -98,6 +98,7 @@ KEY_FILES = [
     "tests/test_api.py",
     "tests/test_browser_extension_manifest.py",
     "tests/test_browser_extension_static.py",
+    "tests/test_browser_extension_behavior.py",
 ]
 
 DOC_DIRS = [
