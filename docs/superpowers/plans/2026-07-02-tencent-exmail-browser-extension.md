@@ -12,7 +12,7 @@ source_type: implementation_plan
 
 **Goal:** Build a Chrome / Edge Manifest V3 prototype that analyzes the currently opened Tencent Exmail Web email through the existing local Python backend.
 
-**Architecture:** Add a dependency-free extension under `frontend/browser_extension/` with a popup UI, a Tencent Exmail content adapter, and shared browser-side helpers. The extension runs only on `https://exmail.qq.com/*`, sends one user-confirmed current-email payload to `http://127.0.0.1:8765/api/analyze-current-email`, and displays the existing analysis schema without storing secrets or real email bodies.
+**Architecture:** Add a dependency-free extension under `frontend/browser_extension/` with a popup UI, a Tencent Exmail content adapter, and shared browser-side helpers. The extension runs only on `https://exmail.qq.com/*`, sends one user-confirmed current-email payload for the currently opened Tencent Exmail message to `http://127.0.0.1:8765/api/analyze-current-email`, and displays the existing analysis schema without storing secrets or real email bodies. The selected-text fallback is limited to user-selected email content from the currently opened Tencent Exmail message after the explicit Analyze click; it is not arbitrary webpage analysis and not background page scraping.
 
 **Tech Stack:** Chrome / Edge Manifest V3, plain HTML/CSS/JavaScript, Python 3.12 `unittest`, existing Python local backend.
 
@@ -24,7 +24,7 @@ source_type: implementation_plan
 - Create `frontend/browser_extension/popup.html`: Compact user-facing extension popup with analyze, status, analysis fields, draft textarea, and copy button.
 - Create `frontend/browser_extension/popup.css`: Popup styling, fixed compact dimensions, readable states.
 - Create `frontend/browser_extension/popup.js`: Popup controller that handles user clicks, requests extraction from the active Exmail tab, calls the local backend, and renders results.
-- Create `frontend/browser_extension/content/exmail_adapter.js`: Content script that extracts the current email or selected-text fallback only when messaged by the popup.
+- Create `frontend/browser_extension/content/exmail_adapter.js`: Content script that extracts the current email or message-scoped selected-text fallback only when messaged by the popup.
 - Create `frontend/browser_extension/shared/api_client.js`: Local backend request helper.
 - Create `frontend/browser_extension/shared/render_analysis.js`: Analysis rendering and clear-state helpers.
 - Create `tests/test_browser_extension_manifest.py`: Manifest contract and permission tests.
@@ -136,7 +136,7 @@ Let the user open one email in Tencent Exmail, click an explicit extension butto
 
 - Manifest V3 extension files under `frontend/browser_extension/`.
 - Tencent Exmail content adapter.
-- Selected-text fallback when DOM extraction cannot find an opened email.
+- Selected-text fallback for user-selected email content from the currently opened Tencent Exmail message when DOM extraction cannot identify fields.
 - Popup UI for analyze, result display, and copy draft.
 - Static and contract tests using Python `unittest`.
 - Documentation updates for setup, testing, and route decision.
@@ -157,7 +157,7 @@ Let the user open one email in Tencent Exmail, click an explicit extension butto
 - The unpacked extension can be loaded in Chrome or Edge.
 - The extension is scoped to Tencent Exmail and the local backend.
 - Clicking Analyze submits one current-email payload with `user_confirmed: true`.
-- Selected-text fallback can analyze manually selected email content.
+- Selected-text fallback can analyze user-selected email content from the currently opened Tencent Exmail message.
 - The popup displays the backend analysis result and copyable reply draft.
 - `python -m unittest discover -s tests` passes.
 - `python scripts/maintenance_scan.py` reports no findings.
@@ -725,7 +725,10 @@ Add these tests to `tests/test_browser_extension_static.py`:
         self.assertIn("getSelection", script)
         self.assertIn("selected_text", script)
         self.assertIn("body_text", script)
-        self.assertIn("No opened email or selected text found", script)
+        self.assertIn("hasMessageContext", script)
+        self.assertIn("user-selected email content", script)
+        self.assertIn("not arbitrary webpage analysis", script)
+        self.assertIn("Open one email or select visible email body content first", script)
 
     def test_exmail_adapter_does_not_perform_mailbox_actions(self) -> None:
         script = (EXTENSION / "content" / "exmail_adapter.js").read_text(encoding="utf-8")
@@ -785,13 +788,13 @@ Replace `frontend/browser_extension/content/exmail_adapter.js` with:
       }
     }
 
-    const selected = getSelectedText(documents);
+    const selected = getSelectedEmailContent(documents);
     if (selected) {
       return {
         ok: true,
         source: "selected_text",
         payload: {
-          subject: document.title || "Tencent Exmail selected text",
+          subject: document.title || "Tencent Exmail selected email content",
           from: "",
           to: [],
           sent_at: "",
@@ -802,7 +805,7 @@ Replace `frontend/browser_extension/content/exmail_adapter.js` with:
 
     return {
       ok: false,
-      error: "No opened email or selected text found. Open one email or select its body text first.",
+      error: "Open one email or select visible email body content first. The fallback is user-selected email content only, not arbitrary webpage analysis.",
     };
   }
 
@@ -826,6 +829,10 @@ Replace `frontend/browser_extension/content/exmail_adapter.js` with:
   }
 
   function extractFromDocument(doc) {
+    if (!hasMessageContext(doc)) {
+      return { subject: "", from: "", to: [], sent_at: "", body_text: "" };
+    }
+
     const subject = findSubject(doc);
     const body = findBody(doc);
 
@@ -868,8 +875,22 @@ Replace `frontend/browser_extension/content/exmail_adapter.js` with:
       return bodyCandidate;
     }
 
-    const selection = getSelectedText([doc]);
-    return selection || "";
+    return "";
+  }
+
+  function hasMessageContext(doc) {
+    const markerText = normalizeText(doc.body?.innerText || "");
+    if (!markerText) {
+      return false;
+    }
+
+    return Boolean(
+      firstText(doc, ["#subject", ".subject", ".mail_subject", "#mailContent", "#mailContentContainer"]) ||
+      markerText.includes("发件人") ||
+      markerText.includes("收件人") ||
+      markerText.includes("From:") ||
+      markerText.includes("To:")
+    );
   }
 
   function firstText(doc, selectors) {
@@ -906,8 +927,11 @@ Replace `frontend/browser_extension/content/exmail_adapter.js` with:
     return value.split(/[;,；，]/).map((item) => item.trim()).filter(Boolean);
   }
 
-  function getSelectedText(documents) {
+  function getSelectedEmailContent(documents) {
     for (const doc of documents) {
+      if (!hasMessageContext(doc)) {
+        continue;
+      }
       const view = doc.defaultView;
       const text = normalizeText(view?.getSelection?.().toString() || "");
       if (text) {
@@ -1189,7 +1213,7 @@ Add these tests to `tests/test_browser_extension_static.py`:
         self.assertIn("frontend/browser_extension", setup)
         self.assertIn("Load unpacked", setup)
         self.assertIn("Tencent Exmail", testing)
-        self.assertIn("selected text fallback", testing)
+        self.assertIn("message-scoped selected-text fallback", testing)
         self.assertIn("frontend/browser_extension", structure)
 ```
 
@@ -1244,7 +1268,7 @@ In `docs/operations/testing_checklist.md`, add:
 
 - Open one Tencent Exmail message and click `Analyze current email`.
 - Verify one current-email payload is sent after the click.
-- Verify selected text fallback works when an opened email cannot be extracted.
+- Verify message-scoped selected-text fallback works only for user-selected email content in the currently opened Tencent Exmail message.
 - Verify local backend unavailable state is readable.
 - Verify the extension does not send, delete, archive, move, or reply to mail.
 ```
@@ -1355,15 +1379,15 @@ Then verify:
 
 - The extension appears in the toolbar.
 - The extension popup opens.
-- On `https://exmail.qq.com/*`, clicking Analyze either extracts the opened email or shows the selected-text fallback guidance.
+- On `https://exmail.qq.com/*`, clicking Analyze either extracts the opened email or shows message-scoped selected-text fallback guidance.
 - With local backend stopped, the popup shows "Local analysis service unavailable".
-- With local backend running, a selected-text sample can be analyzed through the local backend.
+- With local backend running, a message-scoped selected-text sample can be analyzed through the local backend.
 
 Record any manual limitation in the final response if DOM extraction needs real opened-message selector refinement.
 
 ## Self-Review Notes
 
-- Spec coverage: Tasks cover route documentation, Manifest V3 skeleton, Exmail host permissions, content adapter, selected-text fallback, local backend call, result rendering, copy draft, safety boundaries, docs, and verification.
+- Spec coverage: Tasks cover route documentation, Manifest V3 skeleton, Exmail host permissions, content adapter, message-scoped selected-text fallback, local backend call, result rendering, copy draft, safety boundaries, docs, and verification.
 - Scope: This is one coherent prototype. It does not add OAuth, mailbox APIs, automated send/delete/archive actions, or OpenAI frontend calls.
 - Type and naming consistency: The popup sends `EXTRACT_CURRENT_EMAIL`; the content adapter listens for `EXTRACT_CURRENT_EMAIL`; the backend payload uses `subject`, `from`, `to`, `sent_at`, `body_text`, and `user_confirmed`.
 - Dependency check: No new Python or JavaScript package dependencies are introduced.

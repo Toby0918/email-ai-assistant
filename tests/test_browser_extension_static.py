@@ -26,6 +26,34 @@ class BrowserExtensionStaticTests(unittest.TestCase):
         self.assertIn("Tencent Exmail", roadmap)
         self.assertIn("Tencent Exmail", scope)
 
+    def test_active_docs_keep_selected_text_fallback_email_scoped(self) -> None:
+        docs = [
+            ROOT / "docs" / "decisions" / "adr_0002_frontend_route.md",
+            ROOT / "docs" / "superpowers" / "specs" / "2026-07-02-tencent-exmail-browser-extension-design.md",
+            ROOT / "docs" / "superpowers" / "plans" / "2026-07-02-tencent-exmail-browser-extension.md",
+        ]
+        required = [
+            "user-selected email content",
+            "currently opened Tencent Exmail message",
+            "not arbitrary webpage analysis",
+            "not background page scraping",
+        ]
+        forbidden = [
+            "selected page text",
+            "selected text on any web page",
+            "fallback when no opened email is detected",
+            "No opened email or selected text found",
+        ]
+
+        for path in docs:
+            text = path.read_text(encoding="utf-8")
+            for marker in required:
+                with self.subTest(path=path.name, marker=marker):
+                    self.assertIn(marker, text)
+            for marker in forbidden:
+                with self.subTest(path=path.name, marker=marker):
+                    self.assertNotIn(marker, text)
+
     def test_tencent_exmail_task_brief_exists(self) -> None:
         brief = ROOT / "docs" / "operations" / "tencent_exmail_browser_extension_task_brief.md"
 

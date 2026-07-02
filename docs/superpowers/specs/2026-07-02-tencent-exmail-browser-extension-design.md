@@ -11,7 +11,7 @@ source_type: design_spec
 ## Goal
 
 Build the second-phase browser-extension prototype for Tencent Exmail Web at `https://exmail.qq.com/*`.
-The extension should let the user open one email, click an explicit analysis button, send only that current email payload to the local Python backend, and display the existing structured analysis result and reply draft.
+The extension should let the user open one email, click an explicit analysis button, send only that currently opened Tencent Exmail message payload to the local Python backend, and display the existing structured analysis result and reply draft.
 
 ## User Context
 
@@ -27,11 +27,13 @@ The prototype includes:
 - A Manifest V3 browser extension under `frontend/browser_extension/`.
 - Host permissions limited to Tencent Exmail and the local backend.
 - A popup or compact panel with an "Analyze current email" action.
-- A Tencent Exmail content adapter that extracts the currently open email from the active tab after the user clicks the action.
-- A selection fallback that analyzes the selected page text when DOM extraction is not available.
+- A Tencent Exmail content adapter that extracts the currently opened Tencent Exmail message from the active tab after the user clicks the action.
+- A selection fallback that analyzes only user-selected email content from the currently opened Tencent Exmail message after the explicit Analyze click when DOM extraction is not available.
 - A call to `http://127.0.0.1:8765/api/analyze-current-email` using the existing backend API contract.
 - Result rendering for summary, priority, category, risk flags, suggested actions, and reply draft.
 - Copy-to-clipboard support for the reply draft.
+
+The selected-text fallback is not arbitrary webpage analysis and is not background page scraping. It should only be offered when the active tab is Tencent Exmail and the user has opened a message or selected visible email body content in that message.
 
 ## Non-Goals
 
@@ -51,7 +53,7 @@ The prototype does not:
 ### Approach A: Tencent Exmail adapter plus selected-text fallback
 
 This is the chosen approach.
-The extension is intentionally narrow: it runs only on Tencent Exmail, tries to extract the open email with a dedicated adapter, and falls back to selected text when the Exmail DOM is not stable enough.
+The extension is intentionally narrow: it runs only on Tencent Exmail, tries to extract the currently opened Tencent Exmail message with a dedicated adapter, and falls back only to user-selected email content from that opened message when the Exmail DOM is not stable enough.
 
 Benefits:
 
@@ -65,9 +67,9 @@ Trade-offs:
 - The DOM adapter may need adjustment after observing the real opened-message page.
 - The selected-text fallback may produce less complete metadata than DOM extraction.
 
-### Approach B: Selection-only generic extension
+### Approach B: Generic selection-only extension
 
-This would analyze only selected text on any web page.
+This would analyze selected text outside the current mailbox-message context.
 It is safer and faster, but it does not meet the product goal of recognizing the current email fields from the mailbox UI.
 
 ### Approach C: Outlook or Gmail extension route
@@ -111,9 +113,10 @@ The content adapter owns page extraction:
 
 - Detect whether the current tab is Tencent Exmail.
 - Traverse same-origin Tencent Exmail frames when accessible.
-- Extract subject, sender, recipients, sent time, and body from the currently opened email view.
-- If no opened email is detected, return a structured extraction error.
-- If selected text exists, return a fallback payload with the selected text as body and visible page title as subject.
+- Extract subject, sender, recipients, sent time, and body from the currently opened Tencent Exmail message view.
+- If message context is not present, return a structured extraction error.
+- If DOM field extraction fails but the user selected visible email body content in the opened message, return a fallback payload with that user-selected email content as body.
+- Do not treat selected text outside the opened message context as a fallback payload.
 
 The shared API client owns local backend calls:
 
@@ -132,7 +135,7 @@ The result renderer owns display formatting:
 User opens one email in Tencent Exmail
 -> User clicks extension Analyze
 -> Popup asks content adapter for current email payload
--> Content adapter extracts current email or selected-text fallback
+-> Content adapter extracts the current email or a message-scoped selected-text fallback
 -> Popup sends payload to local Python backend with user_confirmed=true
 -> Backend cleans, analyzes, validates JSON, and saves local SQLite debug record
 -> Popup displays structured analysis and reply draft
@@ -145,11 +148,12 @@ The first implementation should prioritize robustness over cleverness:
 
 - Only run extraction in response to a popup message triggered by the user's click.
 - Look for the most likely opened-message document in the top page and same-origin frames.
+- Require message context before accepting a selected-text fallback.
 - Prefer semantic field labels and stable visible text over brittle absolute CSS paths.
 - Treat subject, sender, recipients, and sent time as optional when the page does not expose them clearly.
 - Require non-empty body text before analysis.
-- If the body is empty but selected text is present, use selected text as fallback body.
-- If neither opened-message body nor selected text exists, show a user-facing "open or select an email first" error.
+- If the body is empty but user-selected email content is present inside the currently opened Tencent Exmail message, use that text as fallback body.
+- If neither opened-message body nor message-scoped selected email content exists, show a user-facing "open an email or select visible email body content first" error.
 
 ## Error Handling
 
@@ -157,7 +161,7 @@ Expected user-facing states:
 
 - Local backend unavailable.
 - Current tab is not Tencent Exmail.
-- No opened email detected.
+- No opened message context detected.
 - Email body is empty.
 - Backend rejected the request.
 - Analysis failed.
@@ -195,7 +199,7 @@ Manual verification should cover:
 - Loading the unpacked extension in Chrome or Edge.
 - Opening Tencent Exmail Web at `exmail.qq.com`.
 - Running analysis on one opened email.
-- Running analysis with selected text fallback.
+- Running analysis with message-scoped selected-text fallback.
 - Handling local backend unavailable.
 
 ## Acceptance Criteria
@@ -205,7 +209,7 @@ The second-phase prototype is complete when:
 - A user can load the extension unpacked in Chrome or Edge.
 - The extension is limited to Tencent Exmail and the local backend.
 - Clicking Analyze on an opened Exmail message submits exactly one current email payload to the backend.
-- If DOM extraction fails, selected-text fallback can still analyze manually selected email content.
+- If DOM extraction fails, selected-text fallback can still analyze user-selected email content from the currently opened Tencent Exmail message.
 - The popup displays the existing backend analysis fields and a copyable reply draft.
 - Automated tests and maintenance scan pass.
 - Updated docs explain that the chosen second-phase frontend route is Tencent Exmail browser extension.
