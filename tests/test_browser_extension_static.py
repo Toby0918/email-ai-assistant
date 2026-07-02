@@ -101,6 +101,29 @@ class BrowserExtensionStaticTests(unittest.TestCase):
             with self.subTest(relative=relative):
                 self.assertTrue((EXTENSION / relative).exists())
 
+    def test_api_client_calls_only_local_backend(self) -> None:
+        script = (EXTENSION / "shared" / "api_client.js").read_text(encoding="utf-8")
+
+        self.assertIn("http://127.0.0.1:8765/api/analyze-current-email", script)
+        self.assertIn("fetch(", script)
+        self.assertIn('"Content-Type": "application/json"', script)
+        self.assertIn("user_confirmed: true", script)
+        self.assertNotIn("api.openai.com", script)
+        self.assertNotIn("OPENAI_API_KEY", script)
+        self.assertNotIn("process.env", script)
+
+    def test_renderer_displays_existing_analysis_schema(self) -> None:
+        script = (EXTENSION / "shared" / "render_analysis.js").read_text(encoding="utf-8")
+
+        self.assertIn("renderAnalysis", script)
+        self.assertIn("clearAnalysis", script)
+        self.assertIn("analysis.priority", script)
+        self.assertIn("analysis.summary", script)
+        self.assertIn("analysis.category", script)
+        self.assertIn("analysis.risk_flags", script)
+        self.assertIn("analysis.suggested_actions", script)
+        self.assertIn("analysis.reply_draft.body", script)
+
     def test_tencent_exmail_task_brief_exists(self) -> None:
         brief = ROOT / "docs" / "operations" / "tencent_exmail_browser_extension_task_brief.md"
 
