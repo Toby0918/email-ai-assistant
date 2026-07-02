@@ -24,6 +24,14 @@ source_type: operation_guide
 - 脱敏 golden 样例集覆盖主要邮件类型。
 - 本地规则分析器输出与 golden 样例预期保持一致。
 
+## Tencent Exmail extension checks
+
+- Open one Tencent Exmail message and click `Analyze current email`.
+- Verify one current-email payload is sent after the click.
+- Verify message-scoped selected-text fallback works only for user-selected email content in the currently opened Tencent Exmail message.
+- Verify local backend unavailable state is readable.
+- Verify the extension does not send, delete, archive, move, or reply to mail.
+
 ## 安全检查
 
 - 前端没有 API key。

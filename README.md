@@ -91,6 +91,21 @@ http://127.0.0.1:8765
 
 页面只会在点击 `Analyze` 后调用本地后端接口。未配置 OpenAI API key 时，后端使用本地规则分析器返回可校验结果。
 
+## Tencent Exmail browser extension prototype
+
+Second-stage prototype files live in `frontend/browser_extension`.
+
+Local use:
+
+1. Start the backend with `start_local_service.cmd` or `python scripts/manage_local_service.py start`.
+2. Open Chrome or Edge extension management.
+3. Choose `Load unpacked`.
+4. Select the `frontend/browser_extension` folder.
+5. Open Tencent Exmail Web at `https://exmail.qq.com/`.
+6. Open one email, then click the extension's `Analyze current email` button.
+
+The extension calls only the local backend. It does not store API keys, connect to a mailbox account, scan the mailbox, or automatically send/delete/archive email.
+
 ## 可执行检查
 
 使用项目自带的约束测试检查文档元信息、敏感文件、架构边界、静态规则和机械规则：
@@ -148,4 +163,4 @@ git push -u origin master
 - `frontend/local_debug_page/`：只用于验证“点击分析当前邮件”的辅助窗口体验。
 - `tests/`：持续维护可执行约束和业务测试。
 
-正式 Outlook Add-in、Google Workspace Add-on 或浏览器扩展路线，需要后续单独确认。
+第二阶段已选择 Tencent Exmail Chrome / Edge 浏览器扩展原型，位于 `frontend/browser_extension`。Outlook Add-in 和 Google Workspace Add-on 路线仍需后续单独确认。

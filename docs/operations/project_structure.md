@@ -41,6 +41,16 @@ email-ai-assistant/
       index.html
       app.js
       styles.css
+    browser_extension/
+      manifest.json
+      popup.html
+      popup.css
+      popup.js
+      content/
+        exmail_adapter.js
+      shared/
+        api_client.js
+        render_analysis.js
 
   .github/
     workflows/
@@ -163,7 +173,7 @@ email-ai-assistant/
 ## 第一阶段已落地结构
 
 第一阶段已经落地 `backend/email_agent/`、`frontend/local_debug_page/`、`tests/`、`scripts/` 和结构化 `docs/`。
-当前正式邮箱前端路线尚未选择；Outlook Add-in、Google Workspace Add-on 和浏览器扩展目录仍属于后续单独确认范围。
+第二阶段已选择 Tencent Exmail Chrome / Edge 浏览器扩展原型，目录为 `frontend/browser_extension/`。Outlook Add-in 和 Google Workspace Add-on 路线仍属于后续单独确认范围。
 
 ```text
 email-ai-assistant/
@@ -186,6 +196,16 @@ email-ai-assistant/
       index.html
       app.js
       styles.css
+    browser_extension/
+      manifest.json
+      popup.html
+      popup.css
+      popup.js
+      content/
+        exmail_adapter.js
+      shared/
+        api_client.js
+        render_analysis.js
 
   tests/
     fixtures/
@@ -207,7 +227,8 @@ email-ai-assistant/
 - `.github/workflows/`：CI 护栏和可选后台清理报告任务。当前运行架构、静态 linter、机械规则、完整 unittest 和只读 cleanup scan。
 - `backend/`：Python 后端代码。负责邮件正文清洗、AI 调用封装、结构化结果校验、SQLite 持久化、调试导出、本地 API 和本地调试服务。
 - `frontend/local_debug_page/`：第一阶段本地辅助窗口调试页面，只在用户点击 `Analyze` 后调用本地后端 API，不接入真实邮箱账号。
-- `frontend/` 其他路线：Outlook Add-in、Google Workspace Add-on 和浏览器扩展属于后续正式邮箱前端路线，需单独确认后再落地。
+- `frontend/browser_extension/`: Chrome / Edge prototype for Tencent Exmail. It contains the Manifest V3 popup, Tencent Exmail content adapter, local API client, and result renderer. It reads only the current opened message after a user click and calls the local backend.
+- `frontend/` 其他路线：Outlook Add-in 和 Google Workspace Add-on 属于后续正式邮箱前端路线，需单独确认后再落地。
 - `docs/`：结构化知识库、Prompt、业务规则、接口约定、安全规则、约束层、操作指南、Agent 项目进度日志、Codex 自动化规范、模板和技术决策。`docs/` 是项目规则来源，不是附属说明。
 - `docs/constraints/`：工具、架构、静态检查、CI 和机械规则约束。
 - `docs/conventions/`：日志等代码约定。
@@ -219,4 +240,4 @@ email-ai-assistant/
 
 ## 第一阶段建议
 
-第一阶段当前以本地调试页面完成“用户点击按钮后分析当前邮件”的闭环。正式企业邮箱前端路线应在后续单独确认后再落地。
+第一阶段当前以本地调试页面完成“用户点击按钮后分析当前邮件”的闭环。第二阶段 Tencent Exmail 浏览器扩展原型已落地；其他正式企业邮箱前端路线应在后续单独确认后再落地。

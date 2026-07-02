@@ -218,6 +218,27 @@ class BrowserExtensionStaticTests(unittest.TestCase):
                 with self.subTest(path=path.relative_to(ROOT), marker=marker):
                     self.assertNotIn(marker, text)
 
+    def test_readme_documents_browser_extension_usage(self) -> None:
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+
+        self.assertIn("frontend/browser_extension", readme)
+        self.assertIn("exmail.qq.com", readme)
+        self.assertIn("Load unpacked", readme)
+        self.assertIn("start_local_service.cmd", readme)
+        self.assertNotIn("浏览器扩展路线，需要后续单独确认", readme)
+
+    def test_operations_docs_document_extension_setup_and_testing(self) -> None:
+        setup = (ROOT / "docs" / "operations" / "setup_checklist.md").read_text(encoding="utf-8")
+        testing = (ROOT / "docs" / "operations" / "testing_checklist.md").read_text(encoding="utf-8")
+        structure = (ROOT / "docs" / "operations" / "project_structure.md").read_text(encoding="utf-8")
+
+        self.assertIn("frontend/browser_extension", setup)
+        self.assertIn("Load unpacked", setup)
+        self.assertIn("Tencent Exmail", testing)
+        self.assertIn("message-scoped selected-text fallback", testing)
+        self.assertIn("frontend/browser_extension", structure)
+        self.assertNotIn("当前正式邮箱前端路线尚未选择", structure)
+
     def test_tencent_exmail_task_brief_exists(self) -> None:
         brief = ROOT / "docs" / "operations" / "tencent_exmail_browser_extension_task_brief.md"
 

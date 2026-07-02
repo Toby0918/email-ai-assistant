@@ -26,6 +26,13 @@ source_type: operation_guide
 - 确认前端没有 OpenAI API key。
 - 确认前端只在用户点击按钮后调用分析接口。
 
+## Tencent Exmail extension setup
+
+- Start the local backend before using the extension.
+- Load `frontend/browser_extension` as an unpacked extension in Chrome or Edge with `Load unpacked`.
+- Use the extension only on `https://exmail.qq.com/*`.
+- Keep the extension pointed at `http://127.0.0.1:8765`.
+
 ## 数据
 
 - 使用虚构或脱敏邮件样本。
