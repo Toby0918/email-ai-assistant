@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-01
+last_update: 2026-07-02
 status: active
 owner: "@tobyWang"
 review_cycle: weekly
@@ -15,9 +15,9 @@ source_type: operation_guide
 
 | Field | Value |
 |---|---|
-| Generated on | 2026-07-01 |
+| Generated on | 2026-07-02 |
 | Current stage | local_eval_mvp |
-| Git branch | master |
+| Git branch | codex/tencent-exmail-extension-design |
 | Git HEAD reference | Run `git rev-parse --short HEAD` in this workspace |
 | Working tree status | Run `git status --short --ignored` in this workspace |
 
@@ -129,8 +129,8 @@ source_type: operation_guide
 
 | Status | Count |
 |---|---:|
-| active | 44 |
-| draft | 30 |
+| active | 48 |
+| draft | 29 |
 | deprecated | 0 |
 | missing_front_matter | 0 |
 
