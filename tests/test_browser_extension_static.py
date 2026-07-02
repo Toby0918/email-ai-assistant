@@ -19,6 +19,10 @@ class BrowserExtensionStaticTests(unittest.TestCase):
         self.assertIn("Tencent Exmail", adr)
         self.assertIn("Chrome / Edge browser extension", adr)
         self.assertIn("exmail.qq.com", adr)
+        self.assertIn("current opened Tencent Exmail message", adr)
+        self.assertIn("user-selected email content", adr)
+        self.assertIn("not arbitrary webpage analysis", adr)
+        self.assertIn("after the explicit analyze click", adr)
         self.assertIn("Tencent Exmail", roadmap)
         self.assertIn("Tencent Exmail", scope)
 
