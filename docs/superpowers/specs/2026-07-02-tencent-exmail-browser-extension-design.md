@@ -153,7 +153,7 @@ The first implementation should prioritize robustness over cleverness:
 - Treat subject, sender, recipients, and sent time as optional when the page does not expose them clearly.
 - Require non-empty body text before analysis.
 - If the body is empty but user-selected email content is present inside the currently opened Tencent Exmail message, use that text as fallback body.
-- If neither opened-message body nor message-scoped selected email content exists, show a user-facing "open an email or select visible email body content first" error.
+- If neither opened-message body nor message-scoped selected email content exists, show the user-facing error "Open a Tencent Exmail message or select email body text from that opened message first".
 
 ## Error Handling
 

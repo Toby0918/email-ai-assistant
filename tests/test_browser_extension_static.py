@@ -37,12 +37,14 @@ class BrowserExtensionStaticTests(unittest.TestCase):
             "currently opened Tencent Exmail message",
             "not arbitrary webpage analysis",
             "not background page scraping",
+            "Open a Tencent Exmail message or select email body text from that opened message first",
         ]
         forbidden = [
             "selected page text",
             "selected text on any web page",
             "fallback when no opened email is detected",
             "No opened email or selected text found",
+            "Open one email or select visible email body content first",
         ]
 
         for path in docs:

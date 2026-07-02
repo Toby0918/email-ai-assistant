@@ -728,7 +728,7 @@ Add these tests to `tests/test_browser_extension_static.py`:
         self.assertIn("hasMessageContext", script)
         self.assertIn("user-selected email content", script)
         self.assertIn("not arbitrary webpage analysis", script)
-        self.assertIn("Open one email or select visible email body content first", script)
+        self.assertIn("Open a Tencent Exmail message or select email body text from that opened message first", script)
 
     def test_exmail_adapter_does_not_perform_mailbox_actions(self) -> None:
         script = (EXTENSION / "content" / "exmail_adapter.js").read_text(encoding="utf-8")
@@ -805,7 +805,7 @@ Replace `frontend/browser_extension/content/exmail_adapter.js` with:
 
     return {
       ok: false,
-      error: "Open one email or select visible email body content first. The fallback is user-selected email content only, not arbitrary webpage analysis.",
+      error: "Open a Tencent Exmail message or select email body text from that opened message first. The fallback is user-selected email content only, not arbitrary webpage analysis.",
     };
   }
 

@@ -23,6 +23,7 @@ source_type: decision_record
 第二阶段正式前端原型路线选择 Chrome / Edge browser extension for Tencent Exmail Web (`https://exmail.qq.com/*`)。
 正常路径只在 after the explicit analyze click 分析 current opened Tencent Exmail message，即 currently opened Tencent Exmail message，并调用本地 Python 后端。
 selected-text fallback 只允许在 DOM 提取无法识别字段时使用 opened message 中的 user-selected email content。This fallback is not background page scraping and is not arbitrary webpage analysis.
+User-facing fallback guidance must say: "Open a Tencent Exmail message or select email body text from that opened message first".
 它不做真实邮箱账号集成，不读取凭据或 token，不扫描邮箱，不自动发送、删除、归档、移动或回复邮件。
 
 ## 约束
