@@ -72,6 +72,20 @@ class BrowserExtensionStaticTests(unittest.TestCase):
             plan,
         )
 
+    def test_exmail_superpowers_docs_use_allowed_source_type(self) -> None:
+        docs = [
+            ROOT / "docs" / "superpowers" / "specs" / "2026-07-02-tencent-exmail-browser-extension-design.md",
+            ROOT / "docs" / "superpowers" / "plans" / "2026-07-02-tencent-exmail-browser-extension.md",
+        ]
+
+        for path in docs:
+            text = path.read_text(encoding="utf-8")
+            front_matter = text.split("---", 2)[1]
+            with self.subTest(path=path.name):
+                self.assertIn("source_type: operation_guide", front_matter)
+                self.assertNotIn("source_type: design_spec", front_matter)
+                self.assertNotIn("source_type: implementation_plan", front_matter)
+
     def test_tencent_exmail_task_brief_exists(self) -> None:
         brief = ROOT / "docs" / "operations" / "tencent_exmail_browser_extension_task_brief.md"
 

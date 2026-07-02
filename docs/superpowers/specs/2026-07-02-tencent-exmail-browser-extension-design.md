@@ -3,7 +3,7 @@ last_update: 2026-07-02
 status: active
 owner: "@tobyWang"
 review_cycle: weekly
-source_type: design_spec
+source_type: operation_guide
 ---
 
 # Tencent Exmail Browser Extension Prototype Design
