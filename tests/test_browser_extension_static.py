@@ -86,6 +86,21 @@ class BrowserExtensionStaticTests(unittest.TestCase):
                 self.assertNotIn("source_type: design_spec", front_matter)
                 self.assertNotIn("source_type: implementation_plan", front_matter)
 
+    def test_browser_extension_files_exist(self) -> None:
+        expected = [
+            "manifest.json",
+            "popup.html",
+            "popup.css",
+            "popup.js",
+            "content/exmail_adapter.js",
+            "shared/api_client.js",
+            "shared/render_analysis.js",
+        ]
+
+        for relative in expected:
+            with self.subTest(relative=relative):
+                self.assertTrue((EXTENSION / relative).exists())
+
     def test_tencent_exmail_task_brief_exists(self) -> None:
         brief = ROOT / "docs" / "operations" / "tencent_exmail_browser_extension_task_brief.md"
 

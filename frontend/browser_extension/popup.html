@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Email AI Assistant</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main class="popup-shell">
+      <header class="popup-header">
+        <div>
+          <p class="eyebrow">Tencent Exmail</p>
+          <h1>Email AI Assistant</h1>
+        </div>
+        <span id="priority" class="priority-pill">-</span>
+      </header>
+
+      <button id="analyze-button" type="button">Analyze current email</button>
+      <p id="status" class="status-line">Open an email, then click Analyze.</p>
+
+      <section class="result-section" aria-label="Analysis result">
+        <h2 id="summary">No analysis yet</h2>
+        <dl>
+          <dt>Category</dt>
+          <dd id="category">-</dd>
+          <dt>Risks</dt>
+          <dd id="risks">-</dd>
+          <dt>Actions</dt>
+          <dd id="actions">-</dd>
+        </dl>
+      </section>
+
+      <label class="draft-label">
+        Draft
+        <textarea id="draft" rows="8" readonly></textarea>
+      </label>
+      <button id="copy-draft-button" type="button">Copy draft</button>
+    </main>
+
+    <script src="shared/api_client.js"></script>
+    <script src="shared/render_analysis.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>

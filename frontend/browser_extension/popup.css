@@ -1,0 +1,115 @@
+:root {
+  color-scheme: light;
+  font-family: Arial, "Microsoft YaHei", sans-serif;
+  color: #17202a;
+  background: #f4f6f8;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  width: 420px;
+  margin: 0;
+}
+
+.popup-shell {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+}
+
+.popup-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.eyebrow {
+  margin: 0 0 4px;
+  color: #52616f;
+  font-size: 12px;
+  text-transform: uppercase;
+}
+
+h1,
+h2 {
+  margin: 0;
+}
+
+h1 {
+  font-size: 20px;
+}
+
+h2 {
+  font-size: 16px;
+  line-height: 1.35;
+}
+
+button {
+  border: 0;
+  border-radius: 6px;
+  padding: 10px 14px;
+  background: #146c94;
+  color: #ffffff;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.status-line {
+  margin: 0;
+  color: #52616f;
+  min-height: 20px;
+}
+
+.priority-pill {
+  border-radius: 999px;
+  background: #e3f2fd;
+  color: #0b5c7e;
+  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+dl {
+  display: grid;
+  grid-template-columns: 78px 1fr;
+  gap: 8px 12px;
+  margin: 12px 0 0;
+}
+
+dt {
+  color: #52616f;
+  font-weight: 700;
+}
+
+dd {
+  margin: 0;
+}
+
+.draft-label {
+  display: grid;
+  gap: 6px;
+  font-weight: 700;
+}
+
+textarea {
+  width: 100%;
+  border: 1px solid #bcccdc;
+  border-radius: 6px;
+  padding: 10px;
+  font: inherit;
+  resize: vertical;
+}
+
+#copy-draft-button {
+  background: #335c67;
+}

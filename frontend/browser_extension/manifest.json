@@ -1,0 +1,22 @@
+{
+  "manifest_version": 3,
+  "name": "Email AI Assistant for Tencent Exmail",
+  "description": "Analyze the currently opened Tencent Exmail message through the local Email AI Assistant backend.",
+  "version": "0.2.0",
+  "action": {
+    "default_title": "Email AI Assistant",
+    "default_popup": "popup.html"
+  },
+  "permissions": ["activeTab"],
+  "host_permissions": [
+    "https://exmail.qq.com/*",
+    "http://127.0.0.1:8765/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["https://exmail.qq.com/*"],
+      "js": ["content/exmail_adapter.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}
