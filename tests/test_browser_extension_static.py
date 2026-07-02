@@ -124,6 +124,38 @@ class BrowserExtensionStaticTests(unittest.TestCase):
         self.assertIn("analysis.suggested_actions", script)
         self.assertIn("analysis.reply_draft.body", script)
 
+    def test_exmail_adapter_extracts_only_after_popup_message(self) -> None:
+        script = (EXTENSION / "content" / "exmail_adapter.js").read_text(encoding="utf-8")
+
+        self.assertIn("chrome.runtime.onMessage.addListener", script)
+        self.assertIn('MESSAGE_TYPE = "EXTRACT_CURRENT_EMAIL"', script)
+        self.assertIn("sendResponse(extractCurrentEmail())", script)
+        self.assertNotIn("setInterval(", script)
+        self.assertNotIn("MutationObserver", script)
+
+    def test_exmail_adapter_scopes_selected_text_to_message_context(self) -> None:
+        script = (EXTENSION / "content" / "exmail_adapter.js").read_text(encoding="utf-8")
+
+        self.assertIn("hasMessageContext", script)
+        self.assertIn("getSelectedEmailContent", script)
+        self.assertIn("selectionBelongsToMessage", script)
+        self.assertIn("findBodyElement", script)
+        self.assertIn("view.getSelection", script)
+        self.assertIn("selected_text", script)
+        self.assertIn(
+            "Open a Tencent Exmail message or select email body text from that opened message first",
+            script,
+        )
+        self.assertIn("not arbitrary webpage analysis", script)
+        self.assertNotIn("selected page text", script)
+        self.assertNotIn("selected text on any web page", script)
+        self.assertNotIn("[role='main']", script)
+
+    def test_exmail_adapter_does_not_log_email_body(self) -> None:
+        script = (EXTENSION / "content" / "exmail_adapter.js").read_text(encoding="utf-8")
+
+        self.assertNotIn("console.log", script)
+
     def test_tencent_exmail_task_brief_exists(self) -> None:
         brief = ROOT / "docs" / "operations" / "tencent_exmail_browser_extension_task_brief.md"
 
