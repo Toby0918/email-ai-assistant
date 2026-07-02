@@ -1,5 +1,5 @@
 ﻿---
-last_update: 2026-06-29
+last_update: 2026-07-02
 status: draft
 owner: "@tobyWang"
 review_cycle: monthly
@@ -38,5 +38,9 @@ source_type: prompt_spec
 ## 输出要求
 
 输出必须是 JSON，字段遵循 `docs/data/analysis_result_schema.md`。无法判断时使用 `unknown`、空数组或简短说明。
+
+- 面向用户的分析反馈必须使用中文，包括 `summary`、`priority_reason`、`risk_flags.evidence`、`risk_flags.recommendation`、`suggested_actions.description` 和 `reply_draft.review_reasons`。
+- 可复制给外部客户或供应商的回复草稿必须保持英文，包括 `reply_draft.subject` 和 `reply_draft.body`。
+- 枚举字段仍使用 schema 中定义的英文枚举值，不翻译枚举本身。
 
 

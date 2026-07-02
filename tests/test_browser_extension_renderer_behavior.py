@@ -36,29 +36,39 @@ class BrowserExtensionRendererBehaviorTests(unittest.TestCase):
 
         context.window.EmailAssistantRender.renderAnalysis(fields, {{
           priority: "high",
-          summary: "Payment needs confirmation.",
+          summary: "需要核对付款状态。",
           category: "payment",
-          risk_flags: [{{ type: "payment_risk", level: "high" }}],
+          risk_flags: [{{ type: "payment_risk", level: "high", evidence: "邮件提到付款或发票。" }}],
           suggested_actions: [
-            {{ type: "confirm", description: "Confirm payment status before replying." }},
+            {{ type: "confirm", description: "请先核对付款、发票或汇款状态，再回复。" }},
+            {{ type: "check_inventory" }},
           ],
           reply_draft: {{ body: "Draft body" }},
         }});
 
+        if (fields.priority.textContent !== "高") {{
+          throw new Error(`priority label missing: ${{fields.priority.textContent}}`);
+        }}
+        if (fields.category.textContent !== "付款/发票") {{
+          throw new Error(`category label missing: ${{fields.category.textContent}}`);
+        }}
         if (fields.risks.textContent.includes("[object Object]")) {{
           throw new Error(`risk text is not readable: ${{fields.risks.textContent}}`);
         }}
-        if (!fields.risks.textContent.includes("payment_risk")) {{
-          throw new Error(`risk type missing: ${{fields.risks.textContent}}`);
+        if (!fields.risks.textContent.includes("付款风险")) {{
+          throw new Error(`risk label missing: ${{fields.risks.textContent}}`);
         }}
-        if (!fields.risks.textContent.includes("high")) {{
+        if (!fields.risks.textContent.includes("高")) {{
           throw new Error(`risk level missing: ${{fields.risks.textContent}}`);
         }}
         if (fields.actions.textContent.includes("[object Object]")) {{
           throw new Error(`action text is not readable: ${{fields.actions.textContent}}`);
         }}
-        if (!fields.actions.textContent.includes("Confirm payment status before replying.")) {{
+        if (!fields.actions.textContent.includes("请先核对付款、发票或汇款状态，再回复。")) {{
           throw new Error(`action description missing: ${{fields.actions.textContent}}`);
+        }}
+        if (!fields.actions.textContent.includes("核查库存")) {{
+          throw new Error(`action fallback label missing: ${{fields.actions.textContent}}`);
         }}
         """
 

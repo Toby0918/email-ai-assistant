@@ -7,6 +7,10 @@ import unittest
 from backend.email_agent.rule_analyzer import build_rule_based_analysis
 
 
+def _contains_chinese(text: str) -> bool:
+    return any("\u4e00" <= char <= "\u9fff" for char in text)
+
+
 class RuleAnalyzerTests(unittest.TestCase):
     def test_build_rule_based_analysis_detects_delivery_risk(self) -> None:
         result = build_rule_based_analysis(
@@ -69,7 +73,34 @@ class RuleAnalyzerTests(unittest.TestCase):
         action = result["suggested_actions"][0]
         self.assertEqual(action["type"], "confirm")
         self.assertNotIn("Review the payment email", action["description"])
-        self.assertIn("payment", action["description"].lower())
+        self.assertIn("付款", action["description"])
+
+    def test_feedback_fields_are_chinese_while_reply_draft_stays_english(self) -> None:
+        result = build_rule_based_analysis(
+            subject="Invoice payment overdue",
+            sender="billing@example.test",
+            clean_body="The invoice payment is overdue. Please confirm remittance status.",
+        )
+
+        self.assertTrue(_contains_chinese(result["summary"]))
+        self.assertIn("付款", result["summary"])
+        self.assertNotIn("Invoice payment overdue", result["summary"])
+        self.assertTrue(_contains_chinese(result["priority_reason"]))
+        self.assertTrue(_contains_chinese(result["risk_flags"][0]["evidence"]))
+        self.assertTrue(_contains_chinese(result["risk_flags"][0]["recommendation"]))
+        self.assertTrue(_contains_chinese(result["suggested_actions"][0]["description"]))
+        self.assertTrue(_contains_chinese(result["reply_draft"]["review_reasons"][0]))
+        self.assertFalse(_contains_chinese(result["reply_draft"]["subject"]))
+        self.assertFalse(_contains_chinese(result["reply_draft"]["body"]))
+
+    def test_chinese_email_subject_does_not_leak_into_english_draft_subject(self) -> None:
+        result = build_rule_based_analysis(
+            subject="交期确认",
+            sender="customer@example.test",
+            clean_body="请确认这批订单的交期。",
+        )
+
+        self.assertEqual(result["reply_draft"]["subject"], "Re: your email")
 
     def test_reply_draft_mentions_delivery_status_check(self) -> None:
         result = build_rule_based_analysis(
@@ -160,7 +191,7 @@ class RuleAnalyzerTests(unittest.TestCase):
         action = result["suggested_actions"][0]
         draft = result["reply_draft"]["body"].lower()
         self.assertEqual(action["type"], "confirm")
-        self.assertIn("meeting", action["description"].lower())
+        self.assertIn("会议", action["description"])
         self.assertIn("meeting invitation", draft)
         self.assertNotIn("quote", draft)
 
@@ -175,7 +206,7 @@ class RuleAnalyzerTests(unittest.TestCase):
         draft = result["reply_draft"]["body"].lower()
         self.assertEqual(result["category"], "order_followup")
         self.assertEqual(action["type"], "check_delivery")
-        self.assertIn("logistics", action["description"].lower())
+        self.assertIn("物流", action["description"])
         self.assertIn("tracking", draft)
         self.assertNotIn("quote", draft)
 

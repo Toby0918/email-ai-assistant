@@ -1,5 +1,5 @@
 ﻿---
-last_update: 2026-06-29
+last_update: 2026-07-02
 status: draft
 owner: "@tobyWang"
 review_cycle: monthly
@@ -31,5 +31,11 @@ source_type: data_schema
 | `suggested_actions` | array | 建议动作 |
 | `reply_draft` | object | 回复草稿 |
 | `needs_human_review` | boolean | 是否需要人工审核 |
+
+## 语言约定
+
+- 分析反馈字段使用中文，包含摘要、优先级原因、风险证据、风险建议、建议动作说明和人工审核原因。
+- 回复草稿字段 `reply_draft.subject` 和 `reply_draft.body` 保持英文。
+- 枚举字段保持英文值，前端显示时映射为中文标签。
 
 

@@ -58,6 +58,16 @@ class FrontendLocalDebugTests(unittest.TestCase):
         self.assertIn("Local analysis service unavailable", script)
         self.assertIn('clearAnalysis();\n    fields.status.textContent = "Local analysis service unavailable"', script)
 
+    def test_local_debug_page_renders_chinese_feedback_labels(self) -> None:
+        script = (FRONTEND / "app.js").read_text(encoding="utf-8")
+
+        self.assertIn("function formatPriority", script)
+        self.assertIn("function formatCategory", script)
+        self.assertIn("function formatRisk", script)
+        self.assertIn('payment: "付款/发票"', script)
+        self.assertIn('payment_risk: "付款风险"', script)
+        self.assertIn('check_inventory: "核查库存"', script)
+
     def test_readme_documents_local_debug_start_command(self) -> None:
         readme = (ROOT / "README.md").read_text(encoding="utf-8")
 

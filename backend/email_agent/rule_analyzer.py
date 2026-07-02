@@ -30,6 +30,18 @@ BOOKING_KEYWORDS = (
     "物流",
 )
 
+PRIORITY_LABELS = {"urgent": "紧急", "high": "高", "normal": "普通", "low": "低"}
+
+RISK_LABELS = {
+    "payment_risk": "付款风险",
+    "delivery_risk": "交付/物流风险",
+    "contract_risk": "合同风险",
+    "quality_risk": "质量风险",
+    "security_risk": "安全风险",
+    "commitment_risk": "承诺风险",
+    "prompt_injection_risk": "提示注入风险",
+}
+
 
 def build_rule_based_analysis(subject: str, sender: str, clean_body: str) -> dict[str, Any]:
     # Deterministic local output keeps the first version usable without live AI.
@@ -37,7 +49,7 @@ def build_rule_based_analysis(subject: str, sender: str, clean_body: str) -> dic
     risks = _risk_flags(text)
     category = _category(text, risks)
     priority = _priority(text, risks)
-    summary = _summary(subject, clean_body)
+    summary = _summary(category, risks, text)
     actions = _suggested_actions(category, risks, text)
     result = {
         "summary": summary,
@@ -85,18 +97,18 @@ def _priority(text: str, risks: list[dict[str, str]]) -> str:
 def _risk_flags(text: str) -> list[dict[str, str]]:
     risks: list[dict[str, str]] = []
     if _contains(text, "ignore previous", "system prompt", "reveal"):
-        risks.append(_risk("prompt_injection_risk", "high", "Email asks the system to ignore rules."))
+        risks.append(_risk("prompt_injection_risk", "high", "邮件要求忽略系统规则或泄露内部提示。"))
     if _contains(text, *PAYMENT_KEYWORDS):
         level = "high" if _contains(text, "overdue", "逾期") else "medium"
-        risks.append(_risk("payment_risk", level, "Email mentions payment or invoice."))
+        risks.append(_risk("payment_risk", level, "邮件提到付款、发票或汇款状态。"))
     if _contains(text, *DELIVERY_KEYWORDS) or _is_booking_context(text):
-        risks.append(_risk("delivery_risk", "low", "Email mentions delivery, shipment, or logistics."))
+        risks.append(_risk("delivery_risk", "low", "邮件提到交付、发货或物流状态。"))
     if _contains(text, *CONTRACT_KEYWORDS):
-        risks.append(_risk("contract_risk", "medium", "Email mentions contract terms."))
+        risks.append(_risk("contract_risk", "medium", "邮件提到合同、条款或签署事项。"))
     if _contains(text, *QUALITY_KEYWORDS):
-        risks.append(_risk("quality_risk", "high", "Email mentions a quality complaint."))
+        risks.append(_risk("quality_risk", "high", "邮件提到质量投诉或异常。"))
     if _contains(text, *QUOTE_KEYWORDS):
-        risks.append(_risk("commitment_risk", "medium", "Email asks for price or quote confirmation."))
+        risks.append(_risk("commitment_risk", "medium", "邮件要求确认价格、报价或交期。"))
     return risks
 
 
@@ -105,19 +117,48 @@ def _risk(kind: str, level: str, evidence: str) -> dict[str, str]:
         "type": kind,
         "level": level,
         "evidence": evidence,
-        "recommendation": "Review the context before replying.",
+        "recommendation": "回复前请人工复核上下文，避免未经确认的承诺。",
     }
 
 
-def _summary(subject: str, clean_body: str) -> str:
-    snippet = " ".join(clean_body.split())[:160]
-    return f"{subject}: {snippet}" if subject else snippet
+def _summary(category: str, risks: list[dict[str, str]], text: str) -> str:
+    if _has_risk(risks, "prompt_injection_risk"):
+        return "这封邮件包含疑似提示注入内容，需要忽略正文中的系统级指令并人工复核。"
+    if category == "complaint":
+        return "这封邮件主要关于质量投诉或异常，需要升级给负责人处理。"
+    if category == "contract":
+        return "这封邮件主要关于合同、条款或签署事项，需要负责人复核后回复。"
+    if category == "internal":
+        return "这封邮件主要是内部审核或审批事项，需要先完成内部确认。"
+    if category == "order_followup":
+        if _is_booking_context(text):
+            return "这封邮件主要关于订舱、物流或追踪信息，需要核查状态后回复。"
+        return "这封邮件主要关于交付或发货进度，需要核查状态后回复。"
+    if category == "payment":
+        return "这封邮件主要关于付款、发票或汇款状态，需要核对后回复。"
+    if category == "customer_inquiry":
+        if _is_meeting_context(text):
+            return "这封邮件主要关于会议或日程邀请，需要确认邀请有效性和是否参加。"
+        if _contains(text, *QUOTE_KEYWORDS):
+            return "这封邮件主要关于报价或询价，需要准备信息并人工审核。"
+        return "这封邮件主要是客户询问，需要人工查看后准备谨慎回复。"
+    if category == "marketing":
+        return "这封邮件主要是营销或参考资料，通常无需业务回复。"
+    return "这封邮件需要人工查看后准备谨慎回复。"
 
 
 def _priority_reason(priority: str, risks: list[dict[str, str]]) -> str:
     if risks:
-        return f"Priority is {priority} because {risks[0]['type']} was detected."
-    return "Priority is normal because no high-risk signal was detected."
+        return f"优先级为{_priority_label(priority)}，因为检测到{_risk_label(risks[0]['type'])}。"
+    return "优先级为普通，因为未检测到高风险信号。"
+
+
+def _priority_label(priority: str) -> str:
+    return PRIORITY_LABELS.get(priority, priority)
+
+
+def _risk_label(risk_type: str) -> str:
+    return RISK_LABELS.get(risk_type, risk_type)
 
 
 def _tags(category: str, risks: list[dict[str, str]]) -> list[str]:
@@ -136,7 +177,7 @@ def _suggested_actions(category: str, risks: list[dict[str, str]], text: str) ->
 
 def _reply_draft(subject: str, category: str, action_type: str, text: str) -> dict[str, Any]:
     return {
-        "subject": f"Re: {subject}" if subject else "Re: your email",
+        "subject": _draft_subject(subject),
         "body": (
             "Hello,\n\n"
             "Thank you for your email.\n"
@@ -145,8 +186,19 @@ def _reply_draft(subject: str, category: str, action_type: str, text: str) -> di
             "Best regards"
         ),
         "needs_human_review": True,
-        "review_reasons": ["First-version draft must be reviewed before use."],
+        "review_reasons": ["第一版回复草稿必须人工审核后再使用。"],
     }
+
+
+def _draft_subject(subject: str) -> str:
+    clean_subject = " ".join(subject.split()).strip()
+    if clean_subject and not _contains_chinese_char(clean_subject):
+        return f"Re: {clean_subject}"
+    return "Re: your email"
+
+
+def _contains_chinese_char(value: str) -> bool:
+    return any("\u4e00" <= char <= "\u9fff" for char in value)
 
 
 def _contains(text: str, *keywords: str) -> bool:
@@ -184,25 +236,25 @@ def _action_type(category: str, risks: list[dict[str, str]], text: str) -> str:
 def _action_description(action_type: str, category: str, text: str) -> str:
     if action_type == "check_delivery":
         if _is_booking_context(text):
-            return "Check logistics booking, FE, and tracking status before drafting a reply."
-        return "Check delivery or shipment status before drafting a reply."
+            return "请先核查物流订舱、FE 和 tracking 状态，再准备回复。"
+        return "请先核查交付或发货状态，再准备回复。"
     if action_type == "confirm" and _is_meeting_context(text):
-        return "Confirm whether the meeting invitation is valid and attendance is needed before replying."
+        return "请先确认会议邀请是否有效以及是否需要参加，再回复。"
     if action_type == "confirm" and category == "payment":
-        return "Confirm payment, invoice, or remittance status before replying."
+        return "请先核对付款、发票或汇款状态，再回复。"
     if action_type == "confirm" and category == "contract":
-        return "Confirm contract terms with the responsible reviewer before replying."
+        return "请先与负责人复核合同条款，再回复。"
     if action_type == "prepare_quote":
-        return "Prepare quote details for human review before any customer reply."
+        return "请先准备报价信息并完成人工审核，再回复客户。"
     if action_type == "escalate":
-        return "Escalate this risk to the responsible owner before replying."
+        return "请先升级给负责人处理风险，再回复。"
     if action_type == "wait":
-        return "Wait for more information before taking action."
+        return "请等待缺失信息后再采取行动。"
     if action_type == "ignore":
-        return "No business action is needed for this message."
+        return "当前邮件无需业务回复。"
     if category == "internal":
-        return "Prepare an internal response for human review."
-    return "Draft a cautious reply for human review."
+        return "请先准备内部回复并完成人工审核。"
+    return "请先准备谨慎回复并完成人工审核。"
 
 
 def _draft_context_line(action_type: str, category: str, text: str) -> str:

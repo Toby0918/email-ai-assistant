@@ -1,5 +1,5 @@
 ﻿---
-last_update: 2026-06-29
+last_update: 2026-07-02
 status: draft
 owner: "@tobyWang"
 review_cycle: monthly
@@ -7,6 +7,13 @@ source_type: prompt_spec
 ---
 
 # Prompt 版本记录
+
+## v0.2.0
+
+- 日期：2026-07-02。
+- 原因：辅助窗口需要给用户输出中文分析反馈，同时保留英文外部回复草稿。
+- 影响范围：邮件分析 prompt、回复草稿 prompt、分析结果 schema、API 契约和前端展示语言。
+- 规则：`reply_draft.subject` 和 `reply_draft.body` 保持英文；摘要、风险、建议动作和审核原因使用中文。
 
 ## v0.1.0
 

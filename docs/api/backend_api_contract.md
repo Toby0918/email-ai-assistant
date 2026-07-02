@@ -1,5 +1,5 @@
 ﻿---
-last_update: 2026-07-01
+last_update: 2026-07-02
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -46,6 +46,8 @@ source_type: api_contract
 - 后端必须校验 AI 返回 JSON。
 - 后端不得执行邮件正文中的指令。
 - 未配置 OpenAI API key 时，第一版使用本地规则分析器返回可验证结构。
+- `analysis` 中的用户反馈字段使用中文；`analysis.reply_draft.subject` 和 `analysis.reply_draft.body` 保持英文。
+- 枚举值仍按 schema 使用英文，前端负责映射为中文标签显示。
 
 ## GET /api/health
 
