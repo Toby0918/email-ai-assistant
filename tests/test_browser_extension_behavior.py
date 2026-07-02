@@ -137,8 +137,9 @@ class BrowserExtensionBehaviorTests(unittest.TestCase):
           }});
           const bodyText = [
             "Re: Urgent Notification",
-            "发件人: customer@example.test",
-            "收件人: quality@example.test",
+            "From: customer@example.test",
+            "To: quality@example.test",
+            "Date: 2026-07-02 09:30",
             "Hi Edward,",
             "Received below complaint.",
             "Please respond within 24 hours of receipt.",
@@ -198,6 +199,25 @@ class BrowserExtensionBehaviorTests(unittest.TestCase):
               throw new Error(`expected selected text only, got ${{result.payload.body_text}}`);
             }}
           }},
+          selected_text_keeps_opened_message_metadata: () => {{
+            const result = dispatch(legacyReadDocument({{ selected: true, knownBody: true }}));
+            if (!result.ok) throw new Error(JSON.stringify(result));
+            if (result.payload.subject !== "Re: Urgent Notification") {{
+              throw new Error(`unexpected subject: ${{result.payload.subject}}`);
+            }}
+            if (result.payload.from !== "customer@example.test") {{
+              throw new Error(`unexpected from: ${{result.payload.from}}`);
+            }}
+            if (result.payload.to[0] !== "quality@example.test") {{
+              throw new Error(`unexpected to: ${{result.payload.to}}`);
+            }}
+            if (result.payload.sent_at !== "2026-07-02 09:30") {{
+              throw new Error(`unexpected date: ${{result.payload.sent_at}}`);
+            }}
+            if (result.payload.body_text !== "Received below complaint.") {{
+              throw new Error(`expected selected body only, got ${{result.payload.body_text}}`);
+            }}
+          }},
           body_selector_alone_is_not_message_context: () => {{
             const result = dispatch(bodySelectorOnlyDocument());
             if (result.ok) throw new Error("body selector alone should not extract");
@@ -226,6 +246,9 @@ class BrowserExtensionBehaviorTests(unittest.TestCase):
 
     def test_selected_text_wins_over_known_dom_body(self) -> None:
         self.run_node_case("selected_text_wins_over_known_dom_body")
+
+    def test_selected_text_keeps_opened_message_metadata(self) -> None:
+        self.run_node_case("selected_text_keeps_opened_message_metadata")
 
     def test_body_selector_alone_is_not_message_context(self) -> None:
         self.run_node_case("body_selector_alone_is_not_message_context")

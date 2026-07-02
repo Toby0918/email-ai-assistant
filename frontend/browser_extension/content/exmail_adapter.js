@@ -46,15 +46,16 @@
     const documents = collectAccessibleDocuments(window);
     const selected = getSelectedEmailContent(documents);
     if (selected) {
+      const metadata = extractFromDocument(selected.document, true);
       return {
         ok: true,
         source: "selected_text",
         payload: {
-          subject: document.title || "Tencent Exmail selected email content",
-          from: "",
-          to: [],
-          sent_at: "",
-          body_text: selected,
+          subject: metadata.subject || selected.document.title || document.title || "Tencent Exmail selected email content",
+          from: metadata.from || "",
+          to: metadata.to || [],
+          sent_at: metadata.sent_at || "",
+          body_text: selected.text,
         },
       };
     }
@@ -241,10 +242,10 @@
       const selection = view.getSelection();
       const text = normalizeText(selection.toString());
       if (text && selectionBelongsToMessage(doc, selection)) {
-        return text;
+        return { document: doc, text };
       }
     }
-    return "";
+    return null;
   }
 
   function selectionBelongsToMessage(doc, selection) {
