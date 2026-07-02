@@ -54,6 +54,22 @@ class BrowserExtensionStaticTests(unittest.TestCase):
                 with self.subTest(path=path.name, marker=marker):
                     self.assertNotIn(marker, text)
 
+    def test_implementation_plan_uses_narrow_fallback_wording(self) -> None:
+        plan = (
+            ROOT
+            / "docs"
+            / "superpowers"
+            / "plans"
+            / "2026-07-02-tencent-exmail-browser-extension.md"
+        ).read_text(encoding="utf-8")
+
+        self.assertNotIn("当前打开邮件或用户选中的文本", plan)
+        self.assertNotIn("Open one email or select email text first", plan)
+        self.assertIn(
+            "Open a Tencent Exmail message or select email body text from that opened message first",
+            plan,
+        )
+
     def test_tencent_exmail_task_brief_exists(self) -> None:
         brief = ROOT / "docs" / "operations" / "tencent_exmail_browser_extension_task_brief.md"
 

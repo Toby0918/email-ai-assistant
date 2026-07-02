@@ -176,7 +176,7 @@ Modify `docs/decisions/adr_0002_frontend_route.md` so its body contains:
 
 第二阶段正式前端原型选择 Chrome / Edge 浏览器扩展，优先适配腾讯企业邮箱 Web (`https://exmail.qq.com/*`)。
 
-扩展只在用户点击按钮后读取当前打开邮件或用户选中的文本，并调用本地 Python 后端。它不接入真实邮箱账号，不读取凭据或 token，不扫描邮箱，不自动发送、删除、归档、移动或回复邮件。
+扩展只在用户点击明确的 Analyze 按钮后读取当前打开的 Tencent Exmail 邮件，或在 DOM 字段提取失败时读取该已打开邮件中的用户选中邮件正文内容，并调用本地 Python 后端。它不接入真实邮箱账号，不读取凭据或 token，不扫描邮箱，不自动发送、删除、归档、移动或回复邮件。
 ```
 
 Modify `docs/product/roadmap.md` phase 2 to include:
@@ -999,7 +999,7 @@ Add these tests to `tests/test_browser_extension_static.py`:
         script = (EXTENSION / "popup.js").read_text(encoding="utf-8")
 
         self.assertIn("Open a Tencent Exmail tab first", script)
-        self.assertIn("Open one email or select email text first", script)
+        self.assertIn("Open a Tencent Exmail message or select email body text from that opened message first", script)
         self.assertIn("Local analysis service unavailable", script)
         self.assertIn("Analysis failed", script)
 ```
@@ -1045,7 +1045,7 @@ document.querySelector("#analyze-button").addEventListener("click", async () => 
   }
 
   if (!extraction?.ok) {
-    setBusy(false, extraction?.error || "Open one email or select email text first");
+    setBusy(false, extraction?.error || "Open a Tencent Exmail message or select email body text from that opened message first");
     return;
   }
 
