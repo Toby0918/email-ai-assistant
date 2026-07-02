@@ -1,5 +1,5 @@
 ﻿---
-last_update: 2026-06-29
+last_update: 2026-07-02
 status: draft
 owner: "@tobyWang"
 review_cycle: monthly
@@ -33,7 +33,8 @@ source_type: product_spec
 ## 后续可评估
 
 - Outlook Add-in。
-- Chrome / Edge 浏览器扩展。
+- 第二阶段已选择：Chrome / Edge browser extension for Tencent Exmail Web (`https://exmail.qq.com/*`)。
+- Tencent Exmail Web 原型只允许用户点击后分析当前打开邮件。
 - Gmail / Google Workspace Add-on。
 - 团队级规则配置。
 - 人工确认后的草稿插入邮箱编辑器。

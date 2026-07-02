@@ -1,5 +1,5 @@
 ﻿---
-last_update: 2026-06-29
+last_update: 2026-07-02
 status: draft
 owner: "@tobyWang"
 review_cycle: monthly
@@ -20,6 +20,8 @@ source_type: product_spec
 
 - 评估 Outlook Add-in、浏览器扩展和 Google Workspace Add-on。
 - 明确目标企业邮箱环境。
+- 已选择第二阶段原型路线：Chrome / Edge browser extension for Tencent Exmail Web (`https://exmail.qq.com/*`)。
+- Tencent Exmail Web 原型仍只允许用户点击后分析当前打开邮件。
 - 确定前端框架和构建工具。
 - 继续禁止前端保存 API key。
 
