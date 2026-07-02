@@ -51,7 +51,7 @@ infrastructure layer
 
 `analysis layer` 负责邮件清洗、Prompt 编排、AI 输出校验和业务规则约束。
 
-`infrastructure layer` 负责 OpenAI 调用、SQLite 存储、Excel 导出、配置和日志。
+`infrastructure layer` 负责后端 AI 调用（OpenAI 或明确启用的本地 Ollama/Qwen）、SQLite 存储、Excel 导出、配置和日志。
 
 ## 2. 允许依赖方向
 
@@ -79,6 +79,7 @@ database.py -> openai
 exporter.py -> llm_client.py
 exporter.py -> openai
 frontend -> OpenAI
+frontend -> Ollama/Qwen/local model endpoint
 frontend -> .env
 frontend -> local SQLite database
 ```
@@ -89,7 +90,7 @@ frontend -> local SQLite database
 
 前端可以识别当前打开的邮件、展示“分析此邮件”按钮、调用本地后端 API、展示 AI 分析结果，并提供复制回复草稿功能。
 
-前端禁止直接调用 OpenAI API，禁止保存或暴露 OpenAI API key，禁止读取 `.env`，禁止连接 SQLite，禁止自动发送、删除、归档邮件，禁止后台扫描整个邮箱，禁止把邮件正文写入 console 日志。
+前端禁止直接调用 OpenAI API、Ollama API、Qwen 或任何本地模型端点，禁止保存或暴露 OpenAI API key，禁止读取 `.env`，禁止连接 SQLite，禁止自动发送、删除、归档、移动、转发或回复邮件，禁止后台扫描整个邮箱，禁止把邮件正文写入 console 日志。
 
 ### api.py
 
@@ -109,7 +110,7 @@ frontend -> local SQLite database
 
 ### llm_client.py
 
-`llm_client.py` 只负责 OpenAI API 调用封装。禁止读取前端密钥，禁止把 API key 返回给任何调用方，禁止把原始异常中的敏感信息直接返回前端，禁止保存分析结果到数据库。
+`llm_client.py` 只负责后端 AI 调用封装。允许的 provider 是默认关闭、OpenAI 占位能力，以及用户明确确认后启用的本地 Ollama/Qwen。禁止读取前端密钥，禁止把 API key 或本地模型配置返回给任何调用方，禁止把原始异常中的敏感信息直接返回前端，禁止保存分析结果到数据库。
 
 ### database.py
 
@@ -124,8 +125,8 @@ frontend -> local SQLite database
 以下内容必须通过自动化测试检查：
 
 ```text
-frontend/ 不得包含 OpenAI API key 或 OpenAI 直接调用痕迹。
-frontend/ 不得包含自动发送、删除、归档邮件的高风险调用。
+frontend/ 不得包含 OpenAI API key、OpenAI 直接调用、Ollama/Qwen 直接调用或本地模型端点痕迹。
+frontend/ 不得包含自动发送、删除、归档、移动、转发或回复邮件的高风险调用。
 backend/email_agent/email_cleaner.py 不得 import openai、llm_client、database、exporter、api。
 backend/email_agent/database.py 不得 import openai、llm_client、frontend。
 backend/email_agent/exporter.py 不得 import openai、llm_client、frontend。

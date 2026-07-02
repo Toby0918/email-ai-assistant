@@ -20,8 +20,8 @@ source_type: operation_guide
 - 后端业务代码使用裸 `print()`。
 - 后端业务代码使用 `traceback.print_exc()`。
 - 出现裸 `except:`。
-- 前端出现 OpenAI API key、OpenAI 直接调用或 `.env` 访问。
-- 前端出现自动发送、删除、归档邮件的高风险调用。
+- 前端出现 OpenAI API key、OpenAI 直接调用、Ollama/Qwen 直接调用、本地模型端点或 `.env` 访问。
+- 前端出现自动发送、删除、归档、移动、转发或回复邮件的高风险调用。
 - 项目中出现疑似真实密钥、token 或数据库文件。
 - `docs/` 下 Markdown 文件缺少 YAML front matter。
 - 架构边界被破坏，例如 `email_cleaner.py` 调用 OpenAI 或数据库。
@@ -135,11 +135,17 @@ api.openai.com
 new OpenAI(...)
 require("openai")
 from "openai"
+127.0.0.1:11434
+localhost:11434
+/api/generate
+/api/chat
+ollama
+qwen3.6
 process.env
 .env
 ```
 
-OpenAI API key 只能存在后端环境变量中，由后端 `llm_client.py` 使用。
+OpenAI API key 和本地 Ollama/Qwen 配置只能存在后端环境变量中，由后端 `llm_client.py` 使用。
 
 ## 7. 前端禁止高风险邮箱动作
 
@@ -154,6 +160,9 @@ archiveMessage
 deleteMessage
 trashMessage
 messages.trash
+messages.modify
+moveMessage
+forwardMessage
 ```
 
 如果未来确实要加入这些能力，必须先更新：

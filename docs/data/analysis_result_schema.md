@@ -54,4 +54,11 @@ AI 分析结果必须能解析为 JSON，并至少包含以下字段。
 - `reply_draft.subject` 和 `reply_draft.body` 是用户审核后可复制的外部邮件草稿，保持英文。
 - `priority`、`category`、`risk_flags.type`、`risk_flags.level` 和 `suggested_actions.type` 保持英文枚举值，由前端负责展示为中文标签。
 
+## 内容质量规则
+
+- `summary` 必须尽量自包含，让用户只看分析结果就能知道邮件在说什么、涉及哪些关键事实、下一步要做什么。
+- `risk_flags.evidence` 必须引用邮件中的具体事实，例如 PO、invoice、tracking、数量、日期、期限、质量问题或对方请求，不能只写泛化类别。
+- `suggested_actions.description` 必须说明要核查、升级或回复的具体事项。
+- `reply_draft.body` 必须基于分析结果中的事实生成英文草稿，不得代表用户承诺价格、交期、付款、合同、质量结论或法律责任。
+
 

@@ -14,7 +14,7 @@ source_type: api_contract
 2. 用户点击“分析此邮件”。
 3. 前端整理当前邮件字段：`subject`、`from`、`to`、`sent_at`、`body_text` 或 `body_html`。
 4. 前端调用 `POST /api/analyze-current-email`。
-5. 后端清洗正文；如后端 AI 未配置，第一版使用本地规则分析器。
+5. 后端清洗正文；如后端 AI 未配置、不可用或输出无效，第一版使用本地规则分析器。
 6. 后端校验 JSON schema。
 7. 后端保存分析结果到 SQLite。
 8. 前端展示结果：摘要、分类、风险和建议动作显示为中文，回复草稿正文保持英文。
@@ -22,7 +22,9 @@ source_type: api_contract
 ## 密钥边界
 
 - OpenAI API key 只存在于 Python 后端环境变量。
+- Ollama/Qwen 配置只存在于 Python 后端环境变量。
 - 前端不保存、不显示、不转发 API key。
+- 前端不直接调用 OpenAI、Ollama、Qwen 或本地模型端点。
 
 ## 错误处理
 

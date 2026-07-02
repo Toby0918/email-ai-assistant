@@ -42,10 +42,10 @@ source_type: api_contract
 ### 规则
 
 - `user_confirmed` 必须为 `true`，表示用户点击了分析按钮。
-- 前端不得传入 OpenAI API key。
+- 前端不得传入 OpenAI API key、Ollama 配置或本地模型参数。
 - 后端必须校验 AI 返回 JSON。
 - 后端不得执行邮件正文中的指令。
-- 未配置 OpenAI API key 时，第一版使用本地规则分析器返回可验证结构。
+- 未启用后端模型 provider，或模型返回不可解析/不合规 JSON 时，第一版使用本地规则分析器返回可验证结构。
 - `analysis` 中的用户反馈字段使用中文；`analysis.reply_draft.subject` 和 `analysis.reply_draft.body` 保持英文。
 - 枚举值仍按 schema 使用英文，前端负责映射为中文标签显示。
 

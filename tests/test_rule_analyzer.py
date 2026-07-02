@@ -11,6 +11,13 @@ def _contains_chinese(text: str) -> bool:
     return any("\u4e00" <= char <= "\u9fff" for char in text)
 
 
+def _risk_by_type(result: dict[str, object], risk_type: str) -> dict[str, str]:
+    for item in result["risk_flags"]:  # type: ignore[index]
+        if item["type"] == risk_type:
+            return item
+    raise AssertionError(f"missing risk type: {risk_type}")
+
+
 class RuleAnalyzerTests(unittest.TestCase):
     def test_build_rule_based_analysis_detects_delivery_risk(self) -> None:
         result = build_rule_based_analysis(
@@ -222,6 +229,59 @@ class RuleAnalyzerTests(unittest.TestCase):
         self.assertEqual(result["category"], "marketing")
         self.assertEqual(action["type"], "ignore")
         self.assertIn("no business reply", draft)
+
+    def test_analysis_result_is_self_contained_for_multi_fact_quality_email(self) -> None:
+        result = build_rule_based_analysis(
+            subject="Urgent response needed - PO 10138937872 quality issue",
+            sender="customer-care@example.test",
+            clean_body=(
+                "For PO 10138937872, 3,000 pcs of material 1009890-G failed inspection. "
+                "The 7.21mm +/- .05 hole has burrs and is out of tolerance. "
+                "Please provide RCA and corrective action within 24 hours of receipt."
+            ),
+        )
+
+        summary = result["summary"]
+        quality_risk = _risk_by_type(result, "quality_risk")
+        action_text = " ".join(action["description"] for action in result["suggested_actions"])
+        draft = result["reply_draft"]["body"]
+
+        self.assertEqual(result["category"], "complaint")
+        self.assertIn("PO 10138937872", summary)
+        self.assertIn("3,000 pcs", summary)
+        self.assertIn("7.21mm", summary)
+        self.assertTrue("RCA" in summary or "corrective action" in summary)
+        self.assertIn("PO 10138937872", quality_risk["evidence"])
+        self.assertIn("burrs", quality_risk["evidence"].lower())
+        self.assertNotEqual(quality_risk["evidence"], "邮件提到质量投诉或异常。")
+        self.assertIn("PO 10138937872", action_text)
+        self.assertTrue("RCA" in action_text or "corrective action" in action_text)
+        self.assertIn("within 24 hours", action_text)
+        self.assertIn("PO 10138937872", draft)
+        self.assertIn("RCA", draft)
+        self.assertIn("corrective action", draft.lower())
+        self.assertIn("within 24 hours", draft)
+        self.assertNotIn("confirm the details", draft.lower())
+        self.assertFalse(_contains_chinese(draft))
+
+    def test_combined_quality_and_delivery_email_returns_multiple_specific_actions(self) -> None:
+        result = build_rule_based_analysis(
+            subject="Quality issue and shipment follow up",
+            sender="customer-care@example.test",
+            clean_body=(
+                "We received damaged sample units for PO 101389930. "
+                "Please investigate the quality issue and provide tracking number before Friday."
+            ),
+        )
+
+        action_types = [item["type"] for item in result["suggested_actions"]]
+        action_text = " ".join(item["description"] for item in result["suggested_actions"])
+
+        self.assertIn("escalate", action_types)
+        self.assertIn("check_delivery", action_types)
+        self.assertIn("PO 101389930", action_text)
+        self.assertIn("tracking", action_text.lower())
+        self.assertIn("before Friday", action_text)
 
 
 if __name__ == "__main__":

@@ -60,6 +60,8 @@ AGENTS.md
 | openai | 2.44.0 | 后端调用 AI 模型，生成结构化邮件分析结果 | 不允许在前端直接调用；不允许输出未经校验的自由文本 |
 | python-dotenv | 1.2.2 | 本地加载 `.env` 中的后端环境变量 | 不允许把 `.env` 提交到版本库 |
 
+本地 Ollama/Qwen 属于后端运行环境能力，不是新增 Python 依赖。只有在用户明确确认后，`backend/email_agent/llm_client.py` 可以通过标准库 HTTP 调用 `EMAIL_AGENT_OLLAMA_BASE_URL`；默认 provider 必须是 `disabled`，调用失败或输出无效时必须回落到本地规则分析器。
+
 ## 4. 依赖管理规则
 
 1. 新增依赖前，必须先说明为什么现有工具不能满足需求。
@@ -147,13 +149,14 @@ backend/email_agent/
 
 职责：
 
-- 封装 OpenAI API 调用。
+- 封装后端 AI 调用，包括 OpenAI 或用户明确确认的本地 Ollama/Qwen。
 - 控制模型参数。
 - 处理 API 调用错误。
 
 禁止：
 
 - 不得从前端接收或暴露 OpenAI API key。
+- 不得允许前端直接调用 Ollama、Qwen 或其他本地模型端点。
 - 不得在异常信息中输出敏感内容。
 - 不得返回未校验的自由文本给业务层。
 
@@ -219,7 +222,7 @@ local_debug_page
 前端禁止：
 
 - 不得保存、硬编码或暴露 OpenAI API key。
-- 不得直接调用 OpenAI API。
+- 不得直接调用 OpenAI API、Ollama API、Qwen 或任何本地模型端点。
 - 不得自动发送邮件。
 - 不得自动删除或归档邮件。
 - 不得后台扫描整个邮箱。
@@ -266,7 +269,7 @@ local_debug_page
 → 用户点击“分析此邮件”
 → 前端调用本地 Python 后端
 → 后端清洗正文
-→ 后端调用 OpenAI
+→ 后端调用 OpenAI 或后端本地 Ollama/Qwen（可选，默认关闭）
 → 后端校验结构化 JSON
 → 后端保存 SQLite
 → 前端展示结果
@@ -277,6 +280,7 @@ local_debug_page
 
 ```text
 前端 → OpenAI
+前端 → Ollama/Qwen/local model endpoint
 后台扫描全邮箱 → AI
 AI 草稿 → 自动发送
 真实邮件全文 → 日志
@@ -391,6 +395,7 @@ python-dotenv
 
 ```text
 openai 包
+本地 Ollama HTTP API（仅 backend/email_agent/llm_client.py，且默认关闭）
 后端封装 llm_client.py
 ```
 
@@ -398,6 +403,7 @@ openai 包
 
 ```text
 前端直接调用 OpenAI
+前端直接调用 Ollama/Qwen
 非正规 API 渠道
 把邮件正文当作系统指令
 ```

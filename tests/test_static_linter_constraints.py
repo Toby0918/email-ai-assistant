@@ -37,6 +37,12 @@ FORBIDDEN_FRONTEND_PATTERNS = {
     "OpenAI chat endpoint in frontend": r"/v1/chat/completions",
     "OpenAI JS client in frontend": r"new\s+OpenAI\s*\(",
     "OpenAI package import in frontend": r"from\s+['\"]openai['\"]|require\(['\"]openai['\"]\)",
+    "Ollama host in frontend": r"127\.0\.0\.1:11434|localhost:11434",
+    "Ollama generate endpoint in frontend": r"/api/generate",
+    "Ollama chat endpoint in frontend": r"/api/chat",
+    "Ollama marker in frontend": r"\bollama\b",
+    "local Qwen model marker in frontend": r"\bqwen(?:3\.6)?\b",
+    "browser OAuth flow in frontend": r"chrome\.identity|client_secret|refresh_token|access_token",
     "environment access in frontend": r"process\.env|\.env",
     "SQLite access in frontend": r"\bsqlite3?\b",
 }
@@ -46,6 +52,8 @@ FORBIDDEN_EMAIL_ACTION_PATTERNS = {
     "Gmail send action": r"gmail\.users\.messages\.send",
     "archive action": r"archiveMessage|archive\s*\(",
     "delete action": r"deleteMessage|trashMessage|messages\.trash",
+    "modify or move action": r"gmail\.users\.messages\.modify|messages\.modify|moveMessage|move\s*\(",
+    "forward action": r"forwardMessage|forward\s*\(",
 }
 
 SECRET_PATTERNS = {

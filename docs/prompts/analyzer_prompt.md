@@ -39,8 +39,12 @@ source_type: prompt_spec
 
 输出必须是 JSON，字段遵循 `docs/data/analysis_result_schema.md`。无法判断时使用 `unknown`、空数组或简短说明。
 
+- 必须提取关键事实，包括编号、数量、日期、期限、质量问题、请求动作和对方希望我们执行的事项。
+- `summary` 必须让用户只看分析结果就知道这封邮件在说什么，以及下一步要做什么。
+- `risk_flags.evidence` 必须引用邮件中的具体事实，不得只写泛化风险类别。
+- `suggested_actions.description` 必须写明需要核查、升级或准备回复的具体事项。
 - 面向用户的分析反馈必须使用中文，包括 `summary`、`priority_reason`、`risk_flags.evidence`、`risk_flags.recommendation`、`suggested_actions.description` 和 `reply_draft.review_reasons`。
-- 可复制给外部客户或供应商的回复草稿必须保持英文，包括 `reply_draft.subject` 和 `reply_draft.body`。
+- 可复制给外部客户或供应商的回复草稿必须保持英文，包括 `reply_draft.subject` 和 `reply_draft.body`；草稿必须基于上述事实，避免泛泛感谢，且不得承诺价格、交期、付款、合同、质量结论或法律责任。
 - 枚举字段仍使用 schema 中定义的英文枚举值，不翻译枚举本身。
 
 

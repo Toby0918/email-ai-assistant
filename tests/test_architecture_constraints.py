@@ -32,6 +32,12 @@ FRONTEND_FORBIDDEN_PATTERNS = {
     "openai_chat_api": r"/v1/chat/completions",
     "new_openai_client": r"new\s+OpenAI\s*\(",
     "openai_import": r"from\s+['\"]openai['\"]|require\(['\"]openai['\"]\)",
+    "ollama_host": r"127\.0\.0\.1:11434|localhost:11434",
+    "ollama_generate_api": r"/api/generate",
+    "ollama_chat_api": r"/api/chat",
+    "ollama_marker": r"\bollama\b",
+    "local_qwen_marker": r"\bqwen(?:3\.6)?\b",
+    "browser_oauth_flow": r"chrome\.identity|client_secret|refresh_token|access_token",
     "env_access": r"process\.env|\.env",
     "sqlite_access": r"sqlite|sqlite3",
 }
@@ -41,6 +47,8 @@ FRONTEND_DANGEROUS_ACTIONS = {
     "gmail_send": r"gmail\.users\.messages\.send",
     "archive_action": r"archiveMessage|archive\(",
     "delete_action": r"deleteMessage|trashMessage|messages\.trash",
+    "modify_or_move_action": r"gmail\.users\.messages\.modify|messages\.modify|moveMessage|move\(",
+    "forward_action": r"forwardMessage|forward\(",
 }
 
 
