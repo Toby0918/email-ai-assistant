@@ -145,6 +145,31 @@ class MechanicalRuleConstraintTests(unittest.TestCase):
             ),
         )
 
+    def test_project_structure_reflects_landed_first_phase_code(self) -> None:
+        first_phase_files = [
+            ROOT / "backend" / "email_agent" / "server.py",
+            ROOT / "frontend" / "local_debug_page" / "index.html",
+            ROOT / "scripts" / "manage_local_service.py",
+            ROOT / "tests" / "test_golden_email_analysis.py",
+        ]
+        if not all(path.exists() for path in first_phase_files):
+            self.skipTest("first-phase implementation files do not all exist yet")
+
+        path = ROOT / "docs" / "operations" / "project_structure.md"
+        text = path.read_text(encoding="utf-8", errors="ignore")
+
+        self.assertNotIn(
+            "当前实现代码尚未落地",
+            text,
+            failure_message(
+                "项目结构文档仍声称实现代码尚未落地，但第一阶段实现文件已经存在。",
+                "更新 docs/operations/project_structure.md，使它描述当前已落地的 first-phase 结构。",
+                "docs/operations/project_structure.md",
+            ),
+        )
+        self.assertIn("frontend/local_debug_page", text)
+        self.assertIn("scripts/manage_local_service.py", text)
+
 
 if __name__ == "__main__":
     unittest.main()

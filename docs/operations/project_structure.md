@@ -29,10 +29,18 @@ email-ai-assistant/
       logging_config.py
       email_cleaner.py
       analyzer.py
+      rule_analyzer.py
       llm_client.py
       database.py
       exporter.py
       api.py
+      server.py
+
+  frontend/
+    local_debug_page/
+      index.html
+      app.js
+      styles.css
 
   .github/
     workflows/
@@ -78,6 +86,7 @@ email-ai-assistant/
       customer_context_template.md
 
     operations/
+      *_task_brief.md
       setup_checklist.md
       testing_checklist.md
       deployment_notes.md
@@ -117,23 +126,44 @@ email-ai-assistant/
       code_review_rule_register.md
 
   tests/
+    fixtures/
+      sample_emails.json
     test_email_cleaner.py
     test_analyzer.py
+    test_analysis_schema.py
     test_api.py
+    test_config.py
+    test_database.py
+    test_frontend_local_debug.py
+    test_generate_project_status.py
+    test_golden_email_analysis.py
+    test_manage_local_service.py
+    test_repo_utils.py
+    test_rule_analyzer.py
+    test_run_local_debug.py
+    test_server.py
     test_architecture_constraints.py
     test_static_linter_constraints.py
     test_mechanical_rule_constraints.py
     test_maintenance_scan.py
-    test_generate_project_status.py
 
   scripts/
+    repo_utils.py
     maintenance_scan.py
     generate_project_status.py
+    manage_local_service.py
+    run_local_debug.py
+
+  start_local_service.cmd
+  status_local_service.cmd
+  restart_local_service.cmd
+  stop_local_service.cmd
 ```
 
-## 建议实现结构
+## 第一阶段已落地结构
 
-当前实现代码尚未落地。第一阶段建议按以下结构新增代码：
+第一阶段已经落地 `backend/email_agent/`、`frontend/local_debug_page/`、`tests/`、`scripts/` 和结构化 `docs/`。
+当前正式邮箱前端路线尚未选择；Outlook Add-in、Google Workspace Add-on 和浏览器扩展目录仍属于后续单独确认范围。
 
 ```text
 email-ai-assistant/
@@ -144,42 +174,30 @@ email-ai-assistant/
       logging_config.py
       email_cleaner.py
       analyzer.py
+      rule_analyzer.py
       llm_client.py
       database.py
       exporter.py
       api.py
+      server.py
 
   frontend/
-    outlook_addin/
-      manifest.xml
-      taskpane.html
-      taskpane.js
-      taskpane.css
-
-    google_workspace_addon/
-      appsscript.json
-      main.js
-
-    browser_extension/
-      manifest.json
-      content.js
-      sidepanel.html
-      sidepanel.js
-      sidepanel.css
-
     local_debug_page/
       index.html
       app.js
-      style.css
+      styles.css
 
   tests/
-    test_email_cleaner.py
-    test_analyzer.py
-    test_database.py
-    test_api.py
+    fixtures/
+      sample_emails.json
+    test_*.py
 
-  data/
-    sample_emails/
+  scripts/
+    generate_project_status.py
+    maintenance_scan.py
+    manage_local_service.py
+    repo_utils.py
+    run_local_debug.py
 
   outputs/
 ```
@@ -187,17 +205,18 @@ email-ai-assistant/
 ## 目录职责
 
 - `.github/workflows/`：CI 护栏和可选后台清理报告任务。当前运行架构、静态 linter、机械规则、完整 unittest 和只读 cleanup scan。
-- `backend/`：未来 Python 后端代码。负责邮件正文清洗、AI 调用、结构化结果校验、SQLite 持久化、调试导出和本地 API。
-- `frontend/`：未来辅助窗口前端。第一阶段只需要选择一种路线，不要求同时实现 Outlook Add-in、Google Workspace Add-on 和浏览器扩展。
+- `backend/`：Python 后端代码。负责邮件正文清洗、AI 调用封装、结构化结果校验、SQLite 持久化、调试导出、本地 API 和本地调试服务。
+- `frontend/local_debug_page/`：第一阶段本地辅助窗口调试页面，只在用户点击 `Analyze` 后调用本地后端 API，不接入真实邮箱账号。
+- `frontend/` 其他路线：Outlook Add-in、Google Workspace Add-on 和浏览器扩展属于后续正式邮箱前端路线，需单独确认后再落地。
 - `docs/`：结构化知识库、Prompt、业务规则、接口约定、安全规则、约束层、操作指南、Agent 项目进度日志、Codex 自动化规范、模板和技术决策。`docs/` 是项目规则来源，不是附属说明。
 - `docs/constraints/`：工具、架构、静态检查、CI 和机械规则约束。
 - `docs/conventions/`：日志等代码约定。
 - `docs/templates/`：Agent 任务简报和 code review 规则登记模板。
-- `tests/`：自动化测试。当前包含可执行约束测试；新增业务代码必须配套测试。
-- `scripts/`：维护脚本。当前包含只读 cleanup scan 和项目状态日志生成器，不得自动删除或自动修改业务文件。
-- `data/sample_emails/`：未来脱敏本地测试邮件样本，不得存放真实客户邮件全文。
-- `outputs/`：未来本地调试输出和临时报表，不得提交到版本库。
+- `tests/`：自动化测试。当前包含业务测试、golden 样例测试、前端静态检查、服务管理脚本测试和可执行约束测试；新增业务代码必须配套测试。
+- `tests/fixtures/sample_emails.json`：脱敏 golden 邮件样例，不得存放真实客户邮件全文。
+- `scripts/`：维护和本地服务脚本。当前包含只读 cleanup scan、项目状态日志生成器、本地调试服务入口 `scripts/run_local_debug.py` 和服务启停管理 `scripts/manage_local_service.py`，不得自动删除或自动修改业务文件。
+- `outputs/`：本地调试输出、SQLite 数据库、pid 文件和临时报表，不得提交到版本库。
 
 ## 第一阶段建议
 
-第一阶段可以先实现 `backend/`、`docs/`、`tests/` 和 `frontend/local_debug_page/`。正式企业邮箱前端路线应在后续单独确认后再落地。
+第一阶段当前以本地调试页面完成“用户点击按钮后分析当前邮件”的闭环。正式企业邮箱前端路线应在后续单独确认后再落地。
