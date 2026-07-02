@@ -156,6 +156,32 @@ class BrowserExtensionStaticTests(unittest.TestCase):
 
         self.assertNotIn("console.log", script)
 
+    def test_popup_requests_current_email_after_user_click(self) -> None:
+        script = (EXTENSION / "popup.js").read_text(encoding="utf-8")
+
+        self.assertIn('document.querySelector("#analyze-button").addEventListener("click"', script)
+        self.assertIn("chrome.tabs.query", script)
+        self.assertIn("chrome.tabs.sendMessage", script)
+        self.assertIn("EXTRACT_CURRENT_EMAIL", script)
+        self.assertIn("EmailAssistantApi.analyzeCurrentEmail", script)
+        self.assertIn("EmailAssistantRender.renderAnalysis", script)
+
+    def test_popup_handles_copy_draft(self) -> None:
+        script = (EXTENSION / "popup.js").read_text(encoding="utf-8")
+
+        self.assertIn('document.querySelector("#copy-draft-button").addEventListener("click"', script)
+        self.assertIn("navigator.clipboard.writeText", script)
+        self.assertIn("No draft to copy", script)
+        self.assertIn("Copy failed", script)
+
+    def test_popup_has_user_facing_error_states(self) -> None:
+        script = (EXTENSION / "popup.js").read_text(encoding="utf-8")
+
+        self.assertIn("Open a Tencent Exmail tab first", script)
+        self.assertIn("Open a Tencent Exmail message or select email body text from that opened message first", script)
+        self.assertIn("Local analysis service unavailable", script)
+        self.assertIn("Analysis failed", script)
+
     def test_tencent_exmail_task_brief_exists(self) -> None:
         brief = ROOT / "docs" / "operations" / "tencent_exmail_browser_extension_task_brief.md"
 
