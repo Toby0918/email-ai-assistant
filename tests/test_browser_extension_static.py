@@ -182,6 +182,42 @@ class BrowserExtensionStaticTests(unittest.TestCase):
         self.assertIn("Local analysis service unavailable", script)
         self.assertIn("Analysis failed", script)
 
+    def test_browser_extension_has_no_secret_or_openai_markers(self) -> None:
+        forbidden = [
+            "OPENAI_API_KEY",
+            "api.openai.com",
+            "/v1/responses",
+            "/v1/chat/completions",
+            "new OpenAI",
+            "process.env",
+            ".env",
+            "sk-",
+        ]
+
+        for path in EXTENSION.rglob("*"):
+            if path.is_dir() or path.suffix not in {".js", ".html", ".json", ".css"}:
+                continue
+            text = path.read_text(encoding="utf-8")
+            for marker in forbidden:
+                with self.subTest(path=path.relative_to(ROOT), marker=marker):
+                    self.assertNotIn(marker, text)
+
+    def test_browser_extension_has_no_high_risk_mailbox_actions(self) -> None:
+        forbidden = [
+            "sendMail",
+            "gmail.users.messages.send",
+            "archiveMessage",
+            "deleteMessage",
+            "trashMessage",
+            "messages.trash",
+        ]
+
+        for path in EXTENSION.rglob("*.js"):
+            text = path.read_text(encoding="utf-8")
+            for marker in forbidden:
+                with self.subTest(path=path.relative_to(ROOT), marker=marker):
+                    self.assertNotIn(marker, text)
+
     def test_tencent_exmail_task_brief_exists(self) -> None:
         brief = ROOT / "docs" / "operations" / "tencent_exmail_browser_extension_task_brief.md"
 
