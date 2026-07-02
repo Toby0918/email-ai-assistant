@@ -65,6 +65,13 @@ source_type: operation_guide
 | `frontend/local_debug_page/index.html` | yes |
 | `frontend/local_debug_page/app.js` | yes |
 | `frontend/local_debug_page/styles.css` | yes |
+| `frontend/browser_extension/manifest.json` | yes |
+| `frontend/browser_extension/popup.html` | yes |
+| `frontend/browser_extension/popup.css` | yes |
+| `frontend/browser_extension/popup.js` | yes |
+| `frontend/browser_extension/content/exmail_adapter.js` | yes |
+| `frontend/browser_extension/shared/api_client.js` | yes |
+| `frontend/browser_extension/shared/render_analysis.js` | yes |
 | `docs/constraints/tooling_constraints.md` | yes |
 | `docs/constraints/architecture_constraints.md` | yes |
 | `docs/constraints/linter_constraints.md` | yes |
@@ -77,6 +84,7 @@ source_type: operation_guide
 | `docs/operations/codex_cleanup_task.md` | yes |
 | `docs/operations/documentation_rules.md` | yes |
 | `docs/operations/first_version_task_brief.md` | yes |
+| `docs/operations/tencent_exmail_browser_extension_task_brief.md` | yes |
 | `docs/templates/agent_task_brief_template.md` | yes |
 | `docs/templates/cleanup_task_template.md` | yes |
 | `scripts/repo_utils.py` | yes |
@@ -108,6 +116,8 @@ source_type: operation_guide
 | `tests/test_email_cleaner.py` | yes |
 | `tests/test_analyzer.py` | yes |
 | `tests/test_api.py` | yes |
+| `tests/test_browser_extension_manifest.py` | yes |
+| `tests/test_browser_extension_static.py` | yes |
 
 ## docs Directory Status
 
@@ -139,7 +149,7 @@ source_type: operation_guide
 1. 运行完整测试和维护扫描。
 2. 用虚构样例手动试用本地调试页面。
 3. 提供 GitHub 远程地址后推送第一阶段项目。
-4. 单独确认下一阶段正式邮箱前端路线（Outlook Add-in、Google Workspace Add-on 或浏览器扩展）。
+4. 继续验证 Tencent Exmail Chrome / Edge 浏览器扩展原型；Outlook Add-in 和 Google Workspace Add-on 保持后续单独确认。
 
 ## Do Not Touch Boundaries
 

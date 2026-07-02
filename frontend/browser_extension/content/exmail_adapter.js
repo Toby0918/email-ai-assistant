@@ -139,14 +139,27 @@
       return false;
     }
 
-    return Boolean(
-      firstText(doc, MESSAGE_CONTEXT_SUBJECT_SELECTORS) ||
-        firstText(doc, BODY_SELECTORS) ||
-        markerText.includes("From:") ||
-        markerText.includes("To:") ||
-        markerText.includes("\u53d1\u4ef6\u4eba") ||
-        markerText.includes("\u6536\u4ef6\u4eba")
-    );
+    return Boolean((hasSubjectContext(doc) || hasHeaderContext(doc)) && findBodyElement(doc));
+  }
+
+  function hasSubjectContext(doc) {
+    return Boolean(firstText(doc, MESSAGE_CONTEXT_SUBJECT_SELECTORS));
+  }
+
+  function hasHeaderContext(doc) {
+    const lines = String(doc.body ? doc.body.innerText || "" : "")
+      .split(/\r?\n/)
+      .map((line) => normalizeText(line))
+      .filter(Boolean);
+
+    return lines.some((line) => {
+      return (
+        line.startsWith("From:") ||
+        line.startsWith("To:") ||
+        line.startsWith("\u53d1\u4ef6\u4eba") ||
+        line.startsWith("\u6536\u4ef6\u4eba")
+      );
+    });
   }
 
   function firstText(doc, selectors) {
@@ -207,7 +220,7 @@
   function selectionBelongsToMessage(doc, selection) {
     const bodyElement = findBodyElement(doc);
     if (!bodyElement) {
-      return true;
+      return false;
     }
     if (!selection.rangeCount) {
       return false;

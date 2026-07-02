@@ -137,6 +137,8 @@ class BrowserExtensionStaticTests(unittest.TestCase):
         script = (EXTENSION / "content" / "exmail_adapter.js").read_text(encoding="utf-8")
 
         self.assertIn("hasMessageContext", script)
+        self.assertIn("hasSubjectContext", script)
+        self.assertIn("hasHeaderContext", script)
         self.assertIn("getSelectedEmailContent", script)
         self.assertIn("selectionBelongsToMessage", script)
         self.assertIn("findBodyElement", script)
@@ -150,6 +152,15 @@ class BrowserExtensionStaticTests(unittest.TestCase):
         self.assertNotIn("selected page text", script)
         self.assertNotIn("selected text on any web page", script)
         self.assertNotIn("[role='main']", script)
+        self.assertNotIn("firstText(doc, BODY_SELECTORS) ||", script)
+        self.assertIn(
+            "return Boolean((hasSubjectContext(doc) || hasHeaderContext(doc)) && findBodyElement(doc));",
+            script,
+        )
+        self.assertIn(
+            "if (!bodyElement) {\n      return false;\n    }",
+            script,
+        )
 
     def test_exmail_adapter_does_not_log_email_body(self) -> None:
         script = (EXTENSION / "content" / "exmail_adapter.js").read_text(encoding="utf-8")
@@ -181,6 +192,8 @@ class BrowserExtensionStaticTests(unittest.TestCase):
         self.assertIn("Open a Tencent Exmail message or select email body text from that opened message first", script)
         self.assertIn("Local analysis service unavailable", script)
         self.assertIn("Analysis failed", script)
+        self.assertIn('if (!data.analysis || typeof data.analysis !== "object")', script)
+        self.assertIn("Invalid analysis response", script)
 
     def test_browser_extension_has_no_secret_or_openai_markers(self) -> None:
         forbidden = [
@@ -246,8 +259,19 @@ class BrowserExtensionStaticTests(unittest.TestCase):
         text = brief.read_text(encoding="utf-8")
         self.assertIn("Tencent Exmail", text)
         self.assertIn("https://exmail.qq.com/*", text)
+        self.assertIn("http://127.0.0.1:8765/api/analyze-current-email", text)
+        self.assertIn("Selected-text fallback", text)
+        self.assertIn("No browser storage of real email bodies", text)
+        self.assertIn("python -m unittest discover -s tests", text)
+        self.assertIn("scripts/maintenance_scan.py", text)
         self.assertIn("No automatic send", text)
         self.assertIn("No mailbox account integration", text)
+
+    def test_project_status_log_reflects_selected_extension_route(self) -> None:
+        status_log = (ROOT / "docs" / "operations" / "project_status_log.md").read_text(encoding="utf-8")
+
+        self.assertIn("Tencent Exmail Chrome / Edge 浏览器扩展", status_log)
+        self.assertNotIn("单独确认下一阶段正式邮箱前端路线", status_log)
 
 
 if __name__ == "__main__":

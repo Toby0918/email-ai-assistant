@@ -36,7 +36,18 @@ document.querySelector("#analyze-button").addEventListener("click", async () => 
     return;
   }
 
-  EmailAssistantRender.renderAnalysis(fields, data.analysis);
+  if (!data.analysis || typeof data.analysis !== "object") {
+    setBusy(false, "Invalid analysis response");
+    return;
+  }
+
+  try {
+    EmailAssistantRender.renderAnalysis(fields, data.analysis);
+  } catch (error) {
+    setBusy(false, "Analysis failed");
+    return;
+  }
+
   setBusy(false, `Saved #${data.saved_id || data.request_id || "-"}`);
 });
 

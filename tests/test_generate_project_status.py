@@ -72,7 +72,9 @@ class GenerateProjectStatusTests(unittest.TestCase):
         self.assertIn("运行完整测试和维护扫描", report)
         self.assertIn("用虚构样例手动试用本地调试页面", report)
         self.assertIn("提供 GitHub 远程地址后推送第一阶段项目", report)
-        self.assertIn("单独确认下一阶段正式邮箱前端路线", report)
+        self.assertIn("Tencent Exmail Chrome / Edge 浏览器扩展", report)
+        self.assertIn("Outlook Add-in 和 Google Workspace Add-on 保持后续单独确认", report)
+        self.assertNotIn("单独确认下一阶段正式邮箱前端路线", report)
         self.assertNotIn("继续扩展 golden 样例覆盖中文邮件、报价请求和历史引用", report)
         self.assertNotIn("补充前端本地调试页面", report)
 
@@ -101,6 +103,18 @@ class GenerateProjectStatusTests(unittest.TestCase):
         self.assertIn("`restart_local_service.cmd`", report)
         self.assertIn("`status_local_service.cmd`", report)
         self.assertIn("`tests/test_manage_local_service.py`", report)
+
+    def test_browser_extension_files_are_reported_as_key_files(self) -> None:
+        module = load_script_module(SCRIPT, "generate_project_status")
+        report = module.build_project_status()
+
+        self.assertIn("`frontend/browser_extension/manifest.json`", report)
+        self.assertIn("`frontend/browser_extension/popup.js`", report)
+        self.assertIn("`frontend/browser_extension/content/exmail_adapter.js`", report)
+        self.assertIn("`frontend/browser_extension/shared/api_client.js`", report)
+        self.assertIn("`docs/operations/tencent_exmail_browser_extension_task_brief.md`", report)
+        self.assertIn("`tests/test_browser_extension_manifest.py`", report)
+        self.assertIn("`tests/test_browser_extension_static.py`", report)
 
     def test_main_writes_requested_output(self) -> None:
         module = load_script_module(SCRIPT, "generate_project_status")

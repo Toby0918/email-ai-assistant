@@ -45,6 +45,13 @@ KEY_FILES = [
     "frontend/local_debug_page/index.html",
     "frontend/local_debug_page/app.js",
     "frontend/local_debug_page/styles.css",
+    "frontend/browser_extension/manifest.json",
+    "frontend/browser_extension/popup.html",
+    "frontend/browser_extension/popup.css",
+    "frontend/browser_extension/popup.js",
+    "frontend/browser_extension/content/exmail_adapter.js",
+    "frontend/browser_extension/shared/api_client.js",
+    "frontend/browser_extension/shared/render_analysis.js",
     "docs/constraints/tooling_constraints.md",
     "docs/constraints/architecture_constraints.md",
     "docs/constraints/linter_constraints.md",
@@ -57,6 +64,7 @@ KEY_FILES = [
     "docs/operations/codex_cleanup_task.md",
     "docs/operations/documentation_rules.md",
     "docs/operations/first_version_task_brief.md",
+    "docs/operations/tencent_exmail_browser_extension_task_brief.md",
     "docs/templates/agent_task_brief_template.md",
     "docs/templates/cleanup_task_template.md",
     "scripts/repo_utils.py",
@@ -88,6 +96,8 @@ KEY_FILES = [
     "tests/test_email_cleaner.py",
     "tests/test_analyzer.py",
     "tests/test_api.py",
+    "tests/test_browser_extension_manifest.py",
+    "tests/test_browser_extension_static.py",
 ]
 
 DOC_DIRS = [
@@ -249,7 +259,7 @@ def render_next_steps(stage: str) -> str:
             "运行完整测试和维护扫描。",
             "用虚构样例手动试用本地调试页面。",
             "提供 GitHub 远程地址后推送第一阶段项目。",
-            "单独确认下一阶段正式邮箱前端路线（Outlook Add-in、Google Workspace Add-on 或浏览器扩展）。",
+            "继续验证 Tencent Exmail Chrome / Edge 浏览器扩展原型；Outlook Add-in 和 Google Workspace Add-on 保持后续单独确认。",
         ]
     elif stage == "first_version_local_debug":
         steps = [
