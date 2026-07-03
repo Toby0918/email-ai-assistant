@@ -1,5 +1,5 @@
 ﻿---
-last_update: 2026-07-01
+last_update: 2026-07-03
 status: draft
 owner: "@tobyWang"
 review_cycle: monthly
@@ -13,7 +13,8 @@ source_type: operation_guide
 - 确认 Python 版本为 3.12.13。
 - 确认依赖版本遵守 `AGENTS.md`。
 - 创建本地 `.env`，不要提交。
-- 配置 OpenAI API key 到后端环境变量。
+- 配置 OpenAI API key 到后端环境变量或后端本地 `.env`。
+- 确认后端会从项目根目录 `.env` 读取配置；显式进程环境变量仍会覆盖 `.env`。
 - 如使用本地 Qwen，设置 `EMAIL_AGENT_LLM_PROVIDER=ollama`、`EMAIL_AGENT_OLLAMA_BASE_URL=http://127.0.0.1:11434`、`EMAIL_AGENT_OLLAMA_MODEL=qwen3.6:latest`；不使用时保持 `EMAIL_AGENT_LLM_PROVIDER=disabled`。
 - 运行 `python scripts/manage_local_service.py start` 启动本地后端分析服务。
 - 运行 `python scripts/manage_local_service.py status` 检查服务状态。

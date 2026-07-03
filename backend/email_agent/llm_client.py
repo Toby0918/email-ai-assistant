@@ -27,6 +27,16 @@ def generate_analysis(prompt: str) -> str:
     raise LlmClientError("Unsupported LLM provider configured.")
 
 
+def configured_analysis_engine_label(config: AppConfig | None = None) -> str:
+    """Return a non-sensitive display label for the configured backend model path."""
+    current = config or load_config()
+    if current.llm_provider == "ollama":
+        return "Local Qwen" if "qwen" in current.ollama_model.lower() else "Local AI model"
+    if current.llm_provider == "openai":
+        return "OpenAI"
+    return "AI model"
+
+
 def _generate_with_ollama(prompt: str, config: AppConfig) -> str:
     request = _ollama_request(prompt, config)
     try:
@@ -47,7 +57,7 @@ def _ollama_request(prompt: str, config: AppConfig) -> urllib.request.Request:
         "stream": False,
         "format": "json",
         "think": False,
-        "options": {"temperature": 0},
+        "options": {"temperature": 0, "num_predict": 1200},
     }
     return urllib.request.Request(
         f"{config.ollama_base_url}/api/generate",

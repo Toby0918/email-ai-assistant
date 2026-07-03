@@ -3,11 +3,14 @@ const fields = {
   from: document.querySelector("#from"),
   to: document.querySelector("#to"),
   sentAt: document.querySelector("#sent-at"),
+  attachmentsInput: document.querySelector("#attachments-input"),
   body: document.querySelector("#body"),
   status: document.querySelector("#status"),
   priority: document.querySelector("#priority"),
   summary: document.querySelector("#summary"),
   category: document.querySelector("#category"),
+  engine: document.querySelector("#engine"),
+  attachmentsPreview: document.querySelector("#attachments-preview"),
   risks: document.querySelector("#risks"),
   actions: document.querySelector("#actions"),
   draft: document.querySelector("#draft"),
@@ -26,7 +29,8 @@ const CATEGORY_LABELS = {
   order_followup: "订单/交付跟进",
   payment: "付款/发票",
   contract: "合同/条款",
-  complaint: "投诉/质量",
+  complaint: "投诉/质量异常",
+  new_product_development: "新品开发/成本优化",
   internal: "内部事项",
   marketing: "营销/参考资料",
   unknown: "未知",
@@ -62,6 +66,8 @@ const ACTION_LABELS = {
 document.querySelector("#analyze-button").addEventListener("click", async () => {
   clearAnalysis();
   fields.status.textContent = "Analyzing";
+  const attachments = parseAttachmentList(fields.attachmentsInput.value);
+  fields.attachmentsPreview.textContent = formatAttachments(attachments);
   let data;
   try {
     const response = await fetch("/api/analyze-current-email", {
@@ -74,6 +80,7 @@ document.querySelector("#analyze-button").addEventListener("click", async () => 
         to: splitAddressList(fields.to.value),
         sent_at: fields.sentAt.value,
         body_text: fields.body.value,
+        attachments,
       }),
     });
     data = await response.json();
@@ -109,6 +116,7 @@ function renderAnalysis(analysis) {
   fields.priority.textContent = formatPriority(analysis.priority);
   fields.summary.textContent = textOrFallback(analysis.summary, "No summary returned");
   fields.category.textContent = formatCategory(analysis.category);
+  fields.engine.textContent = formatEngine(analysis.analysis_engine);
   fields.risks.textContent = formatList(analysis.risk_flags, formatRisk);
   fields.actions.textContent = formatList(analysis.suggested_actions, formatAction);
   fields.draft.value = analysis.reply_draft && analysis.reply_draft.body ? analysis.reply_draft.body : "";
@@ -118,6 +126,8 @@ function clearAnalysis() {
   fields.priority.textContent = "-";
   fields.summary.textContent = "No analysis yet";
   fields.category.textContent = "-";
+  fields.engine.textContent = "-";
+  fields.attachmentsPreview.textContent = "-";
   fields.risks.textContent = "-";
   fields.actions.textContent = "-";
   fields.draft.value = "";
@@ -128,6 +138,48 @@ function splitAddressList(value) {
     .split(/[;,]/)
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function parseAttachmentList(value) {
+  return String(value || "")
+    .split(/\r?\n/)
+    .map((line) => parseAttachmentLine(line))
+    .filter(Boolean);
+}
+
+function parseAttachmentLine(line) {
+  const text = String(line || "").trim();
+  if (!text) {
+    return null;
+  }
+  const match = text.match(/^(.+\.(pdf|docx?|xlsx?|pptx?|csv|zip|rar|7z|png|jpe?g|gif|txt))(?:\s*\(([^)]+)\))?$/i);
+  if (!match) {
+    return { filename: text, size: "", type: "" };
+  }
+  return {
+    filename: match[1].trim(),
+    size: String(match[3] || "").trim(),
+    type: String(match[2] || "").toLowerCase(),
+  };
+}
+
+function formatAttachments(value) {
+  if (!Array.isArray(value) || value.length === 0) {
+    return "-";
+  }
+  return value
+    .map((item) => {
+      if (!isPlainObject(item)) {
+        return textOrFallback(item, "");
+      }
+      const filename = textOrFallback(item.filename, "");
+      const details = [textOrFallback(item.size, ""), textOrFallback(item.type, "")]
+        .filter(Boolean)
+        .join(", ");
+      return filename && details ? `${filename} (${details})` : filename;
+    })
+    .filter(Boolean)
+    .join(", ") || "-";
 }
 
 function formatList(value, formatter) {
@@ -157,6 +209,13 @@ function formatAction(item) {
   }
 
   return textOrFallback(item.description, "") || formatActionType(item.type);
+}
+
+function formatEngine(value) {
+  if (!isPlainObject(value)) {
+    return textOrFallback(value, "-");
+  }
+  return textOrFallback(value.label, "-");
 }
 
 function formatPriority(value) {

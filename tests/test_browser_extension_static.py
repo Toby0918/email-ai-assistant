@@ -108,21 +108,28 @@ class BrowserExtensionStaticTests(unittest.TestCase):
         self.assertIn("fetch(", script)
         self.assertIn('"Content-Type": "application/json"', script)
         self.assertIn("user_confirmed: true", script)
+        self.assertIn("attachments: Array.isArray(email.attachments) ? email.attachments : []", script)
         self.assertNotIn("api.openai.com", script)
         self.assertNotIn("OPENAI_API_KEY", script)
         self.assertNotIn("process.env", script)
 
     def test_renderer_displays_existing_analysis_schema(self) -> None:
+        page = (EXTENSION / "popup.html").read_text(encoding="utf-8")
         script = (EXTENSION / "shared" / "render_analysis.js").read_text(encoding="utf-8")
 
+        self.assertIn('id="engine"', page)
         self.assertIn("renderAnalysis", script)
         self.assertIn("clearAnalysis", script)
+        self.assertIn("analysis.analysis_engine", script)
         self.assertIn("analysis.priority", script)
         self.assertIn("analysis.summary", script)
         self.assertIn("analysis.category", script)
         self.assertIn("analysis.risk_flags", script)
         self.assertIn("analysis.suggested_actions", script)
         self.assertIn("analysis.reply_draft.body", script)
+        self.assertIn('id="attachments"', page)
+        self.assertIn("formatAttachments", script)
+        self.assertIn("new_product_development", script)
 
     def test_exmail_adapter_extracts_only_after_popup_message(self) -> None:
         script = (EXTENSION / "content" / "exmail_adapter.js").read_text(encoding="utf-8")
@@ -144,6 +151,8 @@ class BrowserExtensionStaticTests(unittest.TestCase):
         self.assertIn("getSelectedEmailContent", script)
         self.assertIn("selectionBelongsToMessage", script)
         self.assertIn("findBodyElement", script)
+        self.assertIn("findAttachments", script)
+        self.assertIn("attachments", script)
         self.assertIn("view.getSelection", script)
         self.assertIn("selected_text", script)
         self.assertIn("dom_fallback", script)

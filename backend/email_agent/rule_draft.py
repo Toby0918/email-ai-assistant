@@ -49,7 +49,12 @@ def _draft_lines(
     if "check_delivery" in action_types:
         lines.append(_delivery_draft_line(is_booking, target))
     if "prepare_quote" in action_types:
-        lines.append("We will prepare the quote details for human review before sharing any price or lead time.")
+        if category == "new_product_development":
+            lines.append(
+                "We will review the project scope and assess feasibility against the requested cost target before sharing any technical or commercial feedback."
+            )
+        else:
+            lines.append("We will prepare the quote details for human review before sharing any price or lead time.")
     if "escalate" in action_types:
         lines.append(_escalation_draft_line(category, target, facts))
     if "confirm" in action_types and category == "payment":

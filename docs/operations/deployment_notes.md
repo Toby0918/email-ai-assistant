@@ -1,5 +1,5 @@
 ﻿---
-last_update: 2026-06-29
+last_update: 2026-07-03
 status: draft
 owner: "@tobyWang"
 review_cycle: monthly
@@ -16,9 +16,11 @@ source_type: operation_guide
 
 - Python 固定为 3.12.13。
 - 依赖版本遵守 `AGENTS.md`。
-- OpenAI API key 放在后端环境变量。
-- 可选本地 Ollama/Qwen 只通过后端环境变量启用：`EMAIL_AGENT_LLM_PROVIDER=ollama`、`EMAIL_AGENT_OLLAMA_BASE_URL=http://127.0.0.1:11434`、`EMAIL_AGENT_OLLAMA_MODEL=qwen3.6:latest`。
+- OpenAI API key 放在后端环境变量或后端本地 `.env`。
+- 后端启动时会加载项目根目录 `.env`；显式进程环境变量优先于 `.env`。
+- 可选本地 Ollama/Qwen 只通过后端环境变量或后端本地 `.env` 启用：`EMAIL_AGENT_LLM_PROVIDER=ollama`、`EMAIL_AGENT_OLLAMA_BASE_URL=http://127.0.0.1:11434`、`EMAIL_AGENT_OLLAMA_MODEL=qwen3.6:latest`。
 - 默认 `EMAIL_AGENT_LLM_PROVIDER=disabled`；本地模型不可用或输出无效时，后端回落到规则分析器。
+- 本地模型返回可解析但字段不完整的 JSON 时，后端会用规则分析结果补齐 schema，再统一校验。
 - SQLite 数据库文件仅保存在本地，不提交。
 
 ## 前端配置

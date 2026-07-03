@@ -46,6 +46,14 @@ class AnalysisSchemaTests(unittest.TestCase):
 
         self.assertEqual(result["priority"], "normal")
 
+    def test_validate_analysis_result_accepts_new_product_development_category(self) -> None:
+        analysis = valid_analysis()
+        analysis["category"] = "new_product_development"
+
+        result = validate_analysis_result(analysis)
+
+        self.assertEqual(result["category"], "new_product_development")
+
     def test_validate_analysis_result_rejects_invalid_priority(self) -> None:
         analysis = valid_analysis()
         analysis["priority"] = "medium"

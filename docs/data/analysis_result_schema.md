@@ -1,5 +1,5 @@
 ﻿---
-last_update: 2026-07-02
+last_update: 2026-07-03
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -15,7 +15,7 @@ AI 分析结果必须能解析为 JSON，并至少包含以下字段。
   "summary": "string",
   "priority": "urgent | high | normal | low",
   "priority_reason": "string",
-  "category": "customer_inquiry | order_followup | payment | contract | complaint | internal | marketing | unknown",
+  "category": "customer_inquiry | order_followup | payment | contract | complaint | new_product_development | internal | marketing | unknown",
   "tags": [],
   "risk_flags": [
     {
@@ -38,6 +38,10 @@ AI 分析结果必须能解析为 JSON，并至少包含以下字段。
     "body": "string",
     "needs_human_review": true,
     "review_reasons": []
+  },
+  "analysis_engine": {
+    "source": "ai_model | rule_fallback",
+    "label": "string"
   }
 }
 ```
@@ -47,6 +51,8 @@ AI 分析结果必须能解析为 JSON，并至少包含以下字段。
 - 枚举值必须落在允许范围内。
 - `reply_draft.needs_human_review` 必须为 `true`。
 - 不能包含自动发送指令。
+- `analysis_engine` 由后端在 JSON 校验后附加；AI 输出中同名字段不可信，后端必须忽略或覆盖。
+- 模型返回可解析但字段缺失、枚举不合规或缺少人工审核字段时，后端可以用规则分析结果补齐 schema，再执行本页校验规则。
 
 ## 语言规则
 

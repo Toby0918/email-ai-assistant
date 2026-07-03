@@ -4,6 +4,8 @@ const fields = {
   priority: document.querySelector("#priority"),
   summary: document.querySelector("#summary"),
   category: document.querySelector("#category"),
+  engine: document.querySelector("#engine"),
+  attachments: document.querySelector("#attachments"),
   risks: document.querySelector("#risks"),
   actions: document.querySelector("#actions"),
   draft: document.querySelector("#draft"),
@@ -19,6 +21,9 @@ document.querySelector("#analyze-button").addEventListener("click", async () => 
   if (!extraction.ok) {
     setBusy(false, extraction.error || "Open a Tencent Exmail message or select email body text from that opened message first");
     return;
+  }
+  if (fields.attachments) {
+    fields.attachments.textContent = EmailAssistantRender.formatAttachments(extraction.payload.attachments);
   }
 
   setBusy(true, "Analyzing");

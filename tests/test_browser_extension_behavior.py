@@ -171,6 +171,29 @@ class BrowserExtensionBehaviorTests(unittest.TestCase):
           return new FakeDocument({{ title: "Tencent Exmail", body }});
         }}
 
+        function attachmentDocument() {{
+          const subject = new FakeElement({{
+            tag: "h1",
+            id: "subject",
+            text: "Bottle trap Cost optimisation project-Delifu",
+          }});
+          const bodyText = [
+            "Bottle trap Cost optimisation project-Delifu",
+            "From: engineer@example.test",
+            "Hi Diana,",
+            "Please review the attached project scope.",
+            "Attachments (1)",
+            "Bottle trap Project_Imported.pdf (3.94M)",
+          ].join("\\n");
+          const messageBody = new FakeElement({{
+            tag: "div",
+            className: "mail-content",
+            text: bodyText,
+          }});
+          const body = new FakeElement({{ tag: "body", text: bodyText, children: [subject, messageBody] }});
+          return new FakeDocument({{ title: "Tencent Exmail", body }});
+        }}
+
         const cases = {{
           legacy_opened_message_extracts_body: () => {{
             const result = dispatch(legacyReadDocument());
@@ -222,6 +245,23 @@ class BrowserExtensionBehaviorTests(unittest.TestCase):
             const result = dispatch(bodySelectorOnlyDocument());
             if (result.ok) throw new Error("body selector alone should not extract");
           }},
+          opened_message_extracts_attachment_metadata: () => {{
+            const result = dispatch(attachmentDocument());
+            if (!result.ok) throw new Error(JSON.stringify(result));
+            if (!Array.isArray(result.payload.attachments) || result.payload.attachments.length !== 1) {{
+              throw new Error(`expected one attachment, got ${{JSON.stringify(result.payload.attachments)}}`);
+            }}
+            const attachment = result.payload.attachments[0];
+            if (attachment.filename !== "Bottle trap Project_Imported.pdf") {{
+              throw new Error(`unexpected filename: ${{attachment.filename}}`);
+            }}
+            if (attachment.size !== "3.94M") {{
+              throw new Error(`unexpected size: ${{attachment.size}}`);
+            }}
+            if (attachment.type !== "pdf") {{
+              throw new Error(`unexpected type: ${{attachment.type}}`);
+            }}
+          }},
         }};
 
         cases[{case_name!r}]();
@@ -252,6 +292,9 @@ class BrowserExtensionBehaviorTests(unittest.TestCase):
 
     def test_body_selector_alone_is_not_message_context(self) -> None:
         self.run_node_case("body_selector_alone_is_not_message_context")
+
+    def test_opened_message_extracts_attachment_metadata(self) -> None:
+        self.run_node_case("opened_message_extracts_attachment_metadata")
 
 
 if __name__ == "__main__":

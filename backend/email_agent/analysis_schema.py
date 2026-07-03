@@ -23,6 +23,7 @@ CATEGORIES = {
     "payment",
     "contract",
     "complaint",
+    "new_product_development",
     "internal",
     "marketing",
     "unknown",

@@ -4,6 +4,15 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from pathlib import Path
+
+try:
+    from dotenv import load_dotenv as _load_dotenv
+except ImportError:
+    _load_dotenv = None
+
+
+DEFAULT_DOTENV_PATH = Path(__file__).resolve().parents[2] / ".env"
 
 
 @dataclass(frozen=True)
@@ -17,8 +26,10 @@ class AppConfig:
     ollama_timeout_seconds: int
 
 
-def load_config() -> AppConfig:
+def load_config(dotenv_path: str | Path | None = DEFAULT_DOTENV_PATH) -> AppConfig:
     # Secrets stay on the backend and are loaded from the local environment only.
+    if dotenv_path is not None:
+        _load_backend_dotenv(Path(dotenv_path))
     return AppConfig(
         openai_api_key=os.getenv("OPENAI_API_KEY"),
         sqlite_path=os.getenv("EMAIL_AGENT_SQLITE_PATH", "outputs/email_agent.sqlite3"),
@@ -43,3 +54,27 @@ def _int_env(name: str, default: int) -> int:
     except ValueError:
         return default
     return value if value > 0 else default
+
+
+def _load_backend_dotenv(dotenv_path: Path) -> None:
+    if _load_dotenv is not None:
+        _load_dotenv(dotenv_path=dotenv_path, override=False)
+        return
+    if not dotenv_path.exists():
+        return
+    for raw_line in dotenv_path.read_text(encoding="utf-8").splitlines():
+        key, value = _parse_dotenv_line(raw_line)
+        if key and key not in os.environ:
+            os.environ[key] = value
+
+
+def _parse_dotenv_line(raw_line: str) -> tuple[str, str]:
+    line = raw_line.strip()
+    if not line or line.startswith("#") or "=" not in line:
+        return "", ""
+    if line.startswith("export "):
+        line = line.removeprefix("export ").strip()
+    key, value = line.split("=", 1)
+    key = key.strip()
+    value = value.strip().strip('"').strip("'")
+    return key, value

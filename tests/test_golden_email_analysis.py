@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from backend.email_agent.analyzer import AnalysisError, analyze_current_email
+from backend.email_agent.llm_client import LlmClientError
 
 
 FIXTURE = Path(__file__).resolve().parent / "fixtures" / "sample_emails.json"
@@ -18,6 +19,9 @@ def load_samples() -> list[dict[str, Any]]:
 
 
 class GoldenEmailAnalysisTests(unittest.TestCase):
+    def disabled_llm(self, prompt: str) -> str:
+        raise LlmClientError("disabled in golden tests")
+
     def test_sample_fixture_uses_only_anonymized_addresses(self) -> None:
         for sample in load_samples():
             with self.subTest(sample=sample["id"]):
@@ -29,7 +33,7 @@ class GoldenEmailAnalysisTests(unittest.TestCase):
             if "expected_error" in sample:
                 continue
             with self.subTest(sample=sample["id"]):
-                result = analyze_current_email(sample["email"])
+                result = analyze_current_email(sample["email"], llm_generate=self.disabled_llm)
                 expected = sample["expected"]
 
                 self.assertEqual(result["category"], expected["category"])
@@ -45,7 +49,7 @@ class GoldenEmailAnalysisTests(unittest.TestCase):
         sample = next(item for item in load_samples() if item["id"] == "empty_body")
 
         with self.assertRaisesRegex(AnalysisError, sample["expected_error"]):
-            analyze_current_email(sample["email"])
+            analyze_current_email(sample["email"], llm_generate=self.disabled_llm)
 
 
 if __name__ == "__main__":

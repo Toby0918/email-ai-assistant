@@ -30,8 +30,13 @@ class FrontendLocalDebugTests(unittest.TestCase):
 
         self.assertIn('id="to"', page)
         self.assertIn('id="sent-at"', page)
+        self.assertIn('id="attachments-input"', page)
+        self.assertIn('id="attachments-preview"', page)
         self.assertIn("to: splitAddressList(fields.to.value)", script)
         self.assertIn("sent_at: fields.sentAt.value", script)
+        self.assertIn("attachments,", script)
+        self.assertIn("parseAttachmentList", script)
+        self.assertIn("formatAttachments", script)
 
     def test_local_debug_page_can_copy_reply_draft(self) -> None:
         page = (FRONTEND / "index.html").read_text(encoding="utf-8")
@@ -48,6 +53,7 @@ class FrontendLocalDebugTests(unittest.TestCase):
         self.assertIn("clearAnalysis();\n    fields.status.textContent = data.error?.message", script)
         self.assertIn('fields.priority.textContent = "-"', script)
         self.assertIn('fields.summary.textContent = "No analysis yet"', script)
+        self.assertIn('fields.attachmentsPreview.textContent = "-"', script)
         self.assertIn('fields.draft.value = ""', script)
 
     def test_local_debug_page_handles_backend_unavailable(self) -> None:
@@ -64,9 +70,18 @@ class FrontendLocalDebugTests(unittest.TestCase):
         self.assertIn("function formatPriority", script)
         self.assertIn("function formatCategory", script)
         self.assertIn("function formatRisk", script)
+        self.assertIn("new_product_development", script)
         self.assertIn('payment: "付款/发票"', script)
         self.assertIn('payment_risk: "付款风险"', script)
         self.assertIn('check_inventory: "核查库存"', script)
+
+    def test_local_debug_page_displays_backend_analysis_engine(self) -> None:
+        page = (FRONTEND / "index.html").read_text(encoding="utf-8")
+        script = (FRONTEND / "app.js").read_text(encoding="utf-8")
+
+        self.assertIn('id="engine"', page)
+        self.assertIn("analysis.analysis_engine", script)
+        self.assertIn("fields.engine.textContent", script)
 
     def test_readme_documents_local_debug_start_command(self) -> None:
         readme = (ROOT / "README.md").read_text(encoding="utf-8")

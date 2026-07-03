@@ -70,6 +70,28 @@ class RuleAnalyzerTests(unittest.TestCase):
         self.assertIn("quality_risk", risk_types)
         self.assertEqual(action["type"], "escalate")
 
+    def test_new_product_cost_optimization_is_not_quality_complaint(self) -> None:
+        result = build_rule_based_analysis(
+            subject="Bottle trap Cost optimisation project-Delifu",
+            sender="engineer@example.test",
+            clean_body=(
+                "We are looking to introduce a new bottle trap and would like to explore "
+                "the possibility of developing a solution that meets the cost target "
+                "outlined in the attached project scope document. Please review the "
+                "requirements, assess feasibility, and share any technical or commercial "
+                "considerations while maintaining the required quality standards. "
+                "Attachments: Bottle trap Project_Imported.pdf (3.94M)"
+            ),
+        )
+
+        risk_types = {item["type"] for item in result["risk_flags"]}
+        action_types = {item["type"] for item in result["suggested_actions"]}
+
+        self.assertEqual(result["category"], "new_product_development")
+        self.assertNotIn("quality_risk", risk_types)
+        self.assertNotIn("escalate", action_types)
+        self.assertIn("prepare_quote", action_types)
+
     def test_suggested_action_description_is_specific_to_action_type(self) -> None:
         result = build_rule_based_analysis(
             subject="Invoice payment overdue",

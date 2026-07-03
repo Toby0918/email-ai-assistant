@@ -300,7 +300,7 @@ AI 分析结果必须是结构化 JSON。
   "summary": "",
   "priority": "urgent | high | normal | low",
   "priority_reason": "",
-  "category": "customer_inquiry | order_followup | payment | contract | complaint | internal | marketing | unknown",
+  "category": "customer_inquiry | order_followup | payment | contract | complaint | new_product_development | internal | marketing | unknown",
   "tags": [],
   "risk_flags": [],
   "suggested_actions": [],

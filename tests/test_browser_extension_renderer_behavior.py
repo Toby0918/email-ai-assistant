@@ -29,6 +29,8 @@ class BrowserExtensionRendererBehaviorTests(unittest.TestCase):
           priority: {{ textContent: "" }},
           summary: {{ textContent: "" }},
           category: {{ textContent: "" }},
+          engine: {{ textContent: "" }},
+          attachments: {{ textContent: "" }},
           risks: {{ textContent: "" }},
           actions: {{ textContent: "" }},
           draft: {{ value: "" }},
@@ -38,6 +40,7 @@ class BrowserExtensionRendererBehaviorTests(unittest.TestCase):
           priority: "high",
           summary: "需要核对付款状态。",
           category: "payment",
+          analysis_engine: {{ label: "Rule fallback" }},
           risk_flags: [{{ type: "payment_risk", level: "high", evidence: "邮件提到付款或发票。" }}],
           suggested_actions: [
             {{ type: "confirm", description: "请先核对付款、发票或汇款状态，再回复。" }},
@@ -51,6 +54,9 @@ class BrowserExtensionRendererBehaviorTests(unittest.TestCase):
         }}
         if (fields.category.textContent !== "付款/发票") {{
           throw new Error(`category label missing: ${{fields.category.textContent}}`);
+        }}
+        if (fields.engine.textContent !== "Rule fallback") {{
+          throw new Error(`engine label missing: ${{fields.engine.textContent}}`);
         }}
         if (fields.risks.textContent.includes("[object Object]")) {{
           throw new Error(`risk text is not readable: ${{fields.risks.textContent}}`);
@@ -69,6 +75,24 @@ class BrowserExtensionRendererBehaviorTests(unittest.TestCase):
         }}
         if (!fields.actions.textContent.includes("核查库存")) {{
           throw new Error(`action fallback label missing: ${{fields.actions.textContent}}`);
+        }}
+        fields.category.textContent = context.window.EmailAssistantRender.formatAttachments([
+          {{ filename: "Bottle trap Project_Imported.pdf", size: "3.94M", type: "pdf" }},
+        ]);
+        if (fields.category.textContent !== "Bottle trap Project_Imported.pdf (3.94M, pdf)") {{
+          throw new Error(`attachment format missing: ${{fields.category.textContent}}`);
+        }}
+        context.window.EmailAssistantRender.renderAnalysis(fields, {{
+          priority: "normal",
+          summary: "这是一封新品开发邮件。",
+          category: "new_product_development",
+          analysis_engine: {{ label: "Rule fallback" }},
+          risk_flags: [],
+          suggested_actions: [],
+          reply_draft: {{ body: "Draft body" }},
+        }});
+        if (fields.category.textContent !== "新品开发/成本优化") {{
+          throw new Error(`new product category label missing: ${{fields.category.textContent}}`);
         }}
         """
 

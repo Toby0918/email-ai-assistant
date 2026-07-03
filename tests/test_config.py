@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -28,7 +29,7 @@ class ConfigTests(unittest.TestCase):
             },
             clear=True,
         ):
-            config = load_config()
+            config = load_config(dotenv_path=None)
 
         self.assertEqual(config.openai_api_key, "test-key")
         self.assertEqual(config.sqlite_path, "outputs/test.sqlite3")
@@ -40,7 +41,7 @@ class ConfigTests(unittest.TestCase):
 
     def test_load_config_defaults_local_llm_to_disabled_backend_only(self) -> None:
         with patch.dict(os.environ, {}, clear=True):
-            config = load_config()
+            config = load_config(dotenv_path=None)
 
         self.assertEqual(config.llm_provider, "disabled")
         self.assertEqual(config.ollama_base_url, "http://127.0.0.1:11434")
@@ -56,6 +57,55 @@ class ConfigTests(unittest.TestCase):
         self.assertIn("EMAIL_AGENT_OLLAMA_MODEL=", sample)
         self.assertNotIn("EMAIL_AI_DB_PATH", sample)
         self.assertNotIn("EMAIL_AI_LOG_LEVEL", sample)
+
+    def test_load_config_reads_backend_dotenv_when_environment_is_unset(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            dotenv_path = Path(directory) / ".env"
+            dotenv_path.write_text(
+                "\n".join([
+                    "EMAIL_AGENT_SQLITE_PATH=outputs/from-dotenv.sqlite3",
+                    "EMAIL_AGENT_LOG_LEVEL=DEBUG",
+                    "EMAIL_AGENT_LLM_PROVIDER=ollama",
+                    "EMAIL_AGENT_OLLAMA_BASE_URL=http://127.0.0.1:11434/",
+                    "EMAIL_AGENT_OLLAMA_MODEL=qwen3.6:latest",
+                    "EMAIL_AGENT_OLLAMA_TIMEOUT_SECONDS=90",
+                ]),
+                encoding="utf-8",
+            )
+
+            with patch.dict(os.environ, {}, clear=True):
+                config = load_config(dotenv_path=dotenv_path)
+
+        self.assertEqual(config.sqlite_path, "outputs/from-dotenv.sqlite3")
+        self.assertEqual(config.log_level, "DEBUG")
+        self.assertEqual(config.llm_provider, "ollama")
+        self.assertEqual(config.ollama_base_url, "http://127.0.0.1:11434")
+        self.assertEqual(config.ollama_model, "qwen3.6:latest")
+        self.assertEqual(config.ollama_timeout_seconds, 90)
+
+    def test_environment_values_override_backend_dotenv(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            dotenv_path = Path(directory) / ".env"
+            dotenv_path.write_text(
+                "\n".join([
+                    "EMAIL_AGENT_LLM_PROVIDER=disabled",
+                    "EMAIL_AGENT_OLLAMA_TIMEOUT_SECONDS=10",
+                ]),
+                encoding="utf-8",
+            )
+
+            with patch.dict(
+                os.environ,
+                {
+                    "EMAIL_AGENT_LLM_PROVIDER": "ollama",
+                    "EMAIL_AGENT_OLLAMA_TIMEOUT_SECONDS": "90",
+                },
+                clear=True,
+            ):
+                config = load_config(dotenv_path=dotenv_path)
+
+        self.assertEqual(config.llm_provider, "ollama")
+        self.assertEqual(config.ollama_timeout_seconds, 90)
 
 
 if __name__ == "__main__":

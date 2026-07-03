@@ -8,7 +8,11 @@
     to: [],
     sent_at: "",
     body_text: "",
+    attachments: [],
   };
+  const MAX_ATTACHMENTS = 8;
+  const ATTACHMENT_PATTERN =
+    /([A-Za-z0-9][A-Za-z0-9 _.,()[\]\-+&'#]*\.(pdf|docx?|xlsx?|pptx?|csv|zip|rar|7z|png|jpe?g|gif|txt))(?:\s*\(([^)\n]{1,40})\))?/gi;
   const BODY_SELECTORS = [
     "#mailContentContainer",
     "#mailContent",
@@ -56,6 +60,7 @@
           to: metadata.to || [],
           sent_at: metadata.sent_at || "",
           body_text: selected.text,
+          attachments: metadata.attachments || [],
         },
       };
     }
@@ -108,6 +113,7 @@
     if (!body) {
       return EMPTY_PAYLOAD;
     }
+    const bodyElement = findBodyElement(doc, allowDocumentBodyFallback);
 
     return {
       subject: findSubject(doc) || doc.title || "Tencent Exmail message",
@@ -115,6 +121,7 @@
       to: splitRecipients(findLabeledText(doc, ["To", "\u6536\u4ef6\u4eba"])),
       sent_at: findLabeledText(doc, ["Date", "Sent", "\u65f6\u95f4", "\u53d1\u9001\u65f6\u95f4"]),
       body_text: body,
+      attachments: findAttachments(doc, bodyElement),
     };
   }
 
@@ -226,6 +233,39 @@
       return [];
     }
     return value.split(/[;,\uff1b\uff0c]/).map((item) => item.trim()).filter(Boolean);
+  }
+
+  function findAttachments(doc, bodyElement) {
+    const sources = [];
+    if (bodyElement) {
+      sources.push(bodyElement.innerText || bodyElement.textContent || "");
+    }
+    if (doc.body) {
+      sources.push(doc.body.innerText || doc.body.textContent || "");
+    }
+
+    const attachments = [];
+    const seen = new Set();
+    for (const source of sources) {
+      ATTACHMENT_PATTERN.lastIndex = 0;
+      let match = ATTACHMENT_PATTERN.exec(String(source || ""));
+      while (match && attachments.length < MAX_ATTACHMENTS) {
+        const filename = normalizeAttachmentFilename(match[1]);
+        const type = String(match[2] || "").toLowerCase();
+        const size = normalizeText(match[3] || "");
+        const key = filename.toLowerCase();
+        if (filename && !seen.has(key)) {
+          attachments.push({ filename, size, type });
+          seen.add(key);
+        }
+        match = ATTACHMENT_PATTERN.exec(String(source || ""));
+      }
+    }
+    return attachments;
+  }
+
+  function normalizeAttachmentFilename(value) {
+    return normalizeText(value).replace(/^[\s:：,，;；-]+|[\s:：,，;；-]+$/g, "");
   }
 
   function getSelectedEmailContent(documents) {

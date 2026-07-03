@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+import os
 import threading
 import unittest
 import urllib.request
+from unittest.mock import patch
 
 from backend.email_agent.server import create_server
 
@@ -38,8 +40,9 @@ class ServerTests(unittest.TestCase):
                 method="POST",
                 headers={"Content-Type": "application/json"},
             )
-            with urllib.request.urlopen(request, timeout=5) as response:
-                data = json.loads(response.read().decode("utf-8"))
+            with patch.dict(os.environ, {"EMAIL_AGENT_LLM_PROVIDER": "disabled"}):
+                with urllib.request.urlopen(request, timeout=5) as response:
+                    data = json.loads(response.read().decode("utf-8"))
             self.assertFalse(data["ok"])
             self.assertEqual(data["error"]["code"], "USER_ACTION_REQUIRED")
         finally:
@@ -65,8 +68,9 @@ class ServerTests(unittest.TestCase):
                 method="POST",
                 headers={"Content-Type": "application/json"},
             )
-            with urllib.request.urlopen(request, timeout=5) as response:
-                data = json.loads(response.read().decode("utf-8"))
+            with patch.dict(os.environ, {"EMAIL_AGENT_LLM_PROVIDER": "disabled"}):
+                with urllib.request.urlopen(request, timeout=5) as response:
+                    data = json.loads(response.read().decode("utf-8"))
             self.assertTrue(data["ok"])
             self.assertIn("request_id", data)
             self.assertIn("analysis", data)

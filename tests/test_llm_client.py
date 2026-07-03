@@ -60,6 +60,7 @@ class LlmClientTests(unittest.TestCase):
         self.assertEqual(payload["format"], "json")
         self.assertFalse(payload["think"])
         self.assertEqual(payload["options"]["temperature"], 0)
+        self.assertEqual(payload["options"]["num_predict"], 1200)
 
     def test_ollama_errors_are_sanitized(self) -> None:
         env = {"EMAIL_AGENT_LLM_PROVIDER": "ollama"}

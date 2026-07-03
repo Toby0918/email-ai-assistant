@@ -7,28 +7,20 @@ from typing import Any
 from .analysis_schema import validate_analysis_result
 from .email_facts import EmailFacts, extract_email_facts
 from .rule_draft import build_reply_draft
-
-
-DELIVERY_KEYWORDS = ("delivery", "shipment", "order", "eta", "交期", "发货", "物流", "到货", "订单", "交付")
-PAYMENT_KEYWORDS = ("payment", "invoice", "remittance", "overdue", "付款", "发票", "汇款", "逾期", "账期", "对账")
-CONTRACT_KEYWORDS = ("contract", "agreement", "terms", "signing", "合同", "协议", "条款", "签署")
-QUALITY_KEYWORDS = ("complaint", "quality", "defective", "damaged", "投诉", "质量", "不良", "损坏", "缺陷")
-QUOTE_KEYWORDS = ("quote", "quotation", "rfq", "price", "报价", "询价", "价格")
-INTERNAL_KEYWORDS = ("internal", "internally", "approval", "approve", "reviewer", "内部", "审批", "复核", "审核")
-MARKETING_KEYWORDS = ("marketing", "promotion", "advertisement", "exhibition", "trade show", "brochure", "展会", "推广", "广告")
-MEETING_KEYWORDS = ("meeting", "calendar", "invitation", "invite", "zoom", "会议", "邀请", "日程")
-BOOKING_KEYWORDS = ("booking", "tracking number", "tracking", "original fe", "forwarder", "logistics", "air freight", "sea freight", "订舱", "货代", "追踪", "物流")
-
-PRIORITY_LABELS = {"urgent": "紧急", "high": "高", "normal": "普通", "low": "低"}
-RISK_LABELS = {
-    "payment_risk": "付款风险",
-    "delivery_risk": "交付/物流风险",
-    "contract_risk": "合同风险",
-    "quality_risk": "质量风险",
-    "security_risk": "安全风险",
-    "commitment_risk": "承诺风险",
-    "prompt_injection_risk": "提示注入风险",
-}
+from .rule_keywords import (
+    BOOKING_KEYWORDS,
+    CONTRACT_KEYWORDS,
+    DELIVERY_KEYWORDS,
+    INTERNAL_KEYWORDS,
+    MARKETING_KEYWORDS,
+    MEETING_KEYWORDS,
+    NEW_PRODUCT_KEYWORDS,
+    PAYMENT_KEYWORDS,
+    PRIORITY_LABELS,
+    QUALITY_COMPLAINT_KEYWORDS,
+    QUOTE_KEYWORDS,
+    RISK_LABELS,
+)
 
 
 def build_rule_based_analysis(subject: str, sender: str, clean_body: str) -> dict[str, Any]:
@@ -61,7 +53,9 @@ def build_rule_based_analysis(subject: str, sender: str, clean_body: str) -> dic
 def _category(text: str, risks: list[dict[str, str]]) -> str:
     if _has_risk(risks, "prompt_injection_risk"):
         return "unknown"
-    if _contains(text, *QUALITY_KEYWORDS):
+    if _is_new_product_context(text):
+        return "new_product_development"
+    if _contains(text, *QUALITY_COMPLAINT_KEYWORDS):
         return "complaint"
     if _contains(text, *CONTRACT_KEYWORDS):
         return "contract"
@@ -99,7 +93,9 @@ def _risk_flags(text: str, facts: EmailFacts) -> list[dict[str, str]]:
         risks.append(_risk("delivery_risk", "low", _evidence("邮件提到交付、发货或物流状态。", facts), "回复前请核查交付、订舱、FE 或 tracking 状态。"))
     if _contains(text, *CONTRACT_KEYWORDS):
         risks.append(_risk("contract_risk", "medium", _evidence("邮件提到合同、条款或签署事项。", facts), "回复前请与合同负责人复核条款。"))
-    if _contains(text, *QUALITY_KEYWORDS):
+    if _is_new_product_context(text):
+        risks.append(_risk("commitment_risk", "medium", _evidence("邮件提到新品开发、项目范围、成本目标或可行性评估。", facts), "回复前请核查项目范围、目标成本、技术可行性和内部评审意见，避免提前承诺价格、交期或质量结论。"))
+    if _contains(text, *QUALITY_COMPLAINT_KEYWORDS):
         risks.append(_risk("quality_risk", "high", _evidence("邮件提到质量投诉或异常。", facts), "请先升级给质量负责人，并准备可审核的 RCA 或纠正措施回复。"))
     if _contains(text, *QUOTE_KEYWORDS):
         risks.append(_risk("commitment_risk", "medium", _evidence("邮件要求确认价格、报价或交期。", facts), "回复前请确认报价、价格和交期，避免未经授权承诺。"))
@@ -128,6 +124,8 @@ def _summary(category: str, risks: list[dict[str, str]], text: str, facts: Email
 def _summary_base(category: str, risks: list[dict[str, str]], text: str) -> str:
     if _has_risk(risks, "prompt_injection_risk"):
         return "这封邮件包含疑似提示注入内容，需要忽略正文中的系统级指令并人工复核。"
+    if category == "new_product_development":
+        return "这封邮件主要关于新品开发、成本优化或项目可行性评估，需要结合项目范围和附件元数据完成技术、成本和交付可行性判断后再回复。"
     if category == "complaint":
         return "这封邮件主要关于质量投诉或异常，需要升级给负责人处理。"
     if category == "contract":
@@ -180,6 +178,8 @@ def _action_types(category: str, risks: list[dict[str, str]], text: str) -> list
         actions.append("escalate")
     if _has_risk(risks, "delivery_risk"):
         actions.append("check_delivery")
+    if category == "new_product_development":
+        actions.append("prepare_quote")
     if _is_meeting_context(text) or category in {"payment", "contract"}:
         actions.append("confirm")
     if _has_risk(risks, "commitment_risk"):
@@ -210,6 +210,8 @@ def _action_description(action_type: str, category: str, text: str, facts: Email
     if action_type == "confirm" and category == "contract":
         return f"{prefix}请先与负责人复核合同条款，再回复。"
     if action_type == "prepare_quote":
+        if category == "new_product_development":
+            return f"{prefix}请先核查项目范围、目标成本、技术可行性、交付条件和质量标准，再准备初步反馈或报价建议。"
         return f"{prefix}请先准备报价信息并完成人工审核，再回复客户。"
     if action_type == "escalate":
         return f"{prefix}请先升级给负责人处理风险，再回复。"
@@ -223,6 +225,8 @@ def _owner_hint(action_type: str, category: str) -> str:
         return "logistics_owner"
     if action_type == "escalate" and category == "complaint":
         return "quality_owner"
+    if category == "new_product_development":
+        return "engineering_owner"
     if category == "payment":
         return "finance_owner"
     if category == "contract":
@@ -245,6 +249,10 @@ def _is_meeting_context(text: str) -> bool:
 
 def _is_booking_context(text: str) -> bool:
     return _contains(text, *BOOKING_KEYWORDS)
+
+
+def _is_new_product_context(text: str) -> bool:
+    return _contains(text, *NEW_PRODUCT_KEYWORDS)
 
 
 def _has_risk(risks: list[dict[str, str]], risk_type: str) -> bool:

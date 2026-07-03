@@ -13,6 +13,7 @@
         to: Array.isArray(email.to) ? email.to : [],
         sent_at: email.sent_at || "",
         body_text: email.body_text || "",
+        attachments: Array.isArray(email.attachments) ? email.attachments : [],
       }),
     });
 

@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Email AI Assistant for Tencent Exmail",
   "description": "Analyze the currently opened Tencent Exmail message through the local Email AI Assistant backend.",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "action": {
     "default_title": "Email AI Assistant",
     "default_popup": "popup.html"

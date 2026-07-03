@@ -11,7 +11,8 @@
     order_followup: "订单/交付跟进",
     payment: "付款/发票",
     contract: "合同/条款",
-    complaint: "投诉/质量",
+    complaint: "投诉/质量异常",
+    new_product_development: "新品开发/成本优化",
     internal: "内部事项",
     marketing: "营销/参考资料",
     unknown: "未知",
@@ -48,6 +49,9 @@
     fields.priority.textContent = formatPriority(analysis.priority);
     fields.summary.textContent = textOrFallback(analysis.summary, "No summary returned");
     fields.category.textContent = formatCategory(analysis.category);
+    if (fields.engine) {
+      fields.engine.textContent = formatEngine(analysis.analysis_engine);
+    }
     fields.risks.textContent = formatList(analysis.risk_flags, formatRisk);
     fields.actions.textContent = formatList(analysis.suggested_actions, formatAction);
     fields.draft.value = analysis.reply_draft && analysis.reply_draft.body ? analysis.reply_draft.body : "";
@@ -57,6 +61,12 @@
     fields.priority.textContent = "-";
     fields.summary.textContent = "No analysis yet";
     fields.category.textContent = "-";
+    if (fields.engine) {
+      fields.engine.textContent = "-";
+    }
+    if (fields.attachments) {
+      fields.attachments.textContent = "-";
+    }
     fields.risks.textContent = "-";
     fields.actions.textContent = "-";
     fields.draft.value = "";
@@ -89,6 +99,35 @@
     }
 
     return textOrFallback(item.description, "") || formatActionType(item.type);
+  }
+
+  function formatEngine(value) {
+    if (!isPlainObject(value)) {
+      return textOrDash(value);
+    }
+    return textOrDash(value.label);
+  }
+
+  function formatAttachments(value) {
+    if (!Array.isArray(value) || value.length === 0) {
+      return "-";
+    }
+    const text = value.map(formatAttachment).filter(Boolean).join(", ");
+    return text || "-";
+  }
+
+  function formatAttachment(item) {
+    if (!isPlainObject(item)) {
+      return textOrFallback(item, "");
+    }
+    const filename = textOrFallback(item.filename, "");
+    if (!filename) {
+      return "";
+    }
+    const details = [textOrFallback(item.size, ""), textOrFallback(item.type, "")]
+      .filter(Boolean)
+      .join(", ");
+    return details ? `${filename} (${details})` : filename;
   }
 
   function formatPriority(value) {
@@ -132,5 +171,6 @@
   window.EmailAssistantRender = {
     renderAnalysis,
     clearAnalysis,
+    formatAttachments,
   };
 })();
