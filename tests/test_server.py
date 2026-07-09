@@ -7,12 +7,29 @@ import os
 import threading
 import unittest
 import urllib.request
-from unittest.mock import patch
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
-from backend.email_agent.server import create_server
+from backend.email_agent.config import load_config
+from backend.email_agent.server import EmailAssistantHandler, create_server
 
 
 class ServerTests(unittest.TestCase):
+    def test_analyze_endpoint_rejects_negative_content_length_without_reading_body(self) -> None:
+        handler = object.__new__(EmailAssistantHandler)
+        handler.path = "/api/analyze-current-email"
+        handler.headers = {"Content-Length": "-1"}
+        handler.server = SimpleNamespace(attachment_config=load_config(dotenv_path=None))
+        handler.rfile = Mock()
+        handler._send_json = Mock()
+
+        handler.do_POST()
+
+        handler.rfile.read.assert_not_called()
+        response, status = handler._send_json.call_args.args
+        self.assertEqual(response["error"]["code"], "INVALID_CONTENT_LENGTH")
+        self.assertEqual(status.value, 400)
+
     def test_health_endpoint_returns_ok(self) -> None:
         server = create_server(host="127.0.0.1", port=0, database_path=":memory:")
         thread = threading.Thread(target=server.serve_forever, daemon=True)

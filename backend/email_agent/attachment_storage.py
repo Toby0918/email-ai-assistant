@@ -37,23 +37,33 @@ class StoredAttachment:
 def store_attachment_files(files: list[dict[str, object]], config: AppConfig) -> list[StoredAttachment]:
     """Validate and store current-email attachment bytes in the configured temp directory."""
     decoded_files = _decode_and_validate_files(files, config)
-    storage_dir = _storage_dir(config)
-    expires_at = datetime.now(UTC) + timedelta(hours=config.attachment_retention_hours)
-    return [_store_one_attachment(item, storage_dir, expires_at) for item in decoded_files]
+    stored_files: list[StoredAttachment] = []
+    try:
+        storage_dir = _storage_dir(config)
+        expires_at = datetime.now(UTC) + timedelta(hours=config.attachment_retention_hours)
+        for item in decoded_files:
+            stored_files.append(_store_one_attachment(item, storage_dir, expires_at))
+    except OSError as exc:
+        _remove_files([item.path for item in stored_files])
+        raise AttachmentInputError("Temporary attachment storage is unavailable.") from exc
+    return stored_files
 
 
 def cleanup_expired_attachments(config: AppConfig, now: datetime | None = None) -> int:
     """Delete contained temp files whose expiry timestamp has passed."""
-    storage_dir = _storage_dir(config)
-    cutoff = (now or datetime.now(UTC)).timestamp()
-    removed = 0
-    for path in storage_dir.iterdir():
-        if not path.is_file() or path.resolve().parent != storage_dir:
-            continue
-        if path.stat().st_mtime <= cutoff:
-            path.unlink()
-            removed += 1
-    return removed
+    try:
+        storage_dir = _storage_dir(config)
+        cutoff = (now or datetime.now(UTC)).timestamp()
+        removed = 0
+        for path in storage_dir.iterdir():
+            if not path.is_file() or path.resolve().parent != storage_dir:
+                continue
+            if path.stat().st_mtime <= cutoff:
+                path.unlink()
+                removed += 1
+        return removed
+    except OSError as exc:
+        raise AttachmentInputError("Temporary attachment cleanup is unavailable.") from exc
 
 
 def _decode_and_validate_files(
@@ -89,9 +99,13 @@ def _store_one_attachment(
     path = (storage_dir / f"{uuid4().hex}_{safe_filename}").resolve()
     if path.parent != storage_dir:
         raise AttachmentInputError("Attachment path is outside the temporary storage directory.")
-    with path.open("xb") as file_handle:
-        file_handle.write(content)
-    os.utime(path, (datetime.now(UTC).timestamp(), expires_at.timestamp()))
+    try:
+        with path.open("xb") as file_handle:
+            file_handle.write(content)
+        os.utime(path, (datetime.now(UTC).timestamp(), expires_at.timestamp()))
+    except OSError:
+        _remove_files([path])
+        raise
     return StoredAttachment(
         safe_filename=safe_filename,
         type=attachment_type,
@@ -105,6 +119,14 @@ def _storage_dir(config: AppConfig) -> Path:
     storage_dir = Path(config.attachment_temp_dir).resolve()
     storage_dir.mkdir(parents=True, exist_ok=True)
     return storage_dir
+
+
+def _remove_files(paths: list[Path]) -> None:
+    for path in paths:
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            continue
 
 
 def _safe_filename(value: Any) -> str:

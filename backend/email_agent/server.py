@@ -48,10 +48,12 @@ class EmailAssistantHandler(BaseHTTPRequestHandler):
         if self.path != "/api/analyze-current-email":
             self._send_json({"ok": False, "error": {"code": "NOT_FOUND"}}, HTTPStatus.NOT_FOUND)
             return
-        if self._content_length_exceeds_limit():
+        content_length_error = self._content_length_error()
+        if content_length_error is not None:
+            code, message, status = content_length_error
             self._send_json(
-                {"ok": False, "error": {"code": "REQUEST_TOO_LARGE", "message": "Request exceeds the local attachment limit."}},
-                HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
+                {"ok": False, "error": {"code": code, "message": message}},
+                status,
             )
             return
         payload = self._read_json()
@@ -73,13 +75,21 @@ class EmailAssistantHandler(BaseHTTPRequestHandler):
             return {}
         return data if isinstance(data, dict) else {}
 
-    def _content_length_exceeds_limit(self) -> bool:
+    def _content_length_error(self) -> tuple[str, str, HTTPStatus] | None:
         try:
             content_length = int(self.headers.get("Content-Length", "0"))
         except ValueError:
-            return True
+            return "INVALID_CONTENT_LENGTH", "Content-Length must be a non-negative integer.", HTTPStatus.BAD_REQUEST
+        if content_length < 0:
+            return "INVALID_CONTENT_LENGTH", "Content-Length must be a non-negative integer.", HTTPStatus.BAD_REQUEST
         max_encoded_attachment_bytes = ((self.server.attachment_config.attachment_max_total_bytes + 2) // 3) * 4
-        return content_length > max_encoded_attachment_bytes + 64 * 1024
+        if content_length > max_encoded_attachment_bytes + 64 * 1024:
+            return (
+                "REQUEST_TOO_LARGE",
+                "Request exceeds the local attachment limit.",
+                HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
+            )
+        return None
 
     def _save_result(self, payload: dict[str, Any], analysis: dict[str, Any]) -> int:
         with self.server.database_lock:

@@ -9,6 +9,7 @@ from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from backend.email_agent.attachment_storage import (
     AttachmentInputError,
@@ -49,6 +50,31 @@ class AttachmentStorageTests(unittest.TestCase):
             self.assertEqual(stored[0].safe_filename, "outside.pdf")
             self.assertEqual(Path(stored[0].path).read_bytes(), b"safe")
             self.assertTrue(Path(stored[0].path).resolve().is_relative_to(Path(directory).resolve()))
+
+    def test_store_attachment_files_removes_batch_when_later_write_fails(self) -> None:
+        with TemporaryDirectory() as directory:
+            config = self._config(directory)
+
+            with patch(
+                "backend.email_agent.attachment_storage.os.utime",
+                side_effect=[None, OSError("disk write failed")],
+            ):
+                with self.assertRaises(AttachmentInputError):
+                    store_attachment_files(
+                        [self._file("one.pdf", b"one"), self._file("two.pdf", b"two")],
+                        config,
+                    )
+
+            self.assertEqual(list(Path(directory).iterdir()), [])
+
+    def test_cleanup_expired_attachments_converts_os_errors_to_input_error(self) -> None:
+        with TemporaryDirectory() as directory:
+            config = self._config(directory)
+            expired = Path(directory) / "expired.pdf"
+            expired.write_bytes(b"expired")
+            with patch.object(Path, "unlink", side_effect=OSError("permission denied")):
+                with self.assertRaises(AttachmentInputError):
+                    cleanup_expired_attachments(config, now=datetime(2026, 7, 10, tzinfo=UTC))
 
     def test_cleanup_expired_attachments_deletes_only_expired_files(self) -> None:
         with TemporaryDirectory() as directory:
