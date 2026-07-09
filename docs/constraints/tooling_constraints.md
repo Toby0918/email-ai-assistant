@@ -1,5 +1,5 @@
 ---
-last_update: 2026-06-29
+last_update: 2026-07-09
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -59,8 +59,12 @@ AGENTS.md
 | openpyxl | 3.1.5 | 导出本地调试或评估用 Excel 报表 | 不用于核心数据存储；不用于读取真实邮箱 |
 | openai | 2.44.0 | 后端调用 AI 模型，生成结构化邮件分析结果 | 不允许在前端直接调用；不允许输出未经校验的自由文本 |
 | python-dotenv | 1.2.2 | 本地加载 `.env` 中的后端环境变量 | 不允许把 `.env` 提交到版本库 |
+| pypdf | 5.7.0 | 后端提取受限 PDF 文本 | 不解析加密、可执行或未知二进制内容 |
+| python-docx | 1.1.2 | 后端提取受限 DOCX 段落和表格文本 | 不运行嵌入式活动内容 |
+| Pillow | 11.2.1 | 后端检查图片并为 OCR 准备输入 | 不在前端处理图片内容 |
+| pytesseract | 0.3.13 | 后端可选 OCR | Tesseract 缺失时仅降级 OCR，不能阻断规则兜底 |
 
-本地 Ollama/Qwen 属于后端运行环境能力，不是新增 Python 依赖。只有在用户明确确认后，`backend/email_agent/llm_client.py` 可以通过标准库 HTTP 调用 `EMAIL_AGENT_OLLAMA_BASE_URL`；默认 provider 必须是 `disabled`，调用失败或输出无效时必须回落到本地规则分析器。
+本地 Ollama/Qwen/Gemma 属于后端运行环境能力，不是新增 Python 依赖。`EMAIL_AGENT_OLLAMA_MODEL` 默认是 `qwen3.6:latest`，可选择 `gemma4`；调用失败或输出无效时必须回落到本地规则分析器。
 
 ## 4. 依赖管理规则
 
@@ -216,6 +220,7 @@ local_debug_page
 - 识别当前打开的邮件。
 - 展示“分析此邮件”按钮。
 - 将当前邮件必要字段发送给本地 Python 后端。
+- 仅在“分析此邮件”点击路径中，传输当前打开邮件页面可见的受支持附件资源。
 - 展示结构化分析结果。
 - 允许用户复制或参考回复草稿。
 
@@ -228,6 +233,7 @@ local_debug_page
 - 不得后台扫描整个邮箱。
 - 不得默认读取真实邮箱账号，除非后续单独确认。
 - 不得把邮件正文写入浏览器控制台日志。
+- 不得在点击前收集资源、读取其他邮件或文件夹，或把附件二进制、私有下载 URL、cookie 或 token 传入 SQLite、日志或前端持久化存储。
 
 ## 7. docs/ 工具边界
 
@@ -302,6 +308,20 @@ AI 分析结果必须是结构化 JSON。
   "priority_reason": "",
   "category": "customer_inquiry | order_followup | payment | contract | complaint | new_product_development | internal | marketing | unknown",
   "tags": [],
+  "decision_brief": {
+    "one_line_conclusion": "",
+    "requested_outcome": "",
+    "next_steps": [],
+    "key_facts": [],
+    "must_check": [],
+    "missing_info": [],
+    "reply_recommendation": {
+      "should_reply": true,
+      "reply_type": "acknowledge | ask_clarification | provide_info | escalate_first | no_reply",
+      "reason": ""
+    },
+    "confidence": "high | medium | low"
+  },
   "risk_flags": [],
   "suggested_actions": [],
   "reply_draft": {

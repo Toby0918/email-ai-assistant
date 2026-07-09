@@ -7,7 +7,12 @@ import os
 import unittest
 from unittest.mock import patch
 
-from backend.email_agent.llm_client import LlmClientError, generate_analysis
+from backend.email_agent.config import AppConfig
+from backend.email_agent.llm_client import (
+    LlmClientError,
+    configured_analysis_engine_label,
+    generate_analysis,
+)
 
 
 class FakeHttpResponse:
@@ -26,6 +31,44 @@ class FakeHttpResponse:
 
 
 class LlmClientTests(unittest.TestCase):
+    def test_configured_engine_label_identifies_gemma(self) -> None:
+        config = AppConfig(
+            openai_api_key=None,
+            sqlite_path="outputs/test.sqlite3",
+            log_level="INFO",
+            llm_provider="ollama",
+            ollama_base_url="http://127.0.0.1:11434",
+            ollama_model="gemma4:latest",
+            ollama_timeout_seconds=30,
+            attachment_temp_dir="outputs/attachment_temp",
+            attachment_retention_hours=24,
+            attachment_max_files=5,
+            attachment_max_file_bytes=10 * 1024 * 1024,
+            attachment_max_total_bytes=25 * 1024 * 1024,
+            internal_email_domains=("cndlf.com",),
+        )
+
+        self.assertEqual(configured_analysis_engine_label(config), "Local Gemma")
+
+    def test_configured_engine_label_identifies_rule_fallback(self) -> None:
+        config = AppConfig(
+            openai_api_key=None,
+            sqlite_path="outputs/test.sqlite3",
+            log_level="INFO",
+            llm_provider="disabled",
+            ollama_base_url="http://127.0.0.1:11434",
+            ollama_model="qwen3.6:latest",
+            ollama_timeout_seconds=30,
+            attachment_temp_dir="outputs/attachment_temp",
+            attachment_retention_hours=24,
+            attachment_max_files=5,
+            attachment_max_file_bytes=10 * 1024 * 1024,
+            attachment_max_total_bytes=25 * 1024 * 1024,
+            internal_email_domains=("cndlf.com",),
+        )
+
+        self.assertEqual(configured_analysis_engine_label(config), "Rule fallback")
+
     def test_disabled_provider_raises_without_calling_network(self) -> None:
         with patch.dict(os.environ, {"EMAIL_AGENT_LLM_PROVIDER": "disabled"}, clear=True):
             with patch("urllib.request.urlopen") as urlopen:

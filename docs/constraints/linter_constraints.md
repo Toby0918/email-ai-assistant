@@ -20,7 +20,7 @@ source_type: operation_guide
 - 后端业务代码使用裸 `print()`。
 - 后端业务代码使用 `traceback.print_exc()`。
 - 出现裸 `except:`。
-- 前端出现 OpenAI API key、OpenAI 直接调用、Ollama/Qwen 直接调用、本地模型端点或 `.env` 访问。
+- 前端出现 OpenAI API key、OpenAI 直接调用、Ollama/Qwen/Gemma 直接调用、本地模型端点或 `.env` 访问。
 - 前端出现自动发送、删除、归档、移动、转发或回复邮件的高风险调用。
 - 项目中出现疑似真实密钥、token 或数据库文件。
 - `docs/` 下 Markdown 文件缺少 YAML front matter。
@@ -141,11 +141,12 @@ localhost:11434
 /api/chat
 ollama
 qwen3.6
+gemma4
 process.env
 .env
 ```
 
-OpenAI API key 和本地 Ollama/Qwen 配置只能存在后端环境变量中，由后端 `llm_client.py` 使用。
+OpenAI API key 和本地 Ollama/Qwen/Gemma 配置只能存在后端环境变量中，由后端 `llm_client.py` 使用。
 
 ## 7. 前端禁止高风险邮箱动作
 

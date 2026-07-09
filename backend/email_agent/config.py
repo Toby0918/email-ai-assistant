@@ -24,6 +24,12 @@ class AppConfig:
     ollama_base_url: str
     ollama_model: str
     ollama_timeout_seconds: int
+    attachment_temp_dir: str
+    attachment_retention_hours: int
+    attachment_max_files: int
+    attachment_max_file_bytes: int
+    attachment_max_total_bytes: int
+    internal_email_domains: tuple[str, ...]
 
 
 def load_config(dotenv_path: str | Path | None = DEFAULT_DOTENV_PATH) -> AppConfig:
@@ -38,6 +44,12 @@ def load_config(dotenv_path: str | Path | None = DEFAULT_DOTENV_PATH) -> AppConf
         ollama_base_url=_trim_base_url(os.getenv("EMAIL_AGENT_OLLAMA_BASE_URL", "http://127.0.0.1:11434")),
         ollama_model=os.getenv("EMAIL_AGENT_OLLAMA_MODEL", "qwen3.6:latest").strip() or "qwen3.6:latest",
         ollama_timeout_seconds=_int_env("EMAIL_AGENT_OLLAMA_TIMEOUT_SECONDS", 30),
+        attachment_temp_dir=os.getenv("EMAIL_AGENT_ATTACHMENT_TEMP_DIR", "outputs/attachment_temp"),
+        attachment_retention_hours=_int_env("EMAIL_AGENT_ATTACHMENT_RETENTION_HOURS", 24),
+        attachment_max_files=_int_env("EMAIL_AGENT_ATTACHMENT_MAX_FILES", 5),
+        attachment_max_file_bytes=_int_env("EMAIL_AGENT_ATTACHMENT_MAX_FILE_BYTES", 10 * 1024 * 1024),
+        attachment_max_total_bytes=_int_env("EMAIL_AGENT_ATTACHMENT_MAX_TOTAL_BYTES", 25 * 1024 * 1024),
+        internal_email_domains=_csv_env("EMAIL_AGENT_INTERNAL_EMAIL_DOMAINS", ("cndlf.com",)),
     )
 
 
@@ -54,6 +66,14 @@ def _int_env(name: str, default: int) -> int:
     except ValueError:
         return default
     return value if value > 0 else default
+
+
+def _csv_env(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    values = tuple(value.strip().lower() for value in raw.split(",") if value.strip())
+    return values or default
 
 
 def _load_backend_dotenv(dotenv_path: Path) -> None:

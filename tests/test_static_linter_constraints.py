@@ -42,6 +42,7 @@ FORBIDDEN_FRONTEND_PATTERNS = {
     "Ollama chat endpoint in frontend": r"/api/chat",
     "Ollama marker in frontend": r"\bollama\b",
     "local Qwen model marker in frontend": r"\bqwen(?:3\.6)?\b",
+    "local Gemma model marker in frontend": r"\bgemma(?:4)?\b",
     "browser OAuth flow in frontend": r"chrome\.identity|client_secret|refresh_token|access_token",
     "environment access in frontend": r"process\.env|\.env",
     "SQLite access in frontend": r"\bsqlite3?\b",

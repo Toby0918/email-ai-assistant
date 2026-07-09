@@ -15,6 +15,18 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ConfigTests(unittest.TestCase):
+    def test_load_config_has_phase_two_defaults(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            config = load_config(dotenv_path=None)
+
+        self.assertEqual(config.ollama_model, "qwen3.6:latest")
+        self.assertEqual(config.attachment_temp_dir, "outputs/attachment_temp")
+        self.assertEqual(config.attachment_retention_hours, 24)
+        self.assertEqual(config.attachment_max_files, 5)
+        self.assertEqual(config.attachment_max_file_bytes, 10 * 1024 * 1024)
+        self.assertEqual(config.attachment_max_total_bytes, 25 * 1024 * 1024)
+        self.assertIn("cndlf.com", config.internal_email_domains)
+
     def test_load_config_reads_email_agent_environment_names(self) -> None:
         with patch.dict(
             os.environ,

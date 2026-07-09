@@ -37,6 +37,7 @@ FRONTEND_FORBIDDEN_PATTERNS = {
     "ollama_chat_api": r"/api/chat",
     "ollama_marker": r"\bollama\b",
     "local_qwen_marker": r"\bqwen(?:3\.6)?\b",
+    "local_gemma_marker": r"\bgemma(?:4)?\b",
     "browser_oauth_flow": r"chrome\.identity|client_secret|refresh_token|access_token",
     "env_access": r"process\.env|\.env",
     "sqlite_access": r"sqlite|sqlite3",

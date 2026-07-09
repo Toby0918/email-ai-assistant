@@ -31,10 +31,15 @@ def configured_analysis_engine_label(config: AppConfig | None = None) -> str:
     """Return a non-sensitive display label for the configured backend model path."""
     current = config or load_config()
     if current.llm_provider == "ollama":
-        return "Local Qwen" if "qwen" in current.ollama_model.lower() else "Local AI model"
+        model = current.ollama_model.lower()
+        if "qwen" in model:
+            return "Local Qwen"
+        if "gemma" in model:
+            return "Local Gemma"
+        return "Local AI model"
     if current.llm_provider == "openai":
         return "OpenAI"
-    return "AI model"
+    return "Rule fallback"
 
 
 def _generate_with_ollama(prompt: str, config: AppConfig) -> str:
