@@ -27,6 +27,20 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config.attachment_max_total_bytes, 25 * 1024 * 1024)
         self.assertIn("cndlf.com", config.internal_email_domains)
 
+    def test_load_config_normalizes_internal_email_domains_and_falls_back_when_blank(self) -> None:
+        with patch.dict(
+            os.environ,
+            {"EMAIL_AGENT_INTERNAL_EMAIL_DOMAINS": "CNDLF.COM, Sales.Example.COM,  PARTNER.ORG "},
+            clear=True,
+        ):
+            configured = load_config(dotenv_path=None)
+
+        with patch.dict(os.environ, {"EMAIL_AGENT_INTERNAL_EMAIL_DOMAINS": " , , "}, clear=True):
+            blank = load_config(dotenv_path=None)
+
+        self.assertEqual(configured.internal_email_domains, ("cndlf.com", "sales.example.com", "partner.org"))
+        self.assertEqual(blank.internal_email_domains, ("cndlf.com",))
+
     def test_load_config_reads_email_agent_environment_names(self) -> None:
         with patch.dict(
             os.environ,
