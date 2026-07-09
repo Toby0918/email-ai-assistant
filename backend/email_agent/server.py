@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from .api import handle_analyze_current_email
+from .config import AppConfig, load_config
 from .database import connect, initialize_schema, save_analysis
 
 
@@ -21,10 +22,16 @@ FRONTEND_ROOT = ROOT / "frontend" / "local_debug_page"
 class EmailAssistantServer(ThreadingHTTPServer):
     """HTTP server carrying local persistence state for request handlers."""
 
-    def __init__(self, address: tuple[str, int], database_path: str | None = None) -> None:
+    def __init__(
+        self,
+        address: tuple[str, int],
+        database_path: str | None = None,
+        config: AppConfig | None = None,
+    ) -> None:
         super().__init__(address, EmailAssistantHandler)
         self.database = connect(database_path)
         self.database_lock = threading.Lock()
+        self.attachment_config = config or load_config()
         initialize_schema(self.database)
 
 
@@ -41,8 +48,14 @@ class EmailAssistantHandler(BaseHTTPRequestHandler):
         if self.path != "/api/analyze-current-email":
             self._send_json({"ok": False, "error": {"code": "NOT_FOUND"}}, HTTPStatus.NOT_FOUND)
             return
+        if self._content_length_exceeds_limit():
+            self._send_json(
+                {"ok": False, "error": {"code": "REQUEST_TOO_LARGE", "message": "Request exceeds the local attachment limit."}},
+                HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
+            )
+            return
         payload = self._read_json()
-        response = handle_analyze_current_email(payload)
+        response = handle_analyze_current_email(payload, config=self.server.attachment_config)
         if response.get("ok"):
             response["saved_id"] = self._save_result(payload, response["analysis"])
         self._send_json(response)
@@ -59,6 +72,14 @@ class EmailAssistantHandler(BaseHTTPRequestHandler):
         except json.JSONDecodeError:
             return {}
         return data if isinstance(data, dict) else {}
+
+    def _content_length_exceeds_limit(self) -> bool:
+        try:
+            content_length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            return True
+        max_encoded_attachment_bytes = ((self.server.attachment_config.attachment_max_total_bytes + 2) // 3) * 4
+        return content_length > max_encoded_attachment_bytes + 64 * 1024
 
     def _save_result(self, payload: dict[str, Any], analysis: dict[str, Any]) -> int:
         with self.server.database_lock:
@@ -91,9 +112,14 @@ class EmailAssistantHandler(BaseHTTPRequestHandler):
         self.wfile.write(content)
 
 
-def create_server(host: str = "127.0.0.1", port: int = 8765, database_path: str | None = None) -> EmailAssistantServer:
+def create_server(
+    host: str = "127.0.0.1",
+    port: int = 8765,
+    database_path: str | None = None,
+    config: AppConfig | None = None,
+) -> EmailAssistantServer:
     # Bind locally by default; this server is for first-version development only.
-    return EmailAssistantServer((host, port), database_path=database_path)
+    return EmailAssistantServer((host, port), database_path=database_path, config=config)
 
 
 def run_server(host: str = "127.0.0.1", port: int = 8765, database_path: str | None = None) -> None:
