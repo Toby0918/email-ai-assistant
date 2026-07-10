@@ -9,6 +9,7 @@ from html.parser import HTMLParser
 
 _SKIPPED_HTML_TAGS = {"script", "style", "blockquote"}
 DEFAULT_THREAD_SEGMENT_MAX_CHARS = 2_000
+DEFAULT_THREAD_SOURCE_MAX_CHARS = 20_000
 
 
 # Reduce HTML to plain text before prompt construction to limit markup influence.
@@ -57,10 +58,16 @@ def clean_thread_segment_text(
     max_chars: int = DEFAULT_THREAD_SEGMENT_MAX_CHARS,
 ) -> str:
     """Return bounded current-message text for deterministic thread processing."""
-    cleaned = _strip_thread_noise(clean_email_body(body_text=body_text, body_html=body_html))
+    bounded_text = _bound_thread_source(body_text)
+    bounded_html = _bound_thread_source(body_html)
+    cleaned = _strip_thread_noise(clean_email_body(body_text=bounded_text, body_html=bounded_html))
     if not isinstance(max_chars, int):
         max_chars = DEFAULT_THREAD_SEGMENT_MAX_CHARS
     return cleaned[:max(min(max_chars, DEFAULT_THREAD_SEGMENT_MAX_CHARS), 0)]
+
+
+def _bound_thread_source(value: str | None) -> str:
+    return value[:DEFAULT_THREAD_SOURCE_MAX_CHARS] if isinstance(value, str) else ""
 
 
 def _html_to_text(body_html: str | None) -> str:

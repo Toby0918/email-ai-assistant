@@ -7,6 +7,18 @@ import unittest
 from backend.email_agent.email_cleaner import clean_email_body, clean_thread_segment_text
 
 
+class _TrackingText(str):
+    def __new__(cls, value: str) -> "_TrackingText":
+        instance = super().__new__(cls, value)
+        instance.slice_stops: list[int | None] = []
+        return instance
+
+    def __getitem__(self, key: object) -> str:
+        if isinstance(key, slice):
+            self.slice_stops.append(key.stop)
+        return super().__getitem__(key)
+
+
 class EmailCleanerTests(unittest.TestCase):
     def test_html_body_is_converted_to_readable_text(self) -> None:
         # Script and style blocks should not survive into prompt-ready text.
@@ -56,6 +68,18 @@ class EmailCleanerTests(unittest.TestCase):
         )
 
         self.assertEqual(result, "Please confirm the sample.")
+
+    def test_thread_sources_are_sliced_before_text_or_html_cleaning(self) -> None:
+        body_text = _TrackingText("Text " + ("x" * 25_000))
+        body_html = _TrackingText("<p>Visible</p>" + ("x" * 25_000))
+
+        result = clean_thread_segment_text(body_text=body_text, body_html=body_html)
+
+        self.assertLessEqual(len(result), 2_000)
+        self.assertTrue(body_text.slice_stops)
+        self.assertTrue(body_html.slice_stops)
+        self.assertLessEqual(max(stop for stop in body_text.slice_stops if stop is not None), 20_000)
+        self.assertLessEqual(max(stop for stop in body_html.slice_stops if stop is not None), 20_000)
 
 
 if __name__ == "__main__":
