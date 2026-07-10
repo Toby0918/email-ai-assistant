@@ -56,7 +56,12 @@ def extract_request_atoms(
         if _REQUEST_RE.search(sentence) is None:
             continue
         fragments = [part.strip() for part in _CONJUNCTION_SPLIT_RE.split(sentence) if part.strip()]
+        intent_seen = False
         for fragment in fragments:
+            if _REQUEST_RE.search(fragment) is not None:
+                intent_seen = True
+            if not intent_seen:
+                continue
             fragment_atoms = _atoms_from_clause(fragment, due_hint)
             if not fragment_atoms and _REQUEST_RE.search(fragment) is not None:
                 fragment_atoms = [_make_atom(fragment, due_hint, (), ())]
@@ -69,7 +74,13 @@ def extract_request_atoms(
 
 def extract_outcome_atoms(text: str) -> tuple[dict[str, object], ...]:
     atoms: list[dict[str, object]] = []
-    clauses = [clause.strip() for clause in _SENTENCE_SPLIT_RE.split(text) if clause.strip()]
+    sentences = [sentence.strip() for sentence in _SENTENCE_SPLIT_RE.split(text) if sentence.strip()]
+    clauses = [
+        clause.strip()
+        for sentence in sentences
+        for clause in _CONJUNCTION_SPLIT_RE.split(sentence)
+        if clause.strip()
+    ]
     for clause in clauses:
         outcome = _OUTCOME_RE.search(clause) is not None
         blocker = _BLOCKER_RE.search(clause) is not None

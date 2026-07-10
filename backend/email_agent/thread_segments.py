@@ -21,9 +21,13 @@ _HEADER_FROM_RE = re.compile(
 )
 
 
-def normalize_and_order_segments(segments: object) -> tuple[list[dict[str, object]], bool]:
+def normalize_and_order_segments(
+    segments: object,
+) -> tuple[list[dict[str, object]], bool, bool]:
+    coverage_complete = not isinstance(segments, list) or len(segments) <= MAX_THREAD_SEGMENTS
     normalized = _normalize_segments(segments)
-    return _order_segments(normalized)
+    ordered, timestamps_reliable = _order_segments(normalized)
+    return ordered, timestamps_reliable, coverage_complete
 
 
 def _normalize_segments(segments: object) -> list[dict[str, object]]:

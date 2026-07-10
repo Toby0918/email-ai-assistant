@@ -29,10 +29,10 @@ def build_conversation_timeline(
     segments: list[dict[str, str]], internal_domains: tuple[str, ...]
 ) -> dict[str, object]:
     """Summarize only the supplied visible thread segments into seven fields."""
-    ordered, timestamps_reliable = normalize_and_order_segments(segments)
+    ordered, timestamps_reliable, segment_coverage_complete = normalize_and_order_segments(segments)
     domains = _normalize_domains(internal_domains)
     events = [_extract_event(segment, domains) for segment in ordered]
-    return _summarize_progress(events, timestamps_reliable)
+    return _summarize_progress(events, timestamps_reliable, segment_coverage_complete)
 
 
 def _extract_event(segment: dict[str, object], internal_domains: tuple[str, ...]) -> dict[str, object]:
@@ -49,17 +49,22 @@ def _extract_event(segment: dict[str, object], internal_domains: tuple[str, ...]
         "role": role,
         "request_atoms": request_atoms,
         "request_coverage_complete": coverage_complete,
-        "outcome_atoms": extract_outcome_atoms(signal_text),
+        "outcome_atoms": extract_outcome_atoms(signal_text) if role == "internal" else (),
         "commitment": role == "internal" and _COMMITMENT_RE.search(signal_text) is not None,
     }
 
 
-def _summarize_progress(events: list[dict[str, object]], timestamps_reliable: bool) -> dict[str, object]:
+def _summarize_progress(
+    events: list[dict[str, object]],
+    timestamps_reliable: bool,
+    segment_coverage_complete: bool,
+) -> dict[str, object]:
     if not events:
-        return _unknown_timeline()
+        return _unknown_timeline(segment_coverage_complete)
 
     commitments = [event for event in events if event["commitment"]]
-    request_states, coverage_complete = track_request_states(events)
+    request_states, request_coverage_complete = track_request_states(events)
+    coverage_complete = segment_coverage_complete and request_coverage_complete
     pending = [state for state in request_states if not state["resolved"]]
     resolved_count = len(request_states) - len(pending)
     blocked_count = sum(1 for state in pending if state["blocked"])
@@ -98,7 +103,8 @@ def _status_and_open_items(
 ) -> tuple[str, str, list[dict[str, str]]]:
     if not coverage_complete:
         reason = "部分外部请求因数量限制被省略，需人工复核后再判断状态。"
-        return "unresolved", reason, [_coverage_open_item()]
+        status = "unresolved" if request_states else "unknown"
+        return status, reason, [_coverage_open_item()]
     if pending:
         status = "partially_resolved" if resolved_count else "unresolved"
         reason = f"已明确完成{resolved_count}项，仍有{len(pending)}项外部请求待处理。"
@@ -110,14 +116,17 @@ def _status_and_open_items(
     return "unknown", "未跟踪到外部请求，无法判断事项状态。", []
 
 
-def _unknown_timeline() -> dict[str, object]:
+def _unknown_timeline(coverage_complete: bool) -> dict[str, object]:
+    _, status_reason, open_items = _status_and_open_items(
+        [], [], 0, 0, None, coverage_complete
+    )
     return {
         "previous_context": "未识别可用会话信息。",
         "current_status": "unknown",
-        "status_reason": "未识别可用会话内容。",
+        "status_reason": status_reason,
         "latest_external_request": "",
         "latest_internal_commitment": "",
-        "open_items": [],
+        "open_items": open_items,
         "confidence": "low",
     }
 
