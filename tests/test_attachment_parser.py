@@ -230,6 +230,8 @@ class AttachmentParserTests(unittest.TestCase):
             source_urls = [
                 "http://web.example.test/a",
                 "https://secure.example.test/b",
+                "https://example.test/private_(quote)",
+                "http://[2001:db8::1]/private",
                 "www.public.example.test/c",
                 "mailto:buyer@example.test",
                 "ftp://files.example.test/quote",
@@ -246,7 +248,85 @@ class AttachmentParserTests(unittest.TestCase):
             visible_text = self._visible_text(result[0])
             for source_url in source_urls:
                 self.assertNotIn(source_url, visible_text)
+            for leaked_fragment in ("(quote)", "2001:db8", "/private"):
+                self.assertNotIn(leaked_fragment, visible_text)
             self.assertIn("[link removed]", visible_text)
+
+    def test_pdf_decoder_failure_returns_exact_safe_limitation(self) -> None:
+        secret = "PRIVATE_PDF_SOURCE"
+        with TemporaryDirectory() as directory:
+            stored = self._write(directory, "broken.pdf", "pdf", b"synthetic")
+            with patch.object(attachment_parser, "PdfReader", side_effect=RuntimeError(secret)):
+                result = parse_attachments([stored])
+
+        self._assert_safe_failure(
+            result[0],
+            "PDF content could not be decoded safely.",
+            secret,
+        )
+
+    def test_xlsx_loader_failure_returns_exact_safe_limitation(self) -> None:
+        secret = "PRIVATE_XLSX_CELL"
+        with TemporaryDirectory() as directory:
+            stored = self._write(directory, "broken.xlsx", "xlsx", self._xlsx_bytes())
+            with patch.object(
+                attachment_parser,
+                "load_workbook",
+                side_effect=RuntimeError(secret),
+            ):
+                result = parse_attachments([stored])
+
+        self._assert_safe_failure(
+            result[0],
+            "XLSX workbook content could not be parsed safely.",
+            secret,
+        )
+
+    def test_docx_loader_failure_returns_exact_safe_limitation(self) -> None:
+        secret = "PRIVATE_DOCX_TEXT"
+        with TemporaryDirectory() as directory:
+            stored = self._write(directory, "broken.docx", "docx", self._docx_bytes())
+            with patch.object(
+                attachment_parser,
+                "Document",
+                side_effect=RuntimeError(secret),
+            ):
+                result = parse_attachments([stored])
+
+        self._assert_safe_failure(
+            result[0],
+            "DOCX document content could not be parsed safely.",
+            secret,
+        )
+
+    def test_image_verification_failure_returns_exact_safe_limitation(self) -> None:
+        secret = "PRIVATE_IMAGE_BYTES"
+        with TemporaryDirectory() as directory:
+            stored = self._write(directory, "broken.png", "image", b"synthetic")
+            with patch.object(attachment_parser.Image, "open", side_effect=OSError(secret)):
+                result = parse_attachments([stored])
+
+        self._assert_safe_failure(
+            result[0],
+            "Image content could not be verified safely.",
+            secret,
+        )
+
+    def test_ocr_failure_returns_exact_safe_limitation(self) -> None:
+        secret = "PRIVATE_OCR_TEXT"
+        with TemporaryDirectory() as directory:
+            stored = self._write(directory, "broken-ocr.png", "image", self._image_bytes())
+            ocr = MagicMock()
+            ocr.image_to_string.side_effect = RuntimeError(secret)
+
+            with patch.object(attachment_parser, "pytesseract", ocr):
+                result = parse_attachments([stored])
+
+        self._assert_safe_failure(
+            result[0],
+            "OCR could not be completed; image metadata only.",
+            secret,
+        )
 
     def test_pdf_decoder_limits_are_lowered_before_reader_initialization(self) -> None:
         limit_names = (
@@ -293,7 +373,11 @@ class AttachmentParserTests(unittest.TestCase):
                         result = parse_attachments([stored])
 
                 self.assertEqual(result[0]["status"], "metadata_only")
-                self.assertIn("malformed", result[0]["limitations"][0].lower())
+                expected = (
+                    f"{attachment_type.upper()} package is malformed; "
+                    "attachment content was not parsed."
+                )
+                self.assertEqual(result[0]["limitations"], [expected])
                 loader.assert_not_called()
 
     def test_office_zip_entry_count_limit_prevents_xlsx_loader(self) -> None:
@@ -451,6 +535,17 @@ class AttachmentParserTests(unittest.TestCase):
     @staticmethod
     def _has_character_limit(insight: dict[str, object]) -> bool:
         return "Character limit" in " ".join(insight["limitations"])
+
+    def _assert_safe_failure(
+        self,
+        insight: dict[str, object],
+        expected_limitation: str,
+        secret: str,
+    ) -> None:
+        self.assertEqual(set(insight), EXPECTED_KEYS)
+        self.assertEqual(insight["status"], "metadata_only")
+        self.assertEqual(insight["limitations"], [expected_limitation])
+        self.assertNotIn(secret, repr(insight))
 
     @staticmethod
     def _write(directory: str, filename: str, attachment_type: str, content: bytes) -> StoredAttachment:

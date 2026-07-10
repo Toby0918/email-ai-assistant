@@ -23,6 +23,12 @@ _PDF_LIMIT_NAMES = (
     "MAX_ARRAY_BASED_STREAM_OUTPUT_LENGTH",
 )
 _PDF_LIMIT_LOCK = Lock()
+_DECODER_FAILURE_LIMITATIONS = {
+    "pdf": "PDF content could not be decoded safely.",
+    "xlsx": "XLSX workbook content could not be parsed safely.",
+    "docx": "DOCX document content could not be parsed safely.",
+    "image": "Image content could not be verified safely.",
+}
 
 
 def enforce_pdf_decoder_limits() -> None:
@@ -53,6 +59,14 @@ def office_package_limitation(path: Path, attachment_type: str) -> str | None:
         if total_size > OFFICE_ZIP_MAX_TOTAL_BYTES:
             return f"{label} package total uncompressed size exceeds the parser limit."
     return None
+
+
+def decoder_failure_limitation(attachment_type: str) -> str:
+    """Return a type-specific failure without exception or source details."""
+    return _DECODER_FAILURE_LIMITATIONS.get(
+        attachment_type,
+        "Attachment content could not be parsed safely.",
+    )
 
 
 enforce_pdf_decoder_limits()

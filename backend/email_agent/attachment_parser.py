@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from collections.abc import Callable
 from pathlib import Path
 
@@ -17,14 +16,18 @@ except ImportError:  # pragma: no cover - dependency is pinned but OCR remains o
     pytesseract = None
 
 from .attachment_storage import StoredAttachment
-from .attachment_safety import enforce_pdf_decoder_limits, office_package_limitation
+from .attachment_safety import (
+    decoder_failure_limitation,
+    enforce_pdf_decoder_limits,
+    office_package_limitation,
+)
+from .attachment_text import MAX_EXTRACTED_CHARACTERS, TextBudget, sanitize_text
 
 
 MAX_PDF_PAGES = 3
 MAX_XLSX_SHEETS = 3
 MAX_XLSX_ROWS_PER_SHEET = 30
 MAX_DOCX_PARAGRAPHS = 50
-MAX_EXTRACTED_CHARACTERS = 2_000
 MAX_PDF_PAGE_CHARACTERS = 1_000
 MAX_XLSX_CELL_CHARACTERS = 1_000
 MAX_XLSX_ROW_CHARACTERS = 1_100
@@ -36,58 +39,12 @@ MAX_SUMMARY_CHARACTERS = 600
 MAX_KEY_FACTS = 5
 MAX_KEY_FACT_CHARACTERS = 240
 
-_CONTROL_CHARACTERS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]")
-_URL_PATTERN = re.compile(
-    r"(?<![A-Za-z0-9+.-])(?:[A-Za-z][A-Za-z0-9+.-]*:|www\.)[^\s<>()\[\]{}]+",
-    re.IGNORECASE,
-)
 _ALLOWED_SUFFIXES = {
     "pdf": {".pdf"},
     "xlsx": {".xlsx"},
     "docx": {".docx"},
     "image": {".bmp", ".gif", ".jpeg", ".jpg", ".png", ".tif", ".tiff", ".webp"},
 }
-
-
-class _TextBudget:
-    def __init__(self, limit: int = MAX_EXTRACTED_CHARACTERS) -> None:
-        self.limit = limit
-        self.parts: list[str] = []
-        self.character_count = 0
-        self.truncated = False
-
-    @property
-    def exhausted(self) -> bool:
-        return self.character_count >= self.limit
-
-    @property
-    def text(self) -> str:
-        return "".join(self.parts)
-
-    def add(self, value: str, unit_limit: int, separator: str = "\n") -> None:
-        if self.exhausted:
-            self.truncated = True
-            return
-        bounded_value = value[:unit_limit]
-        if len(value) > unit_limit:
-            self.truncated = True
-        safe_value = _sanitize_text(bounded_value)
-        if len(safe_value) > unit_limit:
-            safe_value = safe_value[:unit_limit]
-            self.truncated = True
-        if not safe_value:
-            return
-        prefix = separator if self.parts else ""
-        available = self.limit - self.character_count
-        addition = f"{prefix}{safe_value}"
-        if len(addition) > available:
-            addition = addition[:available]
-            self.truncated = True
-        self.parts.append(addition)
-        self.character_count += len(addition)
-
-    def mark_omitted(self) -> None:
-        self.truncated = True
 
 
 def parse_attachments(items: list[StoredAttachment]) -> list[dict[str, object]]:
@@ -112,14 +69,14 @@ def _parse_one(item: StoredAttachment) -> dict[str, object]:
     try:
         return parser(item)
     except Exception:
-        return _metadata_only(item, "Attachment content could not be parsed.")
+        return _metadata_only(item, decoder_failure_limitation(item.type))
 
 
 def _parse_pdf(item: StoredAttachment) -> dict[str, object]:
     enforce_pdf_decoder_limits()
     reader = PdfReader(str(item.path), strict=True)
     try:
-        collector = _TextBudget()
+        collector = TextBudget()
         for page in reader.pages[:MAX_PDF_PAGES]:
             if collector.exhausted:
                 collector.mark_omitted()
@@ -142,7 +99,7 @@ def _parse_xlsx(item: StoredAttachment) -> dict[str, object]:
         all_worksheets = workbook.worksheets
         worksheets = all_worksheets[:MAX_XLSX_SHEETS]
         limitations: list[str] = []
-        collector = _TextBudget()
+        collector = TextBudget()
         for worksheet in worksheets:
             if collector.exhausted:
                 collector.mark_omitted()
@@ -171,7 +128,7 @@ def _parse_docx(item: StoredAttachment) -> dict[str, object]:
         return _metadata_only(item, package_limitation)
     document = Document(item.path)
     paragraphs = document.paragraphs
-    collector = _TextBudget()
+    collector = TextBudget()
     for paragraph in paragraphs[:MAX_DOCX_PARAGRAPHS]:
         if collector.exhausted:
             collector.mark_omitted()
@@ -194,7 +151,7 @@ def _parse_image(item: StoredAttachment) -> dict[str, object]:
         return _metadata_only(item, "OCR is unavailable; image metadata only.", [dimensions])
     try:
         with Image.open(item.path) as image:
-            collector = _TextBudget()
+            collector = TextBudget()
             collector.add(
                 pytesseract.image_to_string(image, timeout=OCR_TIMEOUT_SECONDS),
                 MAX_OCR_CHARACTERS,
@@ -213,9 +170,9 @@ def _parse_image(item: StoredAttachment) -> dict[str, object]:
 
 
 def _collect_xlsx_row(
-    collector: _TextBudget, sheet_title: str, row: tuple[object, ...]
+    collector: TextBudget, sheet_title: str, row: tuple[object, ...]
 ) -> None:
-    row_collector = _TextBudget(MAX_XLSX_ROW_CHARACTERS)
+    row_collector = TextBudget(MAX_XLSX_ROW_CHARACTERS)
     row_collector.add(sheet_title, MAX_XLSX_CELL_CHARACTERS, separator="")
     has_value = False
     for cell_index, value in enumerate(row):
@@ -235,7 +192,7 @@ def _collect_xlsx_row(
     collector.add(row_collector.text, MAX_XLSX_ROW_CHARACTERS)
 
 
-def _character_limitations(collector: _TextBudget) -> list[str]:
+def _character_limitations(collector: TextBudget) -> list[str]:
     if collector.truncated:
         return ["Character limit reached; remaining text was not parsed."]
     return []
@@ -248,7 +205,7 @@ def _text_insight(
     label: str,
     metadata_facts: list[str] | None = None,
 ) -> dict[str, object]:
-    sanitized = _sanitize_text(text)
+    sanitized = sanitize_text(text)
     if not sanitized:
         return _metadata_only(item, f"{label} contains no readable text.", metadata_facts)
     bounded = sanitized[:MAX_EXTRACTED_CHARACTERS].rstrip()
@@ -287,29 +244,21 @@ def _insight(
         "filename": item.safe_filename,
         "type": item.type,
         "status": status,
-        "summary": _sanitize_text(summary)[:MAX_SUMMARY_CHARACTERS],
-        "key_facts": [_sanitize_text(fact)[:MAX_KEY_FACT_CHARACTERS] for fact in facts[:MAX_KEY_FACTS]],
-        "limitations": [_sanitize_text(limitation)[:MAX_KEY_FACT_CHARACTERS] for limitation in limitations],
+        "summary": sanitize_text(summary)[:MAX_SUMMARY_CHARACTERS],
+        "key_facts": [sanitize_text(fact)[:MAX_KEY_FACT_CHARACTERS] for fact in facts[:MAX_KEY_FACTS]],
+        "limitations": [sanitize_text(value)[:MAX_KEY_FACT_CHARACTERS] for value in limitations],
     }
 
 
 def _facts_from_text(text: str, metadata_facts: list[str] | None) -> list[str]:
     facts = list(metadata_facts or [])
-    for value in re.split(r"[\r\n]+", text):
-        cleaned = _sanitize_text(value)
+    for value in text.splitlines():
+        cleaned = sanitize_text(value)
         if cleaned and cleaned not in facts:
             facts.append(cleaned)
         if len(facts) >= MAX_KEY_FACTS:
             break
     return facts
-
-
-def _sanitize_text(value: str) -> str:
-    without_controls = _CONTROL_CHARACTERS.sub("", value)
-    without_urls = _URL_PATTERN.sub("[link removed]", without_controls)
-    return re.sub(r"\s+", " ", without_urls).strip()
-
-
 def _extension_limitation(item: StoredAttachment) -> str | None:
     allowed_suffixes = _ALLOWED_SUFFIXES.get(item.type)
     if allowed_suffixes is None:
