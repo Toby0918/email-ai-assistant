@@ -2,13 +2,16 @@
 
 from __future__ import annotations
 
+import struct
 import unittest
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import MagicMock, patch
+from zipfile import ZIP_STORED, ZipFile
 
+import pypdf.filters as pypdf_filters
 from docx import Document
 from openpyxl import Workbook
 from PIL import Image
@@ -135,7 +138,7 @@ class AttachmentParserTests(unittest.TestCase):
 
     def test_xlsx_stops_collecting_cells_and_sheets_at_character_budget(self) -> None:
         with TemporaryDirectory() as directory:
-            stored = self._write(directory, "dense.xlsx", "xlsx", b"synthetic")
+            stored = self._write(directory, "dense.xlsx", "xlsx", self._xlsx_bytes())
             unread_cell = _ObservedCell("UNREACHED")
             first_sheet = MagicMock()
             first_sheet.title = "Dense"
@@ -164,7 +167,7 @@ class AttachmentParserTests(unittest.TestCase):
 
     def test_docx_stops_reading_paragraphs_at_character_budget(self) -> None:
         with TemporaryDirectory() as directory:
-            stored = self._write(directory, "dense.docx", "docx", b"synthetic")
+            stored = self._write(directory, "dense.docx", "docx", self._docx_bytes())
             paragraphs = [
                 _ObservedParagraph("A" * 5_000),
                 _ObservedParagraph("B" * 5_000),
@@ -245,9 +248,209 @@ class AttachmentParserTests(unittest.TestCase):
                 self.assertNotIn(source_url, visible_text)
             self.assertIn("[link removed]", visible_text)
 
+    def test_pdf_decoder_limits_are_lowered_before_reader_initialization(self) -> None:
+        limit_names = (
+            "ZLIB_MAX_OUTPUT_LENGTH",
+            "LZW_MAX_OUTPUT_LENGTH",
+            "RUN_LENGTH_MAX_OUTPUT_LENGTH",
+            "JBIG2_MAX_OUTPUT_LENGTH",
+            "MAX_DECLARED_STREAM_LENGTH",
+            "MAX_ARRAY_BASED_STREAM_OUTPUT_LENGTH",
+        )
+        project_limit = 10 * 1024 * 1024
+        initial_limits = {name: 75_000_000 for name in limit_names}
+        initial_limits[limit_names[0]] = project_limit // 2
+        expected_limits = {name: project_limit for name in limit_names}
+        expected_limits[limit_names[0]] = project_limit // 2
+        observed_limits: dict[str, int] = {}
+        reader = MagicMock()
+        reader.pages = []
+
+        def build_reader(*_args: object, **_kwargs: object) -> MagicMock:
+            observed_limits.update({name: getattr(pypdf_filters, name) for name in limit_names})
+            return reader
+
+        with TemporaryDirectory() as directory:
+            stored = self._write(directory, "bounded.pdf", "pdf", b"synthetic")
+            with patch.multiple(pypdf_filters, **initial_limits):
+                with patch.object(attachment_parser, "PdfReader", side_effect=build_reader):
+                    parse_attachments([stored])
+
+        self.assertEqual(observed_limits, expected_limits)
+
+    def test_malformed_office_packages_do_not_invoke_loaders(self) -> None:
+        cases = (
+            ("broken.docx", "docx", "Document"),
+            ("broken.xlsx", "xlsx", "load_workbook"),
+        )
+        for filename, attachment_type, loader_name in cases:
+            with self.subTest(attachment_type=attachment_type):
+                with TemporaryDirectory() as directory:
+                    stored = self._write(directory, filename, attachment_type, b"not a zip")
+                    loader = MagicMock()
+
+                    with patch.object(attachment_parser, loader_name, loader):
+                        result = parse_attachments([stored])
+
+                self.assertEqual(result[0]["status"], "metadata_only")
+                self.assertIn("malformed", result[0]["limitations"][0].lower())
+                loader.assert_not_called()
+
+    def test_office_zip_entry_count_limit_prevents_xlsx_loader(self) -> None:
+        with TemporaryDirectory() as directory:
+            stored = self._write(directory, "many.xlsx", "xlsx", self._zip_bytes(257))
+            loader = MagicMock()
+
+            with patch.object(attachment_parser, "load_workbook", loader):
+                result = parse_attachments([stored])
+
+        self.assertIn("entry count", result[0]["limitations"][0].lower())
+        loader.assert_not_called()
+
+    def test_office_zip_entry_size_limit_prevents_docx_loader(self) -> None:
+        declared_size = 10 * 1024 * 1024 + 1
+        with TemporaryDirectory() as directory:
+            stored = self._write(
+                directory,
+                "large.docx",
+                "docx",
+                self._zip_bytes(1, [declared_size]),
+            )
+            loader = MagicMock()
+
+            with patch.object(attachment_parser, "Document", loader):
+                result = parse_attachments([stored])
+
+        self.assertIn("entry size", result[0]["limitations"][0].lower())
+        loader.assert_not_called()
+
+    def test_office_zip_total_size_limit_prevents_xlsx_loader(self) -> None:
+        declared_sizes = [9 * 1024 * 1024] * 3
+        with TemporaryDirectory() as directory:
+            stored = self._write(
+                directory,
+                "expanded.xlsx",
+                "xlsx",
+                self._zip_bytes(3, declared_sizes),
+            )
+            loader = MagicMock()
+
+            with patch.object(attachment_parser, "load_workbook", loader):
+                result = parse_attachments([stored])
+
+        self.assertIn("total uncompressed size", result[0]["limitations"][0].lower())
+        loader.assert_not_called()
+
+    def test_ocr_uses_explicit_timeout(self) -> None:
+        with TemporaryDirectory() as directory:
+            stored = self._write(directory, "timeout.png", "image", self._image_bytes())
+            ocr = MagicMock()
+            ocr.image_to_string.return_value = "bounded OCR"
+
+            with patch.object(attachment_parser, "pytesseract", ocr):
+                parse_attachments([stored])
+
+        self.assertEqual(ocr.image_to_string.call_args.kwargs, {"timeout": 5})
+
+    def test_pdf_exact_budget_reports_only_when_page_is_omitted(self) -> None:
+        cases = ((False, False), (True, True))
+        for has_remaining_page, expected_limit in cases:
+            with self.subTest(has_remaining_page=has_remaining_page):
+                pages = [MagicMock(), MagicMock()]
+                pages[0].extract_text.return_value = "A" * 1_000
+                pages[1].extract_text.return_value = "B" * 999
+                if has_remaining_page:
+                    remaining_page = MagicMock()
+                    remaining_page.extract_text.return_value = "UNREACHED"
+                    pages.append(remaining_page)
+                reader = MagicMock()
+                reader.pages = pages
+                with TemporaryDirectory() as directory:
+                    stored = self._write(directory, "exact.pdf", "pdf", b"synthetic")
+                    with patch.object(attachment_parser, "PdfReader", return_value=reader):
+                        result = parse_attachments([stored])
+
+                self.assertEqual(self._has_character_limit(result[0]), expected_limit)
+                if has_remaining_page:
+                    remaining_page.extract_text.assert_not_called()
+
+    def test_docx_exact_budget_reports_only_when_paragraph_is_omitted(self) -> None:
+        cases = ((False, False), (True, True))
+        for has_remaining_paragraph, expected_limit in cases:
+            with self.subTest(has_remaining_paragraph=has_remaining_paragraph):
+                paragraphs = [
+                    _ObservedParagraph("A" * 1_000),
+                    _ObservedParagraph("B" * 999),
+                ]
+                if has_remaining_paragraph:
+                    paragraphs.append(_ObservedParagraph("UNREACHED"))
+                document = MagicMock()
+                document.paragraphs = paragraphs
+                with TemporaryDirectory() as directory:
+                    stored = self._write(directory, "exact.docx", "docx", self._docx_bytes())
+                    with patch.object(attachment_parser, "Document", return_value=document):
+                        result = parse_attachments([stored])
+
+                self.assertEqual(self._has_character_limit(result[0]), expected_limit)
+                if has_remaining_paragraph:
+                    self.assertEqual(paragraphs[2].read_count, 0)
+
+    def test_xlsx_exact_row_budget_reports_only_when_cell_is_omitted(self) -> None:
+        cases = ((False, False), (True, True))
+        for has_remaining_cell, expected_limit in cases:
+            with self.subTest(has_remaining_cell=has_remaining_cell):
+                unread_cell = _ObservedCell("UNREACHED")
+                row: tuple[object, ...] = ("A" * 1_000, "B" * 94)
+                if has_remaining_cell:
+                    row = (*row, unread_cell)
+                sheet = MagicMock()
+                sheet.title = "S"
+                sheet.iter_rows.return_value = iter([row])
+                workbook = MagicMock()
+                workbook.worksheets = [sheet]
+                with TemporaryDirectory() as directory:
+                    stored = self._write(directory, "exact.xlsx", "xlsx", self._xlsx_bytes())
+                    with patch.object(attachment_parser, "load_workbook", return_value=workbook):
+                        result = parse_attachments([stored])
+
+                self.assertEqual(self._has_character_limit(result[0]), expected_limit)
+                if has_remaining_cell:
+                    self.assertEqual(unread_cell.read_count, 0)
+
+    def test_xlsx_exact_total_budget_reports_omitted_row_or_sheet(self) -> None:
+        cases = (("none", False), ("row", True), ("sheet", True))
+        for remaining_kind, expected_limit in cases:
+            with self.subTest(remaining_kind=remaining_kind):
+                first_sheet = MagicMock()
+                first_sheet.title = "S"
+                rows = [("A" * 1_000,), ("B" * 993,)]
+                if remaining_kind == "row":
+                    rows.append(("UNREACHED",))
+                first_sheet.iter_rows.return_value = iter(rows)
+                worksheets = [first_sheet]
+                if remaining_kind == "sheet":
+                    second_sheet = MagicMock()
+                    second_sheet.title = "Unreached"
+                    second_sheet.iter_rows.return_value = iter([("UNREACHED",)])
+                    worksheets.append(second_sheet)
+                workbook = MagicMock()
+                workbook.worksheets = worksheets
+                with TemporaryDirectory() as directory:
+                    stored = self._write(directory, "exact.xlsx", "xlsx", self._xlsx_bytes())
+                    with patch.object(attachment_parser, "load_workbook", return_value=workbook):
+                        result = parse_attachments([stored])
+
+                self.assertEqual(self._has_character_limit(result[0]), expected_limit)
+                if remaining_kind == "sheet":
+                    second_sheet.iter_rows.assert_not_called()
+
     @staticmethod
     def _visible_text(insight: dict[str, object]) -> str:
         return " ".join([str(insight["summary"]), *(str(fact) for fact in insight["key_facts"])])
+
+    @staticmethod
+    def _has_character_limit(insight: dict[str, object]) -> bool:
+        return "Character limit" in " ".join(insight["limitations"])
 
     @staticmethod
     def _write(directory: str, filename: str, attachment_type: str, content: bytes) -> StoredAttachment:
@@ -316,6 +519,22 @@ class AttachmentParserTests(unittest.TestCase):
         content = BytesIO()
         image.save(content, format="PNG")
         return content.getvalue()
+
+    @staticmethod
+    def _zip_bytes(entry_count: int, declared_sizes: list[int] | None = None) -> bytes:
+        content = BytesIO()
+        with ZipFile(content, "w", compression=ZIP_STORED) as archive:
+            for index in range(entry_count):
+                archive.writestr(f"entry-{index}.xml", b"x")
+        payload = bytearray(content.getvalue())
+        search_offset = 0
+        for declared_size in declared_sizes or []:
+            central_offset = payload.find(b"PK\x01\x02", search_offset)
+            if central_offset < 0:
+                raise AssertionError("Synthetic ZIP central directory is incomplete.")
+            struct.pack_into("<I", payload, central_offset + 24, declared_size)
+            search_offset = central_offset + 46
+        return bytes(payload)
 
 
 if __name__ == "__main__":

@@ -17,6 +17,7 @@ except ImportError:  # pragma: no cover - dependency is pinned but OCR remains o
     pytesseract = None
 
 from .attachment_storage import StoredAttachment
+from .attachment_safety import enforce_pdf_decoder_limits, office_package_limitation
 
 
 MAX_PDF_PAGES = 3
@@ -30,6 +31,7 @@ MAX_XLSX_ROW_CHARACTERS = 1_100
 MAX_DOCX_PARAGRAPH_CHARACTERS = 1_000
 MAX_OCR_CHARACTERS = 2_000
 MAX_IMAGE_PIXELS = 25_000_000
+OCR_TIMEOUT_SECONDS = 5
 MAX_SUMMARY_CHARACTERS = 600
 MAX_KEY_FACTS = 5
 MAX_KEY_FACT_CHARACTERS = 240
@@ -84,6 +86,9 @@ class _TextBudget:
         self.parts.append(addition)
         self.character_count += len(addition)
 
+    def mark_omitted(self) -> None:
+        self.truncated = True
+
 
 def parse_attachments(items: list[StoredAttachment]) -> list[dict[str, object]]:
     """Return bounded, de-identified insights for stored current-email attachments."""
@@ -111,11 +116,13 @@ def _parse_one(item: StoredAttachment) -> dict[str, object]:
 
 
 def _parse_pdf(item: StoredAttachment) -> dict[str, object]:
+    enforce_pdf_decoder_limits()
     reader = PdfReader(str(item.path), strict=True)
     try:
         collector = _TextBudget()
         for page in reader.pages[:MAX_PDF_PAGES]:
             if collector.exhausted:
+                collector.mark_omitted()
                 break
             collector.add(page.extract_text() or "", MAX_PDF_PAGE_CHARACTERS)
         limitations = _character_limitations(collector)
@@ -127,6 +134,9 @@ def _parse_pdf(item: StoredAttachment) -> dict[str, object]:
 
 
 def _parse_xlsx(item: StoredAttachment) -> dict[str, object]:
+    package_limitation = office_package_limitation(item.path, item.type)
+    if package_limitation:
+        return _metadata_only(item, package_limitation)
     workbook = load_workbook(item.path, read_only=True, data_only=True, keep_links=False)
     try:
         all_worksheets = workbook.worksheets
@@ -135,13 +145,17 @@ def _parse_xlsx(item: StoredAttachment) -> dict[str, object]:
         collector = _TextBudget()
         for worksheet in worksheets:
             if collector.exhausted:
+                collector.mark_omitted()
                 break
             for row_number, row in enumerate(worksheet.iter_rows(values_only=True), start=1):
                 if row_number > MAX_XLSX_ROWS_PER_SHEET:
                     limitations.append("Row limit reached; remaining rows were not parsed.")
                     break
-                _collect_xlsx_row(collector, str(worksheet.title), row)
                 if collector.exhausted:
+                    collector.mark_omitted()
+                    break
+                _collect_xlsx_row(collector, str(worksheet.title), row)
+                if collector.exhausted and collector.truncated:
                     break
         if len(all_worksheets) > MAX_XLSX_SHEETS:
             limitations.append("Sheet limit reached; remaining sheets were not parsed.")
@@ -152,11 +166,15 @@ def _parse_xlsx(item: StoredAttachment) -> dict[str, object]:
 
 
 def _parse_docx(item: StoredAttachment) -> dict[str, object]:
+    package_limitation = office_package_limitation(item.path, item.type)
+    if package_limitation:
+        return _metadata_only(item, package_limitation)
     document = Document(item.path)
     paragraphs = document.paragraphs
     collector = _TextBudget()
     for paragraph in paragraphs[:MAX_DOCX_PARAGRAPHS]:
         if collector.exhausted:
+            collector.mark_omitted()
             break
         collector.add(paragraph.text, MAX_DOCX_PARAGRAPH_CHARACTERS)
     limitations = _character_limitations(collector)
@@ -177,7 +195,10 @@ def _parse_image(item: StoredAttachment) -> dict[str, object]:
     try:
         with Image.open(item.path) as image:
             collector = _TextBudget()
-            collector.add(pytesseract.image_to_string(image), MAX_OCR_CHARACTERS)
+            collector.add(
+                pytesseract.image_to_string(image, timeout=OCR_TIMEOUT_SECONDS),
+                MAX_OCR_CHARACTERS,
+            )
     except Exception:
         return _metadata_only(item, "OCR could not be completed; image metadata only.", [dimensions])
     if not collector.text:
@@ -197,10 +218,12 @@ def _collect_xlsx_row(
     row_collector = _TextBudget(MAX_XLSX_ROW_CHARACTERS)
     row_collector.add(sheet_title, MAX_XLSX_CELL_CHARACTERS, separator="")
     has_value = False
-    for value in row:
+    for cell_index, value in enumerate(row):
         if value is None:
             continue
         if row_collector.exhausted:
+            if any(remaining is not None for remaining in row[cell_index:]):
+                row_collector.mark_omitted()
             break
         separator = ": " if not has_value else " | "
         row_collector.add(str(value), MAX_XLSX_CELL_CHARACTERS, separator=separator)
