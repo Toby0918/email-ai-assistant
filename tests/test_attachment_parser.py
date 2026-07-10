@@ -7,17 +7,39 @@ from datetime import UTC, datetime, timedelta
 from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from docx import Document
 from openpyxl import Workbook
 from PIL import Image
 
+from backend.email_agent import attachment_parser
 from backend.email_agent.attachment_parser import parse_attachments
 from backend.email_agent.attachment_storage import StoredAttachment
 
 
 EXPECTED_KEYS = {"filename", "type", "status", "summary", "key_facts", "limitations"}
+
+
+class _ObservedParagraph:
+    def __init__(self, text: str) -> None:
+        self._text = text
+        self.read_count = 0
+
+    @property
+    def text(self) -> str:
+        self.read_count += 1
+        return self._text
+
+
+class _ObservedCell:
+    def __init__(self, text: str) -> None:
+        self.text = text
+        self.read_count = 0
+
+    def __str__(self) -> str:
+        self.read_count += 1
+        return self.text
 
 
 class AttachmentParserTests(unittest.TestCase):
@@ -86,6 +108,142 @@ class AttachmentParserTests(unittest.TestCase):
 
             self.assertEqual(result[0]["status"], "metadata_only")
             self.assertIn(".xlsx", result[0]["limitations"][0])
+
+    def test_pdf_stops_collecting_when_character_budget_is_exhausted(self) -> None:
+        with TemporaryDirectory() as directory:
+            stored = self._write(directory, "dense.pdf", "pdf", b"synthetic")
+            pages = [MagicMock(), MagicMock(), MagicMock()]
+            pages[0].extract_text.return_value = "A" * 5_000
+            pages[1].extract_text.return_value = "B" * 5_000
+            pages[2].extract_text.return_value = "UNREACHED"
+            reader = MagicMock()
+            reader.pages = pages
+
+            with patch.object(attachment_parser, "PdfReader", return_value=reader):
+                with patch.object(
+                    attachment_parser,
+                    "_text_insight",
+                    wraps=attachment_parser._text_insight,
+                ) as text_insight:
+                    result = parse_attachments([stored])
+
+            collected = text_insight.call_args.args[1]
+            self.assertLessEqual(len(collected), attachment_parser.MAX_EXTRACTED_CHARACTERS)
+            pages[1].extract_text.assert_called_once()
+            pages[2].extract_text.assert_not_called()
+            self.assertIn("Character limit", " ".join(result[0]["limitations"]))
+
+    def test_xlsx_stops_collecting_cells_and_sheets_at_character_budget(self) -> None:
+        with TemporaryDirectory() as directory:
+            stored = self._write(directory, "dense.xlsx", "xlsx", b"synthetic")
+            unread_cell = _ObservedCell("UNREACHED")
+            first_sheet = MagicMock()
+            first_sheet.title = "Dense"
+            first_sheet.iter_rows.return_value = iter(
+                [("A" * 5_000,), ("B" * 5_000,), (unread_cell,)]
+            )
+            second_sheet = MagicMock()
+            second_sheet.title = "Unreached"
+            second_sheet.iter_rows.return_value = iter([("UNREACHED",)])
+            workbook = MagicMock()
+            workbook.worksheets = [first_sheet, second_sheet]
+
+            with patch.object(attachment_parser, "load_workbook", return_value=workbook):
+                with patch.object(
+                    attachment_parser,
+                    "_text_insight",
+                    wraps=attachment_parser._text_insight,
+                ) as text_insight:
+                    result = parse_attachments([stored])
+
+            collected = text_insight.call_args.args[1]
+            self.assertLessEqual(len(collected), attachment_parser.MAX_EXTRACTED_CHARACTERS)
+            self.assertEqual(unread_cell.read_count, 0)
+            second_sheet.iter_rows.assert_not_called()
+            self.assertIn("Character limit", " ".join(result[0]["limitations"]))
+
+    def test_docx_stops_reading_paragraphs_at_character_budget(self) -> None:
+        with TemporaryDirectory() as directory:
+            stored = self._write(directory, "dense.docx", "docx", b"synthetic")
+            paragraphs = [
+                _ObservedParagraph("A" * 5_000),
+                _ObservedParagraph("B" * 5_000),
+                _ObservedParagraph("UNREACHED"),
+            ]
+            document = MagicMock()
+            document.paragraphs = paragraphs
+
+            with patch.object(attachment_parser, "Document", return_value=document):
+                with patch.object(
+                    attachment_parser,
+                    "_text_insight",
+                    wraps=attachment_parser._text_insight,
+                ) as text_insight:
+                    result = parse_attachments([stored])
+
+            collected = text_insight.call_args.args[1]
+            self.assertLessEqual(len(collected), attachment_parser.MAX_EXTRACTED_CHARACTERS)
+            self.assertEqual(paragraphs[2].read_count, 0)
+            self.assertIn("Character limit", " ".join(result[0]["limitations"]))
+
+    def test_ocr_text_is_bounded_before_summary_processing(self) -> None:
+        with TemporaryDirectory() as directory:
+            stored = self._write(directory, "dense.png", "image", self._image_bytes())
+            ocr = MagicMock()
+            ocr.image_to_string.return_value = "O" * 10_000
+
+            with patch.object(attachment_parser, "pytesseract", ocr):
+                with patch.object(
+                    attachment_parser,
+                    "_text_insight",
+                    wraps=attachment_parser._text_insight,
+                ) as text_insight:
+                    result = parse_attachments([stored])
+
+            collected = text_insight.call_args.args[1]
+            self.assertLessEqual(len(collected), attachment_parser.MAX_EXTRACTED_CHARACTERS)
+            self.assertIn("Character limit", " ".join(result[0]["limitations"]))
+
+    def test_image_pixel_guard_prevents_oversized_ocr_input(self) -> None:
+        with TemporaryDirectory() as directory:
+            stored = self._write(directory, "oversized.png", "image", b"synthetic")
+            image = MagicMock()
+            image.__enter__.return_value = image
+            image.size = (100_000, 100_000)
+            ocr = MagicMock()
+            ocr.image_to_string.return_value = "should not be read"
+
+            with patch.object(attachment_parser.Image, "open", return_value=image):
+                with patch.object(attachment_parser, "pytesseract", ocr):
+                    result = parse_attachments([stored])
+
+            self.assertEqual(result[0]["status"], "metadata_only")
+            self.assertIn("pixel", result[0]["limitations"][0].lower())
+            ocr.image_to_string.assert_not_called()
+
+    def test_all_displayable_url_schemes_are_replaced(self) -> None:
+        with TemporaryDirectory() as directory:
+            stored = self._write(directory, "links.png", "image", self._image_bytes())
+            source_urls = [
+                "http://web.example.test/a",
+                "https://secure.example.test/b",
+                "www.public.example.test/c",
+                "mailto:buyer@example.test",
+                "ftp://files.example.test/quote",
+                "file:///C:/private/quote.xlsx",
+                "sftp://host.example.test/root",
+                "data:text/plain,private",
+            ]
+            ocr = MagicMock()
+            ocr.image_to_string.return_value = " ".join(source_urls)
+
+            with patch.object(attachment_parser, "pytesseract", ocr):
+                result = parse_attachments([stored])
+
+            visible_text = self._visible_text(result[0])
+            for source_url in source_urls:
+                self.assertNotIn(source_url, visible_text)
+            self.assertIn("[link removed]", visible_text)
 
     @staticmethod
     def _visible_text(insight: dict[str, object]) -> str:
