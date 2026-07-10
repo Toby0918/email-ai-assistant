@@ -31,15 +31,16 @@ def _normalize_segments(segments: object) -> list[dict[str, object]]:
         return []
 
     normalized: list[dict[str, object]] = []
-    seen: set[tuple[str, str, str, str, str]] = set()
+    seen: set[tuple[str, str, str, str, str, int]] = set()
     for index, raw_segment in enumerate(segments[:MAX_THREAD_SEGMENTS]):
         segment = _normalize_segment(raw_segment, index)
         if segment is None:
             continue
-        fingerprint = _fingerprint(segment)
-        if fingerprint in seen:
-            continue
-        seen.add(fingerprint)
+        if segment["position"] is not None:
+            fingerprint = _fingerprint(segment)
+            if fingerprint in seen:
+                continue
+            seen.add(fingerprint)
         normalized.append(segment)
     return normalized
 
@@ -70,13 +71,14 @@ def _normalize_segment(raw_segment: object, index: int) -> dict[str, object] | N
     }
 
 
-def _fingerprint(segment: dict[str, object]) -> tuple[str, str, str, str, str]:
+def _fingerprint(segment: dict[str, object]) -> tuple[str, str, str, str, str, int]:
     return (
         str(segment["sender"]).lower(),
         str(segment["recipient"]).lower(),
         str(segment["timestamp_text"]),
         str(segment["subject"]).lower(),
         str(segment["body"]),
+        int(segment["position"]),
     )
 
 

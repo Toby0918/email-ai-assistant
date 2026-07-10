@@ -5,9 +5,8 @@ from __future__ import annotations
 import re
 
 from .thread_requests import (
-    extract_identifiers,
+    extract_outcome_atoms,
     extract_request_atoms,
-    extract_topics,
     track_request_states,
 )
 from .thread_segments import normalize_and_order_segments
@@ -20,14 +19,6 @@ _ADDRESS_RE = re.compile(
 )
 _COMMITMENT_RE = re.compile(
     r"\b(will|plan|expect|arrange|follow up)\b|将|计划|预计|尽快|安排",
-    re.IGNORECASE,
-)
-_OUTCOME_RE = re.compile(
-    r"\b(resolved|completed|closed|has been sent|delivered)\b|已(?:解决|完成|关闭|发送|处理完成)",
-    re.IGNORECASE,
-)
-_BLOCKER_RE = re.compile(
-    r"\b(blocked|pending|unable|missing)\b|无法|缺少|待确认|阻塞",
     re.IGNORECASE,
 )
 _QUOTE_REQUEST_RE = re.compile(r"\b(rfq|quote|quotation)\b|报价|询价", re.IGNORECASE)
@@ -50,17 +41,16 @@ def _extract_event(segment: dict[str, object], internal_domains: tuple[str, ...]
     signal_text = _combine_text(subject, body, "\n")[:_MAX_SIGNAL_CHARS]
     role = _participant_role(str(segment["sender"]), internal_domains)
     due_hint = _match_text(_DATE_RE, signal_text)
+    request_atoms, coverage_complete = (
+        extract_request_atoms(signal_text, due_hint) if role == "external" else ((), True)
+    )
     return {
         "display_text": _combine_text(subject, body, "；"),
-        "signal_text": signal_text,
         "role": role,
-        "request_atoms": extract_request_atoms(signal_text, due_hint) if role == "external" else (),
+        "request_atoms": request_atoms,
+        "request_coverage_complete": coverage_complete,
+        "outcome_atoms": extract_outcome_atoms(signal_text),
         "commitment": role == "internal" and _COMMITMENT_RE.search(signal_text) is not None,
-        "outcome": _OUTCOME_RE.search(signal_text) is not None,
-        "blocker": _BLOCKER_RE.search(signal_text) is not None,
-        "due_hint": due_hint,
-        "identifiers": extract_identifiers(signal_text),
-        "topics": extract_topics(signal_text),
     }
 
 
@@ -69,16 +59,19 @@ def _summarize_progress(events: list[dict[str, object]], timestamps_reliable: bo
         return _unknown_timeline()
 
     commitments = [event for event in events if event["commitment"]]
-    request_states = track_request_states(events)
+    request_states, coverage_complete = track_request_states(events)
     pending = [state for state in request_states if not state["resolved"]]
     resolved_count = len(request_states) - len(pending)
+    blocked_count = sum(1 for state in pending if state["blocked"])
     selected_state = pending[-1] if pending else (request_states[-1] if request_states else None)
     selected_request = selected_state["event"] if selected_state is not None else None
     status, status_reason, open_items = _status_and_open_items(
         request_states,
         pending,
         resolved_count,
+        blocked_count,
         selected_request,
+        coverage_complete,
     )
     identifier = _event_identifier(selected_request)
     if identifier:
@@ -91,7 +84,7 @@ def _summarize_progress(events: list[dict[str, object]], timestamps_reliable: bo
         "latest_external_request": _event_statement("外部请求", selected_request),
         "latest_internal_commitment": _event_statement("内部将跟进", commitments[-1] if commitments else None),
         "open_items": open_items,
-        "confidence": "high" if timestamps_reliable else "low",
+        "confidence": "high" if timestamps_reliable and coverage_complete else "low",
     }
 
 
@@ -99,11 +92,18 @@ def _status_and_open_items(
     request_states: list[dict[str, object]],
     pending: list[dict[str, object]],
     resolved_count: int,
+    blocked_count: int,
     selected_request: object,
+    coverage_complete: bool,
 ) -> tuple[str, str, list[dict[str, str]]]:
+    if not coverage_complete:
+        reason = "部分外部请求因数量限制被省略，需人工复核后再判断状态。"
+        return "unresolved", reason, [_coverage_open_item()]
     if pending:
         status = "partially_resolved" if resolved_count else "unresolved"
         reason = f"已明确完成{resolved_count}项，仍有{len(pending)}项外部请求待处理。"
+        if blocked_count:
+            reason = f"{reason} 其中{blocked_count}项存在阻塞。"
         return status, reason, [_request_open_item(_event_dict(selected_request))]
     if request_states:
         return "resolved", "所有已识别外部请求均有匹配的明确完成结果。", []
@@ -128,6 +128,15 @@ def _request_open_item(event: dict[str, object]) -> dict[str, str]:
         "item": f"处理外部请求：{_excerpt(str(event['display_text']))}",
         "owner_hint": "internal_sales" if _QUOTE_REQUEST_RE.search(signal_text) else "internal_follow_up",
         "due_hint": str(event["due_hint"]),
+        "source": "thread",
+    }
+
+
+def _coverage_open_item() -> dict[str, str]:
+    return {
+        "item": "部分外部请求因数量限制被省略，请人工复核完整会话。",
+        "owner_hint": "internal_follow_up",
+        "due_hint": "",
         "source": "thread",
     }
 

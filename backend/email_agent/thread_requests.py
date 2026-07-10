@@ -12,8 +12,14 @@ _REQUEST_RE = re.compile(
     r"\b(please|could you|need|confirm|provide|request)\b|请|麻烦|需要|确认|提供",
     re.IGNORECASE,
 )
-_CLAUSE_SPLIT_RE = re.compile(
-    r"[.!?。！？；;\n]+|\s+\band\b\s+|同时|并且|以及",
+_SENTENCE_SPLIT_RE = re.compile(r"[.!?。！？；;\n]+")
+_CONJUNCTION_SPLIT_RE = re.compile(r"\s+\band\b\s+|同时|并且|以及", re.IGNORECASE)
+_OUTCOME_RE = re.compile(
+    r"\b(resolved|completed|closed|has been sent|delivered)\b|已(?:解决|完成|关闭|发送|处理完成)",
+    re.IGNORECASE,
+)
+_BLOCKER_RE = re.compile(
+    r"\b(blocked|pending|unable|missing)\b|无法|缺少|待确认|阻塞",
     re.IGNORECASE,
 )
 _IDENTIFIER_SUFFIX = (
@@ -38,21 +44,46 @@ _TOPIC_PATTERNS = (
 )
 
 
-def extract_request_atoms(text: str, due_hint: str) -> tuple[dict[str, object], ...]:
+def extract_request_atoms(
+    text: str, due_hint: str
+) -> tuple[tuple[dict[str, object], ...], bool]:
     if _REQUEST_RE.search(text) is None:
-        return ()
+        return (), True
 
     atoms: list[dict[str, object]] = []
-    clauses = [clause.strip() for clause in _CLAUSE_SPLIT_RE.split(text) if clause.strip()]
+    sentences = [sentence.strip() for sentence in _SENTENCE_SPLIT_RE.split(text) if sentence.strip()]
+    for sentence in sentences:
+        if _REQUEST_RE.search(sentence) is None:
+            continue
+        fragments = [part.strip() for part in _CONJUNCTION_SPLIT_RE.split(sentence) if part.strip()]
+        for fragment in fragments:
+            fragment_atoms = _atoms_from_clause(fragment, due_hint)
+            if not fragment_atoms and _REQUEST_RE.search(fragment) is not None:
+                fragment_atoms = [_make_atom(fragment, due_hint, (), ())]
+            for atom in fragment_atoms:
+                if len(atoms) >= MAX_REQUEST_ATOMS_PER_EVENT:
+                    return tuple(atoms), False
+                atoms.append(atom)
+    return tuple(atoms), True
+
+
+def extract_outcome_atoms(text: str) -> tuple[dict[str, object], ...]:
+    atoms: list[dict[str, object]] = []
+    clauses = [clause.strip() for clause in _SENTENCE_SPLIT_RE.split(text) if clause.strip()]
     for clause in clauses:
-        clause_atoms = _atoms_from_clause(clause, due_hint)
-        if clause_atoms:
-            atoms.extend(clause_atoms)
-        elif _REQUEST_RE.search(clause) is not None:
-            atoms.append(_make_atom(clause, due_hint, (), ()))
-        if len(atoms) >= MAX_REQUEST_ATOMS_PER_EVENT:
-            break
-    return tuple(atoms[:MAX_REQUEST_ATOMS_PER_EVENT])
+        outcome = _OUTCOME_RE.search(clause) is not None
+        blocker = _BLOCKER_RE.search(clause) is not None
+        if not outcome and not blocker:
+            continue
+        atoms.append(
+            {
+                "outcome": outcome,
+                "blocker": blocker,
+                "identifiers": extract_identifiers(clause),
+                "topics": extract_topics(clause),
+            }
+        )
+    return tuple(atoms)
 
 
 def extract_identifiers(text: str) -> tuple[str, ...]:
@@ -63,16 +94,24 @@ def extract_topics(text: str) -> tuple[str, ...]:
     return tuple(name for name, pattern in _TOPIC_PATTERNS if pattern.search(text))
 
 
-def track_request_states(events: list[dict[str, object]]) -> list[dict[str, object]]:
+def track_request_states(
+    events: list[dict[str, object]],
+) -> tuple[list[dict[str, object]], bool]:
     states: list[dict[str, object]] = []
+    coverage_complete = True
     for event in events:
-        if event["outcome"]:
-            matching_index = _matching_request_index(states, event)
+        coverage_complete = coverage_complete and bool(event["request_coverage_complete"])
+        for outcome_atom in event["outcome_atoms"]:
+            matching_index = _matching_request_index(states, outcome_atom)
             if matching_index is not None:
-                states[matching_index]["resolved"] = True
+                if outcome_atom["blocker"]:
+                    states[matching_index]["blocked"] = True
+                elif outcome_atom["outcome"]:
+                    states[matching_index]["resolved"] = True
+                    states[matching_index]["blocked"] = False
         for atom in event["request_atoms"]:
-            states.append({"event": atom, "resolved": False})
-    return states
+            states.append({"event": atom, "resolved": False, "blocked": False})
+    return states, coverage_complete
 
 
 def _atoms_from_clause(clause: str, due_hint: str) -> list[dict[str, object]]:

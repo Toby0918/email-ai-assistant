@@ -179,7 +179,7 @@ class ThreadTimelineTests(unittest.TestCase):
                 "body_text": "Please send the specification.\n> quoted history",
             },
             {
-                "position": "2",
+                "position": "1",
                 "from": "Buyer <buyer@example.com>",
                 "timestamp_text": "2026-07-10 09:00",
                 "body_text": "Please send the specification.",
@@ -195,6 +195,45 @@ class ThreadTimelineTests(unittest.TestCase):
         result = build_conversation_timeline(segments, ("cndlf.com",))
 
         self.assertIn("quotation", result["latest_external_request"])
+        self.assertIn("2条", result["previous_context"])
+
+    def test_identical_messages_at_distinct_positions_are_preserved(self) -> None:
+        segments = [
+            {
+                "position": "1",
+                "from": "Buyer <buyer@example.com>",
+                "timestamp_text": "2026-07-10 09:00",
+                "body_text": "Please provide quotation RFQ-111.",
+            },
+            {
+                "position": "2",
+                "from": "Buyer <buyer@example.com>",
+                "timestamp_text": "2026-07-10 09:00",
+                "body_text": "Please provide quotation RFQ-111.",
+            },
+        ]
+
+        result = build_conversation_timeline(segments, ("cndlf.com",))
+
+        self.assertIn("2条", result["previous_context"])
+
+    def test_identical_messages_without_valid_positions_are_preserved(self) -> None:
+        segments = [
+            {
+                "from": "Buyer <buyer@example.com>",
+                "timestamp_text": "2026-07-10 09:00",
+                "body_text": "Please provide quotation RFQ-112.",
+            },
+            {
+                "position": "invalid",
+                "from": "Buyer <buyer@example.com>",
+                "timestamp_text": "2026-07-10 09:00",
+                "body_text": "Please provide quotation RFQ-112.",
+            },
+        ]
+
+        result = build_conversation_timeline(segments, ("cndlf.com",))
+
         self.assertIn("2条", result["previous_context"])
 
     def test_generic_acknowledgement_does_not_resolve_external_request(self) -> None:
@@ -358,6 +397,64 @@ class ThreadTimelineTests(unittest.TestCase):
         self.assertNotIn("RFQ-501", result["latest_external_request"])
         self.assertIn("PART-902", result["open_items"][0]["item"])
 
+    def test_clause_local_outcomes_do_not_resolve_pending_clause(self) -> None:
+        segments = [
+            {
+                "position": "1",
+                "from": "Buyer <buyer@example.com>",
+                "body_text": "Please provide RFQ-701 quotation and certificate PART-702.",
+            },
+            {
+                "position": "2",
+                "from": "Sales <sales@cndlf.com>",
+                "body_text": "RFQ-701 quotation completed; PART-702 certificate pending.",
+            },
+        ]
+
+        result = build_conversation_timeline(segments, ("cndlf.com",))
+
+        self.assertEqual(result["current_status"], "partially_resolved")
+        self.assertIn("PART-702", result["latest_external_request"])
+        self.assertIn("阻塞", result["status_reason"])
+
+    def test_clause_with_completion_and_blocker_cannot_resolve_request(self) -> None:
+        segments = [
+            {
+                "position": "1",
+                "from": "Buyer <buyer@example.com>",
+                "body_text": "Please provide RFQ-801 quotation.",
+            },
+            {
+                "position": "2",
+                "from": "Sales <sales@cndlf.com>",
+                "body_text": "RFQ-801 quotation completed but pending approval.",
+            },
+        ]
+
+        result = build_conversation_timeline(segments, ("cndlf.com",))
+
+        self.assertEqual(result["current_status"], "unresolved")
+        self.assertIn("阻塞", result["status_reason"])
+
+    def test_punctuation_detail_clause_does_not_inherit_request_intent(self) -> None:
+        segments = [
+            {
+                "position": "1",
+                "from": "Buyer <buyer@example.com>",
+                "body_text": "Please provide RFQ-901 quotation. Certificate PART-902 is attached.",
+            },
+            {
+                "position": "2",
+                "from": "Sales <sales@cndlf.com>",
+                "body_text": "RFQ-901 quotation completed.",
+            },
+        ]
+
+        result = build_conversation_timeline(segments, ("cndlf.com",))
+
+        self.assertEqual(result["current_status"], "resolved")
+        self.assertEqual(result["open_items"], [])
+
     def test_chinese_simultaneous_requests_are_tracked_separately(self) -> None:
         segments = [
             {
@@ -372,6 +469,36 @@ class ThreadTimelineTests(unittest.TestCase):
         self.assertEqual(result["current_status"], "unresolved")
         self.assertIn("PART-602", result["latest_external_request"])
         self.assertNotIn("RFQ-601", result["latest_external_request"])
+
+    def test_request_atom_cap_forces_manual_review_and_low_confidence(self) -> None:
+        clauses = [f"Please confirm PART-{index:03d}" for index in range(1, 16)]
+        clauses.extend(
+            [
+                "Please provide quotation RFQ-016",
+                "Please provide quotation RFQ-017",
+            ]
+        )
+        segments = [
+            {
+                "position": "1",
+                "from": "Buyer <buyer@example.com>",
+                "sent_at": "2026-07-10T09:00:00+00:00",
+                "body_text": "; ".join(clauses) + ".",
+            },
+            {
+                "position": "2",
+                "from": "Sales <sales@cndlf.com>",
+                "sent_at": "2026-07-10T10:00:00+00:00",
+                "body_text": "The quotation is completed.",
+            },
+        ]
+
+        result = build_conversation_timeline(segments, ("cndlf.com",))
+
+        self.assertEqual(result["current_status"], "unresolved")
+        self.assertEqual(result["confidence"], "low")
+        self.assertIn("省略", result["status_reason"])
+        self.assertIn("人工复核", result["open_items"][0]["item"])
 
     def test_latest_repeated_request_stays_open_after_an_earlier_resolution(self) -> None:
         segments = [
