@@ -8,6 +8,7 @@ from html.parser import HTMLParser
 
 
 _SKIPPED_HTML_TAGS = {"script", "style", "blockquote"}
+DEFAULT_THREAD_SEGMENT_MAX_CHARS = 2_000
 
 
 # Reduce HTML to plain text before prompt construction to limit markup influence.
@@ -43,9 +44,23 @@ class _TextExtractor(HTMLParser):
 
 
 def clean_email_body(body_text: str | None = None, body_html: str | None = None) -> str:
-    source = _html_to_text(body_html) if body_html else (body_text or "")
+    text_source = body_text if isinstance(body_text, str) else ""
+    html_source = body_html if isinstance(body_html, str) else ""
+    source = _html_to_text(html_source) if html_source else text_source
     source = _strip_quote_history(source)
     return _normalize_text(source)
+
+
+def clean_thread_segment_text(
+    body_text: str | None = None,
+    body_html: str | None = None,
+    max_chars: int = DEFAULT_THREAD_SEGMENT_MAX_CHARS,
+) -> str:
+    """Return bounded current-message text for deterministic thread processing."""
+    cleaned = _strip_thread_noise(clean_email_body(body_text=body_text, body_html=body_html))
+    if not isinstance(max_chars, int):
+        max_chars = DEFAULT_THREAD_SEGMENT_MAX_CHARS
+    return cleaned[:max(min(max_chars, DEFAULT_THREAD_SEGMENT_MAX_CHARS), 0)]
 
 
 def _html_to_text(body_html: str | None) -> str:
@@ -72,11 +87,23 @@ def _strip_quote_history(text: str) -> str:
     return "\n".join(lines)
 
 
+def _strip_thread_noise(text: str) -> str:
+    lines: list[str] = []
+    for line in text.splitlines():
+        if line.strip() == "--":
+            break
+        without_banner = re.sub(r"^\s*\[(?:external email|外部邮件)\]\s*", "", line, flags=re.IGNORECASE)
+        if without_banner.strip():
+            lines.append(without_banner)
+    return _normalize_text("\n".join(lines))
+
+
 def _is_quote_history_marker(line: str) -> bool:
     stripped = line.strip()
     lower = stripped.lower()
     return (
-        re.fullmatch(r"-{2,}\s*(original message|forwarded message)\s*-{2,}", lower) is not None
+        stripped.startswith(">")
+        or re.fullmatch(r"-{2,}\s*(original message|forwarded message)\s*-{2,}", lower) is not None
         or re.fullmatch(r"-{2,}\s*(原始邮件|转发邮件)\s*-{2,}", stripped) is not None
         or re.fullmatch(r"on .+ wrote:", lower) is not None
         or re.fullmatch(r"在.+写道[:：]?", stripped) is not None

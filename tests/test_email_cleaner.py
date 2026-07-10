@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import unittest
 
-from backend.email_agent.email_cleaner import clean_email_body
+from backend.email_agent.email_cleaner import clean_email_body, clean_thread_segment_text
 
 
 class EmailCleanerTests(unittest.TestCase):
@@ -37,6 +37,25 @@ class EmailCleanerTests(unittest.TestCase):
 
     def test_empty_body_returns_empty_string(self) -> None:
         self.assertEqual(clean_email_body(), "")
+
+    def test_thread_segment_text_removes_signature_banner_and_bounds_content(self) -> None:
+        body = (
+            "[EXTERNAL EMAIL] Please provide a quote.\n"
+            "-- \n"
+            "Synthetic Sender\n"
+            "Quoted content must not remain."
+        )
+
+        result = clean_thread_segment_text(body_text=body, max_chars=12)
+
+        self.assertEqual(result, "Please provi")
+
+    def test_thread_segment_text_stops_before_angle_bracket_quote_history(self) -> None:
+        result = clean_thread_segment_text(
+            body_text="Please confirm the sample.\n> Earlier quoted thread text"
+        )
+
+        self.assertEqual(result, "Please confirm the sample.")
 
 
 if __name__ == "__main__":
