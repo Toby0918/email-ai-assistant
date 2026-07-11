@@ -1,0 +1,474 @@
+(function (root) {
+  "use strict";
+
+  const EXMAIL_ORIGIN = "https://exmail.qq.com";
+  const MAX_THREAD_SEGMENTS = 50;
+  const MAX_THREAD_SEGMENT_CHARS = 2000;
+  const MAX_THREAD_SOURCE_CHARS = 20000;
+  const MAX_METADATA_CHARS = 512;
+  const MAX_RESOURCE_COUNT = 5;
+  const MAX_RESOURCE_BYTES = 10 * 1024 * 1024;
+  const MAX_TOTAL_RESOURCE_BYTES = 25 * 1024 * 1024;
+  const SUPPORTED_RESOURCE_TYPES = Object.freeze(["image", "pdf", "xlsx", "docx"]);
+  const CURRENT_MESSAGE_SELECTORS = [
+    "[data-email-current-message]",
+    "#mailContentContainer",
+    "#mailContent",
+    ".mail-detail-content",
+    ".mail-content",
+    ".mail_content",
+    ".readmail_content",
+  ];
+  const THREAD_SEGMENT_SELECTORS = [
+    "[data-email-thread-segment]",
+    ".mail-thread-segment",
+    ".mail-thread-item",
+    ".mail-reply-item",
+    ".mail-conversation-item",
+    ".readmail_item",
+  ];
+  const RESOURCE_SELECTORS = [
+    "[data-email-resource]",
+    "a[download]",
+    "a[data-filename]",
+    "img[data-filename]",
+  ];
+  const FIELD_SELECTORS = Object.freeze({
+    from: ["[data-email-from]", ".mail-sender", ".sender", ".from"],
+    to: ["[data-email-to]", ".mail-recipient", ".recipient", ".to"],
+    sent_at: ["[data-email-sent-at]", "time"],
+    timestamp_text: ["[data-email-timestamp-text]", ".mail-time", ".timestamp"],
+    subject: ["[data-email-subject]", ".mail-subject", ".subject"],
+    body_text: ["[data-email-segment-body]", ".mail-segment-body", ".mail-body"],
+  });
+
+  function extractVisibleThreadSegments(doc, options) {
+    const settings = options || {};
+    const currentRoot = findCurrentMessageRoot(doc, settings.currentMessageRoot);
+    if (!currentRoot) {
+      return [];
+    }
+
+    const candidates = queryAll(currentRoot, THREAD_SEGMENT_SELECTORS);
+    const visibleCandidates = candidates.length ? candidates : [currentRoot];
+    const segments = [];
+    let remainingChars = MAX_THREAD_SOURCE_CHARS;
+
+    for (const candidate of visibleCandidates) {
+      if (segments.length >= MAX_THREAD_SEGMENTS || remainingChars <= 0) {
+        break;
+      }
+      if (!isVisibleWithin(candidate, currentRoot, doc)) {
+        continue;
+      }
+      const segment = normalizeThreadSegment(candidate, doc, currentRoot, segments.length, remainingChars);
+      if (!segment) {
+        continue;
+      }
+      remainingChars -= segment.body_text.length;
+      segments.push(segment);
+    }
+    return segments;
+  }
+
+  async function collectVisibleResources(doc, options) {
+    const settings = options || {};
+    const currentRoot = findCurrentMessageRoot(doc, settings.currentMessageRoot);
+    const result = { attachment_files: [], resource_limitations: [] };
+    if (!currentRoot) {
+      return result;
+    }
+
+    const limits = boundedLimits(settings.limits);
+    const fetchImpl = typeof settings.fetchImpl === "function" ? settings.fetchImpl : root.fetch;
+    const baseHref = settings.locationHref || documentHref(doc);
+    const candidates = queryAll(currentRoot, RESOURCE_SELECTORS).filter((element) =>
+      isVisibleWithin(element, currentRoot, doc),
+    );
+    let transferCount = 0;
+    let totalBytes = 0;
+
+    for (const element of candidates) {
+      const metadata = resourceMetadata(element);
+      if (!metadata.type) {
+        result.resource_limitations.push(limitedMetadata(metadata, "Resource type is not supported."));
+        continue;
+      }
+
+      const resolvedUrl = resolveResourceUrl(resourceUrl(element), baseHref);
+      if (!resolvedUrl) {
+        result.resource_limitations.push(
+          limitedMetadata(metadata, "Resource URL must be a same-origin Tencent Exmail HTTPS URL."),
+        );
+        continue;
+      }
+      if (metadata.size > limits.maxFileBytes) {
+        result.resource_limitations.push(
+          limitedMetadata(metadata, `Resource exceeds the ${limits.maxFileBytes}-byte per-file limit.`),
+        );
+        continue;
+      }
+      if (transferCount >= limits.maxFiles) {
+        result.resource_limitations.push(
+          limitedMetadata(metadata, `Resource exceeds the ${limits.maxFiles}-file frontend limit.`),
+        );
+        continue;
+      }
+
+      transferCount += 1;
+      if (metadata.size > 0 && totalBytes + metadata.size > limits.maxTotalBytes) {
+        result.resource_limitations.push(
+          limitedMetadata(metadata, `Resource exceeds the ${limits.maxTotalBytes}-byte total frontend limit.`),
+        );
+        continue;
+      }
+      if (typeof fetchImpl !== "function") {
+        result.resource_limitations.push(
+          limitedMetadata(metadata, "Resource could not be read from the current Tencent Exmail session."),
+        );
+        continue;
+      }
+
+      const collected = await fetchResource(fetchImpl, resolvedUrl, metadata, limits, totalBytes);
+      if (collected.file) {
+        result.attachment_files.push(collected.file);
+        totalBytes += collected.file.size;
+      } else {
+        result.resource_limitations.push(limitedMetadata(metadata, collected.limitation));
+      }
+    }
+    return result;
+  }
+
+  function normalizeThreadSegment(element, doc, currentRoot, position, remainingChars) {
+    const bodyText = boundedText(
+      fieldText(element, "body_text", doc, currentRoot) || elementText(element),
+      Math.min(MAX_THREAD_SEGMENT_CHARS, remainingChars),
+    );
+    const subject = boundedText(fieldText(element, "subject", doc, currentRoot), MAX_METADATA_CHARS);
+    if (!bodyText && !subject) {
+      return null;
+    }
+    return {
+      position,
+      from: boundedText(fieldText(element, "from", doc, currentRoot), MAX_METADATA_CHARS),
+      to: boundedText(fieldText(element, "to", doc, currentRoot), MAX_METADATA_CHARS),
+      sent_at: boundedText(fieldText(element, "sent_at", doc, currentRoot), MAX_METADATA_CHARS),
+      timestamp_text: boundedText(
+        fieldText(element, "timestamp_text", doc, currentRoot),
+        MAX_METADATA_CHARS,
+      ),
+      subject,
+      body_text: bodyText,
+    };
+  }
+
+  function fieldText(element, field, doc, currentRoot) {
+    const attributeName = `data-${field.replaceAll("_", "-")}`;
+    const attributeValue = attribute(element, attributeName);
+    if (attributeValue) {
+      return normalizeText(attributeValue);
+    }
+    for (const selector of FIELD_SELECTORS[field] || []) {
+      const candidate = typeof element.querySelector === "function" ? element.querySelector(selector) : null;
+      if (candidate && isVisibleWithin(candidate, currentRoot, doc)) {
+        return elementText(candidate);
+      }
+    }
+    return "";
+  }
+
+  function findCurrentMessageRoot(doc, suppliedRoot) {
+    if (!doc) {
+      return null;
+    }
+    if (suppliedRoot) {
+      return isVisibleWithin(suppliedRoot, suppliedRoot, doc) ? suppliedRoot : null;
+    }
+    if (typeof doc.querySelector !== "function") {
+      return null;
+    }
+    for (const selector of CURRENT_MESSAGE_SELECTORS) {
+      const candidate = doc.querySelector(selector);
+      if (candidate && isVisibleWithin(candidate, candidate, doc)) {
+        return candidate;
+      }
+    }
+    return null;
+  }
+
+  function queryAll(container, selectors) {
+    if (!container || typeof container.querySelectorAll !== "function") {
+      return [];
+    }
+    return Array.from(container.querySelectorAll(selectors.join(", ")) || []);
+  }
+
+  function isVisibleWithin(element, boundary, doc) {
+    let current = element;
+    while (current) {
+      if (current.hidden || hasAttribute(current, "hidden")) {
+        return false;
+      }
+      if (attribute(current, "aria-hidden").toLowerCase() === "true") {
+        return false;
+      }
+      if (styleHides(current, doc)) {
+        return false;
+      }
+      if (current === boundary) {
+        return true;
+      }
+      current = current.parentElement || current.parentNode;
+    }
+    return false;
+  }
+
+  function styleHides(element, doc) {
+    const inlineStyle = element.style || {};
+    if (inlineStyle.display === "none" || hiddenVisibility(inlineStyle.visibility)) {
+      return true;
+    }
+    const view = doc && doc.defaultView;
+    if (!view || typeof view.getComputedStyle !== "function") {
+      return false;
+    }
+    try {
+      const computed = view.getComputedStyle(element);
+      return computed.display === "none" || hiddenVisibility(computed.visibility);
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function hiddenVisibility(value) {
+    return value === "hidden" || value === "collapse";
+  }
+
+  function resourceMetadata(element) {
+    const filename = safeFilename(
+      attribute(element, "data-filename") ||
+        attribute(element, "download") ||
+        attribute(element, "aria-label") ||
+        attribute(element, "title") ||
+        attribute(element, "alt") ||
+        elementText(element),
+    );
+    const declaredType =
+      attribute(element, "data-type") ||
+      attribute(element, "data-mime-type") ||
+      attribute(element, "type");
+    return {
+      filename,
+      type: normalizeResourceType(declaredType, filename),
+      size: declaredByteSize(attribute(element, "data-size")),
+    };
+  }
+
+  function resourceUrl(element) {
+    return (
+      attribute(element, "data-resource-url") ||
+      attribute(element, "href") ||
+      attribute(element, "src")
+    );
+  }
+
+  function normalizeResourceType(value, filename) {
+    const declared = normalizeText(value).toLowerCase();
+    if (declared) {
+      if (declared === "image" || declared.startsWith("image/")) {
+        return "image";
+      }
+      if (declared === "pdf" || declared === "application/pdf") {
+        return "pdf";
+      }
+      if (
+        declared === "xlsx" ||
+        declared === "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      ) {
+        return "xlsx";
+      }
+      if (
+        declared === "docx" ||
+        declared === "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+      ) {
+        return "docx";
+      }
+      return "";
+    }
+
+    const extension = filename.toLowerCase().match(/\.([a-z0-9]+)$/);
+    if (!extension) {
+      return "";
+    }
+    if (["png", "jpg", "jpeg", "gif", "webp", "bmp", "tif", "tiff"].includes(extension[1])) {
+      return "image";
+    }
+    return SUPPORTED_RESOURCE_TYPES.includes(extension[1]) ? extension[1] : "";
+  }
+
+  async function fetchResource(fetchImpl, url, metadata, limits, totalBytes) {
+    try {
+      const response = await fetchImpl(url, { credentials: "include", redirect: "error" });
+      if (!response || response.ok !== true) {
+        return { limitation: "Resource could not be read from the current Tencent Exmail session." };
+      }
+      const announcedSize = responseByteSize(response);
+      const announcedLimitation = byteLimitation(announcedSize, limits, totalBytes);
+      if (announcedLimitation) {
+        return { limitation: announcedLimitation };
+      }
+      const buffer = await response.arrayBuffer();
+      const byteSize = buffer && Number.isSafeInteger(buffer.byteLength) ? buffer.byteLength : 0;
+      if (byteSize <= 0) {
+        return { limitation: "Resource is empty or unreadable." };
+      }
+      const actualLimitation = byteLimitation(byteSize, limits, totalBytes);
+      if (actualLimitation) {
+        return { limitation: actualLimitation };
+      }
+      return {
+        file: {
+          filename: metadata.filename,
+          type: metadata.type,
+          size: byteSize,
+          content_base64: arrayBufferToBase64(buffer),
+        },
+      };
+    } catch (error) {
+      return { limitation: "Resource could not be read from the current Tencent Exmail session." };
+    }
+  }
+
+  function byteLimitation(byteSize, limits, totalBytes) {
+    if (!byteSize) {
+      return "";
+    }
+    if (byteSize > limits.maxFileBytes) {
+      return `Resource exceeds the ${limits.maxFileBytes}-byte per-file limit.`;
+    }
+    if (totalBytes + byteSize > limits.maxTotalBytes) {
+      return `Resource exceeds the ${limits.maxTotalBytes}-byte total frontend limit.`;
+    }
+    return "";
+  }
+
+  function responseByteSize(response) {
+    const headers = response.headers;
+    if (!headers || typeof headers.get !== "function") {
+      return 0;
+    }
+    return declaredByteSize(headers.get("content-length"));
+  }
+
+  function arrayBufferToBase64(buffer) {
+    const bytes = new Uint8Array(buffer);
+    const chunkSize = 32768;
+    let binary = "";
+    for (let offset = 0; offset < bytes.length; offset += chunkSize) {
+      binary += String.fromCharCode(...bytes.subarray(offset, offset + chunkSize));
+    }
+    return root.btoa(binary);
+  }
+
+  function resolveResourceUrl(value, baseHref) {
+    if (!value || !baseHref) {
+      return "";
+    }
+    try {
+      const base = new URL(baseHref);
+      const resolved = new URL(value, base);
+      if (base.origin !== EXMAIL_ORIGIN || resolved.origin !== EXMAIL_ORIGIN) {
+        return "";
+      }
+      if (resolved.protocol !== "https:" || resolved.username || resolved.password) {
+        return "";
+      }
+      return resolved.href;
+    } catch (error) {
+      return "";
+    }
+  }
+
+  function documentHref(doc) {
+    if (doc && typeof doc.baseURI === "string" && doc.baseURI) {
+      return doc.baseURI;
+    }
+    if (doc && doc.location && typeof doc.location.href === "string") {
+      return doc.location.href;
+    }
+    return "";
+  }
+
+  function boundedLimits(value) {
+    const requested = value || {};
+    return {
+      maxFiles: downwardLimit(requested.maxFiles, MAX_RESOURCE_COUNT),
+      maxFileBytes: downwardLimit(requested.maxFileBytes, MAX_RESOURCE_BYTES),
+      maxTotalBytes: downwardLimit(requested.maxTotalBytes, MAX_TOTAL_RESOURCE_BYTES),
+    };
+  }
+
+  function downwardLimit(value, maximum) {
+    return Number.isSafeInteger(value) && value > 0 ? Math.min(value, maximum) : maximum;
+  }
+
+  function declaredByteSize(value) {
+    const normalized = normalizeText(value);
+    if (!/^\d+$/.test(normalized)) {
+      return 0;
+    }
+    const parsed = Number(normalized);
+    return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : 0;
+  }
+
+  function limitedMetadata(metadata, limitation) {
+    return {
+      filename: metadata.filename,
+      type: metadata.type || "unsupported",
+      size: metadata.size,
+      limitation,
+    };
+  }
+
+  function safeFilename(value) {
+    const normalized = normalizeText(value).replace(/[\u0000-\u001f\u007f]/g, "");
+    const basename = normalized.replaceAll("\\", "/").split("/").pop() || "";
+    const safe = basename.replace(/[<>:"|?*]/g, "_").replace(/^\.+/, "").trim();
+    return safe.slice(0, 120) || "resource";
+  }
+
+  function boundedText(value, limit) {
+    return normalizeText(value).slice(0, limit);
+  }
+
+  function elementText(element) {
+    return normalizeText(element ? element.innerText || element.textContent || "" : "");
+  }
+
+  function normalizeText(value) {
+    return String(value || "").replace(/\s+/g, " ").trim();
+  }
+
+  function attribute(element, name) {
+    if (!element || typeof element.getAttribute !== "function") {
+      return "";
+    }
+    return String(element.getAttribute(name) || "");
+  }
+
+  function hasAttribute(element, name) {
+    return Boolean(element && typeof element.hasAttribute === "function" && element.hasAttribute(name));
+  }
+
+  root.EmailAssistantCurrentMessageCollector = Object.freeze({
+    MAX_THREAD_SEGMENTS,
+    MAX_RESOURCE_COUNT,
+    MAX_RESOURCE_BYTES,
+    MAX_TOTAL_RESOURCE_BYTES,
+    SUPPORTED_RESOURCE_TYPES,
+    normalizeResourceType,
+    extractVisibleThreadSegments,
+    collectVisibleResources,
+  });
+})(window);
