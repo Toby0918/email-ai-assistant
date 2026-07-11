@@ -10,6 +10,7 @@ from .thread_clauses import (
     SENTENCE_SPLIT_RE,
     split_evidence_clauses,
 )
+from .thread_dates import unambiguous_due_hint
 from .thread_intent import (
     has_request_intent,
     has_request_syntax,
@@ -17,19 +18,20 @@ from .thread_intent import (
     is_non_request_detail,
 )
 from .thread_outcomes import evidence_flags, has_outcome_evidence
-from .thread_positions import extract_positions
+from .thread_positions import expand_position_lists, extract_positions
 
 
 MAX_REQUEST_ATOMS_PER_EVENT = 16
 MAX_REQUEST_ATOM_CHARS = 240
 
-_IDENTIFIER_SUFFIX = (
-    r"(?=[A-Z0-9-]{2,32}(?![A-Z0-9_-]))"
-    r"(?=[A-Z0-9-]{0,31}\d)[A-Z0-9-]{2,32}"
+_IDENTIFIER_TOKEN = (
+    r"(?=[A-Z0-9-]{1,32}(?![A-Z0-9_-]))"
+    r"(?=[A-Z0-9-]*\d)(?![A-Z0-9-]*--)"
+    r"[A-Z0-9](?:[A-Z0-9-]{0,30}[A-Z0-9])?"
 )
 _IDENTIFIER_RE = re.compile(
-    rf"(?<![A-Z0-9_])(?:RFQ|PO|SO|PART)[#:-]?{_IDENTIFIER_SUFFIX}(?![A-Z0-9_-])|"
-    rf"(?:订单号|编号)\s*[:：#-]?\s*{_IDENTIFIER_SUFFIX}(?![A-Z0-9_-])",
+    rf"(?<![A-Z0-9_])(?:RFQ|PO|SO|PART)[#:-]?{_IDENTIFIER_TOKEN}(?![A-Z0-9_-])|"
+    rf"(?:订单号|编号)\s*[:：#-]?\s*{_IDENTIFIER_TOKEN}(?![A-Z0-9_-])",
     re.IGNORECASE,
 )
 _TOPIC_PATTERNS = (
@@ -48,10 +50,12 @@ _TOPIC_PATTERNS = (
 def extract_request_atoms(
     text: str, due_hint: str
 ) -> tuple[tuple[dict[str, object], ...], bool]:
+    text = expand_position_lists(text)
     if not has_request_syntax(text):
         return (), True
 
     atoms: list[dict[str, object]] = []
+    coverage_complete = True
     sentences = [sentence.strip() for sentence in SENTENCE_SPLIT_RE.split(text) if sentence.strip()]
     for sentence in sentences:
         comma_intent = is_coordinated_request_title(sentence)
@@ -72,15 +76,28 @@ def extract_request_atoms(
                     intent_seen = False
                 if not intent_seen:
                     continue
-                fragment_atoms = _atoms_from_clause(fragment, due_hint)
+                fragment_due_hint = unambiguous_due_hint(fragment)
+                fragment_atoms = _atoms_from_clause(fragment, fragment_due_hint)
                 if not fragment_atoms and fragment_has_intent:
-                    fragment_atoms = [_make_atom(fragment, due_hint, (), ())]
+                    fragment_atoms = [_make_atom(fragment, fragment_due_hint, (), ())]
                 for atom in fragment_atoms:
                     if len(atoms) >= MAX_REQUEST_ATOMS_PER_EVENT:
                         return tuple(atoms), False
+                    atom_complete = bool(atom.pop("coverage_complete"))
+                    coverage_complete = coverage_complete and atom_complete
                     atoms.append(atom)
             comma_intent = explicit_intent or inherited_intent
-    return tuple(atoms), True
+    return _with_source_due_hint(tuple(atoms), due_hint), coverage_complete
+
+
+def _with_source_due_hint(
+    atoms: tuple[dict[str, object], ...], due_hint: str
+) -> tuple[dict[str, object], ...]:
+    if len(atoms) != 1 or not due_hint or atoms[0]["due_hint"]:
+        return atoms
+    atom = dict(atoms[0])
+    atom["due_hint"] = due_hint
+    return (atom,)
 
 
 def _is_bare_requested_item(text: str) -> bool:
@@ -225,4 +242,5 @@ def _make_atom(
         "identifiers": identifiers,
         "topics": topics,
         "positions": positions,
+        "coverage_complete": len(display_text) <= MAX_REQUEST_ATOM_CHARS,
     }

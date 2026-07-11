@@ -26,6 +26,12 @@ _RECEIPT_EVIDENCE_RE = re.compile(
     re.IGNORECASE,
 )
 _GENERIC_ACKNOWLEDGEMENT_RE = re.compile(r"\b(thanks?|noted)\b|谢谢", re.IGNORECASE)
+_TRANSMITTAL_RE = re.compile(
+    r"\b(?:please\s+)?(?:find|see)\s+(?:the\s+)?attached\b|"
+    r"\b(?:attached|enclosed)\b.{0,80}\bfor\s+(?:your\s+)?reference\b|"
+    r"请(?:查收|查看|参见).{0,80}(?:附件|随附)|(?:附件|随附).{0,80}供参考",
+    re.IGNORECASE,
+)
 _NON_REQUEST_DETAIL_RE = re.compile(
     r"\b(is|are|was|were|has|have|had|attached|received|completed|resolved|pending|reference)\b|"
     r"已附|附件|供参考|已收到|已完成|待确认",
@@ -46,7 +52,11 @@ def has_request_syntax(text: str) -> bool:
 
 
 def has_request_intent(text: str) -> bool:
-    if not has_request_syntax(text) or _RECEIPT_EVIDENCE_RE.search(text) is not None:
+    if (
+        not has_request_syntax(text)
+        or _RECEIPT_EVIDENCE_RE.search(text) is not None
+        or _TRANSMITTAL_RE.search(text) is not None
+    ):
         return False
     return (
         _DIRECT_REQUEST_RE.search(text) is not None

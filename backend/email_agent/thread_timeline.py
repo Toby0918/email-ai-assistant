@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import re
 
-from .thread_participants import participant_role
+from .thread_dates import unambiguous_due_hint
+from .thread_participants import classify_participant
 from .thread_outcomes import track_request_states
 from .thread_requests import (
     extract_outcome_atoms,
@@ -20,9 +21,8 @@ _COMMITMENT_RE = re.compile(
     re.IGNORECASE,
 )
 _QUOTE_REQUEST_RE = re.compile(r"\b(rfq|quote|quotation)\b|报价|询价", re.IGNORECASE)
-_DATE_RE = re.compile(
-    r"(?<!\d)\d{4}-\d{2}-\d{2}(?!\d)|\d{1,2}月\d{1,2}日(?:前)?|(?:周[一二三四五六日天]|明天)(?:前)?"
-)
+
+
 def build_conversation_timeline(
     segments: list[dict[str, str]], internal_domains: tuple[str, ...]
 ) -> dict[str, object]:
@@ -37,26 +37,29 @@ def _extract_event(segment: dict[str, object], internal_domains: tuple[str, ...]
     subject = str(segment["subject"])
     body = str(segment["body"])
     signal_text = _combine_text(subject, body, "\n")[:_MAX_SIGNAL_CHARS]
-    role = participant_role(str(segment["sender"]), internal_domains)
-    due_hint = _match_text(_DATE_RE, signal_text)
+    role, participant_complete = classify_participant(
+        str(segment["sender"]), internal_domains
+    )
     request_atoms, coverage_complete = (
-        _external_request_atoms(subject, body, due_hint) if role == "external" else ((), True)
+        _external_request_atoms(subject, body) if role != "internal" else ((), True)
     )
     return {
         "display_text": _combine_text(subject, body, "；"),
         "role": role,
         "request_atoms": request_atoms,
-        "request_coverage_complete": coverage_complete,
+        "request_coverage_complete": coverage_complete and participant_complete,
         "outcome_atoms": extract_outcome_atoms(signal_text) if role == "internal" else (),
         "commitment": role == "internal" and _COMMITMENT_RE.search(signal_text) is not None,
     }
 
 
 def _external_request_atoms(
-    subject: str, body: str, due_hint: str
+    subject: str, body: str
 ) -> tuple[tuple[dict[str, object], ...], bool]:
-    subject_atoms, subject_complete = extract_request_atoms(subject, due_hint)
-    body_atoms, body_complete = extract_request_atoms(body, due_hint)
+    subject_atoms, subject_complete = extract_request_atoms(
+        subject, unambiguous_due_hint(subject)
+    )
+    body_atoms, body_complete = extract_request_atoms(body, unambiguous_due_hint(body))
     merged, merge_complete = merge_request_atom_sources(subject_atoms, body_atoms)
     return merged, subject_complete and body_complete and merge_complete
 
@@ -196,11 +199,6 @@ def _normalize_domains(internal_domains: object) -> tuple[str, ...]:
 
 def _combine_text(subject: str, body: str, separator: str) -> str:
     return separator.join(part for part in (subject, body) if part)
-
-
-def _match_text(pattern: re.Pattern[str], text: str) -> str:
-    match = pattern.search(text)
-    return match.group(0) if match is not None else ""
 
 
 def _excerpt(text: str, limit: int = 160) -> str:

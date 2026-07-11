@@ -15,17 +15,20 @@ _ADDRESS_RE = re.compile(
 )
 
 
-def participant_role(sender: str, internal_domains: tuple[str, ...]) -> str:
+def classify_participant(
+    sender: str, internal_domains: tuple[str, ...]
+) -> tuple[str, bool]:
     addresses = tuple(address.strip() for _, address in getaddresses([sender]) if address.strip())
     if not addresses and "@" not in sender:
-        return "unknown"
+        return "unknown", False
     if sender.count("@") != len(addresses):
-        return "external"
+        return "external", False
     matches = tuple(_ADDRESS_RE.fullmatch(address) for address in addresses)
     if not matches or any(
         match is None or len(match.group("domain")) > 253 for match in matches
     ):
-        return "external"
+        return "external", False
     domains = tuple(match.group("domain").lower() for match in matches if match is not None)
     internal = {domain.lower() for domain in internal_domains}
-    return "internal" if all(domain in internal for domain in domains) else "external"
+    role = "internal" if all(domain in internal for domain in domains) else "external"
+    return role, True
