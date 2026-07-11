@@ -122,11 +122,12 @@ class BrowserExtensionBehaviorTests(unittest.TestCase):
             }},
           }};
           vm.runInNewContext(adapter, context);
-          let response;
-          listener({{ type: "EXTRACT_CURRENT_EMAIL" }}, {{}}, (value) => {{
-            response = value;
+          return new Promise((resolve, reject) => {{
+            const keepAlive = listener({{ type: "EXTRACT_CURRENT_EMAIL" }}, {{}}, resolve);
+            if (keepAlive !== true) {{
+              reject(new Error(`expected async listener return true, got ${{keepAlive}}`));
+            }}
           }});
-          return response;
         }}
 
         function legacyReadDocument({{ selected = false, knownBody = false }} = {{}}) {{
@@ -195,15 +196,15 @@ class BrowserExtensionBehaviorTests(unittest.TestCase):
         }}
 
         const cases = {{
-          legacy_opened_message_extracts_body: () => {{
-            const result = dispatch(legacyReadDocument());
+          legacy_opened_message_extracts_body: async () => {{
+            const result = await dispatch(legacyReadDocument());
             if (!result.ok) throw new Error(JSON.stringify(result));
             if (!result.payload.body_text.includes("Received below complaint.")) {{
               throw new Error("missing body text");
             }}
           }},
-          legacy_selected_text_fallback_extracts_selection: () => {{
-            const result = dispatch(legacyReadDocument({{ selected: true }}));
+          legacy_selected_text_fallback_extracts_selection: async () => {{
+            const result = await dispatch(legacyReadDocument({{ selected: true }}));
             if (!result.ok) throw new Error(JSON.stringify(result));
             if (result.source !== "selected_text") {{
               throw new Error(`expected selected_text, got ${{result.source}}`);
@@ -212,8 +213,8 @@ class BrowserExtensionBehaviorTests(unittest.TestCase):
               throw new Error(`unexpected selected text: ${{result.payload.body_text}}`);
             }}
           }},
-          selected_text_wins_over_known_dom_body: () => {{
-            const result = dispatch(legacyReadDocument({{ selected: true, knownBody: true }}));
+          selected_text_wins_over_known_dom_body: async () => {{
+            const result = await dispatch(legacyReadDocument({{ selected: true, knownBody: true }}));
             if (!result.ok) throw new Error(JSON.stringify(result));
             if (result.source !== "selected_text") {{
               throw new Error(`expected selected_text, got ${{result.source}}`);
@@ -222,8 +223,8 @@ class BrowserExtensionBehaviorTests(unittest.TestCase):
               throw new Error(`expected selected text only, got ${{result.payload.body_text}}`);
             }}
           }},
-          selected_text_keeps_opened_message_metadata: () => {{
-            const result = dispatch(legacyReadDocument({{ selected: true, knownBody: true }}));
+          selected_text_keeps_opened_message_metadata: async () => {{
+            const result = await dispatch(legacyReadDocument({{ selected: true, knownBody: true }}));
             if (!result.ok) throw new Error(JSON.stringify(result));
             if (result.payload.subject !== "Re: Urgent Notification") {{
               throw new Error(`unexpected subject: ${{result.payload.subject}}`);
@@ -241,12 +242,12 @@ class BrowserExtensionBehaviorTests(unittest.TestCase):
               throw new Error(`expected selected body only, got ${{result.payload.body_text}}`);
             }}
           }},
-          body_selector_alone_is_not_message_context: () => {{
-            const result = dispatch(bodySelectorOnlyDocument());
+          body_selector_alone_is_not_message_context: async () => {{
+            const result = await dispatch(bodySelectorOnlyDocument());
             if (result.ok) throw new Error("body selector alone should not extract");
           }},
-          opened_message_extracts_attachment_metadata: () => {{
-            const result = dispatch(attachmentDocument());
+          opened_message_extracts_attachment_metadata: async () => {{
+            const result = await dispatch(attachmentDocument());
             if (!result.ok) throw new Error(JSON.stringify(result));
             if (!Array.isArray(result.payload.attachments) || result.payload.attachments.length !== 1) {{
               throw new Error(`expected one attachment, got ${{JSON.stringify(result.payload.attachments)}}`);
@@ -264,7 +265,12 @@ class BrowserExtensionBehaviorTests(unittest.TestCase):
           }},
         }};
 
-        cases[{case_name!r}]();
+        (async () => {{
+          await cases[{case_name!r}]();
+        }})().catch((error) => {{
+          console.error(error && error.stack ? error.stack : error);
+          process.exitCode = 1;
+        }});
         """
 
         result = subprocess.run(

@@ -108,7 +108,9 @@ class BrowserExtensionStaticTests(unittest.TestCase):
         self.assertIn("fetch(", script)
         self.assertIn('"Content-Type": "application/json"', script)
         self.assertIn("user_confirmed: true", script)
-        self.assertIn("attachments: Array.isArray(email.attachments) ? email.attachments : []", script)
+        self.assertIn('attachments: projectItems(email.attachments, ["filename", "size", "type"])', script)
+        self.assertIn("thread_segments: projectItems(email.thread_segments", script)
+        self.assertIn("attachment_files: projectItems(email.attachment_files", script)
         self.assertNotIn("api.openai.com", script)
         self.assertNotIn("OPENAI_API_KEY", script)
         self.assertNotIn("process.env", script)
@@ -136,7 +138,8 @@ class BrowserExtensionStaticTests(unittest.TestCase):
 
         self.assertIn("chrome.runtime.onMessage.addListener", script)
         self.assertIn('MESSAGE_TYPE = "EXTRACT_CURRENT_EMAIL"', script)
-        self.assertIn("sendResponse(extractCurrentEmail())", script)
+        self.assertIn(".then(sendResponse)", script)
+        self.assertIn("return true;", script)
         self.assertNotIn("setInterval(", script)
         self.assertNotIn("MutationObserver", script)
 

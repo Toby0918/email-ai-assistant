@@ -42,16 +42,26 @@
       return false;
     }
 
-    sendResponse(extractCurrentEmail());
-    return false;
+    extractCurrentEmail()
+      .catch(() => safeExtractionFailure())
+      .then(sendResponse);
+    return true;
   });
 
-  function extractCurrentEmail() {
+  async function extractCurrentEmail() {
+    const extraction = findCurrentEmail();
+    if (!extraction.result.ok) {
+      return extraction.result;
+    }
+    return collectCurrentMessageContext(extraction);
+  }
+
+  function findCurrentEmail() {
     const documents = collectAccessibleDocuments(window);
     const selected = getSelectedEmailContent(documents);
     if (selected) {
       const metadata = extractFromDocument(selected.document, true);
-      return {
+      return extractionContext({
         ok: true,
         source: "selected_text",
         payload: {
@@ -62,46 +72,153 @@
           body_text: selected.text,
           attachments: metadata.attachments || [],
         },
-      };
+      }, selected.document, findKnownBodyElement(selected.document));
     }
 
     for (const doc of documents) {
       const payload = extractFromDocument(doc, false);
       if (payload.body_text) {
-        return { ok: true, source: "dom", payload };
+        return extractionContext(
+          { ok: true, source: "dom", payload },
+          doc,
+          findKnownBodyElement(doc),
+        );
       }
     }
 
     for (const doc of documents) {
       const payload = extractFromDocument(doc, true);
       if (payload.body_text) {
-        return { ok: true, source: "dom_fallback", payload };
+        return extractionContext(
+          { ok: true, source: "dom_fallback", payload },
+          doc,
+          findKnownBodyElement(doc),
+        );
       }
     }
 
-    return {
+    return extractionContext({
       ok: false,
       error: "Open a Tencent Exmail message or select email body text from that opened message first. The fallback is user-selected email content only, not arbitrary webpage analysis.",
+    });
+  }
+
+  function extractionContext(result, selectedDocument, currentMessageRoot) {
+    return { result, document: selectedDocument || null, currentMessageRoot: currentMessageRoot || null };
+  }
+
+  async function collectCurrentMessageContext(extraction) {
+    const payload = {
+      ...extraction.result.payload,
+      thread_segments: [],
+      attachment_files: [],
+      resource_limitations: [],
+    };
+    const collector = window.EmailAssistantCurrentMessageCollector;
+    if (!collector || !extraction.currentMessageRoot) {
+      payload.resource_limitations.push(
+        safeResourceLimitation("Current-message resources could not be collected without a verified collector and message root."),
+      );
+      return { ...extraction.result, payload };
+    }
+
+    try {
+      payload.thread_segments = projectItems(
+        collector.extractVisibleThreadSegments(extraction.document, {
+          currentMessageRoot: extraction.currentMessageRoot,
+        }),
+        ["position", "from", "to", "sent_at", "timestamp_text", "subject", "body_text"],
+      );
+    } catch (error) {
+      payload.resource_limitations.push(
+        safeResourceLimitation("Visible thread segments could not be collected safely."),
+      );
+    }
+
+    try {
+      const resources = await collector.collectVisibleResources(extraction.document, {
+        currentMessageRoot: extraction.currentMessageRoot,
+      });
+      payload.attachment_files = projectItems(resources && resources.attachment_files, [
+        "filename", "type", "size", "content_base64",
+      ]);
+      payload.resource_limitations.push(
+        ...projectItems(resources && resources.resource_limitations, [
+          "filename", "type", "size", "limitation",
+        ]),
+      );
+    } catch (error) {
+      payload.resource_limitations.push(
+        safeResourceLimitation("Current-message resources could not be collected safely."),
+      );
+    }
+    return { ...extraction.result, payload };
+  }
+
+  function projectItems(value, allowedFields) {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+    return value
+      .filter((item) => item && typeof item === "object" && !Array.isArray(item))
+      .map((item) => {
+        const projected = {};
+        for (const field of allowedFields) {
+          projected[field] = Object.prototype.hasOwnProperty.call(item, field)
+            ? primitiveValue(item[field])
+            : "";
+        }
+        return projected;
+      });
+  }
+
+  function safeResourceLimitation(limitation) {
+    return { filename: "resource", type: "unsupported", size: 0, limitation };
+  }
+
+  function primitiveValue(value) {
+    return ["string", "number", "boolean"].includes(typeof value) ? value : "";
+  }
+
+  function safeExtractionFailure() {
+    return {
+      ok: false,
+      error: "Current Tencent Exmail message extraction failed safely. Please reopen the message and try again.",
     };
   }
 
   function collectAccessibleDocuments(rootWindow) {
     const documents = [];
-    visitWindow(rootWindow, documents);
+    visitWindow(rootWindow, documents, true);
     return documents;
   }
 
-  function visitWindow(targetWindow, documents) {
+  function visitWindow(targetWindow, documents, isRootWindow) {
     try {
+      if (!isRootWindow && !isVisibleFrameWindow(targetWindow)) {
+        return;
+      }
       if (targetWindow.document) {
         documents.push(targetWindow.document);
       }
       for (let index = 0; index < targetWindow.frames.length; index += 1) {
-        visitWindow(targetWindow.frames[index], documents);
+        visitWindow(targetWindow.frames[index], documents, false);
       }
     } catch (error) {
       return;
     }
+  }
+
+  function isVisibleFrameWindow(targetWindow) {
+    const frame = targetWindow.frameElement;
+    if (!frame || frame.hidden || (frame.hasAttribute && frame.hasAttribute("hidden"))) {
+      return false;
+    }
+    if (frame.getAttribute && String(frame.getAttribute("aria-hidden") || "").toLowerCase() === "true") {
+      return false;
+    }
+    const style = frame.style || {};
+    return style.display !== "none" && style.visibility !== "hidden" && style.visibility !== "collapse";
   }
 
   function extractFromDocument(doc, allowDocumentBodyFallback) {
@@ -239,8 +356,7 @@
     const sources = [];
     if (bodyElement) {
       sources.push(bodyElement.innerText || bodyElement.textContent || "");
-    }
-    if (doc.body) {
+    } else if (doc.body) {
       sources.push(doc.body.innerText || doc.body.textContent || "");
     }
 

@@ -8,12 +8,27 @@
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         user_confirmed: true,
-        subject: email.subject || "",
-        from: email.from || "",
-        to: Array.isArray(email.to) ? email.to : [],
-        sent_at: email.sent_at || "",
-        body_text: email.body_text || "",
-        attachments: Array.isArray(email.attachments) ? email.attachments : [],
+        subject: stringValue(email.subject),
+        from: stringValue(email.from),
+        to: stringList(email.to),
+        sent_at: stringValue(email.sent_at),
+        body_text: stringValue(email.body_text),
+        attachments: projectItems(email.attachments, ["filename", "size", "type"]),
+        thread_segments: projectItems(email.thread_segments, [
+          "position",
+          "from",
+          "to",
+          "sent_at",
+          "timestamp_text",
+          "subject",
+          "body_text",
+        ]),
+        attachment_files: projectItems(email.attachment_files, [
+          "filename",
+          "type",
+          "size",
+          "content_base64",
+        ]),
       }),
     });
 
@@ -41,6 +56,35 @@
     }
 
     return data;
+  }
+
+  function projectItems(value, allowedFields) {
+    if (!Array.isArray(value)) {
+      return [];
+    }
+    return value
+      .filter((item) => item && typeof item === "object" && !Array.isArray(item))
+      .map((item) => {
+        const projected = {};
+        for (const field of allowedFields) {
+          projected[field] = Object.prototype.hasOwnProperty.call(item, field)
+            ? primitiveValue(item[field])
+            : "";
+        }
+        return projected;
+      });
+  }
+
+  function stringValue(value) {
+    return typeof value === "string" ? value : "";
+  }
+
+  function stringList(value) {
+    return Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
+  }
+
+  function primitiveValue(value) {
+    return ["string", "number", "boolean"].includes(typeof value) ? value : "";
   }
 
   window.EmailAssistantApi = {
