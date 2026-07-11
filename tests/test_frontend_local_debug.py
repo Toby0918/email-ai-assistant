@@ -83,6 +83,7 @@ class FrontendLocalDebugTests(unittest.TestCase):
         elements.set("#attachment-insights", new FakeElement());
         const context = {{ document, navigator: {{ clipboard: {{ writeText: async () => {{}} }} }} }};
         vm.runInNewContext(source, context);
+        const backslash = String.fromCharCode(92);
         context.analysis = {{
           priority: "high",
           summary: "需要回复最新请求。",
@@ -97,11 +98,23 @@ class FrontendLocalDebugTests(unittest.TestCase):
             latest_external_request: "请确认最终价格。", latest_internal_commitment: "销售将复核价格。",
             open_items: [{{ item: "复核价格", owner_hint: "sales", due_hint: "today", source: "thread" }}], confidence: "high",
           }},
-          attachment_insights: [{{
-            filename: "quote<img>.xlsx", type: "xlsx", status: "parsed",
-            summary: "已提取报价表 https://model.example/private", key_facts: ["Total: 200"], limitations: [],
-            raw_text: "LOCAL DEBUG RAW TEXT MUST NOT RENDER", private_url: "file:///private/quote.xlsx",
-          }}],
+          attachment_insights: [
+            {{
+              filename: "quote<img>.xlsx", type: "xlsx", status: "parsed",
+              summary: "已提取报价表 https://debug.example/private 和 file:///private/debug-summary.txt",
+              key_facts: [
+                "Total: 200",
+                "Windows C:/Private/debug-quote.xlsx",
+                "UNC " + backslash + backslash + "debug-server" + backslash + "share" + backslash + "quote.xlsx",
+              ],
+              limitations: ["临时路径 /var/tmp/debug-quote.txt 不可公开。"],
+              raw_text: "LOCAL DEBUG RAW TEXT MUST NOT RENDER", private_url: "file:///private/quote.xlsx",
+            }},
+            {{
+              filename: "failed.pdf", type: "pdf", status: "failed", summary: "", key_facts: [],
+              limitations: ["解析失败，详情见 https://debug.example/failure。"],
+            }},
+          ],
           risk_flags: [], suggested_actions: [],
           reply_draft: {{ body: "Hello,\\n\\nWe are reviewing the final price.\\n\\nBest regards" }},
         }};
@@ -113,17 +126,34 @@ class FrontendLocalDebugTests(unittest.TestCase):
         if (!timeline.textContent.includes("部分解决") || !timeline.textContent.includes("复核价格")) {{
           throw new Error(`timeline content missing: ${{timeline.textContent}}`);
         }}
-        if (insights.children.length !== 1) throw new Error(`insight nodes missing: ${{insights.children.length}}`);
-        if (!insights.textContent.includes("quote<img>.xlsx") || !insights.textContent.includes("Total: 200")) {{
+        if (insights.children.length !== 2) throw new Error(`insight nodes missing: ${{insights.children.length}}`);
+        if (!insights.textContent.includes("quote<img>.xlsx") || !insights.textContent.includes("Total: 200") ||
+            !insights.textContent.includes("failed.pdf") || !insights.textContent.includes("解析失败") ||
+            !insights.textContent.includes("暂无可用摘要")) {{
           throw new Error(`insight content missing: ${{insights.textContent}}`);
         }}
-        if (insights.textContent.includes("LOCAL DEBUG RAW TEXT") || insights.textContent.includes("file:///private")) {{
-          throw new Error(`private/raw insight field leaked: ${{insights.textContent}}`);
+        for (const forbidden of [
+          "LOCAL DEBUG RAW TEXT", "file:///private", "https://debug.example",
+          "C:/Private/debug-quote.xlsx", backslash + backslash + "debug-server" + backslash + "share",
+          "/var/tmp/debug-quote.txt",
+        ]) {{
+          if (insights.textContent.includes(forbidden)) {{
+            throw new Error(`private/raw insight field leaked: ${{forbidden}} in ${{insights.textContent}}`);
+          }}
+        }}
+        if (!insights.textContent.includes("[已隐藏链接或路径]")) {{
+          throw new Error(`attachment redaction placeholder missing: ${{insights.textContent}}`);
         }}
         if (insights.querySelectorAll("a").length || insights.querySelectorAll("img").length) {{
           throw new Error("attachment insight content became active markup");
         }}
         if (!elements.get("#draft").value.startsWith("Hello,")) throw new Error("English draft was not preserved");
+
+        context.analysis.conversation_timeline = "stale";
+        vm.runInContext("renderAnalysis(analysis)", context);
+        if (timeline.textContent !== "暂无会话进度") {{
+          throw new Error(`missing timeline fallback parity failed: ${{timeline.textContent}}`);
+        }}
         """
 
         result = subprocess.run(

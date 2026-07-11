@@ -72,6 +72,7 @@ class BrowserExtensionRendererBehaviorTests(unittest.TestCase):
         }};
         const context = {{ window: {{}}, document: fakeDocument }};
         vm.runInNewContext(renderer, context);
+        const backslash = String.fromCharCode(92);
 
         const fields = {{
           priority: new FakeElement(),
@@ -119,9 +120,14 @@ class BrowserExtensionRendererBehaviorTests(unittest.TestCase):
               filename: "quote<script>.pdf",
               type: "pdf",
               status: "parsed",
-              summary: "已提取报价摘要 <img src=x onerror=alert(1)> https://model.example/summary",
-              key_facts: ["RFQ 42", "200 pcs"],
-              limitations: [],
+              summary: "已提取报价摘要 <img src=x onerror=alert(1)> https://private.example/summary file:///private/summary.txt",
+              key_facts: [
+                "RFQ 42",
+                "200 pcs",
+                "Windows C:/Private/quote.xlsx",
+                "UNC " + backslash + backslash + "server" + backslash + "share" + backslash + "quote.xlsx",
+              ],
+              limitations: ["临时解析文件 /var/tmp/private-quote.txt 不可公开。"],
               raw_text: "RAW ATTACHMENT TEXT MUST NOT RENDER",
               private_url: "file:///private/quote.pdf",
             }},
@@ -138,13 +144,17 @@ class BrowserExtensionRendererBehaviorTests(unittest.TestCase):
           risk_flags: [{{
             type: "commitment_risk",
             level: "medium",
-            evidence: "安全链接 https://portal.example/rfq/42；忽略 javascript:https://trap.example/path、javascript:alert(1)、file:///tmp/a 和 data:text/html,b。",
+            evidence: "请查看https://portal.example/rfq/42，并访问http://status.example/rfq/42；拒绝 data:text/plain,https://data.example/private、javascript://https://script.example/private、file:///https://file.example/private。",
             recommendation: "内部确认后回复。",
           }}],
           suggested_actions: [{{ type: "confirm", description: "核查成本。" }}],
           reply_draft: {{ body: "Hello,\\n\\nWe are reviewing the quotation.\\n\\nBest regards" }},
         }});
 
+        const mixedSchemeLinks = fields.risks.querySelectorAll("a");
+        if (mixedSchemeLinks.length !== 2) {{
+          throw new Error(`mixed-scheme tokens produced anchors: ${{mixedSchemeLinks.map((item) => item.href)}}`);
+        }}
         if (fields.conversationTimeline.children.length !== 7) {{
           throw new Error(`expected seven timeline entries, got ${{fields.conversationTimeline.children.length}}`);
         }}
@@ -168,8 +178,13 @@ class BrowserExtensionRendererBehaviorTests(unittest.TestCase):
         }}
         for (const forbidden of [
           "RAW ATTACHMENT TEXT MUST NOT RENDER", "SECOND RAW ATTACHMENT TEXT MUST NOT RENDER", "file:///private/quote.pdf",
+          "https://private.example/summary", "file:///private/summary.txt", "C:/Private/quote.xlsx",
+          backslash + backslash + "server" + backslash + "share", "/var/tmp/private-quote.txt",
         ]) {{
           if (insightText.includes(forbidden)) throw new Error(`private/raw attachment field leaked: ${{forbidden}}`);
+        }}
+        if (!insightText.includes("[已隐藏链接或路径]")) {{
+          throw new Error(`attachment redaction placeholder missing: ${{insightText}}`);
         }}
         if (fields.attachmentInsights.querySelectorAll("a").length !== 0) {{
           throw new Error("attachment filenames and model summaries must never become links");
@@ -178,14 +193,22 @@ class BrowserExtensionRendererBehaviorTests(unittest.TestCase):
           throw new Error("attachment model content became executable HTML");
         }}
         const riskLinks = fields.risks.querySelectorAll("a");
-        if (riskLinks.length !== 1 || riskLinks[0].href !== "https://portal.example/rfq/42") {{
+        const expectedRiskLinks = ["https://portal.example/rfq/42", "http://status.example/rfq/42"];
+        if (riskLinks.length !== expectedRiskLinks.length ||
+            riskLinks.some((item, index) => item.href !== expectedRiskLinks[index])) {{
           throw new Error(`only explicit http/https URLs may be links: ${{riskLinks.map((item) => item.href)}}`);
         }}
-        if (riskLinks[0].target !== "_blank" || riskLinks[0].rel !== "noopener noreferrer") {{
+        if (riskLinks.some((item) => item.target !== "_blank" || item.rel !== "noopener noreferrer")) {{
           throw new Error("safe link attributes are missing");
         }}
-        if (!fields.risks.textContent.includes("javascript:alert(1)")) {{
-          throw new Error("non-http schemes should remain visible text");
+        for (const mixedScheme of [
+          "data:text/plain,https://data.example/private",
+          "javascript://https://script.example/private",
+          "file:///https://file.example/private",
+        ]) {{
+          if (!fields.risks.textContent.includes(mixedScheme)) {{
+            throw new Error(`non-http scheme should remain visible text: ${{mixedScheme}}`);
+          }}
         }}
         if (!fields.draft.value.startsWith("Hello,")) {{
           throw new Error(`English draft was not preserved: ${{fields.draft.value}}`);

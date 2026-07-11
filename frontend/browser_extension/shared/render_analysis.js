@@ -69,6 +69,11 @@
 
   const URL_PATTERN = /https?:\/\/[^\s<>"'，。；：！？、（）]+/gi;
   const TRAILING_URL_PUNCTUATION = /[),.;:!?，。；：！？、]+$/;
+  const ATTACHMENT_REDACTION = "[已隐藏链接或路径]";
+  const ATTACHMENT_URI_PATTERN = /\b(?:https?|file|data|blob|chrome|chrome-extension):[^\s<>"'，。；：！？、（）\u3400-\u9fff]+/gi;
+  const ATTACHMENT_WINDOWS_PATH_PATTERN = /\b[A-Za-z]:[\\/][^\s<>"'，。；：！？、（）\u3400-\u9fff]+/g;
+  const ATTACHMENT_UNC_PATH_PATTERN = /\\\\[^\s<>"'，。；：！？、（）\u3400-\u9fff]+/g;
+  const ATTACHMENT_POSIX_PATH_PATTERN = /(^|[\s（(])\/(?:[A-Za-z0-9._-]+\/)+[A-Za-z0-9._-]+/g;
 
   function renderAnalysis(fields, analysis) {
     fields.priority.textContent = formatPriority(analysis.priority);
@@ -266,12 +271,12 @@
     }
     const status = ATTACHMENT_STATUS_LABELS[insight.status] || "状态未知";
     const summaryFallback = insight.status === "parsed" ? "未提供解析摘要" : "暂无可用摘要";
-    const facts = safeStringList(insight.key_facts);
-    const limitations = safeStringList(insight.limitations);
+    const facts = safeAttachmentStringList(insight.key_facts);
+    const limitations = safeAttachmentStringList(insight.limitations);
     const lines = [
       detailLine("类型", formatAttachmentType(insight.type)),
       detailLine("状态", status),
-      detailLine("摘要", safeDisplayText(insight.summary, summaryFallback)),
+      detailLine("摘要", safeAttachmentText(insight.summary, summaryFallback)),
     ];
     if (facts.length === 0) {
       lines.push(detailLine("关键事实", "暂无关键事实"));
@@ -293,11 +298,23 @@
     return ATTACHMENT_TYPE_LABELS[value] || safeDisplayText(value, "未知类型");
   }
 
-  function safeStringList(value) {
+  function safeAttachmentStringList(value) {
     if (!Array.isArray(value)) {
       return [];
     }
-    return value.map((item) => safeDisplayText(item, "")).filter(Boolean);
+    return value.map((item) => safeAttachmentText(item, "")).filter(Boolean);
+  }
+
+  function safeAttachmentText(value, fallback) {
+    const text = safeDisplayText(value, "");
+    if (!text) {
+      return fallback;
+    }
+    return text
+      .replace(ATTACHMENT_URI_PATTERN, ATTACHMENT_REDACTION)
+      .replace(ATTACHMENT_WINDOWS_PATH_PATTERN, ATTACHMENT_REDACTION)
+      .replace(ATTACHMENT_UNC_PATH_PATTERN, ATTACHMENT_REDACTION)
+      .replace(ATTACHMENT_POSIX_PATH_PATTERN, (match, prefix) => prefix + ATTACHMENT_REDACTION);
   }
 
   function safeDisplayText(value, fallback) {
@@ -528,7 +545,15 @@
     if (index === 0) {
       return true;
     }
-    return !/[A-Za-z0-9_:+.-]/.test(text.charAt(index - 1));
+    if (/[A-Za-z0-9_:+.-]/.test(text.charAt(index - 1))) {
+      return false;
+    }
+    let tokenStart = index;
+    while (tokenStart > 0 && !/[\s\u3400-\u9fff，。；：！？、（）]/.test(text.charAt(tokenStart - 1))) {
+      tokenStart -= 1;
+    }
+    const tokenPrefix = text.slice(tokenStart, index);
+    return !/(^|[^A-Za-z0-9+.-])[A-Za-z][A-Za-z0-9+.-]*:/.test(tokenPrefix);
   }
 
   function appendText(parent, text) {

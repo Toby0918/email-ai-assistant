@@ -88,6 +88,12 @@ const ATTACHMENT_STATUS_LABELS = {
   failed: "解析失败",
 };
 
+const ATTACHMENT_REDACTION = "[已隐藏链接或路径]";
+const ATTACHMENT_URI_PATTERN = /\b(?:https?|file|data|blob|chrome|chrome-extension):[^\s<>"'，。；：！？、（）\u3400-\u9fff]+/gi;
+const ATTACHMENT_WINDOWS_PATH_PATTERN = /\b[A-Za-z]:[\\/][^\s<>"'，。；：！？、（）\u3400-\u9fff]+/g;
+const ATTACHMENT_UNC_PATH_PATTERN = /\\\\[^\s<>"'，。；：！？、（）\u3400-\u9fff]+/g;
+const ATTACHMENT_POSIX_PATH_PATTERN = /(^|[\s（(])\/(?:[A-Za-z0-9._-]+\/)+[A-Za-z0-9._-]+/g;
+
 document.querySelector("#analyze-button").addEventListener("click", async () => {
   clearAnalysis();
   fields.status.textContent = "Analyzing";
@@ -285,12 +291,12 @@ function formatAttachmentInsight(insight) {
   }
   const status = ATTACHMENT_STATUS_LABELS[insight.status] || "状态未知";
   const summaryFallback = insight.status === "parsed" ? "未提供解析摘要" : "暂无可用摘要";
-  const facts = safeStringList(insight.key_facts);
-  const limitations = safeStringList(insight.limitations);
+  const facts = safeAttachmentStringList(insight.key_facts);
+  const limitations = safeAttachmentStringList(insight.limitations);
   const lines = [
     safeDetailLine("类型", ATTACHMENT_TYPE_LABELS[insight.type] || safeDisplayText(insight.type, "未知类型")),
     safeDetailLine("状态", status),
-    safeDetailLine("摘要", safeDisplayText(insight.summary, summaryFallback)),
+    safeDetailLine("摘要", safeAttachmentText(insight.summary, summaryFallback)),
   ];
   if (facts.length === 0) {
     lines.push(safeDetailLine("关键事实", "暂无关键事实"));
@@ -308,11 +314,23 @@ function formatAttachmentInsight(insight) {
   return safeStructuredItem(safeDisplayText(insight.filename, "未命名附件"), lines);
 }
 
-function safeStringList(value) {
+function safeAttachmentStringList(value) {
   if (!Array.isArray(value)) {
     return [];
   }
-  return value.map((item) => safeDisplayText(item, "")).filter(Boolean);
+  return value.map((item) => safeAttachmentText(item, "")).filter(Boolean);
+}
+
+function safeAttachmentText(value, fallback) {
+  const text = safeDisplayText(value, "");
+  if (!text) {
+    return fallback;
+  }
+  return text
+    .replace(ATTACHMENT_URI_PATTERN, ATTACHMENT_REDACTION)
+    .replace(ATTACHMENT_WINDOWS_PATH_PATTERN, ATTACHMENT_REDACTION)
+    .replace(ATTACHMENT_UNC_PATH_PATTERN, ATTACHMENT_REDACTION)
+    .replace(ATTACHMENT_POSIX_PATH_PATTERN, (match, prefix) => prefix + ATTACHMENT_REDACTION);
 }
 
 function safeDisplayText(value, fallback) {
