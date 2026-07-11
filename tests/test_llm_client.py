@@ -132,6 +132,56 @@ class LlmClientTests(unittest.TestCase):
         self.assertEqual(str(caught.exception), "Ollama analysis request failed.")
         self.assertNotIn("PRIVATE_INVALID_HOST", str(caught.exception))
 
+    def test_ollama_rejects_remote_and_userinfo_hosts_before_network(self) -> None:
+        rejected_urls = (
+            "http://192.0.2.10:11434",
+            "https://PRIVATE_REMOTE_HOST.example:11434",
+            "http://[2001:db8::10]:11434",
+            "http://user@127.0.0.1:11434",
+        )
+        for base_url in rejected_urls:
+            with self.subTest(base_url=base_url):
+                env = {
+                    "EMAIL_AGENT_LLM_PROVIDER": "ollama",
+                    "EMAIL_AGENT_OLLAMA_BASE_URL": base_url,
+                }
+                with patch.dict(os.environ, env, clear=True):
+                    with patch(
+                        "urllib.request.urlopen",
+                        side_effect=OSError("PRIVATE_NETWORK_DETAIL"),
+                    ) as urlopen:
+                        with self.assertRaises(LlmClientError) as caught:
+                            generate_analysis("synthetic prompt")
+
+                urlopen.assert_not_called()
+                self.assertEqual(str(caught.exception), "Ollama analysis request failed.")
+                self.assertNotIn("PRIVATE_REMOTE_HOST", str(caught.exception))
+
+    def test_ollama_accepts_localhost_and_literal_loopback_addresses(self) -> None:
+        response_body = json.dumps({"response": "{}"}).encode("utf-8")
+        accepted_urls = (
+            "http://localhost:11434",
+            "http://127.0.0.2:11434",
+            "http://[::1]:11434",
+        )
+        for base_url in accepted_urls:
+            with self.subTest(base_url=base_url):
+                env = {
+                    "EMAIL_AGENT_LLM_PROVIDER": "ollama",
+                    "EMAIL_AGENT_OLLAMA_BASE_URL": base_url,
+                }
+                with patch.dict(os.environ, env, clear=True):
+                    with patch(
+                        "urllib.request.urlopen",
+                        return_value=FakeHttpResponse(200, response_body),
+                    ) as urlopen:
+                        self.assertEqual(generate_analysis("synthetic prompt"), "{}")
+
+                self.assertEqual(
+                    urlopen.call_args.args[0].full_url,
+                    f"{base_url}/api/generate",
+                )
+
     def test_ollama_empty_response_is_an_error(self) -> None:
         env = {"EMAIL_AGENT_LLM_PROVIDER": "ollama"}
         response_body = json.dumps({"response": ""}).encode("utf-8")

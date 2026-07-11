@@ -19,6 +19,7 @@ class ConfigTests(unittest.TestCase):
         with patch.dict(os.environ, {}, clear=True):
             config = load_config(dotenv_path=None)
 
+        self.assertEqual(config.ollama_base_url, "http://127.0.0.1:11434")
         self.assertEqual(config.ollama_model, "qwen3.6:latest")
         self.assertEqual(config.attachment_temp_dir, "outputs/attachment_temp")
         self.assertEqual(config.attachment_retention_hours, 24)

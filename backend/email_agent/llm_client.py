@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ipaddress
 import json
 import urllib.error
 import urllib.parse
@@ -81,9 +82,19 @@ def _ollama_endpoint(base_url: str) -> str:
         or not parsed.hostname
         or parsed.username
         or parsed.password
+        or not _is_loopback_host(parsed.hostname)
     ):
         raise ValueError("Invalid Ollama base URL.")
     return f"{base_url}/api/generate"
+
+
+def _is_loopback_host(hostname: str) -> bool:
+    if hostname.lower() == "localhost":
+        return True
+    try:
+        return ipaddress.ip_address(hostname).is_loopback
+    except ValueError:
+        return False
 
 
 def _parse_ollama_response(payload: bytes) -> str:

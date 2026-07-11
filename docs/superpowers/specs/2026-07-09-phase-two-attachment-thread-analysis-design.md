@@ -142,7 +142,7 @@ The backend schema validator, repair layer, and rule fallback must always produc
 
 ## Model Selection and Failure Handling
 
-The backend defaults to `EMAIL_AGENT_LLM_PROVIDER=disabled`. `qwen3.6:latest` is only the default model name when Ollama is explicitly enabled; an operator may select `gemma4` through the same model environment variable. The model label is backend-derived; the extension cannot choose or see endpoint configuration.
+The backend defaults to `EMAIL_AGENT_LLM_PROVIDER=disabled`. `qwen3.6:latest` is only the default model name when Ollama is explicitly enabled; an operator may select `gemma4` through the same model environment variable. Ollama base URLs are backend-only and loopback-only: `localhost` and literal loopback IP addresses are allowed, while userinfo and remote HTTP(S) hosts are rejected before request construction. Any future remote model provider requires separate approval and privacy review. The model label is backend-derived; the extension cannot choose or see endpoint configuration.
 
 Model input includes a bounded cleaned current thread, deterministic timeline facts, parsed attachment insights, and explicit instruction boundaries. The model must return valid structured JSON. If Qwen, Gemma, OCR, parsing, or JSON validation fails, the system returns the rule-generated timeline and decision brief with limitations instead of fabricating file knowledge.
 

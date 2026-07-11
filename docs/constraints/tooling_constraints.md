@@ -64,7 +64,7 @@ AGENTS.md
 | Pillow | 12.3.0 | 后端检查图片并为 OCR 准备输入 | 不在前端处理图片内容 |
 | pytesseract | 0.3.13 | 后端可选 OCR | Tesseract 缺失时仅降级 OCR，不能阻断规则兜底 |
 
-本地 Ollama/Qwen/Gemma 属于后端运行环境能力，不是新增 Python 依赖。`EMAIL_AGENT_OLLAMA_MODEL` 默认是 `qwen3.6:latest`，可选择 `gemma4`；调用失败或输出无效时必须回落到本地规则分析器。
+本地 Ollama/Qwen/Gemma 属于后端运行环境能力，不是新增 Python 依赖。`EMAIL_AGENT_OLLAMA_MODEL` 默认是 `qwen3.6:latest`，可选择 `gemma4`；调用失败或输出无效时必须回落到本地规则分析器。`EMAIL_AGENT_OLLAMA_BASE_URL` 只能使用 `localhost` 或字面 loopback IP，不得包含 userinfo，不得指向远程 HTTP(S) 主机；远程 provider 需要单独架构批准和隐私评审。
 
 ## 4. 依赖管理规则
 
