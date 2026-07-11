@@ -106,9 +106,10 @@ Local use:
 3. Choose `Load unpacked`.
 4. Select the `frontend/browser_extension` folder.
 5. Open Tencent Exmail Web at `https://exmail.qq.com/`.
-6. Open one email, then click the extension's `Analyze current email` button.
+6. Click the extension icon to open the persistent side panel.
+7. Open one email, then click the side panel's `Analyze current email` button.
 
-The extension calls only the local backend. It does not store API keys, connect to a mailbox account, scan the mailbox, or automatically send/delete/archive email.
+The assistant runs in a persistent side panel, so clicking outside the assistant does not close it. The extension calls only the local backend. It does not store API keys, connect to a mailbox account, scan the mailbox, or automatically send/delete/archive email.
 
 ## 可执行检查
 

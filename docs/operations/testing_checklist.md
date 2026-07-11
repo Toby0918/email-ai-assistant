@@ -26,6 +26,7 @@ source_type: operation_guide
 
 ## Tencent Exmail extension checks
 
+- Click the extension icon and verify the side panel remains open after clicking or scrolling inside Tencent Exmail.
 - Open one Tencent Exmail message and click `Analyze current email`.
 - Verify one current-email payload is sent after the click.
 - Verify message-scoped selected-text fallback works only for user-selected email content in the currently opened Tencent Exmail message.

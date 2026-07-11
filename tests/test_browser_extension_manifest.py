@@ -29,7 +29,7 @@ class BrowserExtensionManifestTests(unittest.TestCase):
         permissions = manifest.get("permissions", [])
         host_permissions = manifest.get("host_permissions", [])
 
-        self.assertEqual(permissions, ["activeTab"])
+        self.assertEqual(permissions, ["activeTab", "sidePanel"])
         self.assertEqual(
             host_permissions,
             [
@@ -40,6 +40,16 @@ class BrowserExtensionManifestTests(unittest.TestCase):
         self.assertNotIn("<all_urls>", json.dumps(manifest))
         self.assertNotIn("tabs", permissions)
         self.assertNotIn("storage", permissions)
+
+    def test_manifest_uses_persistent_side_panel_instead_of_transient_popup(self) -> None:
+        manifest = self.load_manifest()
+        action = manifest.get("action", {})
+        background = manifest.get("background", {})
+
+        self.assertEqual(action, {"default_title": "Email AI Assistant"})
+        self.assertNotIn("default_popup", json.dumps(manifest))
+        self.assertEqual(manifest.get("side_panel"), {"default_path": "popup.html"})
+        self.assertEqual(background, {"service_worker": "background.js"})
 
     def test_manifest_registers_exmail_content_adapter(self) -> None:
         manifest = self.load_manifest()

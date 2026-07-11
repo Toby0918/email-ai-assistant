@@ -34,6 +34,7 @@ source_type: operation_guide
 - Start the local backend before using the extension.
 - Load `frontend/browser_extension` as an unpacked extension in Chrome or Edge with `Load unpacked`.
 - Use the extension only on `https://exmail.qq.com/*`.
+- Click the extension icon to open the persistent side panel.
 - Keep the extension pointed at `http://127.0.0.1:8765`.
 
 ## 数据

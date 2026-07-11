@@ -89,6 +89,7 @@ class BrowserExtensionStaticTests(unittest.TestCase):
     def test_browser_extension_files_exist(self) -> None:
         expected = [
             "manifest.json",
+            "background.js",
             "popup.html",
             "popup.css",
             "popup.js",
@@ -123,6 +124,7 @@ class BrowserExtensionStaticTests(unittest.TestCase):
         self.assertIn("renderAnalysis", script)
         self.assertIn("clearAnalysis", script)
         self.assertIn("analysis.analysis_engine", script)
+        self.assertIn("analysis.decision_brief", script)
         self.assertIn("analysis.priority", script)
         self.assertIn("analysis.summary", script)
         self.assertIn("analysis.category", script)
@@ -130,8 +132,45 @@ class BrowserExtensionStaticTests(unittest.TestCase):
         self.assertIn("analysis.suggested_actions", script)
         self.assertIn("analysis.reply_draft.body", script)
         self.assertIn('id="attachments"', page)
+        self.assertIn('id="decision-brief"', page)
+        self.assertIn("renderDecisionBrief", script)
         self.assertIn("formatAttachments", script)
         self.assertIn("new_product_development", script)
+
+    def test_popup_styles_long_analysis_output(self) -> None:
+        page = (EXTENSION / "popup.html").read_text(encoding="utf-8")
+        styles = (EXTENSION / "popup.css").read_text(encoding="utf-8")
+
+        self.assertIn('class="analysis-grid"', page)
+        self.assertIn('class="analysis-list-field"', page)
+        self.assertIn(".analysis-list", styles)
+        self.assertIn(".analysis-list__item", styles)
+        self.assertIn("overflow-wrap: anywhere", styles)
+        self.assertIn("max-height", styles)
+        self.assertIn("overflow-y: auto", styles)
+
+    def test_copy_draft_button_stays_with_draft_area(self) -> None:
+        page = (EXTENSION / "popup.html").read_text(encoding="utf-8")
+        styles = (EXTENSION / "popup.css").read_text(encoding="utf-8")
+
+        self.assertIn('class="draft-section"', page)
+        self.assertIn('class="draft-header"', page)
+        self.assertLess(page.index('id="copy-draft-button"'), page.index('id="draft"'))
+        self.assertIn(".popup-shell", styles)
+        self.assertIn("display: flex", styles)
+        self.assertIn("flex-direction: column", styles)
+        self.assertIn(".result-section", styles)
+        self.assertIn("flex: 1 1 auto", styles)
+        self.assertIn(".draft-section", styles)
+        self.assertIn("flex: 0 0 auto", styles)
+
+    def test_roadmap_records_next_extension_phases(self) -> None:
+        roadmap = (ROOT / "docs" / "product" / "roadmap.md").read_text(encoding="utf-8")
+
+        self.assertIn("阶段 2.1：辅助窗口体验修复", roadmap)
+        self.assertIn("阶段 2.2：已实现的分析质量增强", roadmap)
+        self.assertIn("阶段 2.3：附件辅助分析", roadmap)
+        self.assertIn("阶段 2.4：可安装原型", roadmap)
 
     def test_exmail_adapter_extracts_only_after_popup_message(self) -> None:
         script = (EXTENSION / "content" / "exmail_adapter.js").read_text(encoding="utf-8")
@@ -193,6 +232,7 @@ class BrowserExtensionStaticTests(unittest.TestCase):
         self.assertIn("EXTRACT_CURRENT_EMAIL", script)
         self.assertIn("EmailAssistantApi.analyzeCurrentEmail", script)
         self.assertIn("EmailAssistantRender.renderAnalysis", script)
+        self.assertIn("EmailAssistantRender.renderAttachments", script)
 
     def test_popup_handles_copy_draft(self) -> None:
         script = (EXTENSION / "popup.js").read_text(encoding="utf-8")
@@ -211,6 +251,27 @@ class BrowserExtensionStaticTests(unittest.TestCase):
         self.assertIn("Analysis failed", script)
         self.assertIn('if (!data.analysis || typeof data.analysis !== "object")', script)
         self.assertIn("Invalid analysis response", script)
+
+    def test_background_opens_persistent_side_panel_on_action_click(self) -> None:
+        script = (EXTENSION / "background.js").read_text(encoding="utf-8")
+
+        self.assertIn("chrome.sidePanel.setPanelBehavior", script)
+        self.assertIn("openPanelOnActionClick: true", script)
+        self.assertIn("chrome.runtime.onInstalled.addListener", script)
+        self.assertNotIn("chrome.action.onClicked", script)
+        self.assertNotIn("sendMail", script)
+        self.assertNotIn("deleteMessage", script)
+        self.assertNotIn("archiveMessage", script)
+
+    def test_side_panel_docs_describe_persistent_behavior(self) -> None:
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        setup = (ROOT / "docs" / "operations" / "setup_checklist.md").read_text(encoding="utf-8")
+        testing = (ROOT / "docs" / "operations" / "testing_checklist.md").read_text(encoding="utf-8")
+
+        self.assertIn("persistent side panel", readme)
+        self.assertIn("clicking outside the assistant does not close it", readme)
+        self.assertIn("persistent side panel", setup)
+        self.assertIn("side panel remains open", testing)
 
     def test_browser_extension_has_no_secret_or_openai_markers(self) -> None:
         forbidden = [
