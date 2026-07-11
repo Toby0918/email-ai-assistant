@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable
 from pathlib import Path
 
@@ -41,6 +42,28 @@ OCR_TIMEOUT_SECONDS = 5
 MAX_SUMMARY_CHARACTERS = 600
 MAX_KEY_FACTS = 5
 MAX_KEY_FACT_CHARACTERS = 240
+
+_REFERENCE_VALUE = r"(?=[A-Z0-9._/-]{2,64}\b)(?=[A-Z0-9._/-]*\d)[A-Z0-9._/-]+"
+_LABELED_REFERENCE = re.compile(
+    rf"\b(?:reference|ref(?:erence)?\s*(?:number|no\.?|#|id)?)\s*[:#=-]?\s*"
+    rf"(?P<value>{_REFERENCE_VALUE})",
+    re.IGNORECASE,
+)
+_REFERENCE_TOKEN = re.compile(
+    r"\b(?P<value>(?:RFQ|PO|INV|QUOTE|PART|ITEM|TRACK)[-_/.]?"
+    r"[A-Z0-9._/-]*\d[A-Z0-9._/-]*)\b",
+    re.IGNORECASE,
+)
+_LABELED_QUANTITY = re.compile(
+    r"\b(?:quantity|qty)\s*[:#=-]?\s*(?P<value>\d{1,9}(?:[.,]\d+)?"
+    r"(?:\s*(?:pcs|pieces|units|sets|kg|g|lbs?|mm|cm|m|in|ft))?)\b",
+    re.IGNORECASE,
+)
+_UNIT_QUANTITY = re.compile(
+    r"\b(?P<value>\d{1,9}(?:[.,]\d+)?\s+"
+    r"(?:pcs|pieces|units|sets|kg|g|lbs?|mm|cm|m|in|ft))\b",
+    re.IGNORECASE,
+)
 
 _ALLOWED_SUFFIXES = {
     "pdf": {".pdf"},
@@ -209,7 +232,7 @@ def _text_insight(
     return _insight(
         item,
         "parsed",
-        f"{label}: {bounded[:MAX_SUMMARY_CHARACTERS].rstrip()}",
+        f"{label} content parsed; review structured facts.",
         facts,
         limitations,
     )
@@ -245,14 +268,26 @@ def _insight(
 
 
 def _facts_from_text(text: str, metadata_facts: list[str] | None) -> list[str]:
-    facts = list(metadata_facts or [])
-    for value in text.splitlines():
-        cleaned = sanitize_text(value)
-        if cleaned and cleaned not in facts:
-            facts.append(cleaned)
-        if len(facts) >= MAX_KEY_FACTS:
-            break
+    facts: list[str] = []
+    for value in metadata_facts or []:
+        _append_fact(facts, sanitize_text(value))
+    for pattern, label in (
+        (_LABELED_REFERENCE, "Reference"),
+        (_REFERENCE_TOKEN, "Reference"),
+        (_LABELED_QUANTITY, "Quantity"),
+        (_UNIT_QUANTITY, "Quantity"),
+    ):
+        for match in pattern.finditer(text):
+            _append_fact(facts, f"{label}: {match.group('value')}")
+            if len(facts) >= MAX_KEY_FACTS:
+                return facts
     return facts
+
+
+def _append_fact(facts: list[str], value: str) -> None:
+    cleaned = sanitize_text(value)[:MAX_KEY_FACT_CHARACTERS]
+    if cleaned and cleaned not in facts and len(facts) < MAX_KEY_FACTS:
+        facts.append(cleaned)
 def _extension_limitation(item: StoredAttachment) -> str | None:
     allowed_suffixes = _ALLOWED_SUFFIXES.get(item.type)
     if allowed_suffixes is None:

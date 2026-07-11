@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import sqlite3
 import struct
 import unittest
 from datetime import UTC, datetime, timedelta
@@ -17,8 +19,11 @@ from openpyxl import Workbook
 from PIL import Image
 
 from backend.email_agent import attachment_parser
+from backend.email_agent.analyzer import build_analysis_prompt
 from backend.email_agent.attachment_parser import parse_attachments
 from backend.email_agent.attachment_storage import StoredAttachment
+from backend.email_agent.attachment_text import sanitize_text
+from backend.email_agent.database import initialize_schema, save_analysis
 
 
 EXPECTED_KEYS = {"filename", "type", "status", "summary", "key_facts", "limitations"}
@@ -57,6 +62,105 @@ class _ObservedDocxCell:
 
 
 class AttachmentParserTests(unittest.TestCase):
+    def test_sensitive_attachment_text_is_redacted_before_result_prompt_and_storage(self) -> None:
+        raw_prefix = "PRIVATE-PROSE-PREFIX customer correspondence must remain confidential."
+        sensitive_values = (
+            raw_prefix,
+            "buyer@example.test",
+            "+1 (202) 555-0199",
+            "1234-5678-9012-3456",
+            r"C:\private\quote.txt",
+            r"\\fileserver\private\quote.pdf",
+            "/home/customer/private/quote.xlsx",
+            "https://private.example.test/download?id=42",
+        )
+        payload = "\n".join(
+            [
+                raw_prefix,
+                "Reference: RFQ-SAFE-42",
+                "Quantity: 200 pcs",
+                *sensitive_values[1:],
+            ]
+        )
+
+        sanitized = sanitize_text(payload)
+        for secret in sensitive_values[1:]:
+            with self.subTest(boundary="sanitizer", secret=secret):
+                self.assertNotIn(secret, sanitized)
+        for marker in ("[email removed]", "[number removed]", "[path removed]", "[link removed]"):
+            self.assertIn(marker, sanitized)
+
+        with TemporaryDirectory() as directory:
+            items = [
+                self._write(directory, "sensitive.pdf", "pdf", b"synthetic"),
+                self._write(directory, "sensitive.xlsx", "xlsx", self._xlsx_bytes()),
+                self._write(directory, "sensitive.docx", "docx", self._docx_bytes()),
+                self._write(directory, "sensitive.png", "image", self._image_bytes()),
+            ]
+            page = MagicMock()
+            page.extract_text.return_value = payload
+            reader = MagicMock()
+            reader.pages = [page]
+            worksheet = MagicMock()
+            worksheet.title = "Sensitive"
+            worksheet.iter_rows.return_value = iter([(payload,)])
+            workbook = MagicMock()
+            workbook.worksheets = [worksheet]
+            paragraph = MagicMock()
+            paragraph.text = payload
+            document = MagicMock()
+            document.paragraphs = [paragraph]
+            document.tables = []
+            ocr = MagicMock()
+            ocr.image_to_string.return_value = payload
+
+            with patch.object(attachment_parser, "PdfReader", return_value=reader):
+                with patch.object(attachment_parser, "load_workbook", return_value=workbook):
+                    with patch.object(attachment_parser, "Document", return_value=document):
+                        with patch.object(attachment_parser, "pytesseract", ocr):
+                            insights = parse_attachments(items)
+
+        expected_summaries = (
+            "PDF content parsed; review structured facts.",
+            "XLSX content parsed; review structured facts.",
+            "DOCX content parsed; review structured facts.",
+            "Image OCR content parsed; review structured facts.",
+        )
+        for insight, expected_summary in zip(insights, expected_summaries, strict=True):
+            with self.subTest(attachment_type=insight["type"]):
+                self.assertEqual(insight["status"], "parsed")
+                self.assertEqual(insight["summary"], expected_summary)
+                self.assertIn("Reference: RFQ-SAFE-42", insight["key_facts"])
+                self.assertIn("Quantity: 200 pcs", insight["key_facts"])
+                self.assertLessEqual(len(insight["key_facts"]), attachment_parser.MAX_KEY_FACTS)
+
+        prompt = build_analysis_prompt(
+            subject="Synthetic attachment test",
+            sender="sender@example.test",
+            clean_body="Please review the synthetic attachments.",
+            attachment_insights=insights,
+        )
+        connection = sqlite3.connect(":memory:")
+        initialize_schema(connection)
+        save_analysis(
+            connection,
+            subject="Synthetic attachment test",
+            sender="sender@example.test",
+            analysis={"summary": "Safe synthetic result.", "attachment_insights": insights},
+        )
+        stored_json = connection.execute(
+            "SELECT analysis_json FROM email_analysis"
+        ).fetchone()[0]
+        serialized_result = json.dumps(insights, ensure_ascii=False)
+        for secret in sensitive_values:
+            for boundary, value in (
+                ("result", serialized_result),
+                ("prompt", prompt),
+                ("storage", stored_json),
+            ):
+                with self.subTest(boundary=boundary, secret=secret):
+                    self.assertNotIn(secret, value)
+
     def test_parse_pdf_returns_bounded_safe_text_facts(self) -> None:
         with TemporaryDirectory() as directory:
             stored = self._write(directory, "request.pdf", "pdf", self._pdf_bytes())
@@ -65,7 +169,8 @@ class AttachmentParserTests(unittest.TestCase):
 
             self.assertEqual(set(result[0]), EXPECTED_KEYS)
             self.assertEqual(result[0]["status"], "parsed")
-            self.assertIn("RFQ", result[0]["summary"])
+            self.assertEqual(result[0]["summary"], "PDF content parsed; review structured facts.")
+            self.assertIn("Quantity: 12", result[0]["key_facts"])
             self.assertNotIn("https://example.test/rfq", self._visible_text(result[0]))
             self.assertNotIn("\x00", self._visible_text(result[0]))
             self.assertLessEqual(len(self._visible_text(result[0])), 2_000)
@@ -78,7 +183,7 @@ class AttachmentParserTests(unittest.TestCase):
 
             self.assertEqual(set(result[0]), EXPECTED_KEYS)
             self.assertEqual(result[0]["status"], "parsed")
-            self.assertIn("Quote", result[0]["summary"])
+            self.assertEqual(result[0]["summary"], "XLSX content parsed; review structured facts.")
             self.assertIn("Row limit", " ".join(result[0]["limitations"]))
             self.assertNotIn("https://example.test/quote", self._visible_text(result[0]))
 
@@ -90,7 +195,7 @@ class AttachmentParserTests(unittest.TestCase):
 
             self.assertEqual(set(result[0]), EXPECTED_KEYS)
             self.assertEqual(result[0]["status"], "parsed")
-            self.assertIn("Purchase order", result[0]["summary"])
+            self.assertEqual(result[0]["summary"], "DOCX content parsed; review structured facts.")
             self.assertIn("Paragraph limit", " ".join(result[0]["limitations"]))
 
     def test_parse_docx_supports_table_only_documents(self) -> None:
@@ -126,7 +231,7 @@ class AttachmentParserTests(unittest.TestCase):
             result = parse_attachments([stored])
 
         visible = self._visible_text(result[0])
-        self.assertIn("Mixed document introduction", visible)
+        self.assertNotIn("Mixed document introduction", visible)
         self.assertIn("Part-MIXED-7", visible)
 
     def test_docx_table_rows_and_cells_stop_at_explicit_caps(self) -> None:
@@ -329,7 +434,7 @@ class AttachmentParserTests(unittest.TestCase):
                 self.assertNotIn(source_url, visible_text)
             for leaked_fragment in ("(quote)", "2001:db8", "/private"):
                 self.assertNotIn(leaked_fragment, visible_text)
-            self.assertIn("[link removed]", visible_text)
+            self.assertEqual(result[0]["summary"], "Image OCR content parsed; review structured facts.")
 
     def test_pdf_decoder_failure_returns_exact_safe_limitation(self) -> None:
         secret = "PRIVATE_PDF_SOURCE"
