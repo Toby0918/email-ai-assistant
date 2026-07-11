@@ -164,7 +164,7 @@ source_type: api_contract
 - 每个已解析附件最多输出 5 个后端构造的 `key_facts`：明确标签的 RFQ/PO/order/invoice/tracking 编号、数量、测量值、金额/币种、带明确提示的截止时间、规范化请求动作和质量信号。不得返回任意原文行或连续原文前缀。
 - 通用附件文本清洗不对“RFQ”标签或 ISO 日期做长数字豁免，并必须删除连续、跨空白或常见分隔符连接的任意 7 位及以上数字序列。专用组件提取器只能对完整字段段执行 `label + value` 全匹配；值字符集限 `[A-Z0-9_-]`，纯数字值限 4-9 位，任何值最多包含 9 个数字，并拒绝异种/重复前缀、电话、卡号/账号、路径和 URI/域名形状。表格字段只接受恰好两个非空 cell 的标签/值行；存在额外 continuation cell 时整行编号失效。
 - 请求动作只保留固定动词和对象类别，质量问题只保留固定信号标签，截止时间只保留明确 cue 和日期/相对时间。每个构造事实必须再通过精确 schema 清洗后才能进入结果、prompt 和 SQLite。
-- 截止时间、请求动作和质量信号在构造前必须按逗号、分号和 `but/however` 等边界定位候选所在的有界 clause，并只检查候选前后的有限 tokens。`not/never/without/free from`、直引号或弯引号 modal contractions、`absent/repaired/removed/withdrawn/waived/cancelled/revoked` 等反转上下文不得生成正向事实；取消、忽略或跳过的 action request 同样拒绝。其他 clause 的否定不得删除当前 clause 的真实事实。
+- 截止时间、请求动作和质量信号在构造前必须按逗号、分号和 `and/but/however/then` 等边界定位候选所在的有界 clause，并只检查候选前后的有限 tokens。请求动作按原文顺序在同一 clause 内配对动词和其后的对象；后置动词不得绑定前一 clause 的对象。只有 affirmative 动词尚未成功配对任何对象时，才可跨 `but/however` 传给紧随的纯对象 clause；一旦构造事实就必须清空该 pending 动词。反转 clause 也不得删除后续真实动作。`not/never/without/free from`、直引号或弯引号 modal contractions、`absent/repaired/removed/withdrawn/waived/cancelled/revoked` 等反转上下文不得生成正向事实；取消、忽略或跳过的 action request 同样拒绝。质量信号紧邻的 `0/zero/nil/non-` 或 `-free/ free` 表示缺失；解决态词只有在未被局部 `not/never/no longer` 反转时才表示问题已解决。截止时间的 `not required/does not apply/no longer applicable/optional` 表示不存在有效截止要求。其他 clause 的否定不得删除当前 clause 的真实事实。
 - 只有 `attachment_insights[].status=parsed` 的 `summary` 和 `key_facts` 可以影响决策摘要、风险、建议动作和回复草稿。其他状态必须返回精确 `limitations`，但不得阻断邮件正文和会话分析。
 - 未启用后端模型 provider，或模型返回不可解析 JSON 时，第一版使用本地规则分析器返回可验证结构。
 - 模型返回可解析 JSON 时，后端只保留经过校验的摘要、优先级、分类和标签增强；Decision Brief、风险、建议动作和回复草稿使用确定性规则投影，避免未解析附件事实或未经授权承诺进入最终结果。

@@ -11,6 +11,8 @@ from .attachment_fact_safety import (
     sanitize_constructed_fact,
 )
 from .attachment_fact_context import (
+    action_clause_spans,
+    is_adjacent_absence_match,
     is_cancelled_action_span,
     is_reversed_fact_match,
     is_reversed_fact_span,
@@ -73,7 +75,7 @@ _LABELED_DEADLINE = re.compile(
 _BY_DEADLINE = re.compile(rf"\bby\s+(?P<value>{_DATE_VALUE})\b", re.IGNORECASE)
 _REQUEST_SPAN = re.compile(
     r"\b(?:please|kindly|action\s+required|requested\s+action|could\s+you|can\s+you)"
-    r"\s*(?:[:=|\-]\s*)?(?P<body>[^\n.!?;]{1,160})",
+    r"\s*(?:[:=|\-]\s*)?(?P<body>[^\n.!?]{1,160})",
     re.IGNORECASE,
 )
 
@@ -96,6 +98,7 @@ _ACTION_OBJECTS = (
     (re.compile(r"\b(?:drawing|specification|spec)\b", re.IGNORECASE), "specification"),
     (re.compile(r"\b(?:sample|samples)\b", re.IGNORECASE), "samples"),
 )
+_OBJECT_ONLY_PREFIX = re.compile(r"\s*(?:the\s+)?$", re.IGNORECASE)
 _QUALITY_SIGNALS = (
     (re.compile(r"\b(?:out\s+of|outside)\s+tolerance\b", re.IGNORECASE), "out_of_tolerance"),
     (re.compile(r"\b(?:scratch(?:ed|es)?|scuff(?:ed|s)?|surface\s+damage)\b", re.IGNORECASE), "surface_damage"),
@@ -189,19 +192,13 @@ def _requested_actions(text: str) -> list[str]:
     values: list[str] = []
     for match in _REQUEST_SPAN.finditer(text):
         body = match.group("body")
-        verb, verb_match = _mapped_candidate(body, _ACTION_VERBS)
-        target, target_match = _mapped_candidate(body, _ACTION_OBJECTS)
-        if not verb or not target or not verb_match or not target_match:
-            continue
-        body_start = match.start("body")
-        start = body_start + min(verb_match.start(), target_match.start())
-        end = body_start + max(verb_match.end(), target_match.end())
-        if (
-            is_reversed_fact_span(text, start, end)
-            or is_cancelled_action_span(text, start, end)
-        ):
-            continue
-        _append(values, f"Requested action: {verb} {target}")
+        pending_verb = ""
+        for start, end, may_inherit in action_clause_spans(body, 0, len(body)):
+            pending_verb = _append_clause_actions(
+                values,
+                body[start:end],
+                pending_verb if may_inherit else "",
+            )
     return values[:MAX_CANDIDATES_PER_CATEGORY]
 
 
@@ -209,7 +206,10 @@ def _quality_issues(text: str) -> list[str]:
     values: list[str] = []
     for pattern, label in _QUALITY_SIGNALS:
         for match in pattern.finditer(text):
-            if is_reversed_fact_match(text, match):
+            if (
+                is_reversed_fact_match(text, match)
+                or is_adjacent_absence_match(text, match)
+            ):
                 continue
             if label == "quality_issue" and _specific_quality_signal(local_fact_segment(text, match)):
                 continue
@@ -229,18 +229,49 @@ def _matched_values(
     return values[:MAX_CANDIDATES_PER_CATEGORY]
 
 
-def _mapped_candidate(
+def _mapped_candidates(
     text: str,
     mappings: tuple[tuple[re.Pattern[str], str], ...],
-) -> tuple[str, re.Match[str] | None]:
+) -> list[tuple[str, re.Match[str]]]:
     candidates: list[tuple[int, str, re.Match[str]]] = []
     for pattern, label in mappings:
-        if match := pattern.search(text):
+        for match in pattern.finditer(text):
             candidates.append((match.start(), label, match))
-    if not candidates:
-        return "", None
-    _start, label, match = min(candidates, key=lambda item: item[0])
-    return label, match
+    return [
+        (label, match)
+        for _start, label, match in sorted(candidates, key=lambda item: item[0])
+    ]
+
+
+def _append_clause_actions(
+    values: list[str],
+    clause: str,
+    inherited_verb: str,
+) -> str:
+    verbs = _mapped_candidates(clause, _ACTION_VERBS)
+    safe_verbs = [
+        (label, match)
+        for label, match in verbs
+        if not is_reversed_fact_span(clause, match.start(), match.end())
+        and not is_cancelled_action_span(clause, match.start(), match.end())
+    ]
+    paired = False
+    for target, target_match in _mapped_candidates(clause, _ACTION_OBJECTS):
+        if is_reversed_fact_span(clause, target_match.start(), target_match.end()):
+            continue
+        preceding = [
+            label
+            for label, verb_match in safe_verbs
+            if verb_match.end() <= target_match.start()
+        ]
+        object_only = _OBJECT_ONLY_PREFIX.fullmatch(clause[:target_match.start()])
+        verb = preceding[-1] if preceding else inherited_verb if object_only else ""
+        if verb:
+            _append(values, f"Requested action: {verb} {target}")
+            paired = True
+    if paired:
+        return ""
+    return safe_verbs[-1][0] if safe_verbs else ""
 
 
 def _specific_quality_signal(segment: str) -> bool:

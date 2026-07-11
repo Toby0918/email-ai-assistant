@@ -21,7 +21,7 @@ source_type: security_policy
 - 保留与业务判断相关的关键文本。
 - 附件只输出最多 5 个经严格组件校验后构造的事实，不输出任意原文行或连续原文。请求动作和质量问题必须映射为固定动词/对象或信号标签。
 - 通用附件文本清洗必须删除邮箱地址、路径、URL，以及连续、跨空白或常见分隔符连接的任意 7 位及以上数字序列；ISO 日期不豁免。明确标签的业务编号只能由专用提取器对完整字段段做全匹配后构造，值仅允许 `[A-Z0-9_-]`；表格只接受恰好两个非空 cell 的标签/值行，额外 continuation cell 使整行编号失效。不得为业务标签放宽通用清洗器。
-- 附件截止时间、请求动作和质量信号必须按局部 clause 判断否定或已撤销语义。`not/never/without/free from`、直/弯引号 modal contractions、`absent/repaired/removed/withdrawn/waived/cancelled/revoked` 等上下文不得构造正向事实；取消、忽略或跳过的请求动作也必须拒绝。逗号、分号或 `but/however` 后其他 clause 的否定不得误删当前真实事实。
+- 附件截止时间、请求动作和质量信号必须按局部 clause 判断否定或已撤销语义。动作动词只能绑定同一 clause 中位于其后的对象；只有尚未配对的 affirmative 动词才可跨 `but/however` 传给纯对象 clause，已构造事实的动词不得继续传播，反转 clause 也不得吞掉后续真实动作。`not/never/without/free from`、直/弯引号 modal contractions、未被局部否定的 `absent/repaired/removed/withdrawn/waived/cancelled/revoked` 等上下文不得构造正向事实；紧邻质量词的 `0/zero/nil/non-` 与 `-free/ free` 也必须拒绝。`not required/does not apply/no longer applicable/optional` 表示无有效截止要求；取消、忽略或跳过的请求动作同样拒绝。逗号、分号或 `and/but/however/then` 后其他 clause 的否定不得误删当前真实事实。
 
 ## 存储
 

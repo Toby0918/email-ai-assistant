@@ -301,6 +301,170 @@ class AttachmentParserTests(unittest.TestCase):
             with self.subTest(value=value):
                 self.assertEqual(extract_attachment_facts(value), expected)
 
+    def test_later_positive_action_survives_an_earlier_reversed_clause(self) -> None:
+        cases = {
+            "Please do not confirm price, but confirm quantity.": [
+                "Requested action: confirm quantity",
+            ],
+            "Please disregard the request to provide quotation, but confirm quantity.": [
+                "Requested action: confirm quantity",
+            ],
+            "Please don't provide quotation, however review specification.": [
+                "Requested action: review specification",
+            ],
+            "Please shouldn’t confirm price, provide quotation.": [
+                "Requested action: provide quotation",
+            ],
+            "Action required: skip the request to review specification; however confirm quantity.": [
+                "Requested action: confirm quantity",
+            ],
+            "Please cancel quotation and confirm quantity.": [
+                "Requested action: confirm quantity",
+            ],
+            "Please decline quotation, then confirm quantity.": [
+                "Requested action: confirm quantity",
+            ],
+            "Please archive invoice and confirm quantity.": [
+                "Requested action: confirm quantity",
+            ],
+            "Please resolve damaged part but confirm quantity.": [
+                "Requested action: confirm quantity",
+            ],
+            "Please confirm not price but quantity.": [
+                "Requested action: confirm quantity",
+            ],
+            "Please confirm no quotation but quantity.": [
+                "Requested action: confirm quantity",
+            ],
+        }
+        for value, expected in cases.items():
+            with self.subTest(value=value):
+                self.assertEqual(extract_attachment_facts(value), expected)
+
+    def test_later_positive_action_reaches_prompt_and_storage_without_reversed_text(self) -> None:
+        payload = (
+            "Please disregard the request to provide quotation, but confirm quantity."
+        )
+        with TemporaryDirectory() as directory:
+            item = self._write(directory, "action.pdf", "pdf", b"synthetic")
+            page = MagicMock()
+            page.extract_text.return_value = payload
+            reader = MagicMock()
+            reader.pages = [page]
+            with patch.object(attachment_parser, "PdfReader", return_value=reader):
+                insights = parse_attachments([item])
+
+        self.assertEqual(
+            insights[0]["key_facts"],
+            ["Requested action: confirm quantity"],
+        )
+        prompt = build_analysis_prompt(
+            subject="Synthetic reversed action",
+            sender="sender@example.test",
+            clean_body="Please review the attachment.",
+            attachment_insights=insights,
+        )
+        connection = sqlite3.connect(":memory:")
+        initialize_schema(connection)
+        save_analysis(
+            connection,
+            subject="Synthetic reversed action",
+            sender="sender@example.test",
+            analysis={"summary": "Safe synthetic result.", "attachment_insights": insights},
+        )
+        stored_json = connection.execute(
+            "SELECT analysis_json FROM email_analysis"
+        ).fetchone()[0]
+        serialized = json.dumps(insights, ensure_ascii=False)
+        for boundary, value in (
+            ("result", serialized),
+            ("prompt", prompt),
+            ("storage", stored_json),
+        ):
+            with self.subTest(boundary=boundary):
+                self.assertIn("Requested action: confirm quantity", value)
+                self.assertNotIn("Requested action: provide quotation", value)
+                self.assertNotIn("disregard the request", value)
+
+    def test_completed_action_does_not_leak_its_verb_into_an_unsupported_clause(self) -> None:
+        cases = {
+            "Please confirm quantity, but cancel quotation.": [
+                "Requested action: confirm quantity",
+            ],
+            "Please confirm quantity and archive invoice.": [
+                "Requested action: confirm quantity",
+            ],
+        }
+        for value, expected in cases.items():
+            with self.subTest(value=value):
+                self.assertEqual(extract_attachment_facts(value), expected)
+
+    def test_adjacent_quality_absence_does_not_become_a_positive_fact(self) -> None:
+        rejected = (
+            "damage-free",
+            "damage free",
+            "scratch-free",
+            "scratch free",
+            "leak-free",
+            "leak free",
+            "burr-free",
+            "burr free",
+            "zero scratches",
+            "0 scratches",
+            "0 burrs",
+            "zero leakage",
+            "nil scratches",
+            "non-damaged",
+            "non-scratched",
+        )
+        for value in rejected:
+            with self.subTest(value=value):
+                self.assertEqual(extract_attachment_facts(value), [])
+
+        self.assertEqual(
+            extract_attachment_facts("noncritical damage"),
+            ["Quality issue: physical_damage"],
+        )
+
+    def test_deadline_post_context_distinguishes_absence_from_negated_retirement(self) -> None:
+        rejected = (
+            "Due date: 2026-07-18 is not required.",
+            "Deadline: 2026-07-19 does not apply.",
+            "Deadline: 2026-07-20 is no longer applicable.",
+            "Deadline: 2026-07-21 is optional.",
+        )
+        for value in rejected:
+            with self.subTest(value=value):
+                self.assertEqual(extract_attachment_facts(value), [])
+
+        self.assertEqual(
+            extract_attachment_facts(
+                "Deadline: 2026-07-22 remains active and is not waived."
+            ),
+            ["Deadline: due 2026-07-22"],
+        )
+
+    def test_quality_resolution_context_preserves_explicitly_unresolved_issues(self) -> None:
+        accepted = {
+            "The scratch was not repaired.": ["Quality issue: surface_damage"],
+            "The damage is not resolved.": ["Quality issue: physical_damage"],
+            "Burrs have not been removed.": ["Quality issue: burrs"],
+            "Leakage has not stopped.": ["Quality issue: leakage"],
+        }
+        for value, expected in accepted.items():
+            with self.subTest(value=value):
+                self.assertEqual(extract_attachment_facts(value), expected)
+
+        rejected = (
+            "The scratch was repaired.",
+            "The damage is resolved.",
+            "Burrs have been removed.",
+            "Leakage has stopped.",
+        )
+        for value in rejected:
+            with self.subTest(value=value):
+                self.assertEqual(extract_attachment_facts(value), [])
+
     def test_cross_format_sensitive_identifiers_and_negations_never_cross_boundaries(self) -> None:
         payload = "\n".join([
             "RFQ: 202/555/0199",
