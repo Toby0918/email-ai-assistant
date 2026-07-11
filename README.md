@@ -40,8 +40,12 @@
 
 - `beautifulsoup4==4.15.0`
 - `openpyxl==3.1.5`
-- `openai==2.44.0`
+- `openai==2.45.0`
 - `python-dotenv==1.2.2`
+- `pypdf==6.14.2`
+- `python-docx==1.2.0`
+- `Pillow==12.3.0`
+- `pytesseract==0.3.13`
 
 SQLite 使用运行时版本 3.50.4，不通过 `requirements.txt` 安装。
 

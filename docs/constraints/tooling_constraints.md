@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-09
+last_update: 2026-07-10
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -57,11 +57,11 @@ AGENTS.md
 | SQLite | 3.50.4 | 本地分析结果存储、调试缓存、轻量数据持久化 | 不作为企业级远程数据库；不存储真实敏感邮件全文，除非后续明确授权 |
 | beautifulsoup4 | 4.15.0 | 清洗 HTML 邮件正文、去除标签和样式噪声 | 不用于业务规则判断；不用于解析 AI JSON |
 | openpyxl | 3.1.5 | 导出本地调试或评估用 Excel 报表 | 不用于核心数据存储；不用于读取真实邮箱 |
-| openai | 2.44.0 | 后端调用 AI 模型，生成结构化邮件分析结果 | 不允许在前端直接调用；不允许输出未经校验的自由文本 |
+| openai | 2.45.0 | 后端调用 AI 模型，生成结构化邮件分析结果 | 不允许在前端直接调用；不允许输出未经校验的自由文本 |
 | python-dotenv | 1.2.2 | 本地加载 `.env` 中的后端环境变量 | 不允许把 `.env` 提交到版本库 |
-| pypdf | 5.7.0 | 后端提取受限 PDF 文本 | 不解析加密、可执行或未知二进制内容 |
-| python-docx | 1.1.2 | 后端提取受限 DOCX 段落和表格文本 | 不运行嵌入式活动内容 |
-| Pillow | 11.2.1 | 后端检查图片并为 OCR 准备输入 | 不在前端处理图片内容 |
+| pypdf | 6.14.2 | 后端提取受限 PDF 文本 | 不解析加密、可执行或未知二进制内容 |
+| python-docx | 1.2.0 | 后端提取受限 DOCX 段落和表格文本 | 不运行嵌入式活动内容 |
+| Pillow | 12.3.0 | 后端检查图片并为 OCR 准备输入 | 不在前端处理图片内容 |
 | pytesseract | 0.3.13 | 后端可选 OCR | Tesseract 缺失时仅降级 OCR，不能阻断规则兜底 |
 
 本地 Ollama/Qwen/Gemma 属于后端运行环境能力，不是新增 Python 依赖。`EMAIL_AGENT_OLLAMA_MODEL` 默认是 `qwen3.6:latest`，可选择 `gemma4`；调用失败或输出无效时必须回落到本地规则分析器。

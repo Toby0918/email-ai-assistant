@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-09
+last_update: 2026-07-10
 status: active
 owner: "@tobyWang"
 review_cycle: weekly
@@ -31,6 +31,7 @@ After a user clicks Analyze for the currently opened Tencent Exmail message, dow
 - Accept image, PDF, XLSX, and DOCX resources visible on the currently opened message.
 - Keep downloaded source files in a dedicated local temporary directory for 24 hours, then automatically delete them.
 - Use backend-only local Ollama models. Default to `qwen3.6`; allow `gemma4` through `EMAIL_AGENT_OLLAMA_MODEL`; fall back to rule analysis when either model fails or produces invalid JSON.
+- Use pinned backend dependencies: openai 2.45.0, pypdf 6.14.2, python-docx 1.2.0, Pillow 12.3.0, and pytesseract 0.3.13.
 - Treat `cndlf.com` as the internal business-user domain. Treat other domains as external by default, with a future configurable partner allowlist.
 
 ## Required Data and Interface Changes

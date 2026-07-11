@@ -93,6 +93,35 @@ class PrintCallVisitor(ast.NodeVisitor):
 
 
 class StaticLinterConstraintTests(unittest.TestCase):
+    def test_pinned_dependency_versions_are_consistent_across_active_guidance(self) -> None:
+        expected_versions = {
+            "openai": "2.45.0",
+            "pypdf": "6.14.2",
+            "python-docx": "1.2.0",
+            "Pillow": "12.3.0",
+            "pytesseract": "0.3.13",
+        }
+        requirements = read_text(ROOT / "requirements.txt")
+        guidance_files = [
+            ROOT / "AGENTS.md",
+            ROOT / "README.md",
+            ROOT / "docs" / "constraints" / "tooling_constraints.md",
+            ROOT / "docs" / "operations" / "phase_two_attachment_thread_task_brief.md",
+            ROOT / "docs" / "superpowers" / "plans" / "2026-07-09-phase-two-attachment-thread-analysis.md",
+        ]
+
+        for package, version in expected_versions.items():
+            pin = f"{package}=={version}"
+            with self.subTest(package=package, path="requirements.txt"):
+                self.assertIn(pin, requirements)
+            for path in guidance_files:
+                with self.subTest(package=package, path=path):
+                    marker = (
+                        rf"{re.escape(package)}"
+                        rf"(?:==|\s*\|\s*|\s+){re.escape(version)}"
+                    )
+                    self.assertRegex(read_text(path), marker)
+
     def test_no_forbidden_repository_files_are_unignored(self) -> None:
         for path in iter_project_files(ROOT):
             name = path.name.lower()

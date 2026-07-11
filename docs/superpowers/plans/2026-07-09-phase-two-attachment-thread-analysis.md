@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-09
+last_update: 2026-07-10
 status: active
 owner: "@tobyWang"
 review_cycle: weekly
@@ -75,9 +75,10 @@ Expected: failure referencing missing phase-two configuration or missing Gemma l
 - [ ] **Step 3: Add the minimum approved dependencies and configuration**
 
 ```text
-pypdf==5.7.0
-python-docx==1.1.2
-Pillow==11.2.1
+openai==2.45.0
+pypdf==6.14.2
+python-docx==1.2.0
+Pillow==12.3.0
 pytesseract==0.3.13
 ```
 
