@@ -207,7 +207,11 @@
       header,
       doc,
     );
-    if (!currentMessageContainer || hasAmbiguousBodyRoots(currentMessageContainer, currentMessageRoot, doc)) {
+    if (
+      !currentMessageContainer ||
+      (currentMessageRoot.parentElement || currentMessageRoot.parentNode) !== currentMessageContainer ||
+      hasAmbiguousBodyRoots(currentMessageContainer, currentMessageRoot, doc)
+    ) {
       return null;
     }
 
@@ -312,22 +316,11 @@
   }
 
   function resourceSiblingSubtrees(bodyRoot, container) {
-    const subtrees = [];
-    let branch = bodyRoot;
-    let parent = branch && (branch.parentElement || branch.parentNode);
-    while (parent) {
-      for (const child of Array.from(parent.children || [])) {
-        if (child !== branch) {
-          subtrees.push(child);
-        }
-      }
-      if (parent === container) {
-        return subtrees;
-      }
-      branch = parent;
-      parent = parent.parentElement || parent.parentNode;
+    const parent = bodyRoot && (bodyRoot.parentElement || bodyRoot.parentNode);
+    if (parent !== container) {
+      return [];
     }
-    return [];
+    return Array.from(container.children || []).filter((child) => child !== bodyRoot);
   }
 
   function isApprovedResourceControl(element, baseHref, doc) {

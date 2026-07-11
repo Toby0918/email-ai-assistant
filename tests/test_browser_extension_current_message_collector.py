@@ -547,6 +547,51 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
                 }
               },
 
+              non_direct_message_root_is_rejected_before_candidate_fetch: async () => {
+                let fetchCount = 0;
+                const currentRoot = new FakeElement({
+                  attrs: { id: "mailContentContainer" },
+                  text: "Please review the wrapped visible message.",
+                });
+                const forgedLink = resource(
+                  "forged.pdf",
+                  "pdf",
+                  "/cgi-bin/download?file=forged",
+                );
+                const unknownWrapper = new FakeElement({ children: [currentRoot, forgedLink] });
+                const structuralEnvelope = new FakeElement({
+                  attrs: { class: "read-envelope" },
+                  children: [unknownWrapper],
+                });
+                const doc = new FakeDocument(new FakeElement({
+                  tag: "body",
+                  children: [structuralEnvelope],
+                }));
+                const api = loadCollector(async () => {
+                  fetchCount += 1;
+                  return response([1]);
+                });
+                const result = await api.collectVisibleResources(doc, {
+                  currentMessageRoot: currentRoot,
+                  currentMessageContainer: structuralEnvelope,
+                  verifiedResourceCandidates: [forgedLink],
+                  resourceControlsVerified: true,
+                });
+
+                if (fetchCount !== 0 || result.attachment_files.length !== 0) {
+                  throw new Error(
+                    `non-direct root was not rejected: fetch=${fetchCount} ` +
+                    `files=${result.attachment_files.length}`,
+                  );
+                }
+                if (
+                  result.resource_limitations.length !== 1 ||
+                  result.resource_limitations[0].code !== "resource_unavailable"
+                ) {
+                  throw new Error(`safe unavailable limitation missing: ${JSON.stringify(result)}`);
+                }
+              },
+
               count_and_total_byte_bounds_stop_additional_transfer: async () => {
                 const calls = [];
                 const doc = resourceDocument([
@@ -894,6 +939,9 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
 
     def test_known_body_container_is_checked_before_candidate_fetch(self) -> None:
         self.run_node_case("known_body_container_is_checked_before_candidate_fetch")
+
+    def test_non_direct_message_root_is_rejected_before_candidate_fetch(self) -> None:
+        self.run_node_case("non_direct_message_root_is_rejected_before_candidate_fetch")
 
     def test_count_and_total_byte_bounds_stop_additional_transfer(self) -> None:
         self.run_node_case("count_and_total_byte_bounds_stop_additional_transfer")

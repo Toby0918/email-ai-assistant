@@ -94,6 +94,7 @@
       settings.resourceControlsVerified !== true ||
       !currentContainer ||
       !isInside(currentRoot, currentContainer) ||
+      (currentRoot.parentElement || currentRoot.parentNode) !== currentContainer ||
       !isVisibleWithin(currentContainer, currentContainer, doc)
     ) {
       result.resource_limitations.push(

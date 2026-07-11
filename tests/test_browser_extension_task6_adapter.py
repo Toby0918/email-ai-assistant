@@ -431,6 +431,55 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
                 }
               },
 
+              unknown_intermediate_body_wrapper_fails_closed_with_real_collector: async () => {
+                const subjectText = "Synthetic wrapped request";
+                const headerText = "From: sender@example.test\nTo: recipient@example.test";
+                const bodyText = "Please review the wrapped visible message.";
+                const subject = new FakeElement({ tag: "h1", id: "subject", text: subjectText });
+                const header = new FakeElement({ className: "read-header", text: headerText });
+                const currentRoot = new FakeElement({ id: "mailContentContainer", text: bodyText });
+                const forgedLink = new FakeElement({
+                  tag: "a",
+                  attrs: { download: "forged.pdf", href: "/cgi-bin/download?file=forged" },
+                });
+                const unknownBodyWrapper = new FakeElement({
+                  className: "unknown-message-wrapper",
+                  children: [currentRoot, forgedLink],
+                });
+                const structuralEnvelope = new FakeElement({
+                  className: "read-envelope",
+                  text: `${subjectText}\n${headerText}\n${bodyText}`,
+                  children: [subject, header, unknownBodyWrapper],
+                });
+                const doc = new FakeDocument(new FakeElement({
+                  tag: "body",
+                  text: `${subjectText}\n${headerText}\n${bodyText}`,
+                  children: [structuralEnvelope],
+                }));
+                let fetchCount = 0;
+                const listener = loadAdapterWithRealCollector(doc, async () => {
+                  fetchCount += 1;
+                  return oneByteResponse();
+                });
+
+                const result = await beginDispatch(listener).responsePromise;
+                if (!result.ok || !result.payload.body_text.includes("wrapped visible message")) {
+                  throw new Error(`body analysis did not continue: ${JSON.stringify(result)}`);
+                }
+                if (fetchCount !== 0 || result.payload.attachment_files.length !== 0) {
+                  throw new Error(
+                    `unknown wrapper escaped trust boundary: fetch=${fetchCount} ` +
+                    `files=${result.payload.attachment_files.length}`,
+                  );
+                }
+                if (
+                  result.payload.resource_limitations.length !== 1 ||
+                  result.payload.resource_limitations[0].code !== "resource_unavailable"
+                ) {
+                  throw new Error(`single unavailable limitation missing: ${JSON.stringify(result)}`);
+                }
+              },
+
               invalid_structural_envelopes_and_endpoints_fail_closed: async () => {
                 let resourceCalls = 0;
                 const collector = {
@@ -614,6 +663,9 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
 
     def test_nested_known_body_container_fails_closed_with_real_collector(self) -> None:
         self.run_node_case("nested_known_body_container_fails_closed_with_real_collector")
+
+    def test_unknown_intermediate_body_wrapper_fails_closed_with_real_collector(self) -> None:
+        self.run_node_case("unknown_intermediate_body_wrapper_fails_closed_with_real_collector")
 
     def test_invalid_structural_envelopes_and_endpoints_fail_closed(self) -> None:
         self.run_node_case("invalid_structural_envelopes_and_endpoints_fail_closed")
