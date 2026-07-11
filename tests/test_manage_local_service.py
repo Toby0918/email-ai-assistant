@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import tempfile
 import unittest
 from pathlib import Path
@@ -102,49 +103,38 @@ class ManageLocalServiceTests(unittest.TestCase):
 
         self.assertEqual(killed, [])
 
-    def test_restart_runs_stop_then_start(self) -> None:
-        calls: list[str] = []
-        config = self._config(Path("service.pid"))
+    def test_restart_public_contract_exposes_only_lower_level_launch_dependencies(self) -> None:
+        parameters = inspect.signature(manager.restart_service).parameters
 
-        with patch(
-            "backend.email_agent.attachment_storage.cleanup_expired_attachments",
-            side_effect=lambda backend_config: calls.append("cleanup") or 1,
-        ) as cleanup:
-            result = manager.restart_service(
-                config,
-                stopper=lambda service_config: calls.append("stop") or manager.CommandResult(0, "stopped"),
-                starter=lambda service_config: calls.append("start") or manager.CommandResult(0, "started"),
-            )
+        self.assertNotIn("starter", parameters)
+        for name in ("popen", "health_checker", "sleeper"):
+            self.assertIn(name, parameters)
+
+    def test_restart_runs_cleanup_stop_then_launch_once_with_lower_level_dependencies(self) -> None:
+        calls: list[str] = []
+        with tempfile.TemporaryDirectory() as tmpdir:
+            config = self._config(Path(tmpdir) / "service.pid")
+
+            def fake_popen(command: list[str], **kwargs: object) -> SimpleNamespace:
+                calls.append("launch")
+                return SimpleNamespace(pid=12345)
+
+            with patch(
+                "backend.email_agent.attachment_storage.cleanup_expired_attachments",
+                side_effect=lambda backend_config: calls.append("cleanup") or 1,
+            ) as cleanup:
+                result = manager.restart_service(
+                    config,
+                    stopper=lambda service_config: calls.append("stop")
+                    or manager.CommandResult(0, "stopped"),
+                    popen=fake_popen,
+                    health_checker=lambda host, port, timeout: True,
+                    sleeper=lambda seconds: None,
+                )
 
         self.assertEqual(result.exit_code, 0)
         self.assertIn("attachment cleanup removed=1", result.message)
         cleanup.assert_called_once()
-        self.assertEqual(calls, ["cleanup", "stop", "start"])
-
-    def test_default_restart_does_not_repeat_start_cleanup(self) -> None:
-        calls: list[str] = []
-        config = self._config(Path("service.pid"))
-
-        with (
-            patch(
-                "backend.email_agent.attachment_storage.cleanup_expired_attachments",
-                side_effect=lambda backend_config: calls.append("cleanup") or 1,
-            ) as cleanup,
-            patch.object(
-                manager,
-                "_start_after_cleanup",
-                side_effect=lambda service_config: calls.append("launch")
-                or manager.CommandResult(0, "started"),
-            ) as launcher,
-        ):
-            result = manager.restart_service(
-                config,
-                stopper=lambda service_config: calls.append("stop") or manager.CommandResult(0, "stopped"),
-            )
-
-        self.assertEqual(result.exit_code, 0)
-        cleanup.assert_called_once()
-        launcher.assert_called_once_with(config)
         self.assertEqual(calls, ["cleanup", "stop", "launch"])
 
     def test_lifecycle_cleanup_uses_loaded_backend_config(self) -> None:
@@ -201,7 +191,6 @@ class ManageLocalServiceTests(unittest.TestCase):
             result = manager.restart_service(
                 config,
                 stopper=lambda service_config: calls.append("stop") or manager.CommandResult(0, "stopped"),
-                starter=lambda service_config: calls.append("start") or manager.CommandResult(0, "started"),
             )
 
         self.assertEqual(result.exit_code, 5)
@@ -217,12 +206,14 @@ class ManageLocalServiceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             pid_file = Path(tmpdir) / "service.pid"
             pid_file.write_text("\n".join(sensitive_values), encoding="utf-8")
-            result = manager.status_service(
-                self._config(pid_file),
-                health_checker=lambda host, port, timeout: False,
-            )
+            with patch.object(manager, "run_cleanup_before_service_start") as cleanup:
+                result = manager.status_service(
+                    self._config(pid_file),
+                    health_checker=lambda host, port, timeout: False,
+                )
 
         self.assertEqual(result.status, "stopped")
+        cleanup.assert_not_called()
         for value in sensitive_values:
             self.assertNotIn(value, result.message)
 

@@ -179,7 +179,9 @@ def stop_service(
 def restart_service(
     config: ServiceConfig,
     stopper: Callable[[ServiceConfig], CommandResult] = stop_service,
-    starter: Callable[[ServiceConfig], CommandResult] | None = None,
+    popen: Callable[..., Any] | None = None,
+    health_checker: HealthChecker = check_health,
+    sleeper: Sleeper = time.sleep,
 ) -> CommandResult:
     cleanup_result, cleanup_error = _attempt_lifecycle_cleanup()
     if cleanup_error is not None:
@@ -187,7 +189,7 @@ def restart_service(
     stop_result = stopper(config)
     if stop_result.exit_code not in {0, 3}:
         return _with_cleanup_result(stop_result, cleanup_result)
-    start_result = starter(config) if starter is not None else _start_after_cleanup(config)
+    start_result = _start_after_cleanup(config, popen, health_checker, sleeper)
     return _with_cleanup_result(start_result, cleanup_result)
 
 
