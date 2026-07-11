@@ -159,6 +159,16 @@
       );
     }
 
+    if (extraction.document !== document) {
+      payload.resource_limitations.push(
+        safeResourceLimitation(
+          "resource_unavailable",
+          "Resources are unavailable outside the verified top-level current-message document; body analysis continued.",
+        ),
+      );
+      return { ...extraction.result, payload };
+    }
+
     try {
       const resourceContext = findVerifiedResourceContext(
         extraction.document,
@@ -174,6 +184,7 @@
         return { ...extraction.result, payload };
       }
       const resources = await collector.collectVisibleResources(extraction.document, {
+        topLevelDocument: document,
         currentMessageRoot: extraction.currentMessageRoot,
         currentMessageContainer: resourceContext.currentMessageContainer,
         verifiedResourceCandidates: resourceContext.verifiedResourceCandidates,
@@ -209,8 +220,9 @@
     );
     if (
       !currentMessageContainer ||
+      (currentMessageContainer.parentElement || currentMessageContainer.parentNode) !== (doc && doc.body) ||
       (currentMessageRoot.parentElement || currentMessageRoot.parentNode) !== currentMessageContainer ||
-      hasAmbiguousBodyRoots(currentMessageContainer, currentMessageRoot, doc)
+      hasAmbiguousBodyRoots(doc && doc.body, currentMessageRoot, doc)
     ) {
       return null;
     }

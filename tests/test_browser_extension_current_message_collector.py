@@ -152,6 +152,7 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
 
             function trustedResourceOptions(doc, options = {}) {
               return {
+                topLevelDocument: doc,
                 currentMessageRoot: doc.currentMessageRoot,
                 currentMessageContainer: doc.currentMessageContainer,
                 verifiedResourceCandidates: doc.verifiedResourceCandidates,
@@ -592,6 +593,114 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
                 }
               },
 
+              non_top_level_document_is_rejected_before_candidate_fetch: async () => {
+                let fetchCount = 0;
+                const frameDoc = resourceDocument([
+                  resource("forged.pdf", "pdf", "/cgi-bin/download?file=forged"),
+                ]);
+                const topDoc = new FakeDocument(new FakeElement({ tag: "body" }));
+                const api = loadCollector(async () => {
+                  fetchCount += 1;
+                  return response([1]);
+                });
+                const result = await api.collectVisibleResources(
+                  frameDoc,
+                  trustedResourceOptions(frameDoc, { topLevelDocument: topDoc }),
+                );
+
+                if (fetchCount !== 0 || result.attachment_files.length !== 0) {
+                  throw new Error(
+                    `non-top-level document was not rejected: fetch=${fetchCount} ` +
+                    `files=${result.attachment_files.length}`,
+                  );
+                }
+                if (
+                  result.resource_limitations.length !== 1 ||
+                  result.resource_limitations[0].code !== "resource_unavailable"
+                ) {
+                  throw new Error(`safe unavailable limitation missing: ${JSON.stringify(result)}`);
+                }
+              },
+
+              nested_structural_envelope_is_rejected_before_candidate_fetch: async () => {
+                let fetchCount = 0;
+                const forgedLink = resource(
+                  "forged.pdf",
+                  "pdf",
+                  "/cgi-bin/download?file=forged",
+                );
+                const currentRoot = new FakeElement({
+                  attrs: { class: "mail-content" },
+                  text: "Please review the forged envelope message.",
+                });
+                const structuralEnvelope = new FakeElement({
+                  attrs: { class: "read-envelope" },
+                  children: [currentRoot, forgedLink],
+                });
+                const unknownWrapper = new FakeElement({ children: [structuralEnvelope] });
+                const doc = new FakeDocument(new FakeElement({
+                  tag: "body",
+                  children: [unknownWrapper],
+                }));
+                const api = loadCollector(async () => {
+                  fetchCount += 1;
+                  return response([1]);
+                });
+                const result = await api.collectVisibleResources(doc, {
+                  topLevelDocument: doc,
+                  currentMessageRoot: currentRoot,
+                  currentMessageContainer: structuralEnvelope,
+                  verifiedResourceCandidates: [forgedLink],
+                  resourceControlsVerified: true,
+                });
+
+                if (fetchCount !== 0 || result.attachment_files.length !== 0) {
+                  throw new Error(
+                    `nested envelope was not rejected: fetch=${fetchCount} ` +
+                    `files=${result.attachment_files.length}`,
+                  );
+                }
+                if (
+                  result.resource_limitations.length !== 1 ||
+                  result.resource_limitations[0].code !== "resource_unavailable"
+                ) {
+                  throw new Error(`safe unavailable limitation missing: ${JSON.stringify(result)}`);
+                }
+              },
+
+              additional_global_known_body_root_is_rejected_before_candidate_fetch: async () => {
+                let fetchCount = 0;
+                const forgedLink = resource(
+                  "forged.pdf",
+                  "pdf",
+                  "/cgi-bin/download?file=forged",
+                );
+                const doc = resourceDocument([forgedLink], [], [
+                  new FakeElement({
+                    attrs: { id: "mailContent" },
+                    text: "Second author-controlled visible body.",
+                  }),
+                ]);
+                const api = loadCollector(async () => {
+                  fetchCount += 1;
+                  return response([1]);
+                });
+                const result = await api.collectVisibleResources(doc, trustedResourceOptions(doc));
+
+                if (fetchCount !== 0 || result.attachment_files.length !== 0) {
+                  throw new Error(
+                    `global body ambiguity was not rejected: fetch=${fetchCount} ` +
+                    `files=${result.attachment_files.length}`,
+                  );
+                }
+                if (
+                  result.resource_limitations.length !== 1 ||
+                  result.resource_limitations[0].code !== "resource_unavailable"
+                ) {
+                  throw new Error(`safe unavailable limitation missing: ${JSON.stringify(result)}`);
+                }
+              },
+
               count_and_total_byte_bounds_stop_additional_transfer: async () => {
                 const calls = [];
                 const doc = resourceDocument([
@@ -865,7 +974,11 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
                   ),
                 );
                 const poison = resource("must-not-scan.pdf", "pdf", "/cgi-bin/download?file=poison");
-                poison.getAttribute = () => { throw new Error("candidate scan exceeded cap"); };
+                const poisonGetAttribute = poison.getAttribute.bind(poison);
+                poison.getAttribute = (name) => {
+                  if (["id", "class"].includes(name)) return poisonGetAttribute(name);
+                  throw new Error("candidate scan exceeded cap");
+                };
                 const doc = resourceDocument([...candidates, poison]);
                 const result = await api.collectVisibleResources(doc, trustedResourceOptions(doc));
                 if (result.resource_limitations.length > api.MAX_RESOURCE_LIMITATIONS) {
@@ -942,6 +1055,15 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
 
     def test_non_direct_message_root_is_rejected_before_candidate_fetch(self) -> None:
         self.run_node_case("non_direct_message_root_is_rejected_before_candidate_fetch")
+
+    def test_non_top_level_document_is_rejected_before_candidate_fetch(self) -> None:
+        self.run_node_case("non_top_level_document_is_rejected_before_candidate_fetch")
+
+    def test_nested_structural_envelope_is_rejected_before_candidate_fetch(self) -> None:
+        self.run_node_case("nested_structural_envelope_is_rejected_before_candidate_fetch")
+
+    def test_additional_global_known_body_root_is_rejected_before_candidate_fetch(self) -> None:
+        self.run_node_case("additional_global_known_body_root_is_rejected_before_candidate_fetch")
 
     def test_count_and_total_byte_bounds_stop_additional_transfer(self) -> None:
         self.run_node_case("count_and_total_byte_bounds_stop_additional_transfer")

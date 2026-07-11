@@ -169,11 +169,11 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
               return listener;
             }
 
-            function loadAdapterWithRealCollector(doc, fetchImpl) {
+            function loadAdapterWithRealCollector(doc, fetchImpl, frames = []) {
               let listener;
               const rootWindow = {
                 document: doc,
-                frames: [],
+                frames,
                 fetch: fetchImpl,
                 AbortController,
                 setTimeout,
@@ -480,6 +480,121 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
                 }
               },
 
+              forged_visible_frame_resources_fail_closed_with_real_collector: async () => {
+                const topDoc = mailboxDocument();
+                const forgedLink = new FakeElement({
+                  tag: "a",
+                  attrs: { download: "forged.pdf", href: "/cgi-bin/download?file=forged" },
+                });
+                const { doc: frameDoc } = openedMessage("", { hostResources: [forgedLink] });
+                const frameElement = new FakeElement({ tag: "iframe" });
+                frameElement.ownerDocument = topDoc;
+                frameElement.parentElement = topDoc.body;
+                frameElement.parentNode = topDoc.body;
+                topDoc.body.children.push(frameElement);
+                const frameWindow = { document: frameDoc, frames: [], frameElement };
+                let fetchCount = 0;
+                const listener = loadAdapterWithRealCollector(topDoc, async () => {
+                  fetchCount += 1;
+                  return oneByteResponse();
+                }, [frameWindow]);
+
+                const result = await beginDispatch(listener).responsePromise;
+                if (!result.ok || !result.payload.body_text.includes("visible message")) {
+                  throw new Error(`frame body analysis did not continue: ${JSON.stringify(result)}`);
+                }
+                if (fetchCount !== 0 || result.payload.attachment_files.length !== 0) {
+                  throw new Error(
+                    `forged frame resource escaped: fetch=${fetchCount} ` +
+                    `files=${result.payload.attachment_files.length}`,
+                  );
+                }
+                if (
+                  result.payload.resource_limitations.length !== 1 ||
+                  result.payload.resource_limitations[0].code !== "resource_unavailable"
+                ) {
+                  throw new Error(`single unavailable limitation missing: ${JSON.stringify(result)}`);
+                }
+              },
+
+              whole_fake_envelope_below_unknown_wrapper_fails_closed: async () => {
+                const subjectText = "Synthetic fake envelope";
+                const headerText = "From: sender@example.test\nTo: recipient@example.test";
+                const bodyText = "Please review the fake envelope message.";
+                const forgedLink = new FakeElement({
+                  tag: "a",
+                  attrs: { download: "forged.pdf", href: "/cgi-bin/download?file=forged" },
+                });
+                const fakeEnvelope = new FakeElement({
+                  className: "author-envelope",
+                  children: [
+                    new FakeElement({ tag: "h1", id: "subject", text: subjectText }),
+                    new FakeElement({ className: "read-header", text: headerText }),
+                    new FakeElement({ id: "mailContentContainer", text: bodyText }),
+                    forgedLink,
+                  ],
+                });
+                const unknownRealBodyWrapper = new FakeElement({ children: [fakeEnvelope] });
+                const doc = new FakeDocument(new FakeElement({
+                  tag: "body",
+                  text: `${subjectText}\n${headerText}\n${bodyText}`,
+                  children: [unknownRealBodyWrapper],
+                }));
+                let fetchCount = 0;
+                const listener = loadAdapterWithRealCollector(doc, async () => {
+                  fetchCount += 1;
+                  return oneByteResponse();
+                });
+
+                const result = await beginDispatch(listener).responsePromise;
+                if (!result.ok || !result.payload.body_text.includes("fake envelope message")) {
+                  throw new Error(`body analysis did not continue: ${JSON.stringify(result)}`);
+                }
+                if (fetchCount !== 0 || result.payload.attachment_files.length !== 0) {
+                  throw new Error(
+                    `whole fake envelope escaped: fetch=${fetchCount} ` +
+                    `files=${result.payload.attachment_files.length}`,
+                  );
+                }
+                if (
+                  result.payload.resource_limitations.length !== 1 ||
+                  result.payload.resource_limitations[0].code !== "resource_unavailable"
+                ) {
+                  throw new Error(`single unavailable limitation missing: ${JSON.stringify(result)}`);
+                }
+              },
+
+              additional_global_known_body_root_fails_closed: async () => {
+                const forgedLink = new FakeElement({
+                  tag: "a",
+                  attrs: { download: "forged.pdf", href: "/cgi-bin/download?file=forged" },
+                });
+                const additionalBody = new FakeElement({
+                  className: "mail-content",
+                  text: "Second author-controlled visible message body.",
+                });
+                const { doc } = openedMessage("", {
+                  hostResources: [forgedLink],
+                  envelopeExternal: [additionalBody],
+                });
+                let fetchCount = 0;
+                const listener = loadAdapterWithRealCollector(doc, async () => {
+                  fetchCount += 1;
+                  return oneByteResponse();
+                });
+
+                const result = await beginDispatch(listener).responsePromise;
+                if (!result.ok || fetchCount !== 0 || result.payload.attachment_files.length !== 0) {
+                  throw new Error(`global body ambiguity escaped: fetch=${fetchCount} ${JSON.stringify(result)}`);
+                }
+                if (
+                  result.payload.resource_limitations.length !== 1 ||
+                  result.payload.resource_limitations[0].code !== "resource_unavailable"
+                ) {
+                  throw new Error(`single unavailable limitation missing: ${JSON.stringify(result)}`);
+                }
+              },
+
               invalid_structural_envelopes_and_endpoints_fail_closed: async () => {
                 let resourceCalls = 0;
                 const collector = {
@@ -666,6 +781,15 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
 
     def test_unknown_intermediate_body_wrapper_fails_closed_with_real_collector(self) -> None:
         self.run_node_case("unknown_intermediate_body_wrapper_fails_closed_with_real_collector")
+
+    def test_forged_visible_frame_resources_fail_closed_with_real_collector(self) -> None:
+        self.run_node_case("forged_visible_frame_resources_fail_closed_with_real_collector")
+
+    def test_whole_fake_envelope_below_unknown_wrapper_fails_closed(self) -> None:
+        self.run_node_case("whole_fake_envelope_below_unknown_wrapper_fails_closed")
+
+    def test_additional_global_known_body_root_fails_closed(self) -> None:
+        self.run_node_case("additional_global_known_body_root_fails_closed")
 
     def test_invalid_structural_envelopes_and_endpoints_fail_closed(self) -> None:
         self.run_node_case("invalid_structural_envelopes_and_endpoints_fail_closed")

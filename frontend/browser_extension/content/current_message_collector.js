@@ -32,6 +32,7 @@
     ".mail_content",
     ".readmail_content",
   ];
+  const KNOWN_BODY_ROOT_SELECTORS = CURRENT_MESSAGE_SELECTORS.slice(1);
   const THREAD_SEGMENT_SELECTORS = [
     "[data-email-thread-segment]",
     ".mail-thread-segment",
@@ -92,9 +93,12 @@
       : [];
     if (
       settings.resourceControlsVerified !== true ||
+      settings.topLevelDocument !== doc ||
       !currentContainer ||
+      (currentContainer.parentElement || currentContainer.parentNode) !== (doc && doc.body) ||
       !isInside(currentRoot, currentContainer) ||
       (currentRoot.parentElement || currentRoot.parentNode) !== currentContainer ||
+      !hasUniqueVisibleKnownBodyRoot(doc, currentRoot) ||
       !isVisibleWithin(currentContainer, currentContainer, doc)
     ) {
       result.resource_limitations.push(
@@ -331,6 +335,12 @@
       current = current.parentElement || current.parentNode;
     }
     return false;
+  }
+
+  function hasUniqueVisibleKnownBodyRoot(doc, currentRoot) {
+    const roots = queryAll(doc && doc.body, KNOWN_BODY_ROOT_SELECTORS)
+      .filter((candidate) => isVisibleWithin(candidate, candidate, doc));
+    return roots.length === 1 && roots[0] === currentRoot;
   }
 
   function isKnownBodyRoot(element) {

@@ -248,6 +248,7 @@ class ResourceLimitationVerticalContractTests(unittest.TestCase):
             const controls = new Element({ class: "resource-region" }, candidates);
             const container = new Element({ class: "read-envelope" }, [currentRoot, controls]);
             const body = new Element({}, [container]);
+            body.querySelectorAll = () => [currentRoot];
             const doc = {
               body,
               baseURI: "https://exmail.qq.com/cgi-bin/readmail",
@@ -267,6 +268,7 @@ class ResourceLimitationVerticalContractTests(unittest.TestCase):
 
             (async () => {
               const resources = await context.EmailAssistantCurrentMessageCollector.collectVisibleResources(doc, {
+                topLevelDocument: doc,
                 currentMessageRoot: currentRoot,
                 currentMessageContainer: container,
                 verifiedResourceCandidates: candidates,
