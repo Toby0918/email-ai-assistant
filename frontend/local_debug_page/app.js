@@ -89,10 +89,10 @@ const ATTACHMENT_STATUS_LABELS = {
 };
 
 const ATTACHMENT_REDACTION = "[已隐藏链接或路径]";
-const ATTACHMENT_URI_PATTERN = /\b(?:https?|file|data|blob|chrome|chrome-extension):[^\s<>"'，。；：！？、（）\u3400-\u9fff]+/gi;
-const ATTACHMENT_WINDOWS_PATH_PATTERN = /\b[A-Za-z]:[\\/][^\s<>"'，。；：！？、（）\u3400-\u9fff]+/g;
-const ATTACHMENT_UNC_PATH_PATTERN = /\\\\[^\s<>"'，。；：！？、（）\u3400-\u9fff]+/g;
-const ATTACHMENT_POSIX_PATH_PATTERN = /(^|[\s（(])\/(?:[A-Za-z0-9._-]+\/)+[A-Za-z0-9._-]+/g;
+const ATTACHMENT_URI_MARKER_PATTERN = /(^|[^A-Za-z0-9+.-])[A-Za-z][A-Za-z0-9+.-]*:[^\s]/i;
+const ATTACHMENT_WINDOWS_PATH_MARKER_PATTERN = /(^|[^A-Za-z0-9])[A-Za-z]:[\\/]/;
+const ATTACHMENT_UNC_PATH_MARKER_PATTERN = /\\\\/;
+const ATTACHMENT_POSIX_PATH_MARKER_PATTERN = /(^|[\s="'(=：])\/[A-Za-z0-9._-]/;
 
 document.querySelector("#analyze-button").addEventListener("click", async () => {
   clearAnalysis();
@@ -326,11 +326,14 @@ function safeAttachmentText(value, fallback) {
   if (!text) {
     return fallback;
   }
-  return text
-    .replace(ATTACHMENT_URI_PATTERN, ATTACHMENT_REDACTION)
-    .replace(ATTACHMENT_WINDOWS_PATH_PATTERN, ATTACHMENT_REDACTION)
-    .replace(ATTACHMENT_UNC_PATH_PATTERN, ATTACHMENT_REDACTION)
-    .replace(ATTACHMENT_POSIX_PATH_PATTERN, (match, prefix) => prefix + ATTACHMENT_REDACTION);
+  return containsAttachmentPrivateReference(text) ? ATTACHMENT_REDACTION : text;
+}
+
+function containsAttachmentPrivateReference(text) {
+  return ATTACHMENT_URI_MARKER_PATTERN.test(text) ||
+    ATTACHMENT_WINDOWS_PATH_MARKER_PATTERN.test(text) ||
+    ATTACHMENT_UNC_PATH_MARKER_PATTERN.test(text) ||
+    ATTACHMENT_POSIX_PATH_MARKER_PATTERN.test(text);
 }
 
 function safeDisplayText(value, fallback) {

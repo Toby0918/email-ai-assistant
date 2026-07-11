@@ -73,6 +73,7 @@ class BrowserExtensionRendererBehaviorTests(unittest.TestCase):
         const context = {{ window: {{}}, document: fakeDocument }};
         vm.runInNewContext(renderer, context);
         const backslash = String.fromCharCode(92);
+        const quote = String.fromCharCode(34);
 
         const fields = {{
           priority: new FakeElement(),
@@ -120,14 +121,18 @@ class BrowserExtensionRendererBehaviorTests(unittest.TestCase):
               filename: "quote<script>.pdf",
               type: "pdf",
               status: "parsed",
-              summary: "已提取报价摘要 <img src=x onerror=alert(1)> https://private.example/summary file:///private/summary.txt",
+              summary: "quoted URL " + quote + "https://private.example/quoted report.pdf" + quote,
               key_facts: [
                 "RFQ 42",
                 "200 pcs",
-                "Windows C:/Private/quote.xlsx",
-                "UNC " + backslash + backslash + "server" + backslash + "share" + backslash + "quote.xlsx",
+                "Windows path=" + quote + "C:" + backslash + "Program Files" + backslash + "Private" + backslash + "quote.xlsx" + quote,
+                "UNC path=" + quote + backslash + backslash + "server" + backslash + "share name" + backslash + "quote.xlsx" + quote,
+                "root path=/secret",
               ],
-              limitations: ["临时解析文件 /var/tmp/private-quote.txt 不可公开。"],
+              limitations: [
+                "parser path=/var/tmp/private.txt",
+                "quoted POSIX path=" + quote + "/var/tmp/private report.txt" + quote,
+              ],
               raw_text: "RAW ATTACHMENT TEXT MUST NOT RENDER",
               private_url: "file:///private/quote.pdf",
             }},
@@ -144,7 +149,7 @@ class BrowserExtensionRendererBehaviorTests(unittest.TestCase):
           risk_flags: [{{
             type: "commitment_risk",
             level: "medium",
-            evidence: "请查看https://portal.example/rfq/42，并访问http://status.example/rfq/42；拒绝 data:text/plain,https://data.example/private、javascript://https://script.example/private、file:///https://file.example/private。",
+            evidence: "请查看https://portal.example/rfq/42， 并访问http://status.example/rfq/42； 拒绝 data:text/plain,内容https://data.example/private、 javascript:说明https://script.example/private、 file:///目录https://file.example/private、 ftp://host/目录https://ftp.example/private。",
             recommendation: "内部确认后回复。",
           }}],
           suggested_actions: [{{ type: "confirm", description: "核查成本。" }}],
@@ -178,8 +183,9 @@ class BrowserExtensionRendererBehaviorTests(unittest.TestCase):
         }}
         for (const forbidden of [
           "RAW ATTACHMENT TEXT MUST NOT RENDER", "SECOND RAW ATTACHMENT TEXT MUST NOT RENDER", "file:///private/quote.pdf",
-          "https://private.example/summary", "file:///private/summary.txt", "C:/Private/quote.xlsx",
-          backslash + backslash + "server" + backslash + "share", "/var/tmp/private-quote.txt",
+          "quoted URL", "quoted report.pdf", "Windows path", "Program Files",
+          "UNC path", "share name", "root path=/secret",
+          "parser path=/var/tmp/private.txt", "quoted POSIX path", "private report.txt",
         ]) {{
           if (insightText.includes(forbidden)) throw new Error(`private/raw attachment field leaked: ${{forbidden}}`);
         }}
@@ -202,9 +208,10 @@ class BrowserExtensionRendererBehaviorTests(unittest.TestCase):
           throw new Error("safe link attributes are missing");
         }}
         for (const mixedScheme of [
-          "data:text/plain,https://data.example/private",
-          "javascript://https://script.example/private",
-          "file:///https://file.example/private",
+          "data:text/plain,内容https://data.example/private",
+          "javascript:说明https://script.example/private",
+          "file:///目录https://file.example/private",
+          "ftp://host/目录https://ftp.example/private",
         ]) {{
           if (!fields.risks.textContent.includes(mixedScheme)) {{
             throw new Error(`non-http scheme should remain visible text: ${{mixedScheme}}`);

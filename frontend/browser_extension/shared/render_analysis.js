@@ -70,10 +70,10 @@
   const URL_PATTERN = /https?:\/\/[^\s<>"'，。；：！？、（）]+/gi;
   const TRAILING_URL_PUNCTUATION = /[),.;:!?，。；：！？、]+$/;
   const ATTACHMENT_REDACTION = "[已隐藏链接或路径]";
-  const ATTACHMENT_URI_PATTERN = /\b(?:https?|file|data|blob|chrome|chrome-extension):[^\s<>"'，。；：！？、（）\u3400-\u9fff]+/gi;
-  const ATTACHMENT_WINDOWS_PATH_PATTERN = /\b[A-Za-z]:[\\/][^\s<>"'，。；：！？、（）\u3400-\u9fff]+/g;
-  const ATTACHMENT_UNC_PATH_PATTERN = /\\\\[^\s<>"'，。；：！？、（）\u3400-\u9fff]+/g;
-  const ATTACHMENT_POSIX_PATH_PATTERN = /(^|[\s（(])\/(?:[A-Za-z0-9._-]+\/)+[A-Za-z0-9._-]+/g;
+  const ATTACHMENT_URI_MARKER_PATTERN = /(^|[^A-Za-z0-9+.-])[A-Za-z][A-Za-z0-9+.-]*:[^\s]/i;
+  const ATTACHMENT_WINDOWS_PATH_MARKER_PATTERN = /(^|[^A-Za-z0-9])[A-Za-z]:[\\/]/;
+  const ATTACHMENT_UNC_PATH_MARKER_PATTERN = /\\\\/;
+  const ATTACHMENT_POSIX_PATH_MARKER_PATTERN = /(^|[\s="'(=：])\/[A-Za-z0-9._-]/;
 
   function renderAnalysis(fields, analysis) {
     fields.priority.textContent = formatPriority(analysis.priority);
@@ -310,11 +310,14 @@
     if (!text) {
       return fallback;
     }
-    return text
-      .replace(ATTACHMENT_URI_PATTERN, ATTACHMENT_REDACTION)
-      .replace(ATTACHMENT_WINDOWS_PATH_PATTERN, ATTACHMENT_REDACTION)
-      .replace(ATTACHMENT_UNC_PATH_PATTERN, ATTACHMENT_REDACTION)
-      .replace(ATTACHMENT_POSIX_PATH_PATTERN, (match, prefix) => prefix + ATTACHMENT_REDACTION);
+    return containsAttachmentPrivateReference(text) ? ATTACHMENT_REDACTION : text;
+  }
+
+  function containsAttachmentPrivateReference(text) {
+    return ATTACHMENT_URI_MARKER_PATTERN.test(text) ||
+      ATTACHMENT_WINDOWS_PATH_MARKER_PATTERN.test(text) ||
+      ATTACHMENT_UNC_PATH_MARKER_PATTERN.test(text) ||
+      ATTACHMENT_POSIX_PATH_MARKER_PATTERN.test(text);
   }
 
   function safeDisplayText(value, fallback) {
@@ -549,7 +552,7 @@
       return false;
     }
     let tokenStart = index;
-    while (tokenStart > 0 && !/[\s\u3400-\u9fff，。；：！？、（）]/.test(text.charAt(tokenStart - 1))) {
+    while (tokenStart > 0 && !/\s/.test(text.charAt(tokenStart - 1))) {
       tokenStart -= 1;
     }
     const tokenPrefix = text.slice(tokenStart, index);

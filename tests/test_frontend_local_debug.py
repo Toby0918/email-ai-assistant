@@ -84,6 +84,7 @@ class FrontendLocalDebugTests(unittest.TestCase):
         const context = {{ document, navigator: {{ clipboard: {{ writeText: async () => {{}} }} }} }};
         vm.runInNewContext(source, context);
         const backslash = String.fromCharCode(92);
+        const quote = String.fromCharCode(34);
         context.analysis = {{
           priority: "high",
           summary: "需要回复最新请求。",
@@ -101,13 +102,17 @@ class FrontendLocalDebugTests(unittest.TestCase):
           attachment_insights: [
             {{
               filename: "quote<img>.xlsx", type: "xlsx", status: "parsed",
-              summary: "已提取报价表 https://debug.example/private 和 file:///private/debug-summary.txt",
+              summary: "debug quoted URL " + quote + "https://debug.example/private report.xlsx" + quote,
               key_facts: [
                 "Total: 200",
-                "Windows C:/Private/debug-quote.xlsx",
-                "UNC " + backslash + backslash + "debug-server" + backslash + "share" + backslash + "quote.xlsx",
+                "debug Windows path=" + quote + "C:" + backslash + "Program Files" + backslash + "Private" + backslash + "debug.xlsx" + quote,
+                "debug UNC path=" + quote + backslash + backslash + "debug-server" + backslash + "share name" + backslash + "quote.xlsx" + quote,
+                "debug root path=/secret",
               ],
-              limitations: ["临时路径 /var/tmp/debug-quote.txt 不可公开。"],
+              limitations: [
+                "debug parser path=/var/tmp/private.txt",
+                "debug quoted POSIX path=" + quote + "/var/tmp/private report.txt" + quote,
+              ],
               raw_text: "LOCAL DEBUG RAW TEXT MUST NOT RENDER", private_url: "file:///private/quote.xlsx",
             }},
             {{
@@ -134,8 +139,9 @@ class FrontendLocalDebugTests(unittest.TestCase):
         }}
         for (const forbidden of [
           "LOCAL DEBUG RAW TEXT", "file:///private", "https://debug.example",
-          "C:/Private/debug-quote.xlsx", backslash + backslash + "debug-server" + backslash + "share",
-          "/var/tmp/debug-quote.txt",
+          "debug quoted URL", "private report.xlsx", "debug Windows path", "Program Files",
+          "debug UNC path", "share name", "debug root path=/secret",
+          "debug parser path=/var/tmp/private.txt", "debug quoted POSIX path", "private report.txt",
         ]) {{
           if (insights.textContent.includes(forbidden)) {{
             throw new Error(`private/raw insight field leaked: ${{forbidden}} in ${{insights.textContent}}`);
