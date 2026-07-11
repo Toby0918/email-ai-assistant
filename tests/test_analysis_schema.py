@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 import unittest
 
 from backend.email_agent.analysis_schema import AnalysisValidationError, validate_analysis_result
@@ -93,6 +94,24 @@ def valid_analysis() -> dict[str, object]:
     }
 
 
+def _set_nested_value(root: object, path: tuple[object, ...], value: object) -> None:
+    current = root
+    for key in path[:-1]:
+        if isinstance(key, int) and isinstance(current, list):
+            current = current[key]
+        elif isinstance(key, str) and isinstance(current, dict):
+            current = current[key]
+        else:
+            raise AssertionError(f"invalid test path: {path}")
+    final = path[-1]
+    if isinstance(final, int) and isinstance(current, list):
+        current[final] = value
+    elif isinstance(final, str) and isinstance(current, dict):
+        current[final] = value
+    else:
+        raise AssertionError(f"invalid test path: {path}")
+
+
 class AnalysisSchemaTests(unittest.TestCase):
     def test_validate_analysis_result_accepts_complete_schema(self) -> None:
         result = validate_analysis_result(valid_analysis())
@@ -139,6 +158,40 @@ class AnalysisSchemaTests(unittest.TestCase):
 
         with self.assertRaises(AnalysisValidationError):
             validate_analysis_result(analysis)
+
+    def test_validate_analysis_result_rejects_non_string_decision_brief_fields(self) -> None:
+        paths = (
+            ("decision_brief", "one_line_conclusion"),
+            ("decision_brief", "requested_outcome"),
+            ("decision_brief", "next_steps", 0, "step"),
+            ("decision_brief", "next_steps", 0, "owner_hint"),
+            ("decision_brief", "next_steps", 0, "due_hint"),
+            ("decision_brief", "next_steps", 0, "source"),
+            ("decision_brief", "key_facts", 0, "label"),
+            ("decision_brief", "key_facts", 0, "value"),
+            ("decision_brief", "key_facts", 0, "source"),
+            ("decision_brief", "must_check", 0),
+            ("decision_brief", "missing_info", 0),
+            ("decision_brief", "reply_recommendation", "reason"),
+        )
+        for path in paths:
+            with self.subTest(path=path):
+                analysis = valid_analysis()
+                _set_nested_value(analysis, path, {"not": "a string"})
+
+                with self.assertRaises(AnalysisValidationError):
+                    validate_analysis_result(analysis)
+
+    def test_validate_analysis_result_requires_one_to_four_decision_steps(self) -> None:
+        for count in (0, 5):
+            with self.subTest(count=count):
+                analysis = valid_analysis()
+                decision_brief = analysis["decision_brief"]  # type: ignore[assignment]
+                original = decision_brief["next_steps"][0]  # type: ignore[index]
+                decision_brief["next_steps"] = [deepcopy(original) for _ in range(count)]  # type: ignore[index]
+
+                with self.assertRaises(AnalysisValidationError):
+                    validate_analysis_result(analysis)
 
     def test_validate_analysis_result_accepts_new_product_development_category(self) -> None:
         analysis = valid_analysis()

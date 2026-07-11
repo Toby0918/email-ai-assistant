@@ -129,6 +129,8 @@ def _validate_decision_brief(value: Any) -> None:
         },
         "decision_brief",
     )
+    _require_string(value["one_line_conclusion"], "decision_brief.one_line_conclusion")
+    _require_string(value["requested_outcome"], "decision_brief.requested_outcome")
     _validate_next_steps(value["next_steps"])
     _validate_key_facts(value["key_facts"])
     _validate_string_list(value["must_check"], "decision_brief.must_check")
@@ -139,10 +141,14 @@ def _validate_decision_brief(value: Any) -> None:
 
 def _validate_next_steps(items: Any) -> None:
     _require_list(items, "decision_brief.next_steps")
+    if not 1 <= len(items) <= 4:
+        raise AnalysisValidationError("decision_brief.next_steps must contain 1 to 4 items.")
     for item in items:
         if not isinstance(item, dict):
             raise AnalysisValidationError("decision_brief.next_steps items must be objects.")
         _require_fields(item, {"step", "owner_hint", "due_hint", "source"}, "decision_brief.next_step")
+        for field in ("step", "owner_hint", "due_hint", "source"):
+            _require_string(item[field], f"decision_brief.next_step.{field}")
 
 
 def _validate_key_facts(items: Any) -> None:
@@ -151,6 +157,8 @@ def _validate_key_facts(items: Any) -> None:
         if not isinstance(item, dict):
             raise AnalysisValidationError("decision_brief.key_facts items must be objects.")
         _require_fields(item, {"label", "value", "source"}, "decision_brief.key_fact")
+        for field in ("label", "value", "source"):
+            _require_string(item[field], f"decision_brief.key_fact.{field}")
 
 
 def _validate_string_list(items: Any, label: str) -> None:
@@ -174,6 +182,7 @@ def _validate_reply_recommendation(value: Any) -> None:
         DECISION_REPLY_TYPES,
         "decision_brief.reply_recommendation.reply_type",
     )
+    _require_string(value["reason"], "decision_brief.reply_recommendation.reason")
 
 
 def _validate_conversation_timeline(value: Any) -> None:

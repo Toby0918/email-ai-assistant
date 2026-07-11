@@ -104,13 +104,14 @@ AI 分析结果必须能解析为 JSON，并至少包含以下字段。
 - 枚举值必须落在允许范围内。
 - `reply_draft.needs_human_review` 必须为 `true`。
 - `decision_brief.reply_recommendation.reply_type` 必须落在允许范围内，不得出现自动发送、自动归档或自动删除语义。
+- `decision_brief` 的结论、目的、动作、关键事实、核查项、缺失信息和回复建议文本必须是字符串；`next_steps` 必须包含 1-4 项。
 - `conversation_timeline` 和 `attachment_insights` 是必填字段；模型输出不能覆盖后端确定性生成的这两个字段。
 - `conversation_timeline.open_items[].source` 只能是 `thread` 或 `attachment`。
 - `attachment_insights[].status` 只能是 `parsed`、`metadata_only`、`unavailable` 或 `failed`。
 - 只有 `status=parsed` 的附件 `summary` 和 `key_facts` 可以影响决策摘要、风险、建议动作或回复草稿；其他状态只能产生限制说明和人工核查项。
 - 不能包含自动发送指令。
 - `analysis_engine` 由后端在 JSON 校验后附加；AI 输出中同名字段不可信，后端必须忽略或覆盖。
-- 模型返回可解析但字段缺失、枚举不合规或缺少人工审核字段时，后端可以用规则分析结果补齐 schema，再执行本页校验规则。
+- 模型返回可解析 JSON 时，后端只保留经过枚举校验的摘要、优先级、分类和标签增强；`decision_brief`、风险、建议动作、回复草稿、时间线和附件洞察统一投影为确定性规则结果，再执行本页校验规则。
 
 ## 语言规则
 
@@ -129,7 +130,7 @@ AI 分析结果必须能解析为 JSON，并至少包含以下字段。
 - `decision_brief.missing_info` 必须说明当前分析结果缺少哪些会影响回复质量的信息。
 - `decision_brief`、风险、建议动作和回复草稿必须优先引用 `conversation_timeline` 中最新未解决的外部请求。
 - 附件解析失败、OCR 不可用或格式不支持时，邮件正文分析仍必须继续，并在对应 `attachment_insights[].limitations` 中返回精确限制。
-- `attachment_insights` 只能保存受限摘要、关键事实和限制；不得包含附件字节、临时路径、私有 URL、cookie、token 或原始完整附件文本。
+- `attachment_insights` 在分析结果和 SQLite 边界都必须投影到 `filename`、`type`、`status`、`summary`、`key_facts`、`limitations` 六个字段；不得包含附件字节、临时路径、私有 URL、cookie、token、未知字段或原始完整附件文本。
 - `summary` 必须尽量自包含，让用户只看分析结果就能知道邮件在说什么、涉及哪些关键事实、下一步要做什么。
 - `risk_flags.evidence` 必须引用邮件中的具体事实，例如 PO、invoice、tracking、数量、日期、期限、质量问题或对方请求，不能只写泛化类别。
 - `suggested_actions.description` 必须说明要核查、升级或回复的具体事项。

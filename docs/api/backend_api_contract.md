@@ -145,13 +145,13 @@ source_type: api_contract
 - 后端只在受限临时目录中解析本次请求保存的当前邮件附件，不执行宏、嵌入代码或活动内容。附件名称、OCR、表格、文档文本和限制说明都属于不可信输入。
 - 只有 `attachment_insights[].status=parsed` 的 `summary` 和 `key_facts` 可以影响决策摘要、风险、建议动作和回复草稿。其他状态必须返回精确 `limitations`，但不得阻断邮件正文和会话分析。
 - 未启用后端模型 provider，或模型返回不可解析 JSON 时，第一版使用本地规则分析器返回可验证结构。
-- 模型返回可解析但字段缺失或枚举不合规的 JSON 时，后端可用规则分析结果补齐 schema，然后再执行统一校验。
+- 模型返回可解析 JSON 时，后端只保留经过校验的摘要、优先级、分类和标签增强；Decision Brief、风险、建议动作和回复草稿使用确定性规则投影，避免未解析附件事实或未经授权承诺进入最终结果。
 - `analysis.conversation_timeline` 和 `analysis.attachment_insights` 由后端确定性生成；模型返回的同名字段不得覆盖它们。
 - `analysis.analysis_engine` 由后端附加，用于显示本次结果来自模型路线还是规则回退；该字段不得由前端传入或由 AI 输出决定。
 - `analysis.decision_brief` 是面向用户的决策摘要，必须说明邮件目的、当前动作、关键事实、需核查项、缺失信息和回复建议。
 - `analysis` 中的用户反馈字段使用中文；`analysis.reply_draft.subject` 和 `analysis.reply_draft.body` 保持英文。
 - 枚举值仍按 schema 使用英文，前端负责映射为中文标签显示。
-- SQLite 只能保存最终结构化分析结果；不得保存附件字节、临时文件路径、私有 URL、cookie、token 或原始完整附件文本。
+- SQLite 只能保存最终结构化分析结果的允许字段；`attachment_insights` 再次投影到六个文档字段。不得保存附件字节、临时文件路径、私有 URL、cookie、token、未知字段或原始完整附件文本。
 
 ## GET /api/health
 

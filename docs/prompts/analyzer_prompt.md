@@ -73,6 +73,7 @@ Prompt 使用 `UNTRUSTED_EMAIL.*`、`UNTRUSTED_THREAD.*`、`UNTRUSTED_ATTACHMENT
 - 请求新品开发、项目范围评估、目标成本、成本优化、打样、方案或可行性评估的邮件，优先使用 `new_product_development`；不能仅因出现 `quality standards`、`required quality` 等质量标准表述就归为 `complaint`。
 - `summary` 必须让用户只看分析结果就知道这封邮件在说什么，以及下一步要做什么。
 - 必须输出 `conversation_timeline` 和 `attachment_insights`；这两个字段由后端确定性生成，模型不得改写状态、伪造解析成功或新增附件事实，修复层会以确定性结果覆盖模型值。
+- 模型返回的 `decision_brief`、风险、建议动作和回复草稿也不能直接进入最终结果；后端使用同一确定性规则投影这些字段，避免未解析附件事实或未经授权承诺进入用户可操作输出。模型的合规摘要、优先级、分类和标签仍可用于增强正文分析。
 - `conversation_timeline` 必须优先说明最新未解决的外部请求；`decision_brief`、风险、建议动作和英文草稿必须围绕该请求，不得把历史确认误写成当前请求已解决。
 - 必须输出 `decision_brief`，用于回答“这封邮件到底要我做什么”。
 - `decision_brief.one_line_conclusion` 必须用一句中文说明当前邮件要处理的核心事项。

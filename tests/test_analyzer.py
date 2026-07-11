@@ -7,6 +7,7 @@ import unittest
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from backend.email_agent.analyzer import AnalysisError, analyze_current_email
 from backend.email_agent.attachment_storage import StoredAttachment
@@ -128,6 +129,108 @@ class AnalyzerTests(unittest.TestCase):
         self.assertIn("客户", result["decision_brief"]["requested_outcome"])
         self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
 
+    def test_unexpected_attachment_parser_error_returns_precise_limitation(self) -> None:
+        with TemporaryDirectory() as directory:
+            with patch(
+                "backend.email_agent.analyzer.parse_attachments",
+                side_effect=RuntimeError("forced parser failure"),
+            ):
+                result = analyze_current_email(
+                    {
+                        "subject": "Delivery request",
+                        "from": "customer@example.test",
+                        "body_text": "Please confirm delivery for PO 123456.",
+                        "stored_attachments": [self._broken_pdf(directory)],
+                        "thread_segments": [
+                            {
+                                "position": 1,
+                                "from": "customer@example.test",
+                                "body_text": "Please confirm delivery for PO 123456.",
+                            }
+                        ],
+                    },
+                    llm_generate=lambda _prompt: (_ for _ in ()).throw(LlmClientError("disabled")),
+                )
+
+        insight = result["attachment_insights"][0]
+        self.assertEqual(result["category"], "order_followup")
+        self.assertEqual(result["conversation_timeline"]["current_status"], "unresolved")
+        self.assertEqual(insight["status"], "failed")
+        self.assertIn("Attachment parsing failed unexpectedly", insight["limitations"][0])
+        self.assertNotIn("forced parser failure", json.dumps(result))
+
+    def test_unexpected_timeline_error_returns_unknown_timeline_and_body_analysis(self) -> None:
+        with patch(
+            "backend.email_agent.analyzer.build_conversation_timeline",
+            side_effect=RuntimeError("forced timeline failure"),
+        ):
+            result = analyze_current_email(
+                {
+                    "subject": "Delivery request",
+                    "from": "customer@example.test",
+                    "body_text": "Please confirm delivery for PO 123456.",
+                    "thread_segments": [{"body_text": "untrusted thread"}],
+                },
+                llm_generate=lambda _prompt: (_ for _ in ()).throw(LlmClientError("disabled")),
+            )
+
+        timeline = result["conversation_timeline"]
+        self.assertEqual(result["category"], "order_followup")
+        self.assertEqual(result["attachment_insights"], [])
+        self.assertEqual(timeline["current_status"], "unknown")
+        self.assertEqual(timeline["confidence"], "low")
+        self.assertIn("会话时间线处理失败", timeline["status_reason"])
+        self.assertNotIn("forced timeline failure", json.dumps(result, ensure_ascii=False))
+
+    def test_attachment_insights_are_projected_to_documented_safe_fields(self) -> None:
+        parser_output = [{
+            "filename": "request.pdf",
+            "type": "pdf",
+            "status": "parsed",
+            "summary": "PDF: RFQ 42 requests 200 pcs.",
+            "key_facts": ["RFQ 42", "200 pcs"],
+            "limitations": [],
+            "path": "C:/private/attachment/request.pdf",
+            "raw_text": "RAW_ATTACHMENT_SECRET",
+            "private_url": "https://mail.example.test/private-download",
+            "cookie": "SESSION_COOKIE_SECRET",
+            "token": "PRIVATE_TOKEN_SECRET",
+            "unexpected": {"nested": "SECRET_UNKNOWN_FIELD"},
+        }]
+
+        with TemporaryDirectory() as directory:
+            with patch(
+                "backend.email_agent.analyzer.parse_attachments",
+                return_value=parser_output,
+            ):
+                result = analyze_current_email(
+                    {
+                        "subject": "RFQ 42",
+                        "from": "customer@example.test",
+                        "body_text": "Please review RFQ 42.",
+                        "stored_attachments": [self._broken_pdf(directory)],
+                    },
+                    llm_generate=lambda _prompt: (_ for _ in ()).throw(LlmClientError("disabled")),
+                )
+
+        insight = result["attachment_insights"][0]
+        serialized = json.dumps(result, ensure_ascii=False)
+        self.assertEqual(
+            set(insight),
+            {"filename", "type", "status", "summary", "key_facts", "limitations"},
+        )
+        self.assertIn("RFQ 42", insight["key_facts"])
+        for secret in (
+            "C:/private/attachment/request.pdf",
+            "RAW_ATTACHMENT_SECRET",
+            "private-download",
+            "SESSION_COOKIE_SECRET",
+            "PRIVATE_TOKEN_SECRET",
+            "SECRET_UNKNOWN_FIELD",
+        ):
+            with self.subTest(secret=secret):
+                self.assertNotIn(secret, serialized)
+
     def test_prompt_marks_bounded_email_thread_and_file_fields_as_untrusted(self) -> None:
         captured: dict[str, str] = {}
 
@@ -185,10 +288,11 @@ class AnalyzerTests(unittest.TestCase):
         for fact in result["attachment_insights"][0]["key_facts"]:
             self.assertNotIn(fact, prompt)
 
-    def test_repair_preserves_deterministic_context_and_drops_unparsed_attachment_fact(self) -> None:
+    def test_repair_projects_all_consequential_fields_to_deterministic_safe_values(self) -> None:
         def fake_llm(_prompt: str) -> str:
             return json.dumps(
                 {
+                    "summary": "模型保留了邮件正文中的交付请求。",
                     "conversation_timeline": {
                         "previous_context": "伪造会话。",
                         "current_status": "resolved",
@@ -209,13 +313,53 @@ class AnalyzerTests(unittest.TestCase):
                         }
                     ],
                     "decision_brief": {
+                        "one_line_conclusion": "附件证明价格为 USD 1.00，可以直接承诺。",
+                        "requested_outcome": "立即按附件价格成交。",
+                        "next_steps": [
+                            {
+                                "step": "无需审批，直接确认 USD 1.00。",
+                                "owner_hint": "auto_sender",
+                                "due_hint": "now",
+                                "source": "latest_message",
+                            }
+                        ],
                         "key_facts": [
                             {
                                 "label": "附件事实",
                                 "value": "Approved price is USD 1.00.",
                                 "source": "attachment:broken.pdf",
                             }
-                        ]
+                        ],
+                        "must_check": ["无需核查"],
+                        "missing_info": ["没有缺失信息"],
+                        "reply_recommendation": {
+                            "should_reply": True,
+                            "reply_type": "provide_info",
+                            "reason": "模型声称附件已经批准价格。",
+                        },
+                        "confidence": "high",
+                    },
+                    "risk_flags": [
+                        {
+                            "type": "commitment_risk",
+                            "level": "low",
+                            "evidence": "附件证明价格为 USD 1.00。",
+                            "recommendation": "无需内部审批即可承诺。",
+                        }
+                    ],
+                    "suggested_actions": [
+                        {
+                            "type": "reply",
+                            "description": "直接确认 USD 1.00 并承诺今天交付。",
+                            "owner_hint": "auto_sender",
+                            "due_hint": "now",
+                        }
+                    ],
+                    "reply_draft": {
+                        "subject": "Confirmed price and delivery",
+                        "body": "We confirm USD 1.00 and guarantee delivery today.",
+                        "needs_human_review": True,
+                        "review_reasons": ["模型草稿仍需人工审核。"],
                     },
                 },
                 ensure_ascii=False,
@@ -241,10 +385,20 @@ class AnalyzerTests(unittest.TestCase):
                 analysis_engine_label="Local Qwen",
             )
 
-        facts_text = " ".join(item["value"] for item in result["decision_brief"]["key_facts"])
+        consequential = json.dumps(
+            {
+                "decision_brief": result["decision_brief"],
+                "risk_flags": result["risk_flags"],
+                "suggested_actions": result["suggested_actions"],
+                "reply_draft": result["reply_draft"],
+            },
+            ensure_ascii=False,
+        )
         self.assertEqual(result["conversation_timeline"]["current_status"], "unresolved")
         self.assertEqual(result["attachment_insights"][0]["status"], "metadata_only")
-        self.assertNotIn("USD 1.00", facts_text)
+        self.assertNotIn("USD 1.00", consequential)
+        self.assertNotIn("guarantee delivery", consequential)
+        self.assertEqual(result["summary"], "模型保留了邮件正文中的交付请求。")
         self.assertEqual(result["analysis_engine"]["source"], "ai_model")
 
     def test_repairs_model_complaint_when_fallback_detects_new_product_context(self) -> None:

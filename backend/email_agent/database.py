@@ -7,6 +7,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
+from .analysis_projection import project_analysis_for_storage
 from .config import load_config
 
 
@@ -41,9 +42,8 @@ def save_analysis(
     sender: str,
     analysis: dict[str, Any],
 ) -> int:
-    # Store structured analysis only; callers decide whether email body is included.
-    stored_analysis = dict(analysis)
-    stored_analysis.pop("clean_body", None)
+    # Persist only the documented structured result and projected attachment insights.
+    stored_analysis = project_analysis_for_storage(analysis)
     cursor = connection.execute(
         "INSERT INTO email_analysis (subject, sender, analysis_json) VALUES (?, ?, ?)",
         (subject, sender, json.dumps(stored_analysis, ensure_ascii=False)),

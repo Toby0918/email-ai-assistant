@@ -8,6 +8,7 @@ from typing import Any
 
 from .analysis_schema import REQUIRED_RESULT_FIELDS, validate_analysis_result
 from .analysis_repair import repair_analysis_result
+from .analysis_projection import project_attachment_insights
 from .attachment_parser import parse_attachments
 from .attachment_storage import StoredAttachment
 from .config import load_config
@@ -36,9 +37,9 @@ def analyze_current_email(
     if not clean_body:
         raise AnalysisError("Email body is empty.")
     stored_attachments = _stored_attachments(email.get("stored_attachments"))
-    attachment_insights = parse_attachments(stored_attachments)
+    attachment_insights = _parse_attachment_insights(stored_attachments)
     thread_segments = email.get("thread_segments")
-    timeline = build_conversation_timeline(
+    timeline = _build_timeline(
         thread_segments if isinstance(thread_segments, list) else [],
         load_config().internal_email_domains,
     )
@@ -156,6 +157,49 @@ def _stored_attachments(value: Any) -> list[StoredAttachment]:
         for item in value[:MAX_ATTACHMENT_METADATA_ITEMS]
         if isinstance(item, StoredAttachment)
     ]
+
+
+def _parse_attachment_insights(items: list[StoredAttachment]) -> list[dict[str, object]]:
+    try:
+        parsed = parse_attachments(items)
+    except Exception:
+        parsed = [_failed_attachment_insight(item) for item in items]
+    return project_attachment_insights(parsed)
+
+
+def _failed_attachment_insight(item: StoredAttachment) -> dict[str, object]:
+    return {
+        "filename": item.safe_filename,
+        "type": item.type,
+        "status": "failed",
+        "summary": f"{item.type.upper()} attachment could not be parsed.",
+        "key_facts": [],
+        "limitations": [
+            "Attachment parsing failed unexpectedly; email body and thread analysis continued without attachment content."
+        ],
+    }
+
+
+def _build_timeline(
+    segments: list[dict[str, str]], internal_domains: tuple[str, ...]
+) -> dict[str, object]:
+    try:
+        return build_conversation_timeline(segments, internal_domains)
+    except Exception:
+        return {
+            "previous_context": "未能重建可见会话；仅使用当前邮件正文。",
+            "current_status": "unknown",
+            "status_reason": "会话时间线处理失败，无法判断历史请求是否解决；当前邮件正文分析继续。",
+            "latest_external_request": "",
+            "latest_internal_commitment": "",
+            "open_items": [{
+                "item": "人工核查完整可见会话和未解决请求。",
+                "owner_hint": "internal_follow_up",
+                "due_hint": "",
+                "source": "thread",
+            }],
+            "confidence": "low",
+        }
 
 
 def _required_text(email: dict[str, Any], key: str) -> str:
