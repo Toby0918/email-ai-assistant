@@ -217,6 +217,9 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
                 URL,
                 Uint8Array,
                 ArrayBuffer,
+                AbortController,
+                setTimeout,
+                clearTimeout,
                 fetch: fetchImpl,
                 btoa: btoaImpl || ((binary) => Buffer.from(binary, "binary").toString("base64")),
               };
@@ -225,6 +228,20 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
               const api = context.EmailAssistantCurrentMessageCollector;
               if (!api) throw new Error("EmailAssistantCurrentMessageCollector is missing");
               return api;
+            }
+
+            async function withinTestDeadline(promise, label) {
+              let timer;
+              try {
+                return await Promise.race([
+                  promise,
+                  new Promise((_resolve, reject) => {
+                    timer = setTimeout(() => reject(new Error(`${label} did not honor its deadline`)), 250);
+                  }),
+                ]);
+              } finally {
+                clearTimeout(timer);
+              }
             }
 
             function assertNoPrivateFields(value) {
@@ -588,6 +605,94 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
                 }
                 if (result.resource_limitations.length !== 1) throw new Error("oversized limitation missing");
               },
+
+              stalled_fetch_is_aborted_and_returns_a_safe_limitation: async () => {
+                let aborted = false;
+                const doc = resourceDocument([
+                  resource("stalled.pdf", "pdf", "/cgi-bin/download?file=stalled"),
+                ]);
+                const api = loadCollector(async (_url, options) => new Promise((_resolve, reject) => {
+                  options.signal.addEventListener("abort", () => {
+                    aborted = true;
+                    reject(new Error("private stalled fetch detail"));
+                  });
+                }));
+                const result = await withinTestDeadline(
+                  api.collectVisibleResources(doc, trustedResourceOptions(doc, {
+                    limits: { perResourceTimeoutMs: 20, overallTimeoutMs: 50 },
+                  })),
+                  "stalled fetch",
+                );
+                if (!aborted) throw new Error("stalled fetch signal was not aborted");
+                if (result.attachment_files.length !== 0 || result.resource_limitations.length !== 1) {
+                  throw new Error(`stalled fetch did not fail safely: ${JSON.stringify(result)}`);
+                }
+                if (!result.resource_limitations[0].limitation.includes("deadline")) {
+                  throw new Error(`deadline limitation missing: ${JSON.stringify(result)}`);
+                }
+              },
+
+              stalled_stream_read_is_cancelled_and_returns_a_safe_limitation: async () => {
+                let cancelled = false;
+                const reader = {
+                  read: async () => new Promise(() => {}),
+                  cancel: async () => { cancelled = true; },
+                  releaseLock: () => {},
+                };
+                const doc = resourceDocument([
+                  resource("stalled.pdf", "pdf", "/cgi-bin/download?file=stalled-read"),
+                ]);
+                const api = loadCollector(async () => ({
+                  ok: true,
+                  redirected: false,
+                  headers: { get: () => null },
+                  body: { getReader: () => reader },
+                }));
+                const result = await withinTestDeadline(
+                  api.collectVisibleResources(doc, trustedResourceOptions(doc, {
+                    limits: { perResourceTimeoutMs: 20, overallTimeoutMs: 50 },
+                  })),
+                  "stalled stream read",
+                );
+                if (!cancelled) throw new Error("stalled stream reader was not cancelled");
+                if (result.attachment_files.length !== 0 || result.resource_limitations.length !== 1) {
+                  throw new Error(`stalled stream did not fail safely: ${JSON.stringify(result)}`);
+                }
+                if (!result.resource_limitations[0].limitation.includes("deadline")) {
+                  throw new Error(`deadline limitation missing: ${JSON.stringify(result)}`);
+                }
+              },
+
+              candidate_overflow_is_bounded_with_one_aggregate_limitation: async () => {
+                const api = loadCollector(async () => { throw new Error("unsupported resources must not fetch"); });
+                if (!Number.isInteger(api.MAX_RESOURCE_CANDIDATES) || api.MAX_RESOURCE_CANDIDATES < 5) {
+                  throw new Error("candidate scan cap is missing");
+                }
+                if (!Number.isInteger(api.MAX_RESOURCE_LIMITATIONS) || api.MAX_RESOURCE_LIMITATIONS < 2) {
+                  throw new Error("limitation report cap is missing");
+                }
+                const candidates = Array.from(
+                  { length: api.MAX_RESOURCE_CANDIDATES },
+                  (_value, index) => resource(
+                    `unsupported-${index}.txt`,
+                    "text/plain",
+                    `/cgi-bin/download?file=unsupported-${index}`,
+                  ),
+                );
+                const poison = resource("must-not-scan.pdf", "pdf", "/cgi-bin/download?file=poison");
+                poison.getAttribute = () => { throw new Error("candidate scan exceeded cap"); };
+                const doc = resourceDocument([...candidates, poison]);
+                const result = await api.collectVisibleResources(doc, trustedResourceOptions(doc));
+                if (result.resource_limitations.length > api.MAX_RESOURCE_LIMITATIONS) {
+                  throw new Error(`limitation report exceeded cap: ${JSON.stringify(result)}`);
+                }
+                const aggregate = result.resource_limitations.filter((item) =>
+                  item.limitation.includes("additional current-message resource candidates were omitted"),
+                );
+                if (aggregate.length !== 1) {
+                  throw new Error(`expected one aggregate omission: ${JSON.stringify(result)}`);
+                }
+              },
             };
 
             (async () => {
@@ -656,6 +761,15 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
 
     def test_oversized_stream_cancels_without_upload_and_continues(self) -> None:
         self.run_node_case("oversized_stream_cancels_without_upload_and_continues")
+
+    def test_stalled_fetch_is_aborted_and_returns_a_safe_limitation(self) -> None:
+        self.run_node_case("stalled_fetch_is_aborted_and_returns_a_safe_limitation")
+
+    def test_stalled_stream_read_is_cancelled_and_returns_a_safe_limitation(self) -> None:
+        self.run_node_case("stalled_stream_read_is_cancelled_and_returns_a_safe_limitation")
+
+    def test_candidate_overflow_is_bounded_with_one_aggregate_limitation(self) -> None:
+        self.run_node_case("candidate_overflow_is_bounded_with_one_aggregate_limitation")
 
 
 if __name__ == "__main__":

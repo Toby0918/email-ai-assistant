@@ -174,6 +174,98 @@ class FrontendLocalDebugTests(unittest.TestCase):
         if result.returncode != 0:
             self.fail(result.stderr or result.stdout)
 
+    def test_local_debug_aborts_stalled_backend_and_reenables_analyze(self) -> None:
+        if shutil.which("node") is None:
+            self.skipTest("Node.js is required for local debug behavior tests")
+
+        app = FRONTEND / "app.js"
+        script = textwrap.dedent(
+            r"""
+            const fs = require("fs");
+            const vm = require("vm");
+            const source = fs.readFileSync(__APP__, "utf8")
+              .replace("const ANALYZE_TIMEOUT_MS = 15000;", "const ANALYZE_TIMEOUT_MS = 20;");
+            const listeners = new Map();
+            const elements = new Map();
+            function element(selector) {
+              if (!elements.has(selector)) {
+                elements.set(selector, {
+                  value: selector === "#subject" ? "Synthetic" :
+                    selector === "#from" ? "sender@example.test" :
+                    selector === "#body" ? "Synthetic body" : "",
+                  textContent: "",
+                  disabled: false,
+                  children: [],
+                  addEventListener: (type, callback) => listeners.set(`${selector}:${type}`, callback),
+                  replaceChildren: (...children) => {},
+                  appendChild: (child) => child,
+                });
+              }
+              return elements.get(selector);
+            }
+            let requestSignal;
+            const context = {
+              AbortController,
+              setTimeout,
+              clearTimeout,
+              document: {
+                querySelector: element,
+                createElement: () => element(`#created-${Math.random()}`),
+                createTextNode: (text) => ({ textContent: String(text), children: [] }),
+              },
+              navigator: { clipboard: { writeText: async () => {} } },
+              fetch: async (_url, options) => new Promise((_resolve, reject) => {
+                requestSignal = options.signal;
+                options.signal.addEventListener("abort", () => {
+                  const error = new Error("PRIVATE_LOCAL_DEBUG_TIMEOUT");
+                  error.name = "AbortError";
+                  reject(error);
+                });
+              }),
+            };
+            context.window = context;
+            vm.runInNewContext(source, context, { filename: "app.js" });
+
+            (async () => {
+              const analyze = listeners.get("#analyze-button:click");
+              await Promise.race([
+                analyze(),
+                new Promise((_resolve, reject) => setTimeout(
+                  () => reject(new Error("local debug request did not honor its deadline")),
+                  250,
+                )),
+              ]);
+              if (!requestSignal || requestSignal.aborted !== true) {
+                throw new Error("local debug request was not aborted");
+              }
+              if (elements.get("#analyze-button").disabled !== false) {
+                throw new Error("local debug Analyze remained disabled");
+              }
+              const status = elements.get("#status").textContent;
+              if (!status.includes("timed out") || !status.includes("try again")) {
+                throw new Error(`unsafe timeout status: ${status}`);
+              }
+              if (status.includes("PRIVATE_LOCAL_DEBUG_TIMEOUT")) {
+                throw new Error("private timeout detail leaked");
+              }
+            })().catch((error) => {
+              console.error(error && error.stack ? error.stack : error);
+              process.exitCode = 1;
+            });
+            """
+        ).replace("__APP__", repr(str(app)))
+        result = subprocess.run(
+            ["node", "-e", script],
+            cwd=ROOT,
+            capture_output=True,
+            encoding="utf-8",
+            text=True,
+            check=False,
+            timeout=10,
+        )
+        if result.returncode != 0:
+            self.fail(result.stderr or result.stdout)
+
     def test_local_debug_page_files_exist(self) -> None:
         # This first-version frontend is intentionally local and mailbox-free.
         self.assertTrue((FRONTEND / "index.html").exists())
@@ -213,7 +305,10 @@ class FrontendLocalDebugTests(unittest.TestCase):
         script = (FRONTEND / "app.js").read_text(encoding="utf-8")
 
         self.assertIn("function clearAnalysis()", script)
-        self.assertIn("clearAnalysis();\n    fields.status.textContent = data.error?.message", script)
+        self.assertIn("if (!data.ok)", script)
+        self.assertIn('fields.status.textContent = data.error?.message || "Analysis failed"', script)
+        self.assertIn("finally", script)
+        self.assertIn("fields.analyzeButton.disabled = false", script)
         self.assertIn('fields.priority.textContent = "-"', script)
         self.assertIn('fields.summary.textContent = "No analysis yet"', script)
         self.assertIn('fields.attachmentsPreview.textContent = "-"', script)

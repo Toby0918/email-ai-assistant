@@ -7,8 +7,12 @@
   const MAX_THREAD_SOURCE_CHARS = 20000;
   const MAX_METADATA_CHARS = 512;
   const MAX_RESOURCE_COUNT = 5;
+  const MAX_RESOURCE_CANDIDATES = 20;
+  const MAX_RESOURCE_LIMITATIONS = 8;
   const MAX_RESOURCE_BYTES = 10 * 1024 * 1024;
   const MAX_TOTAL_RESOURCE_BYTES = 25 * 1024 * 1024;
+  const MAX_PER_RESOURCE_TIMEOUT_MS = 8000;
+  const MAX_OVERALL_RESOURCE_TIMEOUT_MS = 20000;
   const SUPPORTED_RESOURCE_TYPES = Object.freeze(["image", "pdf", "xlsx", "docx"]);
   const APPROVED_RESOURCE_PATHS = Object.freeze(["/cgi-bin/download", "/cgi-bin/viewfile"]);
   const CURRENT_MESSAGE_SELECTORS = [
@@ -96,70 +100,101 @@
     const limits = boundedLimits(settings.limits);
     const fetchImpl = typeof settings.fetchImpl === "function" ? settings.fetchImpl : root.fetch;
     const baseHref = settings.locationHref || documentHref(doc);
-    const candidates = verifiedCandidates.filter((element) =>
-      isHostResourceControl(element) &&
-      isInside(element, currentContainer) &&
-      !isInside(element, currentRoot) &&
-      isVisibleWithin(element, currentContainer, doc),
-    );
+    const candidates = verifiedCandidates
+      .slice(0, MAX_RESOURCE_CANDIDATES)
+      .filter((element) =>
+        isHostResourceControl(element) &&
+        isInside(element, currentContainer) &&
+        !isInside(element, currentRoot) &&
+        isVisibleWithin(element, currentContainer, doc),
+      );
+    const omitted = {
+      count: Math.max(0, verifiedCandidates.length - MAX_RESOURCE_CANDIDATES),
+    };
+    const overallDeadline = Date.now() + limits.overallTimeoutMs;
     let transferCount = 0;
     let totalBytes = 0;
 
-    for (const element of candidates) {
+    for (let index = 0; index < candidates.length; index += 1) {
+      if (Date.now() >= overallDeadline) {
+        omitted.count += candidates.length - index;
+        break;
+      }
+      const element = candidates[index];
       const metadata = resourceMetadata(element);
       if (!metadata.type) {
-        result.resource_limitations.push(limitedMetadata(metadata, "Resource type is not supported."));
+        addResourceLimitation(
+          result,
+          limitedMetadata(metadata, "Resource type is not supported."),
+          omitted,
+        );
         continue;
       }
 
       const resolvedUrl = resolveResourceUrl(resourceUrl(element), baseHref);
       if (!resolvedUrl) {
-        result.resource_limitations.push(
+        addResourceLimitation(result,
           limitedMetadata(metadata, "Resource URL must be a same-origin Tencent Exmail HTTPS URL."),
-        );
+          omitted);
         continue;
       }
       if (!isApprovedResourceEndpoint(resolvedUrl)) {
-        result.resource_limitations.push(
+        addResourceLimitation(result,
           limitedMetadata(metadata, "Resource URL is not an approved Tencent Exmail attachment endpoint."),
-        );
+          omitted);
         continue;
       }
       if (metadata.size > limits.maxFileBytes) {
-        result.resource_limitations.push(
+        addResourceLimitation(result,
           limitedMetadata(metadata, `Resource exceeds the ${limits.maxFileBytes}-byte per-file limit.`),
-        );
+          omitted);
         continue;
       }
       if (transferCount >= limits.maxFiles) {
-        result.resource_limitations.push(
+        addResourceLimitation(result,
           limitedMetadata(metadata, `Resource exceeds the ${limits.maxFiles}-file frontend limit.`),
-        );
+          omitted);
         continue;
       }
 
       transferCount += 1;
       if (metadata.size > 0 && totalBytes + metadata.size > limits.maxTotalBytes) {
-        result.resource_limitations.push(
+        addResourceLimitation(result,
           limitedMetadata(metadata, `Resource exceeds the ${limits.maxTotalBytes}-byte total frontend limit.`),
-        );
+          omitted);
         continue;
       }
       if (typeof fetchImpl !== "function") {
-        result.resource_limitations.push(
+        addResourceLimitation(result,
           limitedMetadata(metadata, "Resource could not be read from the current Tencent Exmail session."),
-        );
+          omitted);
         continue;
       }
 
-      const collected = await fetchResource(fetchImpl, resolvedUrl, metadata, limits, totalBytes);
+      const resourceDeadline = Math.min(
+        overallDeadline,
+        Date.now() + limits.perResourceTimeoutMs,
+      );
+      const collected = await fetchResource(
+        fetchImpl,
+        resolvedUrl,
+        metadata,
+        limits,
+        totalBytes,
+        resourceDeadline,
+      );
       if (collected.file) {
         result.attachment_files.push(collected.file);
         totalBytes += collected.file.size;
       } else {
-        result.resource_limitations.push(limitedMetadata(metadata, collected.limitation));
+        addResourceLimitation(
+          result,
+          limitedMetadata(metadata, collected.limitation),
+          omitted,
+        );
       }
     }
+    appendAggregateOmission(result, omitted.count);
     return result;
   }
 
@@ -351,9 +386,20 @@
     return SUPPORTED_RESOURCE_TYPES.includes(extension[1]) ? extension[1] : "";
   }
 
-  async function fetchResource(fetchImpl, url, metadata, limits, totalBytes) {
+  async function fetchResource(fetchImpl, url, metadata, limits, totalBytes, deadline) {
+    const controller = typeof root.AbortController === "function"
+      ? new root.AbortController()
+      : null;
     try {
-      const response = await fetchImpl(url, { credentials: "include", redirect: "error" });
+      const options = { credentials: "include", redirect: "error" };
+      if (controller) {
+        options.signal = controller.signal;
+      }
+      const response = await withDeadline(
+        fetchImpl(url, options),
+        deadline,
+        () => abortController(controller),
+      );
       if (!response || response.ok !== true || !responseMatchesRequestedEndpoint(response, url)) {
         return { limitation: "Resource could not be read from the current Tencent Exmail session." };
       }
@@ -365,7 +411,13 @@
           return { limitation: announcedLimitation };
         }
       }
-      const bodyResult = await readBoundedResponse(response, limits, totalBytes);
+      const bodyResult = await readBoundedResponse(
+        response,
+        limits,
+        totalBytes,
+        deadline,
+        controller,
+      );
       if (bodyResult.limitation) {
         return { limitation: bodyResult.limitation };
       }
@@ -387,25 +439,35 @@
         },
       };
     } catch (error) {
+      if (isDeadlineError(error)) {
+        return { limitation: "Resource collection deadline expired; body analysis continued without this resource." };
+      }
       return { limitation: "Resource could not be read from the current Tencent Exmail session." };
     }
   }
 
-  async function readBoundedResponse(response, limits, totalBytes) {
+  async function readBoundedResponse(response, limits, totalBytes, deadline, controller) {
     const body = response.body;
     if (body && typeof body.getReader === "function") {
-      return readBoundedStream(body, limits, totalBytes);
+      return readBoundedStream(body, limits, totalBytes, deadline, controller);
     }
     return { limitation: "Resource response body could not be read with bounded streaming." };
   }
 
-  async function readBoundedStream(body, limits, totalBytes) {
+  async function readBoundedStream(body, limits, totalBytes, deadline, controller) {
     const reader = body.getReader();
     const chunks = [];
     let byteSize = 0;
     try {
       while (true) {
-        const item = await reader.read();
+        const item = await withDeadline(
+          reader.read(),
+          deadline,
+          async () => {
+            abortController(controller);
+            await cancelReader(reader);
+          },
+        );
         if (!item || item.done) {
           break;
         }
@@ -428,6 +490,9 @@
       return { buffer: concatenateChunks(chunks, byteSize) };
     } catch (error) {
       await cancelReader(reader);
+      if (isDeadlineError(error)) {
+        return { limitation: "Resource collection deadline expired; body analysis continued without this resource." };
+      }
       return { limitation: "Resource could not be read from the current Tencent Exmail session." };
     } finally {
       releaseReader(reader);
@@ -592,7 +657,86 @@
       maxFiles: downwardLimit(requested.maxFiles, MAX_RESOURCE_COUNT),
       maxFileBytes: downwardLimit(requested.maxFileBytes, MAX_RESOURCE_BYTES),
       maxTotalBytes: downwardLimit(requested.maxTotalBytes, MAX_TOTAL_RESOURCE_BYTES),
+      perResourceTimeoutMs: downwardLimit(
+        requested.perResourceTimeoutMs,
+        MAX_PER_RESOURCE_TIMEOUT_MS,
+      ),
+      overallTimeoutMs: downwardLimit(
+        requested.overallTimeoutMs,
+        MAX_OVERALL_RESOURCE_TIMEOUT_MS,
+      ),
     };
+  }
+
+  function addResourceLimitation(result, limitation, omitted) {
+    if (result.resource_limitations.length < MAX_RESOURCE_LIMITATIONS) {
+      result.resource_limitations.push(limitation);
+      return;
+    }
+    omitted.count += 1;
+  }
+
+  function appendAggregateOmission(result, omittedCount) {
+    if (omittedCount <= 0) {
+      return;
+    }
+    if (result.resource_limitations.length >= MAX_RESOURCE_LIMITATIONS) {
+      result.resource_limitations.pop();
+    }
+    result.resource_limitations.push(limitedMetadata(
+      { filename: "additional-resources", type: "unsupported", size: 0 },
+      "One or more additional current-message resource candidates were omitted by bounded collection.",
+    ));
+  }
+
+  function withDeadline(promise, deadline, onTimeout) {
+    const remaining = Math.max(0, deadline - Date.now());
+    return new Promise((resolve, reject) => {
+      let settled = false;
+      const timer = root.setTimeout(async () => {
+        if (settled) {
+          return;
+        }
+        settled = true;
+        try {
+          await onTimeout();
+        } finally {
+          reject(deadlineError());
+        }
+      }, remaining);
+      Promise.resolve(promise).then(
+        (value) => {
+          if (!settled) {
+            settled = true;
+            root.clearTimeout(timer);
+            resolve(value);
+          }
+        },
+        (error) => {
+          if (!settled) {
+            settled = true;
+            root.clearTimeout(timer);
+            reject(error);
+          }
+        },
+      );
+    });
+  }
+
+  function abortController(controller) {
+    if (controller && typeof controller.abort === "function") {
+      controller.abort();
+    }
+  }
+
+  function deadlineError() {
+    const error = new Error("Resource collection deadline expired.");
+    error.name = "ResourceDeadlineError";
+    return error;
+  }
+
+  function isDeadlineError(error) {
+    return Boolean(error && error.name === "ResourceDeadlineError");
   }
 
   function downwardLimit(value, maximum) {
@@ -650,6 +794,8 @@
   root.EmailAssistantCurrentMessageCollector = Object.freeze({
     MAX_THREAD_SEGMENTS,
     MAX_RESOURCE_COUNT,
+    MAX_RESOURCE_CANDIDATES,
+    MAX_RESOURCE_LIMITATIONS,
     MAX_RESOURCE_BYTES,
     MAX_TOTAL_RESOURCE_BYTES,
     SUPPORTED_RESOURCE_TYPES,

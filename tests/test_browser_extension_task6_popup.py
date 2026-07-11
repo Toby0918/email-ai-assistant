@@ -102,6 +102,82 @@ class BrowserExtensionTask6PopupTests(unittest.TestCase):
         if result.returncode != 0:
             self.fail(result.stderr or result.stdout)
 
+    def test_popup_always_reenables_analyze_after_pre_request_failure(self) -> None:
+        if shutil.which("node") is None:
+            self.skipTest("Node.js is required for browser extension behavior tests")
+
+        script = textwrap.dedent(
+            r"""
+            const fs = require("fs");
+            const vm = require("vm");
+            const source = fs.readFileSync(__POPUP_PATH__, "utf8");
+            const listeners = new Map();
+            const elements = new Map();
+            for (const id of [
+              "status", "priority", "summary", "category", "engine", "decision-brief",
+              "conversation-timeline", "attachment-insights", "attachments", "risks", "actions",
+              "draft", "analyze-button", "copy-draft-button",
+            ]) {
+              elements.set(`#${id}`, {
+                textContent: "", value: "", disabled: false,
+                addEventListener: (type, callback) => listeners.set(`${id}:${type}`, callback),
+              });
+            }
+            let backendCalls = 0;
+            const context = {
+              document: { querySelector: (selector) => elements.get(selector) || null },
+              navigator: { clipboard: { writeText: async () => {} } },
+              chrome: {
+                tabs: {
+                  query: async () => [{ id: 7, url: "https://exmail.qq.com/cgi-bin/readmail" }],
+                  sendMessage: async () => ({
+                    ok: true,
+                    payload: {
+                      subject: "Synthetic", from: "sender@example.test", to: [], sent_at: "",
+                      body_text: "Synthetic body", attachments: [], thread_segments: [],
+                      attachment_files: [], resource_limitations: [],
+                    },
+                  }),
+                },
+              },
+              EmailAssistantApi: {
+                analyzeCurrentEmail: async () => {
+                  backendCalls += 1;
+                  return { ok: false, error: { message: "try again", retryable: true } };
+                },
+              },
+              EmailAssistantRender: {
+                clearAnalysis: () => {},
+                renderAttachments: () => { throw new Error("synthetic pre-request render failure"); },
+                renderAnalysis: () => {},
+              },
+            };
+            vm.runInNewContext(source, context, { filename: "popup.js" });
+
+            (async () => {
+              const analyze = listeners.get("analyze-button:click");
+              try { await analyze(); } catch (_error) {}
+              if (elements.get("#analyze-button").disabled !== false) {
+                throw new Error("Analyze remained disabled after failure");
+              }
+              if (backendCalls !== 0) throw new Error("backend ran after pre-request failure");
+            })().catch((error) => {
+              console.error(error && error.stack ? error.stack : error);
+              process.exitCode = 1;
+            });
+            """
+        ).replace("__POPUP_PATH__", json.dumps(str(POPUP)))
+        result = subprocess.run(
+            ["node", "-e", script],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+        if result.returncode != 0:
+            self.fail(result.stderr or result.stdout)
+
 
 if __name__ == "__main__":
     unittest.main()

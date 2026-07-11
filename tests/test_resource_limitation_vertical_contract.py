@@ -184,6 +184,9 @@ class ResourceLimitationVerticalContractTests(unittest.TestCase):
               URL,
               Uint8Array,
               ArrayBuffer,
+              AbortController,
+              setTimeout,
+              clearTimeout,
               btoa: (binary) => Buffer.from(binary, "binary").toString("base64"),
             };
             context.window = context;

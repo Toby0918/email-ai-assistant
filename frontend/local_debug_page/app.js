@@ -17,8 +17,11 @@ const fields = {
   risks: document.querySelector("#risks"),
   actions: document.querySelector("#actions"),
   draft: document.querySelector("#draft"),
+  analyzeButton: document.querySelector("#analyze-button"),
   copyButton: document.querySelector("#copy-draft-button"),
 };
+
+const ANALYZE_TIMEOUT_MS = 15000;
 
 const PRIORITY_LABELS = {
   urgent: "紧急",
@@ -94,17 +97,14 @@ const ATTACHMENT_WINDOWS_PATH_MARKER_PATTERN = /(^|[^A-Za-z0-9])[A-Za-z]:[\\/]/;
 const ATTACHMENT_UNC_PATH_MARKER_PATTERN = /\\\\/;
 const ATTACHMENT_POSIX_PATH_MARKER_PATTERN = /(^|[\s="'(=：])\/[A-Za-z0-9._-]/;
 
-document.querySelector("#analyze-button").addEventListener("click", async () => {
-  clearAnalysis();
-  fields.status.textContent = "Analyzing";
-  const attachments = parseAttachmentList(fields.attachmentsInput.value);
-  fields.attachmentsPreview.textContent = formatAttachments(attachments);
-  let data;
+fields.analyzeButton.addEventListener("click", async () => {
+  fields.analyzeButton.disabled = true;
   try {
-    const response = await fetch("/api/analyze-current-email", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    clearAnalysis();
+    fields.status.textContent = "Analyzing";
+    const attachments = parseAttachmentList(fields.attachmentsInput.value);
+    fields.attachmentsPreview.textContent = formatAttachments(attachments);
+    const data = await requestLocalAnalysis({
         user_confirmed: true,
         subject: fields.subject.value,
         from: fields.from.value,
@@ -112,22 +112,88 @@ document.querySelector("#analyze-button").addEventListener("click", async () => 
         sent_at: fields.sentAt.value,
         body_text: fields.body.value,
         attachments,
-      }),
     });
-    data = await response.json();
+    if (!data.ok) {
+      clearAnalysis();
+      fields.status.textContent = data.error?.message || "Analysis failed";
+      return;
+    }
+    renderAnalysis(data.analysis);
+    fields.status.textContent = `Saved #${data.saved_id}`;
   } catch (error) {
     clearAnalysis();
     fields.status.textContent = "Local analysis service unavailable";
-    return;
+  } finally {
+    fields.analyzeButton.disabled = false;
   }
-  if (!data.ok) {
-    clearAnalysis();
-    fields.status.textContent = data.error?.message || "Analysis failed";
-    return;
-  }
-  renderAnalysis(data.analysis);
-  fields.status.textContent = `Saved #${data.saved_id}`;
 });
+
+async function requestLocalAnalysis(payload) {
+  const controller = typeof window.AbortController === "function"
+    ? new window.AbortController()
+    : null;
+  const options = {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  };
+  if (controller) {
+    options.signal = controller.signal;
+  }
+  const request = (async () => {
+    const response = await fetch("/api/analyze-current-email", options);
+    return response.json();
+  })();
+  try {
+    return await withLocalBackendDeadline(request, controller);
+  } catch (error) {
+    if (error && error.name === "BackendDeadlineError") {
+      return {
+        ok: false,
+        error: {
+          code: "LOCAL_ANALYSIS_TIMEOUT",
+          message: "Local analysis service timed out. Please try again.",
+          retryable: true,
+        },
+      };
+    }
+    throw error;
+  }
+}
+
+function withLocalBackendDeadline(promise, controller) {
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const timer = window.setTimeout(() => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      if (controller) {
+        controller.abort();
+      }
+      const error = new Error("Local analysis deadline expired.");
+      error.name = "BackendDeadlineError";
+      reject(error);
+    }, ANALYZE_TIMEOUT_MS);
+    Promise.resolve(promise).then(
+      (value) => {
+        if (!settled) {
+          settled = true;
+          window.clearTimeout(timer);
+          resolve(value);
+        }
+      },
+      (error) => {
+        if (!settled) {
+          settled = true;
+          window.clearTimeout(timer);
+          reject(error);
+        }
+      },
+    );
+  });
+}
 
 fields.copyButton.addEventListener("click", async () => {
   const draft = fields.draft.value.trim();

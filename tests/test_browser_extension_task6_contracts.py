@@ -42,6 +42,9 @@ class BrowserExtensionTask6ContractTests(unittest.TestCase):
             const source = fs.readFileSync(__API_CLIENT_PATH__, "utf8");
             let requestBody;
             const context = {
+              AbortController,
+              setTimeout,
+              clearTimeout,
               fetch: async (_url, options) => {
                 requestBody = JSON.parse(options.body);
                 return { ok: true, status: 200, json: async () => ({ ok: true }) };
@@ -124,6 +127,72 @@ class BrowserExtensionTask6ContractTests(unittest.TestCase):
             """
         ).replace("__API_CLIENT_PATH__", json.dumps(str(api_client)))
 
+        result = subprocess.run(
+            ["node", "-e", script],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+        if result.returncode != 0:
+            self.fail(result.stderr or result.stdout)
+
+    def test_api_client_aborts_stalled_backend_with_retryable_safe_error(self) -> None:
+        if shutil.which("node") is None:
+            self.skipTest("Node.js is required for browser extension behavior tests")
+
+        api_client = EXTENSION / "shared" / "api_client.js"
+        script = textwrap.dedent(
+            r"""
+            const fs = require("fs");
+            const vm = require("vm");
+            const source = fs.readFileSync(__API_CLIENT_PATH__, "utf8");
+            let requestSignal;
+            const context = {
+              AbortController,
+              setTimeout,
+              clearTimeout,
+              fetch: async (_url, options) => new Promise((_resolve, reject) => {
+                requestSignal = options.signal;
+                options.signal.addEventListener("abort", () => {
+                  const error = new Error("PRIVATE_BACKEND_TIMEOUT_DETAIL");
+                  error.name = "AbortError";
+                  reject(error);
+                });
+              }),
+            };
+            context.window = context;
+            vm.runInNewContext(source, context, { filename: "api_client.js" });
+
+            (async () => {
+              const data = await Promise.race([
+                context.EmailAssistantApi.analyzeCurrentEmail({
+                  subject: "Synthetic", from: "sender@example.test", body_text: "Synthetic body",
+                }, { timeoutMs: 20 }),
+                new Promise((_resolve, reject) => setTimeout(
+                  () => reject(new Error("backend request did not honor its deadline")),
+                  250,
+                )),
+              ]);
+              if (!requestSignal || requestSignal.aborted !== true) {
+                throw new Error("stalled backend request was not aborted");
+              }
+              if (data.ok !== false || data.error.code !== "LOCAL_ANALYSIS_TIMEOUT") {
+                throw new Error(`unexpected timeout response: ${JSON.stringify(data)}`);
+              }
+              if (data.error.retryable !== true || !data.error.message.includes("try again")) {
+                throw new Error(`timeout was not safely retryable: ${JSON.stringify(data)}`);
+              }
+              if (JSON.stringify(data).includes("PRIVATE_BACKEND_TIMEOUT_DETAIL")) {
+                throw new Error("private timeout detail leaked");
+              }
+            })().catch((error) => {
+              console.error(error && error.stack ? error.stack : error);
+              process.exitCode = 1;
+            });
+            """
+        ).replace("__API_CLIENT_PATH__", json.dumps(str(api_client)))
         result = subprocess.run(
             ["node", "-e", script],
             cwd=ROOT,

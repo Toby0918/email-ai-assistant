@@ -16,48 +16,41 @@ const fields = {
   copyButton: document.querySelector("#copy-draft-button"),
 };
 
-document.querySelector("#analyze-button").addEventListener("click", async () => {
-  EmailAssistantRender.clearAnalysis(fields);
+document.querySelector("#analyze-button").addEventListener("click", analyzeCurrentMessage);
+
+async function analyzeCurrentMessage() {
   setBusy(true, "Reading current email");
-
-  const extraction = await requestCurrentEmail();
-  if (!extraction.ok) {
-    setBusy(false, extraction.error || "Open a Tencent Exmail message or select email body text from that opened message first");
-    return;
-  }
-  if (fields.attachments) {
-    EmailAssistantRender.renderAttachments(fields.attachments, extraction.payload.attachments);
-  }
-
-  setBusy(true, "Analyzing");
-  let data;
   try {
-    data = await EmailAssistantApi.analyzeCurrentEmail(extraction.payload);
-  } catch (error) {
-    setBusy(false, "Local analysis service unavailable");
-    return;
-  }
+    EmailAssistantRender.clearAnalysis(fields);
+    const extraction = await requestCurrentEmail();
+    if (!extraction.ok) {
+      fields.status.textContent = extraction.error ||
+        "Open a Tencent Exmail message or select email body text from that opened message first";
+      return;
+    }
+    if (fields.attachments) {
+      EmailAssistantRender.renderAttachments(fields.attachments, extraction.payload.attachments);
+    }
 
-  if (!data || !data.ok) {
-    const message = data && data.error ? data.error.message : "";
-    setBusy(false, message || "Analysis failed");
-    return;
-  }
-
-  if (!data.analysis || typeof data.analysis !== "object") {
-    setBusy(false, "Invalid analysis response");
-    return;
-  }
-
-  try {
+    setBusy(true, "Analyzing");
+    const data = await EmailAssistantApi.analyzeCurrentEmail(extraction.payload);
+    if (!data || !data.ok) {
+      const message = data && data.error ? data.error.message : "";
+      fields.status.textContent = message || "Analysis failed";
+      return;
+    }
+    if (!data.analysis || typeof data.analysis !== "object") {
+      fields.status.textContent = "Invalid analysis response";
+      return;
+    }
     EmailAssistantRender.renderAnalysis(fields, data.analysis);
+    fields.status.textContent = `Saved #${data.saved_id || data.request_id || "-"}`;
   } catch (error) {
-    setBusy(false, "Analysis failed");
-    return;
+    fields.status.textContent = "Local analysis service unavailable. Please try again";
+  } finally {
+    fields.analyzeButton.disabled = false;
   }
-
-  setBusy(false, `Saved #${data.saved_id || data.request_id || "-"}`);
-});
+}
 
 document.querySelector("#copy-draft-button").addEventListener("click", async () => {
   const draft = fields.draft.value.trim();

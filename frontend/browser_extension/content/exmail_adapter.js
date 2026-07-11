@@ -195,12 +195,18 @@
       return null;
     }
 
-    const verifiedResourceCandidates = querySelectorAll(controls, HOST_RESOURCE_SELECTOR).filter(
+    const collector = window.EmailAssistantCurrentMessageCollector;
+    const candidateCap = collector && Number.isInteger(collector.MAX_RESOURCE_CANDIDATES)
+      ? collector.MAX_RESOURCE_CANDIDATES
+      : 20;
+    const verifiedResourceCandidates = querySelectorAll(controls, HOST_RESOURCE_SELECTOR)
+      .slice(0, candidateCap + 1)
+      .filter(
       (candidate) =>
         !containsElement(currentMessageRoot, candidate) &&
         containsElement(currentMessageContainer, candidate) &&
         isVisibleElementInDocument(candidate, doc),
-    );
+      );
     return { currentMessageContainer, verifiedResourceCandidates };
   }
 
