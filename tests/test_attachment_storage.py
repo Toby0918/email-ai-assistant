@@ -72,9 +72,12 @@ class AttachmentStorageTests(unittest.TestCase):
             config = self._config(directory)
             expired = Path(directory) / "expired.pdf"
             expired.write_bytes(b"expired")
+            now = datetime(2026, 7, 10, tzinfo=UTC)
+            expired_at = now - timedelta(seconds=1)
+            os.utime(expired, (expired_at.timestamp(), expired_at.timestamp()))
             with patch.object(Path, "unlink", side_effect=OSError("permission denied")):
                 with self.assertRaises(AttachmentInputError):
-                    cleanup_expired_attachments(config, now=datetime(2026, 7, 10, tzinfo=UTC))
+                    cleanup_expired_attachments(config, now=now)
 
     def test_cleanup_expired_attachments_deletes_only_expired_files(self) -> None:
         with TemporaryDirectory() as directory:
