@@ -105,7 +105,7 @@
       .filter((element) =>
         isHostResourceControl(element) &&
         isInside(element, currentContainer) &&
-        !isInside(element, currentRoot) &&
+        !hasKnownBodyAncestor(element, currentRoot, currentContainer) &&
         isVisibleWithin(element, currentContainer, doc),
       );
     const omitted = {
@@ -299,8 +299,36 @@
   }
 
   function isHostResourceControl(element) {
-    return hasAttribute(element, "data-email-host-attachment") ||
-      hasAttribute(element, "data-email-host-inline-resource");
+    const tagName = String(element && element.tagName || "").toUpperCase();
+    if (tagName === "A") {
+      return Boolean(attribute(element, "href"));
+    }
+    if (tagName === "IMG") {
+      return Boolean(attribute(element, "src"));
+    }
+    return false;
+  }
+
+  function hasKnownBodyAncestor(element, currentRoot, container) {
+    let current = element;
+    while (current && current !== container) {
+      if (current === currentRoot || isKnownBodyRoot(current)) {
+        return true;
+      }
+      current = current.parentElement || current.parentNode;
+    }
+    return false;
+  }
+
+  function isKnownBodyRoot(element) {
+    const id = attribute(element, "id");
+    if (["mailContentContainer", "mailContent"].includes(id)) {
+      return true;
+    }
+    const classes = attribute(element, "class").split(/\s+/).filter(Boolean);
+    return [
+      "mail-detail-content", "mail-content", "mail_content", "readmail_content",
+    ].some((className) => classes.includes(className));
   }
 
   function styleHides(element, doc) {

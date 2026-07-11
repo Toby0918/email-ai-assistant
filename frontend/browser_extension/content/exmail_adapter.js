@@ -12,12 +12,8 @@
     attachments: [],
   };
   const MAX_ATTACHMENTS = 8;
-  const CURRENT_MESSAGE_CONTAINER_ATTRIBUTE = "data-email-current-message-container";
-  const HOST_RESOURCE_CONTROLS_SELECTOR = "[data-email-host-resource-controls='true']";
-  const HOST_RESOURCE_SELECTOR = [
-    "[data-email-host-attachment='true']",
-    "[data-email-host-inline-resource='true']",
-  ].join(", ");
+  const EXMAIL_ORIGIN = "https://exmail.qq.com";
+  const APPROVED_RESOURCE_PATHS = ["/cgi-bin/download", "/cgi-bin/viewfile"];
   const ATTACHMENT_PATTERN =
     /([A-Za-z0-9][A-Za-z0-9 _.,()[\]\-+&'#]*\.(pdf|docx?|xlsx?|pptx?|csv|zip|rar|7z|png|jpe?g|gif|txt))(?:\s*\(([^)\n]{1,40})\))?/gi;
   const BODY_SELECTORS = [
@@ -196,21 +192,18 @@
   }
 
   function findVerifiedResourceContext(doc, currentMessageRoot) {
-    const currentMessageContainer = findMarkedAncestor(
-      currentMessageRoot,
-      CURRENT_MESSAGE_CONTAINER_ATTRIBUTE,
-      "true",
-    );
-    if (!currentMessageContainer || !isVisibleElementInDocument(currentMessageContainer, doc)) {
+    const subject = uniqueVisibleSubject(doc, currentMessageRoot);
+    const header = uniqueVisibleHeaderEvidence(doc, currentMessageRoot);
+    if (!subject || !header) {
       return null;
     }
-
-    const controlContainers = querySelectorAll(currentMessageContainer, HOST_RESOURCE_CONTROLS_SELECTOR);
-    const controls = controlContainers.find((candidate) =>
-      !containsElement(currentMessageRoot, candidate) &&
-      isVisibleElementInDocument(candidate, doc),
+    const currentMessageContainer = minimumCommonVisibleAncestor(
+      currentMessageRoot,
+      subject,
+      header,
+      doc,
     );
-    if (!controls) {
+    if (!currentMessageContainer || hasAmbiguousBodyRoots(currentMessageContainer, currentMessageRoot, doc)) {
       return null;
     }
 
@@ -218,29 +211,147 @@
     const candidateCap = collector && Number.isInteger(collector.MAX_RESOURCE_CANDIDATES)
       ? collector.MAX_RESOURCE_CANDIDATES
       : 20;
-    const verifiedResourceCandidates = querySelectorAll(controls, HOST_RESOURCE_SELECTOR)
+    const baseHref = documentHref(doc);
+    const verifiedResourceCandidates = resourceSiblingSubtrees(
+      currentMessageRoot,
+      currentMessageContainer,
+    )
+      .flatMap((subtree) => [subtree, ...descendantElements(subtree)])
+      .filter((candidate) => isApprovedResourceControl(candidate, baseHref, doc))
       .slice(0, candidateCap + 1)
-      .filter(
-      (candidate) =>
-        !containsElement(currentMessageRoot, candidate) &&
-        containsElement(currentMessageContainer, candidate) &&
-        isVisibleElementInDocument(candidate, doc),
-      );
+    if (verifiedResourceCandidates.length === 0) {
+      return null;
+    }
     return { currentMessageContainer, verifiedResourceCandidates };
   }
 
-  function findMarkedAncestor(element, attributeName, expectedValue) {
-    let current = element;
+  function uniqueVisibleSubject(doc, currentMessageRoot) {
+    const candidates = uniqueElements(
+      querySelectorAll(doc && doc.body, MESSAGE_CONTEXT_SUBJECT_SELECTORS.join(", ")),
+    ).filter((candidate) =>
+      !containsElement(currentMessageRoot, candidate) &&
+      !containsElement(candidate, currentMessageRoot) &&
+      isVisibleElementInDocument(candidate, doc) &&
+      normalizeText(candidate.innerText || candidate.textContent),
+    );
+    return candidates.length === 1 ? candidates[0] : null;
+  }
+
+  function uniqueVisibleHeaderEvidence(doc, currentMessageRoot) {
+    const candidates = descendantElements(doc && doc.body).filter((candidate) =>
+      !containsElement(currentMessageRoot, candidate) &&
+      !containsElement(candidate, currentMessageRoot) &&
+      isVisibleElementInDocument(candidate, doc) &&
+      hasHeaderLabels(candidate),
+    );
+    const minimal = candidates.filter((candidate) =>
+      !candidates.some((other) => other !== candidate && containsElement(candidate, other)),
+    );
+    return minimal.length === 1 ? minimal[0] : null;
+  }
+
+  function hasHeaderLabels(element) {
+    const text = normalizeText(element ? element.innerText || element.textContent : "");
+    const hasFrom = /(?:^|\s)(?:From|\u53d1\u4ef6\u4eba)\s*[:\uff1a]/i.test(text);
+    const hasTo = /(?:^|\s)(?:To|\u6536\u4ef6\u4eba)\s*[:\uff1a]/i.test(text);
+    return hasFrom && hasTo;
+  }
+
+  function minimumCommonVisibleAncestor(bodyRoot, subject, header, doc) {
+    let current = bodyRoot;
     while (current) {
       if (
-        typeof current.getAttribute === "function" &&
-        String(current.getAttribute(attributeName) || "") === expectedValue
+        containsElement(current, subject) &&
+        containsElement(current, header) &&
+        isVisibleElementInDocument(current, doc)
       ) {
-        return current;
+        const tagName = String(current.tagName || "").toUpperCase();
+        return current !== (doc && doc.body) && !["BODY", "HTML"].includes(tagName)
+          ? current
+          : null;
       }
       current = current.parentElement || current.parentNode;
     }
     return null;
+  }
+
+  function hasAmbiguousBodyRoots(container, currentMessageRoot, doc) {
+    const roots = uniqueElements(querySelectorAll(container, BODY_SELECTORS.join(", ")))
+      .filter((candidate) =>
+        isVisibleElementInDocument(candidate, doc) &&
+        normalizeText(candidate.innerText || candidate.textContent).length >= MIN_BODY_LENGTH,
+      );
+    return roots.length !== 1 || roots[0] !== currentMessageRoot;
+  }
+
+  function resourceSiblingSubtrees(bodyRoot, container) {
+    const subtrees = [];
+    let branch = bodyRoot;
+    let parent = branch && (branch.parentElement || branch.parentNode);
+    while (parent) {
+      for (const child of Array.from(parent.children || [])) {
+        if (child !== branch) {
+          subtrees.push(child);
+        }
+      }
+      if (parent === container) {
+        return subtrees;
+      }
+      branch = parent;
+      parent = parent.parentElement || parent.parentNode;
+    }
+    return [];
+  }
+
+  function isApprovedResourceControl(element, baseHref, doc) {
+    if (!element || !isVisibleElementInDocument(element, doc)) {
+      return false;
+    }
+    const tagName = String(element.tagName || "").toUpperCase();
+    const attributeName = tagName === "A" ? "href" : tagName === "IMG" ? "src" : "";
+    if (!attributeName || typeof element.getAttribute !== "function") {
+      return false;
+    }
+    return isApprovedResourceUrl(element.getAttribute(attributeName), baseHref);
+  }
+
+  function isApprovedResourceUrl(value, baseHref) {
+    try {
+      const resolved = new URL(String(value || ""), baseHref);
+      return resolved.origin === EXMAIL_ORIGIN &&
+        resolved.protocol === "https:" &&
+        !resolved.username &&
+        !resolved.password &&
+        APPROVED_RESOURCE_PATHS.includes(resolved.pathname) &&
+        resolved.search.length > 1;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function documentHref(doc) {
+    if (doc && typeof doc.baseURI === "string" && doc.baseURI) {
+      return doc.baseURI;
+    }
+    if (doc && doc.location && typeof doc.location.href === "string") {
+      return doc.location.href;
+    }
+    return "";
+  }
+
+  function descendantElements(root) {
+    if (!root) {
+      return [];
+    }
+    const descendants = [];
+    for (const child of Array.from(root.children || [])) {
+      descendants.push(child, ...descendantElements(child));
+    }
+    return descendants;
+  }
+
+  function uniqueElements(values) {
+    return Array.from(new Set(values));
   }
 
   function querySelectorAll(container, selector) {

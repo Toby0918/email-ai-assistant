@@ -70,6 +70,8 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
               constructor(body, title = "Tencent Exmail") {
                 this.body = body;
                 this.title = title;
+                this.baseURI = "https://exmail.qq.com/cgi-bin/readmail";
+                this.location = new URL(this.baseURI);
                 this.defaultView = {
                   getSelection: () => emptySelection(),
                   getComputedStyle: (element) => ({
@@ -111,30 +113,33 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
             }
             function openedMessage(backgroundText = "", options = {}) {
               const subject = new FakeElement({ tag: "h1", id: "subject", text: "Synthetic request" });
-              const messageText = [
-                "Synthetic request", "From: sender@example.test", "To: recipient@example.test",
-                "Date: 2026-07-11 10:00", "Please review the visible message.",
+              const headerText = [
+                "From: sender@example.test", "To: recipient@example.test", "Date: 2026-07-11 10:00",
               ].join("\n");
+              const bodyText = "Please review the visible message.";
+              const messageText = ["Synthetic request", headerText, bodyText].join("\n");
+              const header = new FakeElement({ className: "read-header", text: headerText });
               const currentRoot = new FakeElement({
                 className: "mail-content",
-                text: messageText,
+                text: bodyText,
                 children: options.bodyChildren || [],
               });
               const controls = new FakeElement({
-                attrs: { "data-email-host-resource-controls": "true" },
+                className: "resource-region",
                 children: options.hostResources || [],
               });
+              const additionalBodies = options.additionalBodies || [];
               const currentMessageContainer = new FakeElement({
-                attrs: options.verifiedControls === false
-                  ? {}
-                  : { "data-email-current-message-container": "true" },
-                children: options.verifiedControls === false ? [currentRoot] : [currentRoot, controls],
+                className: "read-envelope",
+                children: options.verifiedControls === false
+                  ? [subject, currentRoot, controls]
+                  : [subject, header, currentRoot, ...additionalBodies, controls],
               });
               const body = new FakeElement({
                 tag: "body", text: [messageText, backgroundText].filter(Boolean).join("\n"),
-                children: [subject, currentMessageContainer],
+                children: [currentMessageContainer, ...(options.envelopeExternal || [])],
               });
-              return { doc: new FakeDocument(body), currentRoot, currentMessageContainer, controls };
+              return { doc: new FakeDocument(body), currentRoot, currentMessageContainer, controls, header, subject };
             }
             function mailboxDocument() {
               return new FakeDocument(new FakeElement({ tag: "body", text: "Mailbox navigation" }));
@@ -145,6 +150,7 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
               const rootWindow = { document: doc, frames };
               if (collector) rootWindow.EmailAssistantCurrentMessageCollector = collector;
               const context = {
+                URL,
                 window: rootWindow,
                 document: doc,
                 chrome: { runtime: { onMessage: { addListener: (callback) => { listener = callback; } } } },
@@ -180,14 +186,21 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
                 const trustedControl = new FakeElement({
                   tag: "a",
                   attrs: {
-                    "data-email-host-attachment": "true",
-                    "data-filename": "visible.pdf",
+                    download: "visible.pdf",
                     href: "/cgi-bin/download?file=visible",
                   },
                 });
+                const externalControl = new FakeElement({
+                  tag: "a",
+                  attrs: { download: "external.pdf", href: "/cgi-bin/download?file=external" },
+                });
                 const { doc, currentRoot, currentMessageContainer } = openedMessage(
                   "background-private.pdf (4 KB)",
-                  { bodyChildren: [forgedBodyLink], hostResources: [trustedControl] },
+                  {
+                    bodyChildren: [forgedBodyLink],
+                    hostResources: [trustedControl],
+                    envelopeExternal: [externalControl],
+                  },
                 );
                 let extractCalls = 0;
                 let collectCalls = 0;
@@ -267,7 +280,11 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
               },
 
               collector_failure_keeps_body_analysis_safe: async () => {
-                const { doc } = openedMessage();
+                const control = new FakeElement({
+                  tag: "a",
+                  attrs: { download: "visible.pdf", href: "/cgi-bin/download?file=visible" },
+                });
+                const { doc } = openedMessage("", { hostResources: [control] });
                 const collector = {
                   extractVisibleThreadSegments: () => [],
                   collectVisibleResources: async () => { throw new Error("private fetch detail"); },
@@ -310,6 +327,70 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
                   !result.payload.resource_limitations[0].limitation.includes("verified current-message resource controls")
                 ) {
                   throw new Error(`safe unavailable limitation missing: ${JSON.stringify(result)}`);
+                }
+              },
+
+              invalid_structural_envelopes_and_endpoints_fail_closed: async () => {
+                let resourceCalls = 0;
+                const collector = {
+                  extractVisibleThreadSegments: () => [],
+                  collectVisibleResources: async () => {
+                    resourceCalls += 1;
+                    return { attachment_files: [], resource_limitations: [] };
+                  },
+                };
+                const validControl = () => new FakeElement({
+                  tag: "a",
+                  attrs: { download: "visible.pdf", href: "/cgi-bin/download?file=visible" },
+                });
+                const cases = [];
+
+                const bodyLevelSubject = new FakeElement({ tag: "h1", id: "subject", text: "Synthetic request" });
+                const bodyLevelHeader = new FakeElement({
+                  text: "From: sender@example.test\nTo: recipient@example.test",
+                });
+                const bodyLevelMessage = new FakeElement({
+                  className: "mail-content", text: "Please review the visible message.",
+                });
+                const bodyLevelControls = new FakeElement({ children: [validControl()] });
+                cases.push(new FakeDocument(new FakeElement({
+                  tag: "body",
+                  text: "Synthetic request\nFrom: sender@example.test\nTo: recipient@example.test\nPlease review the visible message.",
+                  children: [bodyLevelSubject, bodyLevelHeader, bodyLevelMessage, bodyLevelControls],
+                })));
+
+                const duplicateBody = new FakeElement({
+                  className: "mail-content", text: "Second ambiguous visible message body.",
+                });
+                cases.push(openedMessage("", {
+                  additionalBodies: [duplicateBody], hostResources: [validControl()],
+                }).doc);
+                cases.push(openedMessage("", { hostResources: [new FakeElement({
+                  tag: "a", hidden: true,
+                  attrs: { download: "hidden.pdf", href: "/cgi-bin/download?file=hidden" },
+                })] }).doc);
+                cases.push(openedMessage("", { hostResources: [new FakeElement({
+                  tag: "a",
+                  attrs: { download: "remote.pdf", href: "https://remote.example/download?file=remote" },
+                })] }).doc);
+                cases.push(openedMessage("", { hostResources: [new FakeElement({
+                  tag: "a", attrs: { download: "no-query.pdf", href: "/cgi-bin/download" },
+                })] }).doc);
+
+                for (const doc of cases) {
+                  const result = await beginDispatch(loadAdapter(doc, collector)).responsePromise;
+                  if (!result.ok || result.payload.attachment_files.length !== 0) {
+                    throw new Error(`body analysis did not continue safely: ${JSON.stringify(result)}`);
+                  }
+                  if (
+                    result.payload.resource_limitations.length !== 1 ||
+                    !result.payload.resource_limitations[0].limitation.includes("verified current-message resource controls")
+                  ) {
+                    throw new Error(`single unavailable limitation missing: ${JSON.stringify(result)}`);
+                  }
+                }
+                if (resourceCalls !== 0) {
+                  throw new Error(`invalid structural mapping reached collection ${resourceCalls} times`);
                 }
               },
 
@@ -428,6 +509,9 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
 
     def test_unverified_host_controls_keep_body_analysis_safe(self) -> None:
         self.run_node_case("unverified_host_controls_keep_body_analysis_safe")
+
+    def test_invalid_structural_envelopes_and_endpoints_fail_closed(self) -> None:
+        self.run_node_case("invalid_structural_envelopes_and_endpoints_fail_closed")
 
     def test_metadata_revalidation_never_collects_resources(self) -> None:
         self.run_node_case("metadata_revalidation_never_collects_resources")

@@ -223,6 +223,20 @@ class BrowserExtensionStaticTests(unittest.TestCase):
 
         self.assertNotIn("console.log", script)
 
+    def test_resource_trust_has_no_extension_only_dom_markers(self) -> None:
+        source = "\n".join(
+            (EXTENSION / "content" / filename).read_text(encoding="utf-8")
+            for filename in ("exmail_adapter.js", "current_message_collector.js")
+        )
+
+        for marker in (
+            "data-email-current-message-container",
+            "data-email-host-resource-controls",
+            "data-email-host-attachment",
+        ):
+            with self.subTest(marker=marker):
+                self.assertNotIn(marker, source)
+
     def test_popup_requests_current_email_after_user_click(self) -> None:
         script = (EXTENSION / "popup.js").read_text(encoding="utf-8")
 

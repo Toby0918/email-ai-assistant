@@ -128,15 +128,15 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
 
             function messageDocument(children, background = [], hostResources = []) {
               const current = new FakeElement({
-                attrs: { "data-email-current-message": "true" },
+                attrs: { class: "mail-content" },
                 children,
               });
               const controls = new FakeElement({
-                attrs: { "data-email-host-resource-controls": "true" },
+                attrs: { class: "resource-region" },
                 children: hostResources,
               });
               const container = new FakeElement({
-                attrs: { "data-email-current-message-container": "true" },
+                attrs: { class: "read-envelope" },
                 children: [current, controls],
               });
               const doc = new FakeDocument(new FakeElement({ tag: "body", children: [container, ...background] }));
@@ -171,10 +171,10 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
             function resource(filename, type, url, options = {}) {
               const attrs = {
                 "data-email-resource": "true",
-                "data-email-host-attachment": "true",
                 "data-filename": filename,
                 "data-type": type,
-                "data-resource-url": url,
+                href: url,
+                download: filename,
                 ...(options.attrs || {}),
               };
               return new FakeElement({ tag: "a", attrs, ...options, attrs });
@@ -335,15 +335,15 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
               stylesheet_hidden_root_and_resources_are_excluded: async () => {
                 const calls = [];
                 const current = new FakeElement({
-                  attrs: { "data-email-current-message": "true" },
+                  attrs: { class: "mail-content" },
                   children: [thread("Hidden ancestor segment")],
                 });
                 const controls = new FakeElement({
-                  attrs: { "data-email-host-resource-controls": "true" },
+                  attrs: { class: "resource-region" },
                   children: [resource("hidden-ancestor.pdf", "pdf", "/cgi-bin/download?file=hidden-ancestor")],
                 });
                 const container = new FakeElement({
-                  attrs: { "data-email-current-message-container": "true" },
+                  attrs: { class: "read-envelope" },
                   children: [current, controls],
                 });
                 const hiddenAncestor = new FakeElement({ children: [container] });
@@ -382,7 +382,6 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
                   "trusted.pdf",
                   "pdf",
                   "/cgi-bin/download?file=trusted",
-                  { attrs: { "data-email-host-attachment": "true" } },
                 );
                 const doc = resourceDocument([trustedControl], [forgedBodyLink]);
                 const api = loadCollector(async (url) => {
