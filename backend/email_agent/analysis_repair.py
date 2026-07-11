@@ -2,14 +2,25 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Any
 
-from .analysis_schema import ACTION_TYPES, CATEGORIES, PRIORITIES, RISK_LEVELS, RISK_TYPES
+from .analysis_schema import (
+    ACTION_TYPES,
+    CATEGORIES,
+    CONFIDENCE_LEVELS,
+    DECISION_REPLY_TYPES,
+    PRIORITIES,
+    RISK_LEVELS,
+    RISK_TYPES,
+)
 
 
 def repair_analysis_result(data: dict[str, Any], fallback: dict[str, Any]) -> dict[str, Any]:
     """Merge partial model output with deterministic fallback schema fields."""
     result = dict(fallback)
+    result["conversation_timeline"] = deepcopy(fallback.get("conversation_timeline", {}))
+    result["attachment_insights"] = deepcopy(fallback.get("attachment_insights", []))
     result["summary"] = _text(data.get("summary")) or fallback["summary"]
     result["priority"] = _enum(data.get("priority"), PRIORITIES, fallback["priority"])
     result["priority_reason"] = _text(data.get("priority_reason")) or fallback["priority_reason"]
@@ -28,6 +39,11 @@ def repair_analysis_result(data: dict[str, Any], fallback: dict[str, Any]) -> di
         return result
     result["category"] = model_category
     result["tags"] = _string_list(data.get("tags")) or list(fallback.get("tags", []))
+    result["decision_brief"] = _repair_decision_brief(
+        data.get("decision_brief"),
+        fallback.get("decision_brief", {}),
+        result["attachment_insights"],
+    )
     result["risk_flags"] = _repair_risks(data.get("risk_flags"), fallback.get("risk_flags", []))
     result["suggested_actions"] = _repair_actions(
         data.get("suggested_actions"),
@@ -79,6 +95,120 @@ def _repair_actions(items: Any, fallback: list[dict[str, Any]]) -> list[dict[str
             "due_hint": _text(item.get("due_hint")) or _text(fallback_item.get("due_hint")) or "today",
         })
     return repaired or list(fallback)
+
+
+def _repair_decision_brief(
+    value: Any,
+    fallback: dict[str, Any],
+    attachment_insights: list[dict[str, Any]],
+) -> dict[str, Any]:
+    brief = value if isinstance(value, dict) else {}
+    fallback_recommendation = fallback.get("reply_recommendation", {})
+    recommendation = brief.get("reply_recommendation")
+    recommendation = recommendation if isinstance(recommendation, dict) else {}
+    return {
+        "one_line_conclusion": _text(brief.get("one_line_conclusion")) or _text(fallback.get("one_line_conclusion")),
+        "requested_outcome": _text(brief.get("requested_outcome")) or _text(fallback.get("requested_outcome")),
+        "next_steps": _repair_next_steps(brief.get("next_steps"), fallback.get("next_steps", [])),
+        "key_facts": _repair_key_facts(
+            brief.get("key_facts"),
+            fallback.get("key_facts", []),
+            attachment_insights,
+        ),
+        "must_check": _string_list(brief.get("must_check")) or list(fallback.get("must_check", [])),
+        "missing_info": _string_list(brief.get("missing_info")) or list(fallback.get("missing_info", [])),
+        "reply_recommendation": {
+            "should_reply": _bool(
+                recommendation.get("should_reply"),
+                bool(fallback_recommendation.get("should_reply", True)),
+            ),
+            "reply_type": _enum(
+                recommendation.get("reply_type"),
+                DECISION_REPLY_TYPES,
+                _text(fallback_recommendation.get("reply_type")) or "acknowledge",
+            ),
+            "reason": _text(recommendation.get("reason")) or _text(fallback_recommendation.get("reason")),
+        },
+        "confidence": _enum(
+            brief.get("confidence"),
+            CONFIDENCE_LEVELS,
+            _text(fallback.get("confidence")) or "low",
+        ),
+    }
+
+
+def _repair_next_steps(items: Any, fallback: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if not isinstance(items, list) or not items:
+        return list(fallback)
+    repaired = []
+    fallback_item = fallback[0] if fallback else {}
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        step = _text(item.get("step")) or _text(fallback_item.get("step"))
+        if not step:
+            continue
+        repaired.append({
+            "step": step,
+            "owner_hint": _text(item.get("owner_hint")) or _text(fallback_item.get("owner_hint")) or "responsible_owner",
+            "due_hint": _text(item.get("due_hint")) or _text(fallback_item.get("due_hint")) or "today",
+            "source": _text(item.get("source")) or _text(fallback_item.get("source")) or "latest_message",
+        })
+    return repaired or list(fallback)
+
+
+def _repair_key_facts(
+    items: Any,
+    fallback: list[dict[str, Any]],
+    attachment_insights: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    repaired: list[dict[str, Any]] = []
+    candidates = items if isinstance(items, list) else []
+    for item in candidates:
+        if not isinstance(item, dict):
+            continue
+        value = _text(item.get("value"))
+        if not value:
+            continue
+        source = _text(item.get("source")) or "latest_message"
+        if _is_model_attachment_fact(value, source, attachment_insights):
+            continue
+        repaired.append({
+            "label": _text(item.get("label")) or "事实",
+            "value": value,
+            "source": source,
+        })
+    for item in fallback:
+        if isinstance(item, dict) and _text(item.get("value")):
+            repaired.append(dict(item))
+    return _unique_key_facts(repaired)[:10]
+
+
+def _is_model_attachment_fact(
+    value: str,
+    source: str,
+    attachment_insights: list[dict[str, Any]],
+) -> bool:
+    lower_source = source.lower()
+    if "attachment" in lower_source or lower_source.startswith("file"):
+        return True
+    lower_value = value.lower()
+    return any(
+        _text(insight.get("filename")).lower() in lower_value
+        for insight in attachment_insights
+        if _text(insight.get("filename"))
+    )
+
+
+def _unique_key_facts(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    values: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for item in items:
+        key = _text(item.get("value")).lower()
+        if key and key not in seen:
+            values.append(item)
+            seen.add(key)
+    return values
 
 
 def _repair_reply_draft(value: Any, top_level_reasons: Any, fallback: dict[str, Any]) -> dict[str, Any]:
@@ -149,3 +279,7 @@ def _string_list(value: Any) -> list[str]:
 
 def _text(value: Any) -> str:
     return str(value or "").strip()
+
+
+def _bool(value: Any, fallback: bool) -> bool:
+    return value if isinstance(value, bool) else fallback

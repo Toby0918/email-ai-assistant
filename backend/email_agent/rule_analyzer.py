@@ -5,8 +5,10 @@ from __future__ import annotations
 from typing import Any
 
 from .analysis_schema import validate_analysis_result
-from .email_facts import EmailFacts, extract_email_facts
+from .email_facts import EmailFacts
+from .rule_context import build_rule_context
 from .rule_draft import build_reply_draft
+from .rule_decision import build_decision_brief
 from .rule_keywords import (
     BOOKING_KEYWORDS,
     CONTRACT_KEYWORDS,
@@ -21,11 +23,22 @@ from .rule_keywords import (
     QUOTE_KEYWORDS,
     RISK_LABELS,
 )
+from .thread_timeline import build_conversation_timeline
 
 
-def build_rule_based_analysis(subject: str, sender: str, clean_body: str) -> dict[str, Any]:
-    text = f"{subject}\n{sender}\n{clean_body}".lower()
-    facts = extract_email_facts(subject, sender, clean_body)
+def build_rule_based_analysis(
+    subject: str,
+    sender: str,
+    clean_body: str,
+    *,
+    attachment_insights: list[dict[str, object]] | None = None,
+    conversation_timeline: dict[str, object] | None = None,
+) -> dict[str, Any]:
+    insights = list(attachment_insights or [])
+    timeline = conversation_timeline or build_conversation_timeline([], ())
+    context = build_rule_context(subject, sender, clean_body, timeline, insights)
+    facts = context.facts
+    text = context.text
     risks = _risk_flags(text, facts)
     category = _category(text, risks)
     priority = _priority(text, risks)
@@ -36,6 +49,21 @@ def build_rule_based_analysis(subject: str, sender: str, clean_body: str) -> dic
         "priority_reason": _priority_reason(priority, risks, facts),
         "category": category,
         "tags": _tags(category, risks),
+        "decision_brief": build_decision_brief(
+            category=category,
+            risks=risks,
+            actions=actions,
+            text=text,
+            facts=context.message_facts,
+            summary_base=_summary_base(category, risks, text),
+            is_quote=_contains(text, *QUOTE_KEYWORDS),
+            is_booking=_is_booking_context(text),
+            is_meeting=_is_meeting_context(text),
+            conversation_timeline=timeline,
+            attachment_insights=insights,
+        ),
+        "conversation_timeline": timeline,
+        "attachment_insights": insights,
         "risk_flags": risks,
         "suggested_actions": actions,
         "reply_draft": build_reply_draft(

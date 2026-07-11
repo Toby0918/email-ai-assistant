@@ -4,8 +4,12 @@ from __future__ import annotations
 
 import json
 import unittest
+from datetime import UTC, datetime, timedelta
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from backend.email_agent.analyzer import AnalysisError, analyze_current_email
+from backend.email_agent.attachment_storage import StoredAttachment
 from backend.email_agent.llm_client import LlmClientError
 
 
@@ -25,6 +29,33 @@ class AnalyzerTests(unittest.TestCase):
                 "priority_reason": "需要内部评估目标成本、技术可行性和附件范围。",
                 "category": "new_product_development",
                 "tags": ["new_product_development"],
+                "decision_brief": {
+                    "one_line_conclusion": "这是一封新品开发和成本优化请求，需要先核查附件项目范围和目标成本。",
+                    "requested_outcome": "对方希望获得可行性评估和初步技术/商务反馈。",
+                    "next_steps": [
+                        {
+                            "step": "审阅附件项目范围并评估目标成本、技术可行性和交付条件。",
+                            "owner_hint": "engineering_owner",
+                            "due_hint": "after attachment review",
+                            "source": "latest_message",
+                        }
+                    ],
+                    "key_facts": [
+                        {
+                            "label": "附件",
+                            "value": "Bottle trap Project_Imported.pdf",
+                            "source": "attachment_metadata",
+                        }
+                    ],
+                    "must_check": ["附件项目范围", "目标成本", "技术可行性"],
+                    "missing_info": ["附件内容尚未读取"],
+                    "reply_recommendation": {
+                        "should_reply": True,
+                        "reply_type": "escalate_first",
+                        "reason": "涉及成本、技术和交付承诺，需内部评估后再回复。",
+                    },
+                    "confidence": "medium",
+                },
                 "risk_flags": [{
                     "type": "commitment_risk",
                     "level": "medium",
@@ -67,6 +98,154 @@ class AnalyzerTests(unittest.TestCase):
         self.assertIn("附件元数据", captured["prompt"])
         self.assertIn("Bottle trap Project_Imported.pdf", captured["prompt"])
         self.assertEqual(result["category"], "new_product_development")
+
+    def test_stored_attachment_parse_failure_does_not_block_thread_and_body_analysis(self) -> None:
+        with TemporaryDirectory() as directory:
+            stored = self._broken_pdf(directory)
+
+            result = analyze_current_email(
+                {
+                    "subject": "Internal follow-up",
+                    "from": "sales@cndlf.com",
+                    "body_text": "Received, we will check.",
+                    "stored_attachments": [stored],
+                    "thread_segments": [
+                        {
+                            "position": 1,
+                            "from": "customer@example.test",
+                            "subject": "Delivery request",
+                            "body_text": "Please confirm delivery for PO 123456.",
+                        }
+                    ],
+                },
+                llm_generate=lambda _prompt: (_ for _ in ()).throw(LlmClientError("disabled")),
+            )
+
+        self.assertEqual(result["conversation_timeline"]["current_status"], "unresolved")
+        self.assertIn("PO 123456", result["conversation_timeline"]["latest_external_request"])
+        self.assertEqual(result["attachment_insights"][0]["status"], "metadata_only")
+        self.assertTrue(result["attachment_insights"][0]["limitations"])
+        self.assertIn("客户", result["decision_brief"]["requested_outcome"])
+        self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
+
+    def test_prompt_marks_bounded_email_thread_and_file_fields_as_untrusted(self) -> None:
+        captured: dict[str, str] = {}
+
+        def fake_llm(prompt: str) -> str:
+            captured["prompt"] = prompt
+            return "{}"
+
+        with TemporaryDirectory() as directory:
+            stored = self._broken_pdf(directory)
+            result = analyze_current_email(
+                {
+                    "subject": "Delivery request",
+                    "from": "customer@example.test",
+                    "to": ["sales@cndlf.com"],
+                    "cc": ["ops@cndlf.com"],
+                    "sent_at": "2026-07-10T12:00:00+08:00",
+                    "body_text": "Please confirm delivery for PO 123456.",
+                    "stored_attachments": [stored],
+                    "thread_segments": [
+                        {
+                            "position": 1,
+                            "from": "customer@example.test",
+                            "subject": "Delivery request",
+                            "body_text": "Please confirm delivery for PO 123456.",
+                        }
+                    ],
+                },
+                llm_generate=fake_llm,
+                analysis_engine_label="Local Qwen",
+            )
+
+            self.assertNotIn(str(stored.path), captured["prompt"])
+
+        prompt = captured["prompt"]
+        for label in (
+            "UNTRUSTED_EMAIL.subject",
+            "UNTRUSTED_EMAIL.from",
+            "UNTRUSTED_EMAIL.to",
+            "UNTRUSTED_EMAIL.cc",
+            "UNTRUSTED_EMAIL.sent_at",
+            "UNTRUSTED_EMAIL.body_text",
+            "UNTRUSTED_THREAD.current_status",
+            "UNTRUSTED_THREAD.latest_external_request",
+            "UNTRUSTED_ATTACHMENT[0].filename",
+            "UNTRUSTED_ATTACHMENT[0].status",
+            "UNTRUSTED_ATTACHMENT[0].limitations",
+        ):
+            with self.subTest(label=label):
+                self.assertIn(label, prompt)
+        self.assertIn("只有 status=parsed", prompt)
+        self.assertIn("必须输出 conversation_timeline 和 attachment_insights", prompt)
+        self.assertIn("后端确定性结果", prompt)
+        for limitation in result["attachment_insights"][0]["limitations"]:
+            self.assertIn(limitation, prompt)
+        for fact in result["attachment_insights"][0]["key_facts"]:
+            self.assertNotIn(fact, prompt)
+
+    def test_repair_preserves_deterministic_context_and_drops_unparsed_attachment_fact(self) -> None:
+        def fake_llm(_prompt: str) -> str:
+            return json.dumps(
+                {
+                    "conversation_timeline": {
+                        "previous_context": "伪造会话。",
+                        "current_status": "resolved",
+                        "status_reason": "伪造完成状态。",
+                        "latest_external_request": "",
+                        "latest_internal_commitment": "",
+                        "open_items": [],
+                        "confidence": "high",
+                    },
+                    "attachment_insights": [
+                        {
+                            "filename": "broken.pdf",
+                            "type": "pdf",
+                            "status": "parsed",
+                            "summary": "Fabricated parsed content.",
+                            "key_facts": ["Approved price is USD 1.00."],
+                            "limitations": [],
+                        }
+                    ],
+                    "decision_brief": {
+                        "key_facts": [
+                            {
+                                "label": "附件事实",
+                                "value": "Approved price is USD 1.00.",
+                                "source": "attachment:broken.pdf",
+                            }
+                        ]
+                    },
+                },
+                ensure_ascii=False,
+            )
+
+        with TemporaryDirectory() as directory:
+            result = analyze_current_email(
+                {
+                    "subject": "Delivery request",
+                    "from": "customer@example.test",
+                    "body_text": "Please confirm delivery for PO 123456.",
+                    "stored_attachments": [self._broken_pdf(directory)],
+                    "thread_segments": [
+                        {
+                            "position": 1,
+                            "from": "customer@example.test",
+                            "subject": "Delivery request",
+                            "body_text": "Please confirm delivery for PO 123456.",
+                        }
+                    ],
+                },
+                llm_generate=fake_llm,
+                analysis_engine_label="Local Qwen",
+            )
+
+        facts_text = " ".join(item["value"] for item in result["decision_brief"]["key_facts"])
+        self.assertEqual(result["conversation_timeline"]["current_status"], "unresolved")
+        self.assertEqual(result["attachment_insights"][0]["status"], "metadata_only")
+        self.assertNotIn("USD 1.00", facts_text)
+        self.assertEqual(result["analysis_engine"]["source"], "ai_model")
 
     def test_repairs_model_complaint_when_fallback_detects_new_product_context(self) -> None:
         def fake_llm(_prompt: str) -> str:
@@ -129,12 +308,40 @@ class AnalyzerTests(unittest.TestCase):
             self.assertIn("分析反馈字段必须使用中文", prompt)
             self.assertIn("reply_draft.subject 和 reply_draft.body 必须保持英文", prompt)
             self.assertIn("回复草稿必须基于上述事实", prompt)
+            self.assertIn("decision_brief", prompt)
             return json.dumps({
                 "summary": "客户询问交期。",
                 "priority": "normal",
                 "priority_reason": "优先级为普通，因为未检测到高风险信号。",
                 "category": "customer_inquiry",
                 "tags": [],
+                "decision_brief": {
+                    "one_line_conclusion": "客户询问交期，需要核查后回复。",
+                    "requested_outcome": "对方希望获得确认后的交付时间。",
+                    "next_steps": [
+                        {
+                            "step": "核查交期并准备回复。",
+                            "owner_hint": "sales",
+                            "due_hint": "today",
+                            "source": "latest_message",
+                        }
+                    ],
+                    "key_facts": [
+                        {
+                            "label": "请求",
+                            "value": "请确认交期",
+                            "source": "latest_message",
+                        }
+                    ],
+                    "must_check": ["订单交期"],
+                    "missing_info": ["当前订单状态"],
+                    "reply_recommendation": {
+                        "should_reply": True,
+                        "reply_type": "provide_info",
+                        "reason": "客户正在等待交期信息。",
+                    },
+                    "confidence": "medium",
+                },
                 "risk_flags": [],
                 "suggested_actions": [{
                     "type": "reply",
@@ -180,6 +387,27 @@ class AnalyzerTests(unittest.TestCase):
                 "priority_reason": "No high-risk signal was detected.",
                 "category": "customer_inquiry",
                 "tags": [],
+                "decision_brief": {
+                    "one_line_conclusion": "Customer asks about delivery.",
+                    "requested_outcome": "Delivery date.",
+                    "next_steps": [
+                        {
+                            "step": "Confirm delivery.",
+                            "owner_hint": "sales",
+                            "due_hint": "today",
+                            "source": "latest_message",
+                        }
+                    ],
+                    "key_facts": [],
+                    "must_check": [],
+                    "missing_info": [],
+                    "reply_recommendation": {
+                        "should_reply": True,
+                        "reply_type": "provide_info",
+                        "reason": "Customer needs delivery.",
+                    },
+                    "confidence": "medium",
+                },
                 "risk_flags": [],
                 "suggested_actions": [{
                     "type": "reply",
@@ -284,6 +512,18 @@ class AnalyzerTests(unittest.TestCase):
         self.assertEqual(result["suggested_actions"][0]["type"], "check_delivery")
         self.assertTrue(result["reply_draft"]["needs_human_review"])
         self.assertIn("PO 12345", result["reply_draft"]["body"])
+
+    @staticmethod
+    def _broken_pdf(directory: str) -> StoredAttachment:
+        path = Path(directory) / "broken.pdf"
+        path.write_bytes(b"not a PDF")
+        return StoredAttachment(
+            safe_filename="broken.pdf",
+            type="pdf",
+            path=path,
+            byte_size=path.stat().st_size,
+            expires_at=datetime.now(UTC) + timedelta(hours=1),
+        )
 
 
 if __name__ == "__main__":

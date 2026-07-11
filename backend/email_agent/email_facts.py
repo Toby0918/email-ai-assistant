@@ -82,6 +82,7 @@ def _find_deadlines(text: str) -> list[str]:
         r"\bwithin\s+\d+\s+(?:hours?|days?|weeks?)\b",
         r"\bbefore\s+[A-Z][A-Za-z]+\b",
         r"\bby\s+(?:today|tomorrow|[A-Z][A-Za-z]+\s+\d{1,2}|\d{1,2}/\d{1,2}/\d{2,4})\b",
+        r"\b20\d{2}[-/]\d{1,2}[-/]\d{1,2}(?:\s+\d{1,2}:\d{2})?(?:\s+[A-Za-z_/]+)?\b",
         r"\b(?:asap|urgent|today|tomorrow)\b",
         r"本周[一二三四五六日天]",
         r"今天|明天|尽快|马上",

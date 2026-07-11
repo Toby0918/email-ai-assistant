@@ -11,6 +11,9 @@ REQUIRED_RESULT_FIELDS = {
     "priority_reason",
     "category",
     "tags",
+    "decision_brief",
+    "conversation_timeline",
+    "attachment_insights",
     "risk_flags",
     "suggested_actions",
     "reply_draft",
@@ -48,6 +51,18 @@ ACTION_TYPES = {
     "wait",
     "ignore",
 }
+DECISION_REPLY_TYPES = {
+    "acknowledge",
+    "ask_clarification",
+    "provide_info",
+    "escalate_first",
+    "no_reply",
+}
+CONFIDENCE_LEVELS = {"high", "medium", "low"}
+CONVERSATION_STATUSES = {"resolved", "partially_resolved", "unresolved", "unknown"}
+TIMELINE_SOURCES = {"thread", "attachment"}
+ATTACHMENT_TYPES = {"image", "pdf", "xlsx", "docx", "unsupported"}
+ATTACHMENT_STATUSES = {"parsed", "metadata_only", "unavailable", "failed"}
 
 
 class AnalysisValidationError(ValueError):
@@ -62,6 +77,9 @@ def validate_analysis_result(data: dict[str, Any]) -> dict[str, Any]:
     _require_enum(data["priority"], PRIORITIES, "priority")
     _require_enum(data["category"], CATEGORIES, "category")
     _require_list(data["tags"], "tags")
+    _validate_decision_brief(data["decision_brief"])
+    _validate_conversation_timeline(data["conversation_timeline"])
+    _validate_attachment_insights(data["attachment_insights"])
     _validate_risk_flags(data["risk_flags"])
     _validate_actions(data["suggested_actions"])
     _validate_reply_draft(data["reply_draft"])
@@ -92,6 +110,126 @@ def _validate_risk_flags(items: Any) -> None:
         _require_fields(item, {"type", "level", "evidence", "recommendation"}, "risk_flag")
         _require_enum(item["type"], RISK_TYPES, "risk_flag.type")
         _require_enum(item["level"], RISK_LEVELS, "risk_flag.level")
+
+
+def _validate_decision_brief(value: Any) -> None:
+    if not isinstance(value, dict):
+        raise AnalysisValidationError("decision_brief must be an object.")
+    _require_fields(
+        value,
+        {
+            "one_line_conclusion",
+            "requested_outcome",
+            "next_steps",
+            "key_facts",
+            "must_check",
+            "missing_info",
+            "reply_recommendation",
+            "confidence",
+        },
+        "decision_brief",
+    )
+    _validate_next_steps(value["next_steps"])
+    _validate_key_facts(value["key_facts"])
+    _validate_string_list(value["must_check"], "decision_brief.must_check")
+    _validate_string_list(value["missing_info"], "decision_brief.missing_info")
+    _validate_reply_recommendation(value["reply_recommendation"])
+    _require_enum(value["confidence"], CONFIDENCE_LEVELS, "decision_brief.confidence")
+
+
+def _validate_next_steps(items: Any) -> None:
+    _require_list(items, "decision_brief.next_steps")
+    for item in items:
+        if not isinstance(item, dict):
+            raise AnalysisValidationError("decision_brief.next_steps items must be objects.")
+        _require_fields(item, {"step", "owner_hint", "due_hint", "source"}, "decision_brief.next_step")
+
+
+def _validate_key_facts(items: Any) -> None:
+    _require_list(items, "decision_brief.key_facts")
+    for item in items:
+        if not isinstance(item, dict):
+            raise AnalysisValidationError("decision_brief.key_facts items must be objects.")
+        _require_fields(item, {"label", "value", "source"}, "decision_brief.key_fact")
+
+
+def _validate_string_list(items: Any, label: str) -> None:
+    _require_list(items, label)
+    if not all(isinstance(item, str) for item in items):
+        raise AnalysisValidationError(f"{label} items must be strings.")
+
+
+def _validate_reply_recommendation(value: Any) -> None:
+    if not isinstance(value, dict):
+        raise AnalysisValidationError("decision_brief.reply_recommendation must be an object.")
+    _require_fields(
+        value,
+        {"should_reply", "reply_type", "reason"},
+        "decision_brief.reply_recommendation",
+    )
+    if not isinstance(value["should_reply"], bool):
+        raise AnalysisValidationError("decision_brief.reply_recommendation.should_reply must be a boolean.")
+    _require_enum(
+        value["reply_type"],
+        DECISION_REPLY_TYPES,
+        "decision_brief.reply_recommendation.reply_type",
+    )
+
+
+def _validate_conversation_timeline(value: Any) -> None:
+    if not isinstance(value, dict):
+        raise AnalysisValidationError("conversation_timeline must be an object.")
+    fields = {
+        "previous_context",
+        "current_status",
+        "status_reason",
+        "latest_external_request",
+        "latest_internal_commitment",
+        "open_items",
+        "confidence",
+    }
+    _require_fields(value, fields, "conversation_timeline")
+    for field in (
+        "previous_context",
+        "status_reason",
+        "latest_external_request",
+        "latest_internal_commitment",
+    ):
+        _require_string(value[field], f"conversation_timeline.{field}")
+    _require_enum(value["current_status"], CONVERSATION_STATUSES, "conversation_timeline.current_status")
+    _require_enum(value["confidence"], CONFIDENCE_LEVELS, "conversation_timeline.confidence")
+    _validate_timeline_items(value["open_items"])
+
+
+def _validate_timeline_items(items: Any) -> None:
+    _require_list(items, "conversation_timeline.open_items")
+    for item in items:
+        if not isinstance(item, dict):
+            raise AnalysisValidationError("conversation_timeline.open_items items must be objects.")
+        _require_fields(item, {"item", "owner_hint", "due_hint", "source"}, "conversation_timeline.open_item")
+        for field in ("item", "owner_hint", "due_hint"):
+            _require_string(item[field], f"conversation_timeline.open_item.{field}")
+        _require_enum(item["source"], TIMELINE_SOURCES, "conversation_timeline.open_item.source")
+
+
+def _validate_attachment_insights(items: Any) -> None:
+    _require_list(items, "attachment_insights")
+    for item in items:
+        if not isinstance(item, dict):
+            raise AnalysisValidationError("attachment_insights items must be objects.")
+        fields = {"filename", "type", "status", "summary", "key_facts", "limitations"}
+        _require_fields(item, fields, "attachment_insight")
+        _require_string(item["filename"], "attachment_insight.filename")
+        _require_string(item["summary"], "attachment_insight.summary")
+        _require_enum(item["type"], ATTACHMENT_TYPES, "attachment_insight.type")
+        _require_enum(item["status"], ATTACHMENT_STATUSES, "attachment_insight.status")
+        _validate_string_list(item["key_facts"], "attachment_insight.key_facts")
+        _validate_string_list(item["limitations"], "attachment_insight.limitations")
+
+
+def _require_string(value: Any, label: str) -> None:
+    if not isinstance(value, str):
+        raise AnalysisValidationError(f"{label} must be a string.")
 
 
 def _validate_actions(items: Any) -> None:

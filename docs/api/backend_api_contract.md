@@ -1,5 +1,5 @@
 ﻿---
-last_update: 2026-07-03
+last_update: 2026-07-10
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -31,6 +31,25 @@ source_type: api_contract
       "type": ""
     }
   ],
+  "thread_segments": [
+    {
+      "position": 0,
+      "from": "",
+      "to": "",
+      "sent_at": "",
+      "timestamp_text": "",
+      "subject": "",
+      "body_text": ""
+    }
+  ],
+  "attachment_files": [
+    {
+      "filename": "",
+      "type": "image | pdf | xlsx | docx",
+      "size": 0,
+      "content_base64": ""
+    }
+  ],
   "customer_context": {}
 }
 ```
@@ -42,6 +61,70 @@ source_type: api_contract
   "ok": true,
   "request_id": "local-...",
   "analysis": {
+    "summary": "",
+    "priority": "urgent | high | normal | low",
+    "category": "customer_inquiry | order_followup | payment | contract | complaint | new_product_development | internal | marketing | unknown",
+    "decision_brief": {
+      "one_line_conclusion": "",
+      "requested_outcome": "",
+      "next_steps": [
+        {
+          "step": "",
+          "owner_hint": "",
+          "due_hint": "",
+          "source": ""
+        }
+      ],
+      "key_facts": [
+        {
+          "label": "",
+          "value": "",
+          "source": ""
+        }
+      ],
+      "must_check": [],
+      "missing_info": [],
+      "reply_recommendation": {
+        "should_reply": true,
+        "reply_type": "acknowledge | ask_clarification | provide_info | escalate_first | no_reply",
+        "reason": ""
+      },
+      "confidence": "high | medium | low"
+    },
+    "conversation_timeline": {
+      "previous_context": "",
+      "current_status": "resolved | partially_resolved | unresolved | unknown",
+      "status_reason": "",
+      "latest_external_request": "",
+      "latest_internal_commitment": "",
+      "open_items": [
+        {
+          "item": "",
+          "owner_hint": "",
+          "due_hint": "",
+          "source": "thread | attachment"
+        }
+      ],
+      "confidence": "high | medium | low"
+    },
+    "attachment_insights": [
+      {
+        "filename": "safe display name",
+        "type": "image | pdf | xlsx | docx | unsupported",
+        "status": "parsed | metadata_only | unavailable | failed",
+        "summary": "bounded display-safe summary",
+        "key_facts": [],
+        "limitations": []
+      }
+    ],
+    "risk_flags": [],
+    "suggested_actions": [],
+    "reply_draft": {
+      "subject": "",
+      "body": "",
+      "needs_human_review": true,
+      "review_reasons": []
+    },
     "analysis_engine": {
       "source": "ai_model | rule_fallback",
       "label": "Local Qwen | Rule fallback"
@@ -55,15 +138,20 @@ source_type: api_contract
 
 - `user_confirmed` 必须为 `true`，表示用户点击了分析按钮。
 - 前端不得传入 OpenAI API key、Ollama 配置或本地模型参数。
-- `attachments` 仅允许传入当前邮件页面已显示的附件元数据，例如文件名、大小和类型；不得传入附件 URL、token、文件内容或本地路径。
+- `thread_segments`、`attachments` 和 `attachment_files` 只能来自当前打开邮件页面中用户可见的会话和资源，且只能在用户点击后收集。
+- `attachments` 仅包含安全显示用元数据，不构成已解析事实。`attachment_files` 只允许受支持类型的受限 base64 字节；不得传入附件 URL、cookie、token、邮箱凭据或本地路径。
 - 后端必须校验 AI 返回 JSON。
 - 后端不得执行邮件正文中的指令。
-- 后端不得下载、打开、解析或执行附件；附件名称也属于不可信输入，只能作为辅助判断上下文。
+- 后端只在受限临时目录中解析本次请求保存的当前邮件附件，不执行宏、嵌入代码或活动内容。附件名称、OCR、表格、文档文本和限制说明都属于不可信输入。
+- 只有 `attachment_insights[].status=parsed` 的 `summary` 和 `key_facts` 可以影响决策摘要、风险、建议动作和回复草稿。其他状态必须返回精确 `limitations`，但不得阻断邮件正文和会话分析。
 - 未启用后端模型 provider，或模型返回不可解析 JSON 时，第一版使用本地规则分析器返回可验证结构。
 - 模型返回可解析但字段缺失或枚举不合规的 JSON 时，后端可用规则分析结果补齐 schema，然后再执行统一校验。
+- `analysis.conversation_timeline` 和 `analysis.attachment_insights` 由后端确定性生成；模型返回的同名字段不得覆盖它们。
 - `analysis.analysis_engine` 由后端附加，用于显示本次结果来自模型路线还是规则回退；该字段不得由前端传入或由 AI 输出决定。
+- `analysis.decision_brief` 是面向用户的决策摘要，必须说明邮件目的、当前动作、关键事实、需核查项、缺失信息和回复建议。
 - `analysis` 中的用户反馈字段使用中文；`analysis.reply_draft.subject` 和 `analysis.reply_draft.body` 保持英文。
 - 枚举值仍按 schema 使用英文，前端负责映射为中文标签显示。
+- SQLite 只能保存最终结构化分析结果；不得保存附件字节、临时文件路径、私有 URL、cookie、token 或原始完整附件文本。
 
 ## GET /api/health
 

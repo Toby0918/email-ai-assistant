@@ -286,6 +286,94 @@ class RuleAnalyzerTests(unittest.TestCase):
         self.assertNotIn("confirm the details", draft.lower())
         self.assertFalse(_contains_chinese(draft))
 
+    def test_decision_brief_tells_user_what_to_do_for_rfq_email(self) -> None:
+        result = build_rule_based_analysis(
+            subject="RFQ reminder: RFQ No. 11467 - RR003848 Joint Trip lever arm Optimization",
+            sender="procurement@example.test",
+            clean_body=(
+                "Please provide quote for both options. Part No. 1156653 and 1687433. "
+                "Quote deadline: 2026-07-06 06:00 Asia/Shanghai. "
+                "Use the supplier portal https://app11.jaggaer.example/rfq/index.php?rfq=11467. "
+                "Attachment: Supplier_Instruction.pdf (1.64M)."
+            ),
+        )
+
+        brief = result["decision_brief"]
+        step_text = " ".join(item["step"] for item in brief["next_steps"])
+        facts_text = " ".join(item["value"] for item in brief["key_facts"])
+        must_check = " ".join(brief["must_check"])
+
+        self.assertIn("报价", brief["one_line_conclusion"])
+        self.assertIn("RFQ", brief["requested_outcome"])
+        self.assertIn("1156653", facts_text)
+        self.assertIn("1687433", facts_text)
+        self.assertIn("2026-07-06", facts_text)
+        self.assertIn("报价", step_text)
+        self.assertIn("附件", must_check)
+        self.assertEqual(brief["reply_recommendation"]["reply_type"], "escalate_first")
+        self.assertTrue(brief["reply_recommendation"]["should_reply"])
+
+    def test_rule_analysis_uses_unresolved_thread_and_only_parsed_attachment_facts(self) -> None:
+        timeline = {
+            "previous_context": "已整理2条可用会话，包含外部往来和内部跟进。",
+            "current_status": "unresolved",
+            "status_reason": "客户的交付请求仍未解决。",
+            "latest_external_request": "外部请求：Please confirm delivery for PO 123456.",
+            "latest_internal_commitment": "内部将跟进：Received, we will check.",
+            "open_items": [
+                {
+                    "item": "处理客户对 PO 123456 的交付请求。",
+                    "owner_hint": "internal_follow_up",
+                    "due_hint": "2026-07-12",
+                    "source": "thread",
+                }
+            ],
+            "confidence": "high",
+        }
+        insights = [
+            {
+                "filename": "requirements.docx",
+                "type": "docx",
+                "status": "parsed",
+                "summary": "DOCX: Required quantity is 200 pcs for PO 123456.",
+                "key_facts": ["Required quantity is 200 pcs for PO 123456."],
+                "limitations": [],
+            },
+            {
+                "filename": "locked.pdf",
+                "type": "pdf",
+                "status": "metadata_only",
+                "summary": "PDF attachment metadata only.",
+                "key_facts": ["Approved price is USD 1.00."],
+                "limitations": ["Encrypted PDF; text was not parsed."],
+            },
+        ]
+
+        result = build_rule_based_analysis(
+            subject="Internal follow-up",
+            sender="sales@cndlf.com",
+            clean_body="Received, we will check.",
+            attachment_insights=insights,
+            conversation_timeline=timeline,
+        )
+
+        brief = result["decision_brief"]
+        facts_text = " ".join(item["value"] for item in brief["key_facts"])
+        missing_text = " ".join(brief["missing_info"])
+        draft = result["reply_draft"]["body"]
+
+        self.assertEqual(result["conversation_timeline"]["current_status"], "unresolved")
+        self.assertEqual(result["attachment_insights"], insights)
+        self.assertIn("客户", brief["requested_outcome"])
+        self.assertIn("PO 123456", brief["requested_outcome"])
+        self.assertEqual(brief["next_steps"][0]["source"], "thread")
+        self.assertIn("200 pcs", facts_text)
+        self.assertNotIn("USD 1.00", facts_text)
+        self.assertIn("Encrypted PDF; text was not parsed.", missing_text)
+        self.assertIn("PO 123456", draft)
+        self.assertIn("200 pcs", draft)
+        self.assertNotIn("USD 1.00", draft)
+
     def test_combined_quality_and_delivery_email_returns_multiple_specific_actions(self) -> None:
         result = build_rule_based_analysis(
             subject="Quality issue and shipment follow up",
