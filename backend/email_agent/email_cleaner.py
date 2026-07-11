@@ -58,16 +58,30 @@ def clean_thread_segment_text(
     max_chars: int = DEFAULT_THREAD_SEGMENT_MAX_CHARS,
 ) -> str:
     """Return bounded current-message text for deterministic thread processing."""
-    bounded_text = _bound_thread_source(body_text)
-    bounded_html = _bound_thread_source(body_html)
+    cleaned, _ = clean_thread_segment_text_with_coverage(body_text, body_html, max_chars)
+    return cleaned
+
+
+def clean_thread_segment_text_with_coverage(
+    body_text: str | None = None,
+    body_html: str | None = None,
+    max_chars: int = DEFAULT_THREAD_SEGMENT_MAX_CHARS,
+) -> tuple[str, bool]:
+    """Return bounded text and whether no supplied source text was omitted."""
+    bounded_text, text_complete = _bound_thread_source(body_text)
+    bounded_html, html_complete = _bound_thread_source(body_html)
     cleaned = _strip_thread_noise(clean_email_body(body_text=bounded_text, body_html=bounded_html))
     if not isinstance(max_chars, int):
         max_chars = DEFAULT_THREAD_SEGMENT_MAX_CHARS
-    return cleaned[:max(min(max_chars, DEFAULT_THREAD_SEGMENT_MAX_CHARS), 0)]
+    limit = max(min(max_chars, DEFAULT_THREAD_SEGMENT_MAX_CHARS), 0)
+    coverage_complete = text_complete and html_complete and len(cleaned) <= limit
+    return cleaned[:limit], coverage_complete
 
 
-def _bound_thread_source(value: str | None) -> str:
-    return value[:DEFAULT_THREAD_SOURCE_MAX_CHARS] if isinstance(value, str) else ""
+def _bound_thread_source(value: str | None) -> tuple[str, bool]:
+    if not isinstance(value, str):
+        return "", True
+    return value[:DEFAULT_THREAD_SOURCE_MAX_CHARS], len(value) <= DEFAULT_THREAD_SOURCE_MAX_CHARS
 
 
 def _html_to_text(body_html: str | None) -> str:

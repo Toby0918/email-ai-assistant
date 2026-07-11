@@ -7,6 +7,7 @@ import re
 from .thread_requests import (
     extract_outcome_atoms,
     extract_request_atoms,
+    merge_request_atom_sources,
     track_request_states,
 )
 from .thread_segments import normalize_and_order_segments
@@ -42,7 +43,7 @@ def _extract_event(segment: dict[str, object], internal_domains: tuple[str, ...]
     role = _participant_role(str(segment["sender"]), internal_domains)
     due_hint = _match_text(_DATE_RE, signal_text)
     request_atoms, coverage_complete = (
-        extract_request_atoms(signal_text, due_hint) if role == "external" else ((), True)
+        _external_request_atoms(subject, body, due_hint) if role == "external" else ((), True)
     )
     return {
         "display_text": _combine_text(subject, body, "；"),
@@ -52,6 +53,15 @@ def _extract_event(segment: dict[str, object], internal_domains: tuple[str, ...]
         "outcome_atoms": extract_outcome_atoms(signal_text) if role == "internal" else (),
         "commitment": role == "internal" and _COMMITMENT_RE.search(signal_text) is not None,
     }
+
+
+def _external_request_atoms(
+    subject: str, body: str, due_hint: str
+) -> tuple[tuple[dict[str, object], ...], bool]:
+    subject_atoms, subject_complete = extract_request_atoms(subject, due_hint)
+    body_atoms, body_complete = extract_request_atoms(body, due_hint)
+    merged, merge_complete = merge_request_atom_sources(subject_atoms, body_atoms)
+    return merged, subject_complete and body_complete and merge_complete
 
 
 def _summarize_progress(
@@ -102,7 +112,7 @@ def _status_and_open_items(
     coverage_complete: bool,
 ) -> tuple[str, str, list[dict[str, str]]]:
     if not coverage_complete:
-        reason = "部分外部请求因数量限制被省略，需人工复核后再判断状态。"
+        reason = "部分会话内容或外部请求因安全限制被省略，需人工复核后再判断状态。"
         status = "unresolved" if request_states else "unknown"
         return status, reason, [_coverage_open_item()]
     if pending:
@@ -143,7 +153,7 @@ def _request_open_item(event: dict[str, object]) -> dict[str, str]:
 
 def _coverage_open_item() -> dict[str, str]:
     return {
-        "item": "部分外部请求因数量限制被省略，请人工复核完整会话。",
+        "item": "部分会话内容或外部请求被省略，请人工复核完整会话。",
         "owner_hint": "internal_follow_up",
         "due_hint": "",
         "source": "thread",

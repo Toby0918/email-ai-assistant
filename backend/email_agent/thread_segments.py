@@ -6,7 +6,7 @@ import re
 from datetime import datetime
 from email.utils import parsedate_to_datetime
 
-from .email_cleaner import clean_thread_segment_text
+from .email_cleaner import clean_thread_segment_text_with_coverage
 
 
 MAX_THREAD_SEGMENTS = 50
@@ -24,20 +24,22 @@ _HEADER_FROM_RE = re.compile(
 def normalize_and_order_segments(
     segments: object,
 ) -> tuple[list[dict[str, object]], bool, bool]:
-    coverage_complete = not isinstance(segments, list) or len(segments) <= MAX_THREAD_SEGMENTS
-    normalized = _normalize_segments(segments)
+    segment_count_complete = not isinstance(segments, list) or len(segments) <= MAX_THREAD_SEGMENTS
+    normalized, text_coverage_complete = _normalize_segments(segments)
     ordered, timestamps_reliable = _order_segments(normalized)
-    return ordered, timestamps_reliable, coverage_complete
+    return ordered, timestamps_reliable, segment_count_complete and text_coverage_complete
 
 
-def _normalize_segments(segments: object) -> list[dict[str, object]]:
+def _normalize_segments(segments: object) -> tuple[list[dict[str, object]], bool]:
     if not isinstance(segments, list):
-        return []
+        return [], True
 
     normalized: list[dict[str, object]] = []
     seen: set[tuple[str, str, str, str, str, int]] = set()
+    coverage_complete = True
     for index, raw_segment in enumerate(segments[:MAX_THREAD_SEGMENTS]):
-        segment = _normalize_segment(raw_segment, index)
+        segment, segment_complete = _normalize_segment(raw_segment, index)
+        coverage_complete = coverage_complete and segment_complete
         if segment is None:
             continue
         if segment["position"] is not None:
@@ -46,19 +48,24 @@ def _normalize_segments(segments: object) -> list[dict[str, object]]:
                 continue
             seen.add(fingerprint)
         normalized.append(segment)
-    return normalized
+    return normalized, coverage_complete
 
 
-def _normalize_segment(raw_segment: object, index: int) -> dict[str, object] | None:
+def _normalize_segment(
+    raw_segment: object, index: int
+) -> tuple[dict[str, object] | None, bool]:
     if not isinstance(raw_segment, dict):
-        return None
+        return None, True
 
-    body_text = _bounded_field(raw_segment, "body_text", 20_000)
-    body_html = _bounded_field(raw_segment, "body_html", 20_000)
-    body = clean_thread_segment_text(body_text=body_text, body_html=body_html)
+    raw_text = raw_segment.get("body_text")
+    raw_html = raw_segment.get("body_html")
+    body, text_complete = clean_thread_segment_text_with_coverage(
+        body_text=raw_text if isinstance(raw_text, str) else None,
+        body_html=raw_html if isinstance(raw_html, str) else None,
+    )
     subject = _bounded_field(raw_segment, "subject")
     if not body and not subject:
-        return None
+        return None, text_complete
 
     header = _bounded_field(raw_segment, "header_text")
     sender = _bounded_field(raw_segment, "from") or _sender_from_header(header)
@@ -72,7 +79,7 @@ def _normalize_segment(raw_segment: object, index: int) -> dict[str, object] | N
         "timestamp_text": sent_at or timestamp_text,
         "position": _position_value(raw_segment.get("position")),
         "index": index,
-    }
+    }, text_complete
 
 
 def _fingerprint(segment: dict[str, object]) -> tuple[str, str, str, str, str, int]:

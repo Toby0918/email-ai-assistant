@@ -9,11 +9,19 @@ MAX_REQUEST_ATOMS_PER_EVENT = 16
 MAX_REQUEST_ATOM_CHARS = 240
 
 _REQUEST_RE = re.compile(
-    r"\b(please|could you|need|confirm|provide|request)\b|请|麻烦|需要|确认|提供",
+    r"\b(please|could you|need|confirm|provide)\b|"
+    r"\b(?:rfq|quote|quotation|pricing|certificate|shipment|sample|invoice|payment|contract|order)\s+request\b|"
+    r"\brequest(?:ing|ed)?\s+(?:rfq|quote|quotation|pricing|certificate|shipment|sample|invoice|payment|contract|order)\b|"
+    r"请|麻烦|需要|确认|提供",
     re.IGNORECASE,
 )
 _SENTENCE_SPLIT_RE = re.compile(r"[.!?。！？；;\n]+")
+_COMMA_SPLIT_RE = re.compile(r"[,\uFF0C]")
 _CONJUNCTION_SPLIT_RE = re.compile(r"\s+\band\b\s+|同时|并且|以及", re.IGNORECASE)
+_NON_REQUEST_DETAIL_RE = re.compile(
+    r"\b(is|are|was|were|has|have|had|attached|received|completed|resolved|pending|reference)\b",
+    re.IGNORECASE,
+)
 _OUTCOME_RE = re.compile(
     r"\b(resolved|completed|closed|has been sent|delivered)\b|已(?:解决|完成|关闭|发送|处理完成)",
     re.IGNORECASE,
@@ -55,21 +63,65 @@ def extract_request_atoms(
     for sentence in sentences:
         if _REQUEST_RE.search(sentence) is None:
             continue
-        fragments = [part.strip() for part in _CONJUNCTION_SPLIT_RE.split(sentence) if part.strip()]
-        intent_seen = False
-        for fragment in fragments:
-            if _REQUEST_RE.search(fragment) is not None:
-                intent_seen = True
-            if not intent_seen:
+        comma_intent = False
+        clauses = [part.strip() for part in _COMMA_SPLIT_RE.split(sentence) if part.strip()]
+        for clause in clauses:
+            explicit_intent = _REQUEST_RE.search(clause) is not None
+            inherited_intent = comma_intent and _is_bare_requested_item(clause)
+            if not explicit_intent and not inherited_intent:
+                comma_intent = False
                 continue
-            fragment_atoms = _atoms_from_clause(fragment, due_hint)
-            if not fragment_atoms and _REQUEST_RE.search(fragment) is not None:
-                fragment_atoms = [_make_atom(fragment, due_hint, (), ())]
-            for atom in fragment_atoms:
-                if len(atoms) >= MAX_REQUEST_ATOMS_PER_EVENT:
-                    return tuple(atoms), False
-                atoms.append(atom)
+            fragments = [part.strip() for part in _CONJUNCTION_SPLIT_RE.split(clause) if part.strip()]
+            intent_seen = inherited_intent
+            for fragment in fragments:
+                if _REQUEST_RE.search(fragment) is not None:
+                    intent_seen = True
+                if not intent_seen:
+                    continue
+                fragment_atoms = _atoms_from_clause(fragment, due_hint)
+                if not fragment_atoms and _REQUEST_RE.search(fragment) is not None:
+                    fragment_atoms = [_make_atom(fragment, due_hint, (), ())]
+                for atom in fragment_atoms:
+                    if len(atoms) >= MAX_REQUEST_ATOMS_PER_EVENT:
+                        return tuple(atoms), False
+                    atoms.append(atom)
+            comma_intent = explicit_intent or inherited_intent
     return tuple(atoms), True
+
+
+def _is_bare_requested_item(text: str) -> bool:
+    if _NON_REQUEST_DETAIL_RE.search(text) is not None:
+        return False
+    return _IDENTIFIER_RE.search(text) is not None or bool(extract_topics(text))
+
+
+def merge_request_atom_sources(
+    subject_atoms: tuple[dict[str, object], ...],
+    body_atoms: tuple[dict[str, object], ...],
+) -> tuple[tuple[dict[str, object], ...], bool]:
+    merged = list(subject_atoms)
+    subject_identities = [
+        identity
+        for atom in subject_atoms
+        if (identity := _request_identity(atom)) is not None
+    ]
+    for atom in body_atoms:
+        identity = _request_identity(atom)
+        if identity is not None and identity in subject_identities:
+            subject_identities.remove(identity)
+            continue
+        if len(merged) >= MAX_REQUEST_ATOMS_PER_EVENT:
+            return tuple(merged), False
+        merged.append(atom)
+    return tuple(merged), True
+
+
+def _request_identity(
+    atom: dict[str, object],
+) -> tuple[tuple[str, ...], tuple[str, ...]] | None:
+    identifiers = tuple(str(value) for value in atom["identifiers"])
+    topics = tuple(str(value) for value in atom["topics"])
+    return (identifiers, topics) if identifiers and topics else None
 
 
 def extract_outcome_atoms(text: str) -> tuple[dict[str, object], ...]:
