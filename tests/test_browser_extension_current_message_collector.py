@@ -18,6 +18,7 @@ COLLECTOR = (
     / "content"
     / "current_message_collector.js"
 )
+POPUP = ROOT / "frontend" / "browser_extension" / "popup.js"
 
 
 class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
@@ -30,6 +31,7 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
             const fs = require("fs");
             const vm = require("vm");
             const source = fs.readFileSync(__COLLECTOR_PATH__, "utf8");
+            const popupSource = fs.readFileSync(__POPUP_PATH__, "utf8");
 
             class FakeElement {
               constructor({
@@ -663,6 +665,93 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
                 }
               },
 
+              never_settling_read_and_cancel_still_timeout_and_reenable_analyze: async () => {
+                let cancelCalled = false;
+                const reader = {
+                  read: () => new Promise(() => {}),
+                  cancel: () => {
+                    cancelCalled = true;
+                    return new Promise(() => {});
+                  },
+                  releaseLock: () => {},
+                };
+                const doc = resourceDocument([
+                  resource("stalled.pdf", "pdf", "/cgi-bin/download?file=stalled-read-cancel"),
+                ]);
+                const api = loadCollector(async () => ({
+                  ok: true,
+                  redirected: false,
+                  headers: { get: () => null },
+                  body: { getReader: () => reader },
+                }));
+
+                const listeners = new Map();
+                const elements = new Map();
+                for (const id of [
+                  "status", "priority", "summary", "category", "engine", "decision-brief",
+                  "conversation-timeline", "attachment-insights", "attachments", "risks", "actions",
+                  "draft", "analyze-button", "copy-draft-button",
+                ]) {
+                  elements.set(`#${id}`, {
+                    textContent: "", value: "", disabled: false,
+                    addEventListener: (type, callback) => listeners.set(`${id}:${type}`, callback),
+                  });
+                }
+                let receivedPayload;
+                const fingerprint = "msg-v1-aaaaaaaaaaaaaaaa";
+                const popupContext = {
+                  document: { querySelector: (selector) => elements.get(selector) || null },
+                  navigator: { clipboard: { writeText: async () => {} } },
+                  chrome: { tabs: {
+                    query: async () => [{ id: 7, url: "https://exmail.qq.com/cgi-bin/readmail" }],
+                    sendMessage: async (_tabId, message) => {
+                      if (message.type === "REVALIDATE_CURRENT_EMAIL") {
+                        return { ok: true, message_fingerprint: fingerprint };
+                      }
+                      const resources = await api.collectVisibleResources(
+                        doc,
+                        trustedResourceOptions(doc, {
+                          limits: { perResourceTimeoutMs: 20, overallTimeoutMs: 50 },
+                        }),
+                      );
+                      return {
+                        ok: true,
+                        message_fingerprint: fingerprint,
+                        payload: {
+                          subject: "Synthetic", from: "sender@example.test", to: [], sent_at: "",
+                          body_text: "Synthetic body", attachments: [], thread_segments: [],
+                          attachment_files: resources.attachment_files,
+                          resource_limitations: resources.resource_limitations,
+                        },
+                      };
+                    },
+                  } },
+                  EmailAssistantApi: {
+                    analyzeCurrentEmail: async (payload) => {
+                      receivedPayload = payload;
+                      return { ok: false, error: { message: "Synthetic stop after payload capture." } };
+                    },
+                  },
+                  EmailAssistantRender: {
+                    clearAnalysis: () => {}, renderAttachments: () => {}, renderAnalysis: () => {},
+                  },
+                };
+                vm.runInNewContext(popupSource, popupContext, { filename: "popup.js" });
+                const analyze = listeners.get("analyze-button:click");
+                await withinTestDeadline(analyze(), "Analyze with stalled read and cancel");
+
+                if (!cancelCalled) throw new Error("best-effort reader cancellation was not triggered");
+                if (!receivedPayload || receivedPayload.resource_limitations.length !== 1) {
+                  throw new Error(`Analyze did not receive timeout limitation: ${JSON.stringify(receivedPayload)}`);
+                }
+                if (!receivedPayload.resource_limitations[0].limitation.includes("deadline")) {
+                  throw new Error(`timeout limitation missing: ${JSON.stringify(receivedPayload)}`);
+                }
+                if (elements.get("#analyze-button").disabled !== false) {
+                  throw new Error("Analyze remained disabled after resource timeout");
+                }
+              },
+
               candidate_overflow_is_bounded_with_one_aggregate_limitation: async () => {
                 const api = loadCollector(async () => { throw new Error("unsupported resources must not fetch"); });
                 if (!Number.isInteger(api.MAX_RESOURCE_CANDIDATES) || api.MAX_RESOURCE_CANDIDATES < 5) {
@@ -708,10 +797,12 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
             """
         )
         script = script.replace("__COLLECTOR_PATH__", json.dumps(str(COLLECTOR)))
+        script = script.replace("__POPUP_PATH__", json.dumps(str(POPUP)))
         script = script.replace("__CASE_NAME__", json.dumps(case_name))
         result = subprocess.run(
-            ["node", "-e", script],
+            ["node", "-"],
             cwd=ROOT,
+            input=script,
             capture_output=True,
             text=True,
             check=False,
@@ -767,6 +858,9 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
 
     def test_stalled_stream_read_is_cancelled_and_returns_a_safe_limitation(self) -> None:
         self.run_node_case("stalled_stream_read_is_cancelled_and_returns_a_safe_limitation")
+
+    def test_never_settling_read_and_cancel_still_timeout_and_reenable_analyze(self) -> None:
+        self.run_node_case("never_settling_read_and_cancel_still_timeout_and_reenable_analyze")
 
     def test_candidate_overflow_is_bounded_with_one_aggregate_limitation(self) -> None:
         self.run_node_case("candidate_overflow_is_bounded_with_one_aggregate_limitation")

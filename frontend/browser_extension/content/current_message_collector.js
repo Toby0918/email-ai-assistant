@@ -463,9 +463,9 @@
         const item = await withDeadline(
           reader.read(),
           deadline,
-          async () => {
+          () => {
             abortController(controller);
-            await cancelReader(reader);
+            cancelReader(reader);
           },
         );
         if (!item || item.done) {
@@ -489,7 +489,7 @@
       }
       return { buffer: concatenateChunks(chunks, byteSize) };
     } catch (error) {
-      await cancelReader(reader);
+      cancelReader(reader);
       if (isDeadlineError(error)) {
         return { limitation: "Resource collection deadline expired; body analysis continued without this resource." };
       }
@@ -542,12 +542,12 @@
     }
   }
 
-  async function cancelReader(reader) {
+  function cancelReader(reader) {
     if (!reader || typeof reader.cancel !== "function") {
       return;
     }
     try {
-      await reader.cancel();
+      Promise.resolve(reader.cancel()).catch(() => {});
     } catch (error) {
       return;
     }
@@ -693,13 +693,13 @@
     const remaining = Math.max(0, deadline - Date.now());
     return new Promise((resolve, reject) => {
       let settled = false;
-      const timer = root.setTimeout(async () => {
+      const timer = root.setTimeout(() => {
         if (settled) {
           return;
         }
         settled = true;
         try {
-          await onTimeout();
+          onTimeout();
         } finally {
           reject(deadlineError());
         }
