@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from .thread_dates import deadline_date_hints
+
 
 MAX_FACT_ITEMS = 5
 MAX_FACT_LENGTH = 140
@@ -82,12 +84,11 @@ def _find_deadlines(text: str) -> list[str]:
         r"\bwithin\s+\d+\s+(?:hours?|days?|weeks?)\b",
         r"\bbefore\s+[A-Z][A-Za-z]+\b",
         r"\bby\s+(?:today|tomorrow|[A-Z][A-Za-z]+\s+\d{1,2}|\d{1,2}/\d{1,2}/\d{2,4})\b",
-        r"\b20\d{2}[-/]\d{1,2}[-/]\d{1,2}(?:\s+\d{1,2}:\d{2})?(?:\s+[A-Za-z_/]+)?\b",
         r"\b(?:asap|urgent|today|tomorrow)\b",
         r"本周[一二三四五六日天]",
         r"今天|明天|尽快|马上",
     ]
-    return _unique_short(_find_all(patterns, text))
+    return _unique_short([*_find_all(patterns, text), *deadline_date_hints(text)])
 
 
 def _find_requested_actions(sentences: list[str]) -> list[str]:

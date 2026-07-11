@@ -44,6 +44,34 @@ class EmailFactsTests(unittest.TestCase):
         self.assertIn("asap", facts.deadlines)
         self.assertLessEqual(max(len(item) for item in facts.requested_actions), 140)
 
+    def test_generic_iso_date_requires_due_cue_and_does_not_consume_prose_as_zone(self) -> None:
+        ordinary = extract_email_facts(
+            subject="Invoice update",
+            sender="billing@example.test",
+            clean_body="Invoice issued 2026-07-10 and shipment planning follows.",
+        )
+        deadline = extract_email_facts(
+            subject="Reply deadline",
+            sender="buyer@example.test",
+            clean_body="Please reply by 2026-07-10 09:30 and shipment planning follows.",
+        )
+
+        self.assertEqual(ordinary.deadlines, [])
+        self.assertIn("2026-07-10 09:30", deadline.deadlines)
+        self.assertNotIn("2026-07-10 09:30 and", deadline.deadlines)
+
+    def test_deadline_timezone_suffix_uses_explicit_valid_forms(self) -> None:
+        zones = ("UTC+08:00", "GMT-04:00", "PDT", "Asia/Shanghai")
+        for zone in zones:
+            with self.subTest(zone=zone):
+                expected = f"2026-07-10 09:30 {zone}"
+                facts = extract_email_facts(
+                    subject="Reply deadline",
+                    sender="buyer@example.test",
+                    clean_body=f"Please reply by {expected}.",
+                )
+                self.assertIn(expected, facts.deadlines)
+
 
 if __name__ == "__main__":
     unittest.main()
