@@ -158,13 +158,6 @@ dd {
   font-weight: 700;
 }
 
-.analysis-link {
-  color: #0b63ce;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-  word-break: break-all;
-}
-
 .draft-section {
   display: grid;
   flex: 0 0 auto;

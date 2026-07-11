@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-03
+last_update: 2026-07-11
 status: active
 owner: "@tobyWang"
 review_cycle: weekly
@@ -31,7 +31,7 @@ Make long RFQ-style analysis results readable in the popup by rendering risks, a
 
 ## Background
 
-Prior user-provided Tencent Exmail trial feedback indicated that long RFQ numbers, URLs, attachment names, risk evidence, and action descriptions are hard to read when displayed as one-line comma-separated text in the extension popup. Follow-up user-provided feedback also indicated that long analysis content can hide the copy-draft button, and URL text inside risks/actions needs to be clickable.
+Prior user-provided Tencent Exmail trial feedback indicated that long RFQ numbers, URLs, attachment names, risk evidence, and action descriptions are hard to read when displayed as one-line comma-separated text in the extension popup. Follow-up user-provided feedback also indicated that URL text should be clickable, but the later provenance review established that the current analysis schema has no explicit validated URL object. URL-shaped analysis text therefore remains readable but inert.
 
 ## Scope
 
@@ -49,7 +49,7 @@ Prior user-provided Tencent Exmail trial feedback indicated that long RFQ number
 1. Add failing renderer and static tests for structured long-output rendering.
 2. Render risks, suggested actions, and attachments as list-style blocks.
 3. Render risk/action object fields as separate labeled lines, including evidence, recommendation, description, owner hint, and due hint when present.
-4. Linkify URLs in risk/action list content with safe anchor attributes.
+4. Keep URL-shaped risk/action text inert until an explicit backend-validated URL object exists.
 5. Update popup CSS for fixed readable dimensions, scrollable result content, visible copy control, and long-token wrapping.
 6. Record the next-phase route in the roadmap.
 7. Regenerate the project status log and run full verification.
@@ -76,7 +76,7 @@ Prior user-provided Tencent Exmail trial feedback indicated that long RFQ number
 3. The draft area and result area remain readable without hiding the copy button.
 4. The copy-draft button stays in the draft section and remains reachable after long analysis output.
 5. Risks and actions render object details as labeled lines instead of compressed paragraphs.
-6. URLs in risk/action content are clickable and use `target="_blank"` with `rel="noopener noreferrer"`.
+6. URL-shaped text in Decision Brief, risks, actions, and legacy analysis fields remains visible but creates no anchors without an explicit backend-validated URL object.
 7. The roadmap includes the recommended next-phase route.
 8. Full tests and maintenance scan pass.
 

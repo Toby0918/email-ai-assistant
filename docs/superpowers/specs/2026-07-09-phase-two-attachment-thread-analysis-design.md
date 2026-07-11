@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-09
+last_update: 2026-07-11
 status: active
 owner: "@tobyWang"
 review_cycle: weekly
@@ -148,7 +148,7 @@ Model input includes a bounded cleaned current thread, deterministic timeline fa
 
 ## User Interface
 
-The persistent side panel will show the action brief first, followed by a compact Conversation Progress section and Attachment Insights section. Each open item, risk, and action renders separately. Links are clickable only when they came from validated visible message text; resource names are display text, not executable links. The draft pane and Copy Draft action stay visible without requiring the user to scroll through long analysis text.
+The persistent side panel will show the action brief first, followed by a compact Conversation Progress section and Attachment Insights section. Each open item, risk, and action renders separately. URL-shaped analysis text is inert by default because the current backend schema has no explicit validated-visible-message URL object. Decision Brief, risk, action, legacy metadata, and resource-name text must not become executable links; a future link feature requires an explicit backend-validated URL object and a separate schema decision. The draft pane and Copy Draft action stay visible without requiring the user to scroll through long analysis text.
 
 ## Testing and Rollout
 
@@ -165,4 +165,3 @@ Rollout proceeds in independently testable increments:
 ## Rollback
 
 Disabling attachment transfer and retaining metadata-only analysis restores the current behavior. Setting `EMAIL_AGENT_LLM_PROVIDER=disabled` retains the deterministic rule fallback. Removing the temporary storage configuration and parser route disables file processing without introducing any email action.
-

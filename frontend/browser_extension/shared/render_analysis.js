@@ -67,8 +67,6 @@
     failed: "解析失败",
   };
 
-  const URL_PATTERN = /https?:\/\/[^\s<>"'，。；：！？、（）]+/gi;
-  const TRAILING_URL_PUNCTUATION = /[),.;:!?，。；：！？、]+$/;
   const ATTACHMENT_REDACTION = "[已隐藏链接或路径]";
   const ATTACHMENT_URI_MARKER_PATTERN = /(^|[^A-Za-z0-9+.-])[A-Za-z][A-Za-z0-9+.-]*:[^\s]/i;
   const ATTACHMENT_WINDOWS_PATH_MARKER_PATTERN = /(^|[^A-Za-z0-9])[A-Za-z]:[\\/]/;
@@ -341,7 +339,7 @@
 
     const doc = field.ownerDocument || document;
     field.className = withClassName(field.className, "analysis-list");
-    field.replaceChildren(...items.map((item) => renderFormattedItem(doc, item, false)));
+    field.replaceChildren(...items.map((item) => renderFormattedItem(doc, item)));
   }
 
   function renderDecisionBrief(field, value) {
@@ -486,13 +484,13 @@
     return lines.join("\n");
   }
 
-  function renderFormattedItem(doc, item, allowLinks = true) {
+  function renderFormattedItem(doc, item) {
     const wrapper = doc.createElement("div");
     wrapper.className = "analysis-list__item";
     if (item.title) {
       const title = doc.createElement("div");
       title.className = "analysis-list__item-title";
-      appendFormattedText(title, item.title, allowLinks);
+      appendFormattedText(title, item.title);
       wrapper.appendChild(title);
     }
     for (const line of item.lines) {
@@ -504,59 +502,14 @@
         label.textContent = `${line.label}：`;
         lineElement.appendChild(label);
       }
-      appendFormattedText(lineElement, line.text, allowLinks);
+      appendFormattedText(lineElement, line.text);
       wrapper.appendChild(lineElement);
     }
     return wrapper;
   }
 
-  function appendFormattedText(parent, value, allowLinks) {
-    if (allowLinks) {
-      appendLinkedText(parent, value);
-      return;
-    }
+  function appendFormattedText(parent, value) {
     appendText(parent, safeDisplayText(value, ""));
-  }
-
-  function appendLinkedText(parent, value) {
-    const text = textOrFallback(value, "");
-    if (!text) {
-      return;
-    }
-
-    URL_PATTERN.lastIndex = 0;
-    let cursor = 0;
-    let match = URL_PATTERN.exec(text);
-    while (match) {
-      if (!hasExplicitUrlBoundary(text, match.index)) {
-        match = URL_PATTERN.exec(text);
-        continue;
-      }
-      appendText(parent, text.slice(cursor, match.index));
-      const rawUrl = match[0];
-      const url = trimTrailingUrlPunctuation(rawUrl);
-      const trailing = rawUrl.slice(url.length);
-      appendLink(parent, url);
-      appendText(parent, trailing);
-      cursor = match.index + rawUrl.length;
-      match = URL_PATTERN.exec(text);
-    }
-    appendText(parent, text.slice(cursor));
-  }
-
-  function hasExplicitUrlBoundary(text, index) {
-    if (index === 0) {
-      return true;
-    }
-    if (/[A-Za-z0-9_:+.-]/.test(text.charAt(index - 1))) {
-      return false;
-    }
-    let tokenStart = index;
-    while (tokenStart > 0 && !/\s/.test(text.charAt(tokenStart - 1))) {
-      tokenStart -= 1;
-    }
-    const tokenPrefix = text.slice(tokenStart, index);
-    return !/(^|[^A-Za-z0-9+.-])[A-Za-z][A-Za-z0-9+.-]*:/.test(tokenPrefix);
   }
 
   function appendText(parent, text) {
@@ -571,27 +524,6 @@
     parent.textContent = `${parent.textContent || ""}${text}`;
   }
 
-  function appendLink(parent, url) {
-    if (!url) {
-      return;
-    }
-    const doc = parent.ownerDocument || document;
-    if (!doc || typeof doc.createElement !== "function" || typeof parent.appendChild !== "function") {
-      appendText(parent, url);
-      return;
-    }
-    const link = doc.createElement("a");
-    link.className = "analysis-link";
-    link.href = url;
-    link.target = "_blank";
-    link.rel = "noopener noreferrer";
-    link.textContent = url;
-    parent.appendChild(link);
-  }
-
-  function trimTrailingUrlPunctuation(url) {
-    return String(url || "").replace(TRAILING_URL_PUNCTUATION, "");
-  }
 
   function renderPlaceholder(field, text = "-") {
     if (canRenderChildren(field)) {

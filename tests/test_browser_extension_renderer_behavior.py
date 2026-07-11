@@ -17,6 +17,102 @@ POPUP_SCRIPT = ROOT / "frontend" / "browser_extension" / "popup.js"
 
 
 class BrowserExtensionRendererBehaviorTests(unittest.TestCase):
+    def test_analysis_urls_are_inert_without_validated_url_objects(self) -> None:
+        if shutil.which("node") is None:
+            self.skipTest("Node.js is required for browser extension renderer tests")
+
+        script = f"""
+        const fs = require("fs");
+        const vm = require("vm");
+        const renderer = fs.readFileSync({str(RENDERER)!r}, "utf8");
+
+        class FakeElement {{
+          constructor(tagName = "div") {{
+            this.tagName = tagName.toUpperCase();
+            this.children = [];
+            this.className = "";
+            this.textContent = "";
+            this.value = "";
+            this.ownerDocument = fakeDocument;
+          }}
+
+          appendChild(child) {{
+            this.children.push(child);
+            this.textContent = this.children.map((item) => item.textContent || "").join("");
+            return child;
+          }}
+
+          replaceChildren(...children) {{
+            this.children = children;
+            this.textContent = this.children.map((item) => item.textContent || "").join("\\n");
+          }}
+
+          querySelectorAll(tagName) {{
+            const matches = [];
+            const expected = tagName.toUpperCase();
+            function walk(node) {{
+              if (node.tagName === expected) matches.push(node);
+              for (const child of node.children || []) walk(child);
+            }}
+            walk(this);
+            return matches;
+          }}
+        }}
+
+        const fakeDocument = {{
+          createElement: (tagName) => new FakeElement(tagName),
+          createTextNode: (text) => ({{ tagName: "#TEXT", textContent: String(text) }}),
+        }};
+        const context = {{ window: {{}}, document: fakeDocument }};
+        vm.runInNewContext(renderer, context);
+        const fields = {{
+          priority: new FakeElement(), summary: new FakeElement(), category: new FakeElement(),
+          engine: new FakeElement(), decisionBrief: new FakeElement(),
+          conversationTimeline: new FakeElement(), attachmentInsights: new FakeElement(),
+          attachments: new FakeElement(), risks: new FakeElement(), actions: new FakeElement(),
+          draft: new FakeElement("textarea"),
+        }};
+        const urls = [
+          "https://decision.example.test/rfq/42",
+          "https://risk.example.test/rfq/42",
+          "https://action.example.test/rfq/42",
+        ];
+
+        context.window.EmailAssistantRender.renderAnalysis(fields, {{
+          decision_brief: {{
+            one_line_conclusion: `Review ${{urls[0]}}`,
+            requested_outcome: "Review the request.", next_steps: [], key_facts: [],
+            must_check: [], missing_info: [],
+            reply_recommendation: {{ should_reply: true, reply_type: "provide_info", reason: "Review." }},
+            confidence: "medium",
+          }},
+          risk_flags: [{{ type: "other", level: "medium", evidence: `Check ${{urls[1]}}`, recommendation: "Review." }}],
+          suggested_actions: [{{ type: "other", description: `Check ${{urls[2]}}` }}],
+          reply_draft: {{ body: "Draft" }},
+        }});
+
+        for (const [field, url] of [
+          [fields.decisionBrief, urls[0]], [fields.risks, urls[1]], [fields.actions, urls[2]],
+        ]) {{
+          if (!field.textContent.includes(url)) throw new Error(`URL text missing: ${{url}}`);
+          if (field.querySelectorAll("a").length !== 0) {{
+            throw new Error(`unvalidated analysis URL became clickable: ${{url}}`);
+          }}
+        }}
+        """
+
+        result = subprocess.run(
+            ["node", "-e", textwrap.dedent(script)],
+            cwd=ROOT,
+            capture_output=True,
+            encoding="utf-8",
+            text=True,
+            check=False,
+            timeout=10,
+        )
+        if result.returncode != 0:
+            self.fail(result.stderr or result.stdout)
+
     def test_renders_conversation_progress_and_attachment_insights_safely(self) -> None:
         if shutil.which("node") is None:
             self.skipTest("Node.js is required for browser extension renderer tests")
@@ -157,8 +253,8 @@ class BrowserExtensionRendererBehaviorTests(unittest.TestCase):
         }});
 
         const mixedSchemeLinks = fields.risks.querySelectorAll("a");
-        if (mixedSchemeLinks.length !== 2) {{
-          throw new Error(`mixed-scheme tokens produced anchors: ${{mixedSchemeLinks.map((item) => item.href)}}`);
+        if (mixedSchemeLinks.length !== 0) {{
+          throw new Error(`analysis text produced anchors: ${{mixedSchemeLinks.map((item) => item.href)}}`);
         }}
         if (fields.conversationTimeline.children.length !== 7) {{
           throw new Error(`expected seven timeline entries, got ${{fields.conversationTimeline.children.length}}`);
@@ -199,13 +295,13 @@ class BrowserExtensionRendererBehaviorTests(unittest.TestCase):
           throw new Error("attachment model content became executable HTML");
         }}
         const riskLinks = fields.risks.querySelectorAll("a");
-        const expectedRiskLinks = ["https://portal.example/rfq/42", "http://status.example/rfq/42"];
-        if (riskLinks.length !== expectedRiskLinks.length ||
-            riskLinks.some((item, index) => item.href !== expectedRiskLinks[index])) {{
-          throw new Error(`only explicit http/https URLs may be links: ${{riskLinks.map((item) => item.href)}}`);
+        if (riskLinks.length !== 0) {{
+          throw new Error(`unvalidated risk text became clickable: ${{riskLinks.map((item) => item.href)}}`);
         }}
-        if (riskLinks.some((item) => item.target !== "_blank" || item.rel !== "noopener noreferrer")) {{
-          throw new Error("safe link attributes are missing");
+        for (const inertUrl of ["https://portal.example/rfq/42", "http://status.example/rfq/42"]) {{
+          if (!fields.risks.textContent.includes(inertUrl)) {{
+            throw new Error(`inert URL text missing: ${{inertUrl}}`);
+          }}
         }}
         for (const mixedScheme of [
           "data:text/plain,内容https://data.example/private",
@@ -455,7 +551,7 @@ class BrowserExtensionRendererBehaviorTests(unittest.TestCase):
         if result.returncode != 0:
             self.fail(result.stderr or result.stdout)
 
-    def test_renders_risk_action_details_and_clickable_links(self) -> None:
+    def test_renders_risk_action_details_with_inert_url_text(self) -> None:
         if shutil.which("node") is None:
             self.skipTest("Node.js is required for browser extension renderer tests")
 
@@ -610,14 +706,8 @@ class BrowserExtensionRendererBehaviorTests(unittest.TestCase):
         }}
 
         const anchors = fields.risks.querySelectorAll("a");
-        if (anchors.length !== 1) {{
-          throw new Error(`expected one clickable URL, got ${{anchors.length}}`);
-        }}
-        if (anchors[0].href !== "https://app11.jaggaer.example/rfq/index.php?rfq=11467") {{
-          throw new Error(`unexpected URL href: ${{anchors[0].href}}`);
-        }}
-        if (anchors[0].target !== "_blank" || anchors[0].rel !== "noopener noreferrer") {{
-          throw new Error(`link safety attributes missing: target=${{anchors[0].target}} rel=${{anchors[0].rel}}`);
+        if (anchors.length !== 0) {{
+          throw new Error(`unvalidated URL became clickable: ${{anchors.length}}`);
         }}
         """
 
