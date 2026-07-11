@@ -152,12 +152,10 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
             }
 
             function response(bytes, ok = true) {
-              const data = Uint8Array.from(bytes);
-              return {
-                ok,
-                headers: { get: (name) => name.toLowerCase() === "content-length" ? String(data.byteLength) : null },
-                arrayBuffer: async () => data.buffer.slice(0),
-              };
+              if (!ok) {
+                return { ok: false, headers: { get: () => null } };
+              }
+              return streamingResponse([bytes], { contentLength: String(bytes.length) }).response;
             }
 
             function streamingResponse(chunks, { contentLength = null } = {}) {
@@ -430,6 +428,26 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
                 }
               },
 
+              false_small_length_without_stream_rejects_before_arraybuffer: async () => {
+                let arrayBufferCalls = 0;
+                const doc = messageDocument([resource("false-small.pdf", "pdf", "/false-small")]);
+                const api = loadCollector(async () => ({
+                  ok: true,
+                  headers: { get: (name) => name.toLowerCase() === "content-length" ? "1" : null },
+                  arrayBuffer: async () => {
+                    arrayBufferCalls += 1;
+                    return Uint8Array.from([1, 2, 3, 4, 5]).buffer;
+                  },
+                }));
+                const result = await api.collectVisibleResources(doc, {
+                  limits: { maxFiles: 2, maxFileBytes: 4, maxTotalBytes: 6 },
+                });
+                if (arrayBufferCalls !== 0) throw new Error("non-stream arrayBuffer was invoked");
+                if (result.attachment_files.length !== 0 || result.resource_limitations.length !== 1) {
+                  throw new Error("false-small non-stream response did not fail safely");
+                }
+              },
+
               oversized_stream_cancels_without_upload_and_continues: async () => {
                 const oversized = streamingResponse([[1, 2, 3], [4, 5], [6]], { contentLength: "1" });
                 const safe = streamingResponse([[9, 10]]);
@@ -512,6 +530,9 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
 
     def test_missing_length_without_stream_rejects_before_arraybuffer(self) -> None:
         self.run_node_case("missing_length_without_stream_rejects_before_arraybuffer")
+
+    def test_false_small_length_without_stream_rejects_before_arraybuffer(self) -> None:
+        self.run_node_case("false_small_length_without_stream_rejects_before_arraybuffer")
 
     def test_oversized_stream_cancels_without_upload_and_continues(self) -> None:
         self.run_node_case("oversized_stream_cancels_without_upload_and_continues")

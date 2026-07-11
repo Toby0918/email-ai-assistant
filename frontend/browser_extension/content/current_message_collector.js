@@ -326,7 +326,7 @@
           return { limitation: announcedLimitation };
         }
       }
-      const bodyResult = await readBoundedResponse(response, announcedSize, limits, totalBytes);
+      const bodyResult = await readBoundedResponse(response, limits, totalBytes);
       if (bodyResult.limitation) {
         return { limitation: bodyResult.limitation };
       }
@@ -352,15 +352,12 @@
     }
   }
 
-  async function readBoundedResponse(response, announcedSize, limits, totalBytes) {
+  async function readBoundedResponse(response, limits, totalBytes) {
     const body = response.body;
     if (body && typeof body.getReader === "function") {
       return readBoundedStream(body, limits, totalBytes);
     }
-    if (announcedSize === null || typeof response.arrayBuffer !== "function") {
-      return { limitation: "Resource response size could not be verified safely." };
-    }
-    return { buffer: await response.arrayBuffer() };
+    return { limitation: "Resource response body could not be read with bounded streaming." };
   }
 
   async function readBoundedStream(body, limits, totalBytes) {
