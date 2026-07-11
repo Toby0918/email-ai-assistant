@@ -21,25 +21,49 @@
 
       <section class="result-section" aria-label="Analysis result">
         <h2 id="summary">No analysis yet</h2>
-        <dl>
-          <dt>Category</dt>
-          <dd id="category">-</dd>
-          <dt>Engine</dt>
-          <dd id="engine">-</dd>
-          <dt>Attachments</dt>
-          <dd id="attachments">-</dd>
-          <dt>Risks</dt>
-          <dd id="risks">-</dd>
-          <dt>Actions</dt>
-          <dd id="actions">-</dd>
+        <dl class="analysis-grid">
+          <div class="analysis-row">
+            <dt>Category</dt>
+            <dd id="category">-</dd>
+          </div>
+          <div class="analysis-row">
+            <dt>Engine</dt>
+            <dd id="engine">-</dd>
+          </div>
+          <div class="analysis-row analysis-row--stack">
+            <dt>Action brief</dt>
+            <dd id="decision-brief" class="analysis-list-field">-</dd>
+          </div>
+          <div class="analysis-row analysis-row--stack">
+            <dt>会话进度</dt>
+            <dd id="conversation-timeline" class="analysis-list-field">暂无会话进度</dd>
+          </div>
+          <div class="analysis-row analysis-row--stack">
+            <dt>附件洞察</dt>
+            <dd id="attachment-insights" class="analysis-list-field">暂无附件洞察</dd>
+          </div>
+          <div class="analysis-row analysis-row--stack">
+            <dt>Attachments</dt>
+            <dd id="attachments" class="analysis-list-field">-</dd>
+          </div>
+          <div class="analysis-row analysis-row--stack">
+            <dt>Risks</dt>
+            <dd id="risks" class="analysis-list-field">-</dd>
+          </div>
+          <div class="analysis-row analysis-row--stack">
+            <dt>Actions</dt>
+            <dd id="actions" class="analysis-list-field">-</dd>
+          </div>
         </dl>
       </section>
 
-      <label class="draft-label">
-        Draft
-        <textarea id="draft" rows="8" readonly></textarea>
-      </label>
-      <button id="copy-draft-button" type="button">Copy draft</button>
+      <section class="draft-section" aria-label="Reply draft">
+        <div class="draft-header">
+          <label for="draft" class="draft-title">Draft</label>
+          <button id="copy-draft-button" type="button">Copy draft</button>
+        </div>
+        <textarea id="draft" rows="5" readonly></textarea>
+      </section>
     </main>
 
     <script src="shared/api_client.js"></script>

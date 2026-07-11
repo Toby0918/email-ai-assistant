@@ -5,6 +5,9 @@ const fields = {
   summary: document.querySelector("#summary"),
   category: document.querySelector("#category"),
   engine: document.querySelector("#engine"),
+  decisionBrief: document.querySelector("#decision-brief"),
+  conversationTimeline: document.querySelector("#conversation-timeline"),
+  attachmentInsights: document.querySelector("#attachment-insights"),
   attachments: document.querySelector("#attachments"),
   risks: document.querySelector("#risks"),
   actions: document.querySelector("#actions"),
@@ -23,7 +26,7 @@ document.querySelector("#analyze-button").addEventListener("click", async () => 
     return;
   }
   if (fields.attachments) {
-    fields.attachments.textContent = EmailAssistantRender.formatAttachments(extraction.payload.attachments);
+    EmailAssistantRender.renderAttachments(fields.attachments, extraction.payload.attachments);
   }
 
   setBusy(true, "Analyzing");

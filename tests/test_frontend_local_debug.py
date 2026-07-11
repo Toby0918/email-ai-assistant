@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import shutil
+import subprocess
+import textwrap
 import unittest
 from pathlib import Path
 
@@ -11,6 +14,130 @@ FRONTEND = ROOT / "frontend" / "local_debug_page"
 
 
 class FrontendLocalDebugTests(unittest.TestCase):
+    def test_local_debug_page_has_thread_and_attachment_insight_sections(self) -> None:
+        page = (FRONTEND / "index.html").read_text(encoding="utf-8")
+        script = (FRONTEND / "app.js").read_text(encoding="utf-8")
+
+        self.assertIn('id="conversation-timeline"', page)
+        self.assertIn('id="attachment-insights"', page)
+        self.assertIn("会话进度", page)
+        self.assertIn("附件洞察", page)
+        self.assertIn("renderConversationTimeline", script)
+        self.assertIn("analysis.conversation_timeline", script)
+        self.assertIn("renderAttachmentInsights", script)
+        self.assertIn("analysis.attachment_insights", script)
+        self.assertIn("document.createElement", script)
+        self.assertNotIn("innerHTML", script)
+
+    def test_local_debug_page_renders_thread_and_attachment_insights_as_safe_nodes(self) -> None:
+        if shutil.which("node") is None:
+            self.skipTest("Node.js is required for local debug renderer tests")
+
+        app = FRONTEND / "app.js"
+        script = f"""
+        const fs = require("fs");
+        const vm = require("vm");
+        const source = fs.readFileSync({str(app)!r}, "utf8");
+
+        class FakeElement {{
+          constructor(tagName = "div") {{
+            this.tagName = tagName.toUpperCase();
+            this.children = [];
+            this.className = "";
+            this.textContent = "";
+            this.value = "";
+          }}
+          set innerHTML(value) {{ throw new Error(`innerHTML must not be used: ${{value}}`); }}
+          addEventListener() {{}}
+          appendChild(child) {{
+            this.children.push(child);
+            this.textContent = this.children.map((item) => item.textContent || "").join("");
+            return child;
+          }}
+          replaceChildren(...children) {{
+            this.children = children;
+            this.textContent = children.map((item) => item.textContent || "").join("\\n");
+          }}
+          querySelectorAll(tagName) {{
+            const matches = [];
+            const expected = tagName.toUpperCase();
+            function walk(node) {{
+              if (node.tagName === expected) matches.push(node);
+              for (const child of node.children || []) walk(child);
+            }}
+            walk(this);
+            return matches;
+          }}
+        }}
+
+        const elements = new Map();
+        const document = {{
+          querySelector(selector) {{
+            if (!elements.has(selector)) elements.set(selector, new FakeElement());
+            return elements.get(selector);
+          }},
+          createElement(tagName) {{ return new FakeElement(tagName); }},
+          createTextNode(text) {{ return {{ tagName: "#TEXT", textContent: String(text) }}; }},
+        }};
+        elements.set("#conversation-timeline", new FakeElement());
+        elements.set("#attachment-insights", new FakeElement());
+        const context = {{ document, navigator: {{ clipboard: {{ writeText: async () => {{}} }} }} }};
+        vm.runInNewContext(source, context);
+        context.analysis = {{
+          priority: "high",
+          summary: "需要回复最新请求。",
+          category: "customer_inquiry",
+          analysis_engine: {{ label: "Rule fallback" }},
+          decision_brief: {{
+            one_line_conclusion: "先核查后回复。", requested_outcome: "获得确认。", next_steps: [], key_facts: [],
+            must_check: [], missing_info: [], reply_recommendation: {{ reason: "需人工审核。" }}, confidence: "medium",
+          }},
+          conversation_timeline: {{
+            previous_context: "客户此前询问报价。", current_status: "partially_resolved", status_reason: "数量已确认，价格待核查。",
+            latest_external_request: "请确认最终价格。", latest_internal_commitment: "销售将复核价格。",
+            open_items: [{{ item: "复核价格", owner_hint: "sales", due_hint: "today", source: "thread" }}], confidence: "high",
+          }},
+          attachment_insights: [{{
+            filename: "quote<img>.xlsx", type: "xlsx", status: "parsed",
+            summary: "已提取报价表 https://model.example/private", key_facts: ["Total: 200"], limitations: [],
+            raw_text: "LOCAL DEBUG RAW TEXT MUST NOT RENDER", private_url: "file:///private/quote.xlsx",
+          }}],
+          risk_flags: [], suggested_actions: [],
+          reply_draft: {{ body: "Hello,\\n\\nWe are reviewing the final price.\\n\\nBest regards" }},
+        }};
+        vm.runInContext("renderAnalysis(analysis)", context);
+
+        const timeline = elements.get("#conversation-timeline");
+        const insights = elements.get("#attachment-insights");
+        if (timeline.children.length !== 6) throw new Error(`timeline nodes missing: ${{timeline.children.length}}`);
+        if (!timeline.textContent.includes("部分解决") || !timeline.textContent.includes("复核价格")) {{
+          throw new Error(`timeline content missing: ${{timeline.textContent}}`);
+        }}
+        if (insights.children.length !== 1) throw new Error(`insight nodes missing: ${{insights.children.length}}`);
+        if (!insights.textContent.includes("quote<img>.xlsx") || !insights.textContent.includes("Total: 200")) {{
+          throw new Error(`insight content missing: ${{insights.textContent}}`);
+        }}
+        if (insights.textContent.includes("LOCAL DEBUG RAW TEXT") || insights.textContent.includes("file:///private")) {{
+          throw new Error(`private/raw insight field leaked: ${{insights.textContent}}`);
+        }}
+        if (insights.querySelectorAll("a").length || insights.querySelectorAll("img").length) {{
+          throw new Error("attachment insight content became active markup");
+        }}
+        if (!elements.get("#draft").value.startsWith("Hello,")) throw new Error("English draft was not preserved");
+        """
+
+        result = subprocess.run(
+            ["node", "-e", textwrap.dedent(script)],
+            cwd=ROOT,
+            capture_output=True,
+            encoding="utf-8",
+            text=True,
+            check=False,
+            timeout=10,
+        )
+        if result.returncode != 0:
+            self.fail(result.stderr or result.stdout)
+
     def test_local_debug_page_files_exist(self) -> None:
         # This first-version frontend is intentionally local and mailbox-free.
         self.assertTrue((FRONTEND / "index.html").exists())
@@ -80,8 +207,11 @@ class FrontendLocalDebugTests(unittest.TestCase):
         script = (FRONTEND / "app.js").read_text(encoding="utf-8")
 
         self.assertIn('id="engine"', page)
+        self.assertIn('id="decision-brief"', page)
         self.assertIn("analysis.analysis_engine", script)
         self.assertIn("fields.engine.textContent", script)
+        self.assertIn("formatDecisionBrief", script)
+        self.assertIn("analysis.decision_brief", script)
 
     def test_readme_documents_local_debug_start_command(self) -> None:
         readme = (ROOT / "README.md").read_text(encoding="utf-8")

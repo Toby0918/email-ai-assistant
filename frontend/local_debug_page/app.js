@@ -10,6 +10,9 @@ const fields = {
   summary: document.querySelector("#summary"),
   category: document.querySelector("#category"),
   engine: document.querySelector("#engine"),
+  decisionBrief: document.querySelector("#decision-brief"),
+  conversationTimeline: document.querySelector("#conversation-timeline"),
+  attachmentInsights: document.querySelector("#attachment-insights"),
   attachmentsPreview: document.querySelector("#attachments-preview"),
   risks: document.querySelector("#risks"),
   actions: document.querySelector("#actions"),
@@ -61,6 +64,28 @@ const ACTION_LABELS = {
   wait: "等待信息",
   ignore: "无需处理",
   reply: "准备回复",
+};
+
+const TIMELINE_STATUS_LABELS = {
+  resolved: "已解决",
+  partially_resolved: "部分解决",
+  unresolved: "未解决",
+  unknown: "状态未知",
+};
+
+const ATTACHMENT_TYPE_LABELS = {
+  image: "图片",
+  pdf: "PDF",
+  xlsx: "XLSX",
+  docx: "DOCX",
+  unsupported: "不支持的类型",
+};
+
+const ATTACHMENT_STATUS_LABELS = {
+  parsed: "已解析",
+  metadata_only: "仅元数据",
+  unavailable: "不可用",
+  failed: "解析失败",
 };
 
 document.querySelector("#analyze-button").addEventListener("click", async () => {
@@ -117,6 +142,9 @@ function renderAnalysis(analysis) {
   fields.summary.textContent = textOrFallback(analysis.summary, "No summary returned");
   fields.category.textContent = formatCategory(analysis.category);
   fields.engine.textContent = formatEngine(analysis.analysis_engine);
+  fields.decisionBrief.textContent = formatDecisionBrief(analysis.decision_brief);
+  renderConversationTimeline(fields.conversationTimeline, analysis.conversation_timeline);
+  renderAttachmentInsights(fields.attachmentInsights, analysis.attachment_insights);
   fields.risks.textContent = formatList(analysis.risk_flags, formatRisk);
   fields.actions.textContent = formatList(analysis.suggested_actions, formatAction);
   fields.draft.value = analysis.reply_draft && analysis.reply_draft.body ? analysis.reply_draft.body : "";
@@ -127,6 +155,9 @@ function clearAnalysis() {
   fields.summary.textContent = "No analysis yet";
   fields.category.textContent = "-";
   fields.engine.textContent = "-";
+  fields.decisionBrief.textContent = "-";
+  renderSafePlaceholder(fields.conversationTimeline, "暂无会话进度");
+  renderSafePlaceholder(fields.attachmentInsights, "暂无附件洞察");
   fields.attachmentsPreview.textContent = "-";
   fields.risks.textContent = "-";
   fields.actions.textContent = "-";
@@ -180,6 +211,219 @@ function formatAttachments(value) {
     })
     .filter(Boolean)
     .join(", ") || "-";
+}
+
+function renderConversationTimeline(field, timeline) {
+  if (!isPlainObject(timeline)) {
+    renderSafePlaceholder(field, "暂无会话进度");
+    return;
+  }
+  const items = [
+    safeStructuredItem("前情", [
+      safeDetailLine("", safeDisplayText(timeline.previous_context, "暂无可用前情")),
+    ]),
+    safeStructuredItem("当前状态", [
+      safeDetailLine("状态", TIMELINE_STATUS_LABELS[timeline.current_status] || "状态未知"),
+      safeDetailLine("原因", safeDisplayText(timeline.status_reason, "未提供状态说明")),
+    ]),
+    safeStructuredItem("最新外部请求", [
+      safeDetailLine("", safeDisplayText(timeline.latest_external_request, "暂无明确外部请求")),
+    ]),
+    safeStructuredItem("最新内部承诺", [
+      safeDetailLine("", safeDisplayText(timeline.latest_internal_commitment, "暂无明确内部承诺")),
+    ]),
+    safeStructuredItem("置信度", [
+      safeDetailLine("", formatTimelineConfidence(timeline.confidence)),
+    ]),
+  ];
+  const openItems = Array.isArray(timeline.open_items)
+    ? timeline.open_items.filter(isPlainObject)
+    : [];
+  if (openItems.length === 0) {
+    items.push(safeStructuredItem("待办事项", [safeDetailLine("", "暂无未解决事项")]));
+  } else {
+    openItems.forEach((item, index) => {
+      items.push(formatTimelineOpenItem(item, index));
+    });
+  }
+  renderSafeItems(field, items, "暂无会话进度");
+}
+
+function formatTimelineOpenItem(item, index) {
+  const source = {
+    thread: "会话",
+    attachment: "附件",
+  }[item.source] || "未注明";
+  return safeStructuredItem("待办 " + (index + 1), [
+    safeDetailLine("事项", safeDisplayText(item.item, "未提供事项说明")),
+    safeDetailLine("负责人", safeDisplayText(item.owner_hint, "未指定")),
+    safeDetailLine("期限", safeDisplayText(item.due_hint, "未指定")),
+    safeDetailLine("来源", source),
+  ]);
+}
+
+function formatTimelineConfidence(value) {
+  return {
+    high: "高",
+    medium: "中",
+    low: "低",
+  }[value] || "未知";
+}
+
+function renderAttachmentInsights(field, insights) {
+  if (!Array.isArray(insights)) {
+    renderSafePlaceholder(field, "暂无附件洞察");
+    return;
+  }
+  const items = insights.map(formatAttachmentInsight).filter(Boolean);
+  renderSafeItems(field, items, "暂无附件洞察");
+}
+
+function formatAttachmentInsight(insight) {
+  if (!isPlainObject(insight)) {
+    return null;
+  }
+  const status = ATTACHMENT_STATUS_LABELS[insight.status] || "状态未知";
+  const summaryFallback = insight.status === "parsed" ? "未提供解析摘要" : "暂无可用摘要";
+  const facts = safeStringList(insight.key_facts);
+  const limitations = safeStringList(insight.limitations);
+  const lines = [
+    safeDetailLine("类型", ATTACHMENT_TYPE_LABELS[insight.type] || safeDisplayText(insight.type, "未知类型")),
+    safeDetailLine("状态", status),
+    safeDetailLine("摘要", safeDisplayText(insight.summary, summaryFallback)),
+  ];
+  if (facts.length === 0) {
+    lines.push(safeDetailLine("关键事实", "暂无关键事实"));
+  } else {
+    facts.forEach((fact, index) => lines.push(safeDetailLine("关键事实 " + (index + 1), fact)));
+  }
+  if (limitations.length === 0) {
+    const fallback = insight.status === "parsed"
+      ? "无已知解析限制"
+      : "未提供限制说明，需人工核查";
+    lines.push(safeDetailLine("限制", fallback));
+  } else {
+    limitations.forEach((limitation, index) => lines.push(safeDetailLine("限制 " + (index + 1), limitation)));
+  }
+  return safeStructuredItem(safeDisplayText(insight.filename, "未命名附件"), lines);
+}
+
+function safeStringList(value) {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.map((item) => safeDisplayText(item, "")).filter(Boolean);
+}
+
+function safeDisplayText(value, fallback) {
+  if (typeof value !== "string" && typeof value !== "number") {
+    return fallback;
+  }
+  const text = String(value).trim();
+  return text || fallback;
+}
+
+function safeStructuredItem(title, lines) {
+  return { title, lines: lines.filter((line) => line.text) };
+}
+
+function safeDetailLine(label, text) {
+  return { label, text: safeDisplayText(text, "") };
+}
+
+function renderSafeItems(field, items, fallback) {
+  if (items.length === 0) {
+    renderSafePlaceholder(field, fallback);
+    return;
+  }
+  if (typeof field.replaceChildren !== "function") {
+    field.textContent = items.map(plainTextForSafeItem).join("\n\n");
+    return;
+  }
+  field.replaceChildren(...items.map(renderSafeItem));
+}
+
+function plainTextForSafeItem(item) {
+  return [
+    item.title,
+    ...item.lines.map((line) => line.label ? line.label + "：" + line.text : line.text),
+  ].filter(Boolean).join("\n");
+}
+
+function renderSafeItem(item) {
+  const wrapper = document.createElement("div");
+  wrapper.className = "analysis-list__item";
+  const title = document.createElement("div");
+  title.className = "analysis-list__item-title";
+  title.textContent = item.title;
+  wrapper.appendChild(title);
+  item.lines.forEach((line) => {
+    const lineElement = document.createElement("div");
+    lineElement.className = "analysis-list__line";
+    if (line.label) {
+      const label = document.createElement("span");
+      label.className = "analysis-list__label";
+      label.textContent = line.label + "：";
+      lineElement.appendChild(label);
+    }
+    lineElement.appendChild(document.createTextNode(line.text));
+    wrapper.appendChild(lineElement);
+  });
+  return wrapper;
+}
+
+function renderSafePlaceholder(field, text) {
+  if (typeof field.replaceChildren === "function") {
+    field.replaceChildren();
+  }
+  field.textContent = text;
+}
+
+function formatDecisionBrief(value) {
+  if (!isPlainObject(value)) {
+    return "-";
+  }
+  const parts = [
+    textOrFallback(value.one_line_conclusion, ""),
+    value.requested_outcome ? `目的：${value.requested_outcome}` : "",
+    formatDecisionSteps(value.next_steps),
+    formatKeyFacts(value.key_facts),
+    formatStringList("必须核查", value.must_check),
+    formatStringList("缺失信息", value.missing_info),
+    formatReplyRecommendation(value.reply_recommendation),
+  ].filter(Boolean);
+  return parts.join("\n") || "-";
+}
+
+function formatDecisionSteps(value) {
+  if (!Array.isArray(value) || value.length === 0) {
+    return "";
+  }
+  return `当前动作：${value.map((item) => textOrFallback(item.step, "")).filter(Boolean).join("；")}`;
+}
+
+function formatKeyFacts(value) {
+  if (!Array.isArray(value) || value.length === 0) {
+    return "";
+  }
+  const facts = value
+    .map((item) => `${textOrFallback(item.label, "事实")}=${textOrFallback(item.value, "")}`)
+    .filter((item) => !item.endsWith("="));
+  return facts.length ? `关键事实：${facts.join("；")}` : "";
+}
+
+function formatStringList(label, value) {
+  if (!Array.isArray(value) || value.length === 0) {
+    return "";
+  }
+  return `${label}：${value.map((item) => textOrFallback(item, "")).filter(Boolean).join("；")}`;
+}
+
+function formatReplyRecommendation(value) {
+  if (!isPlainObject(value)) {
+    return "";
+  }
+  return value.reason ? `回复建议：${value.reason}` : "";
 }
 
 function formatList(value, formatter) {

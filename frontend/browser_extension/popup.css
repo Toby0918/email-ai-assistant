@@ -10,13 +10,20 @@
 }
 
 body {
-  width: 420px;
+  min-width: 320px;
+  width: 100%;
+  min-height: 100vh;
   margin: 0;
+  overflow: hidden;
 }
 
 .popup-shell {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
+  height: 100vh;
+  max-height: 100vh;
+  overflow: hidden;
   padding: 16px;
 }
 
@@ -46,6 +53,7 @@ h1 {
 h2 {
   font-size: 16px;
   line-height: 1.35;
+  overflow-wrap: anywhere;
 }
 
 button {
@@ -68,6 +76,7 @@ button:disabled {
   margin: 0;
   color: #52616f;
   min-height: 20px;
+  overflow-wrap: anywhere;
 }
 
 .priority-pill {
@@ -79,11 +88,29 @@ button:disabled {
   font-weight: 700;
 }
 
-dl {
+.result-section {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.analysis-grid {
   display: grid;
-  grid-template-columns: 78px 1fr;
-  gap: 8px 12px;
+  gap: 10px;
   margin: 12px 0 0;
+}
+
+.analysis-row {
+  display: grid;
+  grid-template-columns: 84px minmax(0, 1fr);
+  gap: 10px;
+  min-width: 0;
+}
+
+.analysis-row--stack {
+  grid-template-columns: 1fr;
+  gap: 5px;
 }
 
 dt {
@@ -93,11 +120,66 @@ dt {
 
 dd {
   margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.45;
 }
 
-.draft-label {
+.analysis-list-field {
   display: grid;
   gap: 6px;
+}
+
+.analysis-list {
+  display: grid;
+  gap: 6px;
+}
+
+.analysis-list__item {
+  border-left: 3px solid #bcccdc;
+  display: grid;
+  gap: 4px;
+  padding-left: 8px;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.analysis-list__item-title {
+  color: #17202a;
+  font-weight: 700;
+}
+
+.analysis-list__line {
+  line-height: 1.45;
+}
+
+.analysis-list__label {
+  color: #52616f;
+  font-weight: 700;
+}
+
+.analysis-link {
+  color: #0b63ce;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-all;
+}
+
+.draft-section {
+  display: grid;
+  flex: 0 0 auto;
+  gap: 6px;
+  min-height: 0;
+}
+
+.draft-header {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.draft-title {
   font-weight: 700;
 }
 
@@ -105,11 +187,17 @@ textarea {
   width: 100%;
   border: 1px solid #bcccdc;
   border-radius: 6px;
+  height: 118px;
+  max-height: 118px;
+  min-height: 118px;
   padding: 10px;
   font: inherit;
-  resize: vertical;
+  line-height: 1.45;
+  resize: none;
 }
 
 #copy-draft-button {
   background: #335c67;
+  flex: 0 0 auto;
+  padding: 8px 12px;
 }
