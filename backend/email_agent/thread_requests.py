@@ -15,6 +15,14 @@ _REQUEST_RE = re.compile(
     r"请|麻烦|需要|确认|提供",
     re.IGNORECASE,
 )
+_DIRECT_REQUEST_RE = re.compile(
+    r"\b(please|could you|need|confirm|provide)\b|请|麻烦|需要|确认|提供",
+    re.IGNORECASE,
+)
+_ACKNOWLEDGEMENT_RE = re.compile(
+    r"\b(thanks?|received|acknowledged|noted)\b|谢谢|收到|已收悉",
+    re.IGNORECASE,
+)
 _SENTENCE_SPLIT_RE = re.compile(r"[.!?。！？；;\n]+")
 _COMMA_SPLIT_RE = re.compile(r"[,\uFF0C]")
 _CONJUNCTION_SPLIT_RE = re.compile(r"\s+\band\b\s+|同时|并且|以及", re.IGNORECASE)
@@ -52,6 +60,12 @@ _TOPIC_PATTERNS = (
 )
 
 
+def _has_request_intent(text: str) -> bool:
+    if _REQUEST_RE.search(text) is None:
+        return False
+    return _DIRECT_REQUEST_RE.search(text) is not None or _ACKNOWLEDGEMENT_RE.search(text) is None
+
+
 def extract_request_atoms(
     text: str, due_hint: str
 ) -> tuple[tuple[dict[str, object], ...], bool]:
@@ -61,12 +75,12 @@ def extract_request_atoms(
     atoms: list[dict[str, object]] = []
     sentences = [sentence.strip() for sentence in _SENTENCE_SPLIT_RE.split(text) if sentence.strip()]
     for sentence in sentences:
-        if _REQUEST_RE.search(sentence) is None:
+        if not _has_request_intent(sentence):
             continue
         comma_intent = False
         clauses = [part.strip() for part in _COMMA_SPLIT_RE.split(sentence) if part.strip()]
         for clause in clauses:
-            explicit_intent = _REQUEST_RE.search(clause) is not None
+            explicit_intent = _has_request_intent(clause)
             inherited_intent = comma_intent and _is_bare_requested_item(clause)
             if not explicit_intent and not inherited_intent:
                 comma_intent = False
@@ -74,12 +88,15 @@ def extract_request_atoms(
             fragments = [part.strip() for part in _CONJUNCTION_SPLIT_RE.split(clause) if part.strip()]
             intent_seen = inherited_intent
             for fragment in fragments:
-                if _REQUEST_RE.search(fragment) is not None:
+                fragment_has_intent = _has_request_intent(fragment)
+                if fragment_has_intent:
                     intent_seen = True
+                elif intent_seen and not _is_bare_requested_item(fragment):
+                    intent_seen = False
                 if not intent_seen:
                     continue
                 fragment_atoms = _atoms_from_clause(fragment, due_hint)
-                if not fragment_atoms and _REQUEST_RE.search(fragment) is not None:
+                if not fragment_atoms and fragment_has_intent:
                     fragment_atoms = [_make_atom(fragment, due_hint, (), ())]
                 for atom in fragment_atoms:
                     if len(atoms) >= MAX_REQUEST_ATOMS_PER_EVENT:
@@ -121,7 +138,7 @@ def _request_identity(
 ) -> tuple[tuple[str, ...], tuple[str, ...]] | None:
     identifiers = tuple(str(value) for value in atom["identifiers"])
     topics = tuple(str(value) for value in atom["topics"])
-    return (identifiers, topics) if identifiers and topics else None
+    return (identifiers, topics) if topics else None
 
 
 def extract_outcome_atoms(text: str) -> tuple[dict[str, object], ...]:
@@ -130,7 +147,8 @@ def extract_outcome_atoms(text: str) -> tuple[dict[str, object], ...]:
     clauses = [
         clause.strip()
         for sentence in sentences
-        for clause in _CONJUNCTION_SPLIT_RE.split(sentence)
+        for conjunction_clause in _CONJUNCTION_SPLIT_RE.split(sentence)
+        for clause in _COMMA_SPLIT_RE.split(conjunction_clause)
         if clause.strip()
     ]
     for clause in clauses:

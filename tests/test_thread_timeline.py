@@ -437,6 +437,45 @@ class ThreadTimelineTests(unittest.TestCase):
         self.assertIn("PART-712", result["latest_external_request"])
         self.assertIn("阻塞", result["status_reason"])
 
+    def test_internal_comma_outcomes_are_clause_local(self) -> None:
+        segments = [
+            {
+                "position": "1",
+                "from": "Buyer <buyer@example.com>",
+                "body_text": "Please provide quotation RFQ-1 and certificate PART-2.",
+            },
+            {
+                "position": "2",
+                "from": "Sales <sales@cndlf.com>",
+                "body_text": "RFQ-1 quotation completed, PART-2 certificate pending.",
+            },
+        ]
+
+        result = build_conversation_timeline(segments, ("cndlf.com",))
+
+        self.assertEqual(result["current_status"], "partially_resolved")
+        self.assertIn("PART-2", result["latest_external_request"])
+        self.assertIn("阻塞", result["status_reason"])
+
+    def test_numeric_comma_without_own_evidence_adds_no_outcome(self) -> None:
+        segments = [
+            {
+                "position": "1",
+                "from": "Buyer <buyer@example.com>",
+                "body_text": "Please provide quotation RFQ-5.",
+            },
+            {
+                "position": "2",
+                "from": "Sales <sales@cndlf.com>",
+                "body_text": "RFQ-5 quotation completed, quantity 1,000 units recorded.",
+            },
+        ]
+
+        result = build_conversation_timeline(segments, ("cndlf.com",))
+
+        self.assertEqual(result["current_status"], "resolved")
+        self.assertEqual(result["open_items"], [])
+
     def test_clause_with_completion_and_blocker_cannot_resolve_request(self) -> None:
         segments = [
             {
@@ -553,6 +592,47 @@ class ThreadTimelineTests(unittest.TestCase):
 
         self.assertEqual(result["current_status"], "partially_resolved")
         self.assertIn("PO-932", result["latest_external_request"])
+
+    def test_conjunction_detail_does_not_inherit_request_intent(self) -> None:
+        segments = [
+            {
+                "position": "1",
+                "from": "Buyer <buyer@example.com>",
+                "body_text": (
+                    "Please provide quotation RFQ-1 and "
+                    "certificate PART-2 is attached."
+                ),
+            },
+            {
+                "position": "2",
+                "from": "Sales <sales@cndlf.com>",
+                "body_text": "RFQ-1 quotation completed.",
+            },
+        ]
+
+        result = build_conversation_timeline(segments, ("cndlf.com",))
+
+        self.assertEqual(result["current_status"], "resolved")
+        self.assertEqual(result["open_items"], [])
+
+    def test_bare_conjunction_requested_list_keeps_inherited_intent(self) -> None:
+        segments = [
+            {
+                "position": "1",
+                "from": "Buyer <buyer@example.com>",
+                "body_text": "Please provide quotation RFQ-3 and certificate PART-4.",
+            },
+            {
+                "position": "2",
+                "from": "Sales <sales@cndlf.com>",
+                "body_text": "RFQ-3 quotation completed.",
+            },
+        ]
+
+        result = build_conversation_timeline(segments, ("cndlf.com",))
+
+        self.assertEqual(result["current_status"], "partially_resolved")
+        self.assertIn("PART-4", result["latest_external_request"])
 
     def test_chinese_simultaneous_requests_are_tracked_separately(self) -> None:
         segments = [
@@ -689,6 +769,45 @@ class ThreadTimelineTests(unittest.TestCase):
         self.assertEqual(result["current_status"], "resolved")
         self.assertEqual(result["open_items"], [])
 
+    def test_equivalent_topic_only_subject_and_body_request_is_tracked_once(self) -> None:
+        segments = [
+            {
+                "position": "1",
+                "from": "Buyer <buyer@example.com>",
+                "subject": "Quotation request",
+                "body_text": "Please provide quotation",
+            },
+            {
+                "position": "2",
+                "from": "Sales <sales@cndlf.com>",
+                "body_text": "Quotation completed",
+            },
+        ]
+
+        result = build_conversation_timeline(segments, ("cndlf.com",))
+
+        self.assertEqual(result["current_status"], "resolved")
+        self.assertEqual(result["open_items"], [])
+
+    def test_repeated_topic_only_body_requests_remain_distinct(self) -> None:
+        segments = [
+            {
+                "position": "1",
+                "from": "Buyer <buyer@example.com>",
+                "body_text": "Please provide quotation. Please provide quotation.",
+            },
+            {
+                "position": "2",
+                "from": "Sales <sales@cndlf.com>",
+                "body_text": "Quotation completed.",
+            },
+        ]
+
+        result = build_conversation_timeline(segments, ("cndlf.com",))
+
+        self.assertEqual(result["current_status"], "unresolved")
+        self.assertEqual(len(result["open_items"]), 1)
+
     def test_same_identity_body_requests_remain_distinct(self) -> None:
         segments = [
             {
@@ -725,6 +844,60 @@ class ThreadTimelineTests(unittest.TestCase):
 
         self.assertEqual(result["current_status"], "unknown")
         self.assertEqual(result["latest_external_request"], "")
+        self.assertEqual(result["open_items"], [])
+
+    def test_topic_specific_acknowledgement_does_not_create_request(self) -> None:
+        result = build_conversation_timeline(
+            [
+                {
+                    "position": "1",
+                    "from": "Buyer <buyer@example.com>",
+                    "body_text": "Thanks, quotation request received.",
+                }
+            ],
+            ("cndlf.com",),
+        )
+
+        self.assertEqual(result["current_status"], "unknown")
+        self.assertEqual(result["latest_external_request"], "")
+        self.assertEqual(result["open_items"], [])
+
+    def test_topic_specific_subject_only_request_remains_valid(self) -> None:
+        segments = [
+            {
+                "position": "1",
+                "from": "Buyer <buyer@example.com>",
+                "subject": "Quotation request",
+            },
+            {
+                "position": "2",
+                "from": "Sales <sales@cndlf.com>",
+                "body_text": "Quotation completed.",
+            },
+        ]
+
+        result = build_conversation_timeline(segments, ("cndlf.com",))
+
+        self.assertEqual(result["current_status"], "resolved")
+        self.assertEqual(result["open_items"], [])
+
+    def test_acknowledgement_sentence_does_not_hide_later_request_title(self) -> None:
+        segments = [
+            {
+                "position": "1",
+                "from": "Buyer <buyer@example.com>",
+                "body_text": "Thanks, received. Quotation request.",
+            },
+            {
+                "position": "2",
+                "from": "Sales <sales@cndlf.com>",
+                "body_text": "Quotation completed.",
+            },
+        ]
+
+        result = build_conversation_timeline(segments, ("cndlf.com",))
+
+        self.assertEqual(result["current_status"], "resolved")
         self.assertEqual(result["open_items"], [])
 
     def test_threads_without_external_requests_have_unknown_status(self) -> None:
