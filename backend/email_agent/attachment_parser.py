@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import re
 from collections.abc import Callable
 from pathlib import Path
 
@@ -17,6 +16,12 @@ except ImportError:  # pragma: no cover - dependency is pinned but OCR remains o
     pytesseract = None
 
 from .attachment_storage import StoredAttachment
+from .attachment_fact_safety import (
+    MAX_ATTACHMENT_FACT_CHARACTERS,
+    MAX_ATTACHMENT_FACTS,
+    sanitize_constructed_fact,
+)
+from .attachment_facts import extract_attachment_facts
 from .attachment_docx import (
     MAX_DOCX_CELLS_PER_ROW,
     MAX_DOCX_ROWS_PER_TABLE,
@@ -40,30 +45,8 @@ MAX_OCR_CHARACTERS = 2_000
 MAX_IMAGE_PIXELS = 25_000_000
 OCR_TIMEOUT_SECONDS = 5
 MAX_SUMMARY_CHARACTERS = 600
-MAX_KEY_FACTS = 5
-MAX_KEY_FACT_CHARACTERS = 240
-
-_REFERENCE_VALUE = r"(?=[A-Z0-9._/-]{2,64}\b)(?=[A-Z0-9._/-]*\d)[A-Z0-9._/-]+"
-_LABELED_REFERENCE = re.compile(
-    rf"\b(?:reference|ref(?:erence)?\s*(?:number|no\.?|#|id)?)\s*[:#=-]?\s*"
-    rf"(?P<value>{_REFERENCE_VALUE})",
-    re.IGNORECASE,
-)
-_REFERENCE_TOKEN = re.compile(
-    r"\b(?P<value>(?:RFQ|PO|INV|QUOTE|PART|ITEM|TRACK)[-_/.]?"
-    r"[A-Z0-9._/-]*\d[A-Z0-9._/-]*)\b",
-    re.IGNORECASE,
-)
-_LABELED_QUANTITY = re.compile(
-    r"\b(?:quantity|qty)\s*[:#=-]?\s*(?P<value>\d{1,9}(?:[.,]\d+)?"
-    r"(?:\s*(?:pcs|pieces|units|sets|kg|g|lbs?|mm|cm|m|in|ft))?)\b",
-    re.IGNORECASE,
-)
-_UNIT_QUANTITY = re.compile(
-    r"\b(?P<value>\d{1,9}(?:[.,]\d+)?\s+"
-    r"(?:pcs|pieces|units|sets|kg|g|lbs?|mm|cm|m|in|ft))\b",
-    re.IGNORECASE,
-)
+MAX_KEY_FACTS = MAX_ATTACHMENT_FACTS
+MAX_KEY_FACT_CHARACTERS = MAX_ATTACHMENT_FACT_CHARACTERS
 
 _ALLOWED_SUFFIXES = {
     "pdf": {".pdf"},
@@ -111,7 +94,13 @@ def _parse_pdf(item: StoredAttachment) -> dict[str, object]:
         limitations = _character_limitations(collector)
         if len(reader.pages) > MAX_PDF_PAGES:
             limitations.append("Page limit reached; remaining pages were not parsed.")
-        return _text_insight(item, collector.text, limitations, "PDF")
+        return _text_insight(
+            item,
+            collector.text,
+            limitations,
+            "PDF",
+            fact_text=collector.fact_text,
+        )
     finally:
         reader.close()
 
@@ -145,7 +134,13 @@ def _parse_xlsx(item: StoredAttachment) -> dict[str, object]:
     finally:
         workbook.close()
     limitations = [*_character_limitations(collector), *limitations]
-    return _text_insight(item, collector.text, limitations, "XLSX")
+    return _text_insight(
+        item,
+        collector.text,
+        limitations,
+        "XLSX",
+        fact_text=collector.fact_text,
+    )
 
 
 def _parse_docx(item: StoredAttachment) -> dict[str, object]:
@@ -153,8 +148,8 @@ def _parse_docx(item: StoredAttachment) -> dict[str, object]:
     if package_limitation:
         return _metadata_only(item, package_limitation)
     document = Document(item.path)
-    text, limitations = collect_docx_text(document)
-    return _text_insight(item, text, limitations, "DOCX")
+    text, fact_text, limitations = collect_docx_text(document)
+    return _text_insight(item, text, limitations, "DOCX", fact_text=fact_text)
 
 
 def _parse_image(item: StoredAttachment) -> dict[str, object]:
@@ -183,6 +178,7 @@ def _parse_image(item: StoredAttachment) -> dict[str, object]:
         _character_limitations(collector),
         "Image OCR",
         [dimensions],
+        fact_text=collector.fact_text,
     )
 
 
@@ -206,7 +202,11 @@ def _collect_xlsx_row(
         return
     if row_collector.truncated:
         collector.truncated = True
-    collector.add(row_collector.text, MAX_XLSX_ROW_CHARACTERS)
+    collector.add(
+        row_collector.text,
+        MAX_XLSX_ROW_CHARACTERS,
+        fact_value=row_collector.fact_text,
+    )
 
 
 def _character_limitations(collector: TextBudget) -> list[str]:
@@ -221,6 +221,8 @@ def _text_insight(
     limitations: list[str],
     label: str,
     metadata_facts: list[str] | None = None,
+    *,
+    fact_text: str | None = None,
 ) -> dict[str, object]:
     sanitized = sanitize_text(text)
     if not sanitized:
@@ -228,7 +230,7 @@ def _text_insight(
     bounded = sanitized[:MAX_EXTRACTED_CHARACTERS].rstrip()
     if len(sanitized) > MAX_EXTRACTED_CHARACTERS:
         limitations = [*limitations, "Character limit reached; remaining text was not parsed."]
-    facts = _facts_from_text(bounded, metadata_facts)
+    facts = _facts_from_text(fact_text if fact_text is not None else bounded, metadata_facts)
     return _insight(
         item,
         "parsed",
@@ -257,37 +259,25 @@ def _insight(
     facts: list[str],
     limitations: list[str],
 ) -> dict[str, object]:
+    safe_facts = [
+        cleaned
+        for fact in facts[:MAX_KEY_FACTS]
+        if (cleaned := sanitize_constructed_fact(fact))
+    ]
     return {
         "filename": item.safe_filename,
         "type": item.type,
         "status": status,
         "summary": sanitize_text(summary)[:MAX_SUMMARY_CHARACTERS],
-        "key_facts": [sanitize_text(fact)[:MAX_KEY_FACT_CHARACTERS] for fact in facts[:MAX_KEY_FACTS]],
+        "key_facts": safe_facts,
         "limitations": [sanitize_text(value)[:MAX_KEY_FACT_CHARACTERS] for value in limitations],
     }
 
 
 def _facts_from_text(text: str, metadata_facts: list[str] | None) -> list[str]:
-    facts: list[str] = []
-    for value in metadata_facts or []:
-        _append_fact(facts, sanitize_text(value))
-    for pattern, label in (
-        (_LABELED_REFERENCE, "Reference"),
-        (_REFERENCE_TOKEN, "Reference"),
-        (_LABELED_QUANTITY, "Quantity"),
-        (_UNIT_QUANTITY, "Quantity"),
-    ):
-        for match in pattern.finditer(text):
-            _append_fact(facts, f"{label}: {match.group('value')}")
-            if len(facts) >= MAX_KEY_FACTS:
-                return facts
-    return facts
+    return extract_attachment_facts(text, metadata_facts)
 
 
-def _append_fact(facts: list[str], value: str) -> None:
-    cleaned = sanitize_text(value)[:MAX_KEY_FACT_CHARACTERS]
-    if cleaned and cleaned not in facts and len(facts) < MAX_KEY_FACTS:
-        facts.append(cleaned)
 def _extension_limitation(item: StoredAttachment) -> str | None:
     allowed_suffixes = _ALLOWED_SUFFIXES.get(item.type)
     if allowed_suffixes is None:

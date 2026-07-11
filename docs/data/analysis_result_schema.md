@@ -118,7 +118,7 @@ AI 分析结果必须能解析为 JSON，并至少包含以下字段。
 ## 语言规则
 
 - `summary`、`priority_reason`、`decision_brief` 中面向用户的结论和动作、`conversation_timeline` 中的说明和动作、`risk_flags.evidence`、`risk_flags.recommendation`、`suggested_actions.description` 和 `reply_draft.review_reasons` 面向用户展示，使用中文。
-- `attachment_insights.summary` 和 `key_facts` 可以保留受限的来源语言证据；`limitations` 必须精确说明未解析、截断、OCR 不可用或格式不支持等限制。
+- `attachment_insights.summary` 使用固定的解析状态说明；`key_facts` 每个附件最多 5 项，只能保留后端构造的 `Reference`、`Quantity`、`Measurement`、`Amount`、`Deadline`、`Requested action` 或 `Quality issue` 事实，不得保留任意原文行或连续原文。`limitations` 必须精确说明未解析、截断、OCR 不可用或格式不支持等限制。
 - `reply_draft.subject` 和 `reply_draft.body` 是用户审核后可复制的外部邮件草稿，保持英文。
 - `priority`、`category`、`risk_flags.type`、`risk_flags.level` 和 `suggested_actions.type` 保持英文枚举值，由前端负责展示为中文标签。
 
@@ -133,6 +133,7 @@ AI 分析结果必须能解析为 JSON，并至少包含以下字段。
 - `decision_brief`、风险、建议动作和回复草稿必须优先引用 `conversation_timeline` 中最新未解决的外部请求。
 - 附件解析失败、OCR 不可用或格式不支持时，邮件正文分析仍必须继续，并在对应 `attachment_insights[].limitations` 中返回精确限制。
 - `attachment_insights` 在分析结果和 SQLite 边界都必须投影到 `filename`、`type`、`status`、`summary`、`key_facts`、`limitations` 六个字段；资源限制文本必须是由机器码生成的固定安全文本。不得包含附件字节、临时路径、私有 URL、cookie、token、未知字段或原始完整附件文本。
+- 通用文本清洗必须继续删除邮箱地址、电话、卡号/账号形状、未标签长数字、路径、URL 和连续原文。业务编号只能由专用提取器在明确标签下构造，并必须通过最终精确事实 schema 清洗。
 - `summary` 必须尽量自包含，让用户只看分析结果就能知道邮件在说什么、涉及哪些关键事实、下一步要做什么。
 - `risk_flags.evidence` 必须引用邮件中的具体事实，例如 PO、invoice、tracking、数量、日期、期限、质量问题或对方请求，不能只写泛化类别。
 - `suggested_actions.description` 必须说明要核查、升级或回复的具体事项。

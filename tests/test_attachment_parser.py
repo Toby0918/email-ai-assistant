@@ -20,6 +20,8 @@ from PIL import Image
 
 from backend.email_agent import attachment_parser
 from backend.email_agent.analyzer import build_analysis_prompt
+from backend.email_agent.attachment_fact_safety import sanitize_constructed_fact
+from backend.email_agent.attachment_facts import extract_attachment_facts
 from backend.email_agent.attachment_parser import parse_attachments
 from backend.email_agent.attachment_storage import StoredAttachment
 from backend.email_agent.attachment_text import sanitize_text
@@ -62,6 +64,203 @@ class _ObservedDocxCell:
 
 
 class AttachmentParserTests(unittest.TestCase):
+    def test_business_identifier_is_protected_only_inside_strict_fact_extraction(self) -> None:
+        raw = (
+            "RFQ: 7654321 unlabeled 7654322 phone +1 (202) 555-0199 "
+            "RFQ: 1234-5678-9012-3456 PO: 202-555-0199 "
+            "Invoice: 1234567890123456 RFQ: RFQ-1234567890123456 "
+            "PO: PO-1234567890123456 Quantity: 202-555-0199 "
+            "Amount: USD 1234-5678-9012-3456 "
+            "Amount: USD 1,234,567,890,123,456"
+        )
+        sanitized = sanitize_text(raw)
+        facts = extract_attachment_facts(raw)
+
+        self.assertEqual(facts, ["Reference: RFQ 7654321"])
+        for secret in (
+            "7654321",
+            "7654322",
+            "+1 (202) 555-0199",
+            "1234-5678-9012-3456",
+            "202-555-0199",
+            "1234567890123456",
+            "RFQ-1234567890123456",
+            "PO-1234567890123456",
+            "USD 1234-5678-9012-3456",
+            "USD 1,234,567,890,123,456",
+        ):
+            self.assertNotIn(secret, sanitized)
+
+    def test_final_constructed_fact_sanitizer_rejects_prose_and_sensitive_shapes(self) -> None:
+        accepted = (
+            "Reference: RFQ 7654321",
+            "Quantity: 200 pcs",
+            "Measurement: 12.5 x 20 mm",
+            "Amount: USD 125.50",
+            "Deadline: within 3 days",
+            "Requested action: confirm quantity",
+            "Quality issue: out_of_tolerance",
+        )
+        for fact in accepted:
+            with self.subTest(accepted=fact):
+                self.assertEqual(sanitize_constructed_fact(fact), fact)
+
+        rejected = (
+            "PRIVATE arbitrary attachment prose",
+            "Reference: RFQ RFQ-1234567890123456",
+            "Reference: PO 202-555-0199",
+            "Requested action: confirm quantity PRIVATE trailing prose",
+            "Quality issue: physical_damage PRIVATE trailing prose",
+            "Deadline: 2026-07-18",
+        )
+        for fact in rejected:
+            with self.subTest(rejected=fact):
+                self.assertEqual(sanitize_constructed_fact(fact), "")
+
+    def test_structured_business_facts_are_safe_across_pdf_docx_xlsx_and_ocr(self) -> None:
+        pdf_text = "\n".join([
+            "PRIVATE_PDF_CONTIGUOUS_PROSE confidential launch narrative must not survive.",
+            "RFQ: 7654321",
+            "Quantity: 1,250 pcs",
+            "Total cost: USD 12,345.67",
+            "Due date: 2026-07-18",
+            "Please confirm the revised quantity for the confidential launch program.",
+            "buyer-pdf@example.test +1 (202) 555-0199 7654322 C:/private/pdf.txt",
+        ])
+        ocr_text = "\n".join([
+            "PRIVATE_OCR_CONTIGUOUS_PROSE arbitrary OCR narrative must not survive.",
+            "Order No: 7123456",
+            "Dimensions: 8 x 10 mm",
+            "Amount: CNY 300.00",
+            "Please investigate the damaged surface for the confidential launch program.",
+            "Quality issue: cracked housing",
+            "buyer-ocr@example.test 1234-5678-9012-3456 /home/private/ocr.txt",
+        ])
+        docx_content = self._structured_docx_bytes()
+        xlsx_content = self._structured_xlsx_bytes()
+
+        with TemporaryDirectory() as directory:
+            items = [
+                self._write(directory, "structured.pdf", "pdf", b"synthetic"),
+                self._write(directory, "structured.docx", "docx", docx_content),
+                self._write(directory, "structured.xlsx", "xlsx", xlsx_content),
+                self._write(directory, "structured.png", "image", self._image_bytes()),
+            ]
+            page = MagicMock()
+            page.extract_text.return_value = pdf_text
+            reader = MagicMock()
+            reader.pages = [page]
+            ocr = MagicMock()
+            ocr.image_to_string.return_value = ocr_text
+            with patch.object(attachment_parser, "PdfReader", return_value=reader):
+                with patch.object(attachment_parser, "pytesseract", ocr):
+                    insights = parse_attachments(items)
+
+        facts_by_name = {
+            str(insight["filename"]): list(insight["key_facts"])
+            for insight in insights
+        }
+        self.assertEqual(
+            facts_by_name["structured.pdf"],
+            [
+                "Reference: RFQ 7654321",
+                "Quantity: 1,250 pcs",
+                "Amount: USD 12,345.67",
+                "Deadline: due 2026-07-18",
+                "Requested action: confirm quantity",
+            ],
+        )
+        self.assertEqual(
+            facts_by_name["structured.docx"],
+            [
+                "Reference: Invoice INV-7000001",
+                "Measurement: 12.5 x 20 mm",
+                "Requested action: provide quotation",
+                "Quality issue: out_of_tolerance",
+                "Reference: Tracking TRK-987654321",
+            ],
+        )
+        self.assertEqual(
+            facts_by_name["structured.xlsx"],
+            [
+                "Reference: PO 8123456",
+                "Quantity: 400 units",
+                "Amount: EUR 9.50",
+                "Deadline: within 3 days",
+                "Requested action: provide quotation",
+            ],
+        )
+        self.assertEqual(
+            facts_by_name["structured.png"],
+            [
+                "Reference: Order 7123456",
+                "Measurement: 8 x 10 mm",
+                "Amount: CNY 300.00",
+                "Requested action: investigate quality issue",
+                "Quality issue: physical_damage",
+            ],
+        )
+        allowed_prefixes = (
+            "Reference: ",
+            "Quantity: ",
+            "Measurement: ",
+            "Amount: ",
+            "Deadline: ",
+            "Requested action: ",
+            "Quality issue: ",
+        )
+        for insight in insights:
+            self.assertEqual(insight["status"], "parsed")
+            self.assertLessEqual(len(insight["key_facts"]), attachment_parser.MAX_KEY_FACTS)
+            for fact in insight["key_facts"]:
+                self.assertTrue(str(fact).startswith(allowed_prefixes), fact)
+                self.assertLessEqual(len(str(fact)), attachment_parser.MAX_KEY_FACT_CHARACTERS)
+
+        prompt = build_analysis_prompt(
+            subject="Synthetic structured attachment test",
+            sender="sender@example.test",
+            clean_body="Please review the synthetic attachments.",
+            attachment_insights=insights,
+        )
+        connection = sqlite3.connect(":memory:")
+        initialize_schema(connection)
+        save_analysis(
+            connection,
+            subject="Synthetic structured attachment test",
+            sender="sender@example.test",
+            analysis={"summary": "Safe synthetic result.", "attachment_insights": insights},
+        )
+        stored_json = connection.execute(
+            "SELECT analysis_json FROM email_analysis"
+        ).fetchone()[0]
+        serialized_result = json.dumps(insights, ensure_ascii=False)
+        canaries = (
+            "PRIVATE_PDF_CONTIGUOUS_PROSE",
+            "PRIVATE_DOCX_CONTIGUOUS_PROSE",
+            "PRIVATE_XLSX_CONTIGUOUS_PROSE",
+            "PRIVATE_OCR_CONTIGUOUS_PROSE",
+            "confidential launch program",
+            "buyer-pdf@example.test",
+            "buyer-docx@example.test",
+            "buyer-xlsx@example.test",
+            "buyer-ocr@example.test",
+            "+1 (202) 555-0199",
+            "1234-5678-9012-3456",
+            "7654322",
+            "C:/private/pdf.txt",
+            r"\\fileserver\private\docx.txt",
+            "https://private.example.test/xlsx",
+            "/home/private/ocr.txt",
+        )
+        for secret in canaries:
+            for boundary, value in (
+                ("result", serialized_result),
+                ("prompt", prompt),
+                ("storage", stored_json),
+            ):
+                with self.subTest(boundary=boundary, secret=secret):
+                    self.assertNotIn(secret, value)
+
     def test_sensitive_attachment_text_is_redacted_before_result_prompt_and_storage(self) -> None:
         raw_prefix = "PRIVATE-PROSE-PREFIX customer correspondence must remain confidential."
         sensitive_values = (
@@ -790,6 +989,42 @@ class AttachmentParserTests(unittest.TestCase):
             document.add_paragraph(f"Synthetic detail {number}")
         content = BytesIO()
         document.save(content)
+        return content.getvalue()
+
+    @staticmethod
+    def _structured_docx_bytes() -> bytes:
+        document = Document()
+        document.add_paragraph(
+            "PRIVATE_DOCX_CONTIGUOUS_PROSE confidential narrative must not survive. "
+            "Invoice No: INV-7000001. Please provide the quotation for the confidential launch program. "
+            r"buyer-docx@example.test \\fileserver\private\docx.txt"
+        )
+        table = document.add_table(rows=3, cols=2)
+        table.cell(0, 0).text = "Tracking number"
+        table.cell(0, 1).text = "TRK-987654321"
+        table.cell(1, 0).text = "Dimensions"
+        table.cell(1, 1).text = "12.5 x 20 mm"
+        table.cell(2, 0).text = "Quality issue"
+        table.cell(2, 1).text = "out of tolerance and scratched surface"
+        content = BytesIO()
+        document.save(content)
+        return content.getvalue()
+
+    @staticmethod
+    def _structured_xlsx_bytes() -> bytes:
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.title = "Structured"
+        sheet.append(["PRIVATE_XLSX_CONTIGUOUS_PROSE", "arbitrary narrative must not survive"])
+        sheet.append(["PO", "8123456"])
+        sheet.append(["Quantity", "400 units"])
+        sheet.append(["Unit cost", "EUR 9.50"])
+        sheet.append(["Deadline", "within 3 days"])
+        sheet.append(["Action required", "provide quotation"])
+        sheet.append(["Private", "buyer-xlsx@example.test"])
+        sheet.append(["Private URL", "https://private.example.test/xlsx"])
+        content = BytesIO()
+        workbook.save(content)
         return content.getvalue()
 
     @staticmethod

@@ -84,6 +84,10 @@ Temporary binaries live under a backend-owned directory outside SQLite. Each ite
 
 Each accepted resource produces an `attachment_insight` with a safe display name, declared/verified type, parse status, extracted key facts, concise summary, and limitations. The system does not claim a file was read when parsing failed.
 
+Parsed `key_facts` are backend-constructed fields, never arbitrary source lines or a contiguous source-text prefix. Each attachment exposes at most five facts selected across an allowlist: labeled RFQ/PO/order/invoice/tracking identifiers, quantities, measurements, currency amounts or costs, explicitly cued deadlines, normalized requested actions, and normalized quality signals. Requested actions use fixed verbs and object categories, quality facts use fixed signal labels, and deadlines contain only the explicit cue plus a date or relative period.
+
+The generic attachment-text sanitizer continues to redact every seven-or-more-digit number together with emails, phones, card/account-like values, paths, and URLs. A separate bounded component extractor may construct a business identifier only from strict label/value syntax. Pure numeric identifiers require an explicit label and 4-12 digits; phone shapes, grouped accounts/cards, 13-19 digit values, and prefixed identifiers containing more than 12 digits are rejected. Every constructed fact passes a final exact-schema sanitizer before it may enter results, model context, or SQLite.
+
 | Resource | Extraction behavior | Failure behavior |
 | --- | --- | --- |
 | Image | OCR and basic image dimensions; Qwen receives extracted text only unless a later approved vision API path is added. | Mark OCR unavailable or unreadable; preserve metadata only. |

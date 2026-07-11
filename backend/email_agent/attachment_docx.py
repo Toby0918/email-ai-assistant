@@ -16,7 +16,7 @@ MAX_DOCX_CELL_CHARACTERS = 500
 MAX_DOCX_ROW_CHARACTERS = 1_100
 
 
-def collect_docx_text(document: Any) -> tuple[str, list[str]]:
+def collect_docx_text(document: Any) -> tuple[str, str, list[str]]:
     """Collect bounded paragraph and table text under one character budget."""
     paragraphs = document.paragraphs
     tables = document.tables
@@ -34,7 +34,7 @@ def collect_docx_text(document: Any) -> tuple[str, list[str]]:
     if collector.truncated:
         limitations.append("Character limit reached; remaining text was not parsed.")
     limitations.extend(dict.fromkeys(structural_limitations))
-    return collector.text, limitations
+    return collector.text, collector.fact_text, limitations
 
 
 def _collect_tables(collector: TextBudget, tables: list[Any], limitations: list[str]) -> None:
@@ -66,4 +66,8 @@ def _collect_row(collector: TextBudget, cells: list[Any]) -> None:
         row_collector.add(str(cell.text), MAX_DOCX_CELL_CHARACTERS, separator=" | ")
     if row_collector.truncated:
         collector.truncated = True
-    collector.add(row_collector.text, MAX_DOCX_ROW_CHARACTERS)
+    collector.add(
+        row_collector.text,
+        MAX_DOCX_ROW_CHARACTERS,
+        fact_value=row_collector.fact_text,
+    )

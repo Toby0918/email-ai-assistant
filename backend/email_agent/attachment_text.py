@@ -19,7 +19,7 @@ _LOCAL_PATH = re.compile(
     r"(?:[^\\/\s]+[\\/])+[^\s]*)",
     re.IGNORECASE,
 )
-_LONG_NUMBER = re.compile(r"(?<!\w)\+?\d(?:[\d\s().-]*\d)?(?!\w)")
+_LONG_NUMBER = re.compile(r"(?<!\w)\+?\d(?:[\d\s(),.-]*\d)?(?!\w)")
 _ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}(?:\s+\d{1,2})?")
 
 
@@ -27,7 +27,9 @@ class TextBudget:
     def __init__(self, limit: int = MAX_EXTRACTED_CHARACTERS) -> None:
         self.limit = limit
         self.parts: list[str] = []
+        self.fact_parts: list[str] = []
         self.character_count = 0
+        self.fact_character_count = 0
         self.truncated = False
 
     @property
@@ -38,11 +40,26 @@ class TextBudget:
     def text(self) -> str:
         return "".join(self.parts)
 
-    def add(self, value: str, unit_limit: int, separator: str = "\n") -> None:
+    @property
+    def fact_text(self) -> str:
+        return "".join(self.fact_parts)
+
+    def add(
+        self,
+        value: str,
+        unit_limit: int,
+        separator: str = "\n",
+        *,
+        fact_value: str | None = None,
+    ) -> None:
         if self.exhausted:
             self.truncated = True
             return
         bounded_value = value[:unit_limit]
+        self._add_fact_source(
+            (fact_value if fact_value is not None else bounded_value)[:unit_limit],
+            separator,
+        )
         if len(value) > unit_limit:
             self.truncated = True
         safe_value = sanitize_text(bounded_value)
@@ -59,6 +76,16 @@ class TextBudget:
             self.truncated = True
         self.parts.append(addition)
         self.character_count += len(addition)
+
+    def _add_fact_source(self, value: str, separator: str) -> None:
+        if not value or self.fact_character_count >= self.limit:
+            return
+        prefix = separator if self.fact_parts else ""
+        addition = f"{prefix}{_CONTROL_CHARACTERS.sub('', value)}"
+        available = self.limit - self.fact_character_count
+        bounded = addition[:available]
+        self.fact_parts.append(bounded)
+        self.fact_character_count += len(bounded)
 
     def mark_omitted(self) -> None:
         self.truncated = True
