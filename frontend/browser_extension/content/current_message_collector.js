@@ -10,6 +10,7 @@
   const MAX_RESOURCE_BYTES = 10 * 1024 * 1024;
   const MAX_TOTAL_RESOURCE_BYTES = 25 * 1024 * 1024;
   const SUPPORTED_RESOURCE_TYPES = Object.freeze(["image", "pdf", "xlsx", "docx"]);
+  const APPROVED_RESOURCE_PATHS = Object.freeze(["/cgi-bin/download", "/cgi-bin/viewfile"]);
   const CURRENT_MESSAGE_SELECTORS = [
     "[data-email-current-message]",
     "#mailContentContainer",
@@ -26,12 +27,6 @@
     ".mail-reply-item",
     ".mail-conversation-item",
     ".readmail_item",
-  ];
-  const RESOURCE_SELECTORS = [
-    "[data-email-resource]",
-    "a[download]",
-    "a[data-filename]",
-    "img[data-filename]",
   ];
   const FIELD_SELECTORS = Object.freeze({
     from: ["[data-email-from]", ".mail-sender", ".sender", ".from"],
@@ -79,11 +74,33 @@
       return result;
     }
 
+    const currentContainer = settings.currentMessageContainer;
+    const verifiedCandidates = Array.isArray(settings.verifiedResourceCandidates)
+      ? settings.verifiedResourceCandidates
+      : [];
+    if (
+      settings.resourceControlsVerified !== true ||
+      !currentContainer ||
+      !isInside(currentRoot, currentContainer) ||
+      !isVisibleWithin(currentContainer, currentContainer, doc)
+    ) {
+      result.resource_limitations.push(
+        limitedMetadata(
+          { filename: "resource", type: "unsupported", size: 0 },
+          "Resources are unavailable because verified current-message resource controls were not established; body analysis continued.",
+        ),
+      );
+      return result;
+    }
+
     const limits = boundedLimits(settings.limits);
     const fetchImpl = typeof settings.fetchImpl === "function" ? settings.fetchImpl : root.fetch;
     const baseHref = settings.locationHref || documentHref(doc);
-    const candidates = queryAll(currentRoot, RESOURCE_SELECTORS).filter((element) =>
-      isVisibleWithin(element, currentRoot, doc),
+    const candidates = verifiedCandidates.filter((element) =>
+      isHostResourceControl(element) &&
+      isInside(element, currentContainer) &&
+      !isInside(element, currentRoot) &&
+      isVisibleWithin(element, currentContainer, doc),
     );
     let transferCount = 0;
     let totalBytes = 0;
@@ -99,6 +116,12 @@
       if (!resolvedUrl) {
         result.resource_limitations.push(
           limitedMetadata(metadata, "Resource URL must be a same-origin Tencent Exmail HTTPS URL."),
+        );
+        continue;
+      }
+      if (!isApprovedResourceEndpoint(resolvedUrl)) {
+        result.resource_limitations.push(
+          limitedMetadata(metadata, "Resource URL is not an approved Tencent Exmail attachment endpoint."),
         );
         continue;
       }
@@ -229,6 +252,22 @@
     return reachedBoundary && reachedDocumentBody;
   }
 
+  function isInside(element, boundary) {
+    let current = element;
+    while (current) {
+      if (current === boundary) {
+        return true;
+      }
+      current = current.parentElement || current.parentNode;
+    }
+    return false;
+  }
+
+  function isHostResourceControl(element) {
+    return hasAttribute(element, "data-email-host-attachment") ||
+      hasAttribute(element, "data-email-host-inline-resource");
+  }
+
   function styleHides(element, doc) {
     const inlineStyle = element.style || {};
     if (inlineStyle.display === "none" || hiddenVisibility(inlineStyle.visibility)) {
@@ -315,7 +354,7 @@
   async function fetchResource(fetchImpl, url, metadata, limits, totalBytes) {
     try {
       const response = await fetchImpl(url, { credentials: "include", redirect: "error" });
-      if (!response || response.ok !== true) {
+      if (!response || response.ok !== true || !responseMatchesRequestedEndpoint(response, url)) {
         return { limitation: "Resource could not be read from the current Tencent Exmail session." };
       }
       const announcedSize = responseByteSize(response);
@@ -513,6 +552,28 @@
     } catch (error) {
       return "";
     }
+  }
+
+  function isApprovedResourceEndpoint(value) {
+    try {
+      const url = new URL(value);
+      return url.origin === EXMAIL_ORIGIN &&
+        APPROVED_RESOURCE_PATHS.includes(url.pathname) &&
+        url.search.length > 1;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function responseMatchesRequestedEndpoint(response, requestedUrl) {
+    if (response.redirected === true) {
+      return false;
+    }
+    if (typeof response.url !== "string" || !response.url) {
+      return true;
+    }
+    const resolved = resolveResourceUrl(response.url, requestedUrl);
+    return resolved === requestedUrl && isApprovedResourceEndpoint(resolved);
   }
 
   function documentHref(doc) {

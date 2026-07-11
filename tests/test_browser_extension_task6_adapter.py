@@ -61,6 +61,9 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
               querySelector(selector) {
                 return allElements(this).find((element) => matches(element, selector)) || null;
               }
+              querySelectorAll(selector) {
+                return allElements(this).filter((element) => matches(element, selector));
+              }
             }
 
             class FakeDocument {
@@ -89,6 +92,15 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
               for (const child of root.children) assignOwnerDocument(child, doc);
             }
             function matches(element, selector) {
+              if (selector.includes(",")) {
+                return selector.split(",").some((part) => matches(element, part.trim()));
+              }
+              const attributeMatch = selector.match(/^\[([^=\]]+)(?:=['\"]?([^'\"]+)['\"]?)?\]$/);
+              if (attributeMatch) {
+                const [, name, value] = attributeMatch;
+                if (!element.hasAttribute(name)) return false;
+                return value === undefined || element.getAttribute(name) === value;
+              }
               if (selector.startsWith("#")) return element.id === selector.slice(1);
               if (selector.startsWith(".")) return element.className.split(/\s+/).includes(selector.slice(1));
               if (selector === "[role='heading']") return element.role === "heading";
@@ -97,18 +109,32 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
             function emptySelection() {
               return { rangeCount: 0, toString: () => "", getRangeAt: () => { throw new Error("No range"); } };
             }
-            function openedMessage(backgroundText = "") {
+            function openedMessage(backgroundText = "", options = {}) {
               const subject = new FakeElement({ tag: "h1", id: "subject", text: "Synthetic request" });
               const messageText = [
                 "Synthetic request", "From: sender@example.test", "To: recipient@example.test",
                 "Date: 2026-07-11 10:00", "Please review the visible message.",
               ].join("\n");
-              const currentRoot = new FakeElement({ className: "mail-content", text: messageText });
+              const currentRoot = new FakeElement({
+                className: "mail-content",
+                text: messageText,
+                children: options.bodyChildren || [],
+              });
+              const controls = new FakeElement({
+                attrs: { "data-email-host-resource-controls": "true" },
+                children: options.hostResources || [],
+              });
+              const currentMessageContainer = new FakeElement({
+                attrs: options.verifiedControls === false
+                  ? {}
+                  : { "data-email-current-message-container": "true" },
+                children: options.verifiedControls === false ? [currentRoot] : [currentRoot, controls],
+              });
               const body = new FakeElement({
                 tag: "body", text: [messageText, backgroundText].filter(Boolean).join("\n"),
-                children: [subject, currentRoot],
+                children: [subject, currentMessageContainer],
               });
-              return { doc: new FakeDocument(body), currentRoot };
+              return { doc: new FakeDocument(body), currentRoot, currentMessageContainer, controls };
             }
             function mailboxDocument() {
               return new FakeDocument(new FakeElement({ tag: "body", text: "Mailbox navigation" }));
@@ -147,7 +173,22 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
 
             const cases = {
               collection_is_async_bounded_and_message_dispatched: async () => {
-                const { doc, currentRoot } = openedMessage("background-private.pdf (4 KB)");
+                const forgedBodyLink = new FakeElement({
+                  tag: "a",
+                  attrs: { download: "forged.pdf", href: "/cgi-bin/download?file=forged" },
+                });
+                const trustedControl = new FakeElement({
+                  tag: "a",
+                  attrs: {
+                    "data-email-host-attachment": "true",
+                    "data-filename": "visible.pdf",
+                    href: "/cgi-bin/download?file=visible",
+                  },
+                });
+                const { doc, currentRoot, currentMessageContainer } = openedMessage(
+                  "background-private.pdf (4 KB)",
+                  { bodyChildren: [forgedBodyLink], hostResources: [trustedControl] },
+                );
                 let extractCalls = 0;
                 let collectCalls = 0;
                 let releaseCollection;
@@ -167,8 +208,21 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
                   },
                   collectVisibleResources: async (receivedDoc, options) => {
                     collectCalls += 1;
-                    if (receivedDoc !== doc || options.currentMessageRoot !== currentRoot) {
+                    if (
+                      receivedDoc !== doc ||
+                      options.currentMessageRoot !== currentRoot ||
+                      options.currentMessageContainer !== currentMessageContainer ||
+                      options.resourceControlsVerified !== true
+                    ) {
                       throw new Error("resource collection escaped the verified root");
+                    }
+                    if (
+                      !Array.isArray(options.verifiedResourceCandidates) ||
+                      options.verifiedResourceCandidates.length !== 1 ||
+                      options.verifiedResourceCandidates[0] !== trustedControl ||
+                      options.verifiedResourceCandidates.includes(forgedBodyLink)
+                    ) {
+                      throw new Error("adapter did not isolate host-owned resource controls");
                     }
                     await gate;
                     return {
@@ -224,6 +278,38 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
                 const serialized = JSON.stringify(result.payload.resource_limitations);
                 if (!serialized.includes("could not be collected") || serialized.includes("private fetch detail")) {
                   throw new Error(`unsafe failure response: ${serialized}`);
+                }
+              },
+
+              unverified_host_controls_keep_body_analysis_safe: async () => {
+                const forgedBodyLink = new FakeElement({
+                  tag: "a",
+                  attrs: { download: "forged.pdf", href: "/cgi-bin/download?file=forged" },
+                });
+                const { doc } = openedMessage("", {
+                  verifiedControls: false,
+                  bodyChildren: [forgedBodyLink],
+                });
+                let resourceCalls = 0;
+                const collector = {
+                  extractVisibleThreadSegments: () => [],
+                  collectVisibleResources: async () => {
+                    resourceCalls += 1;
+                    return { attachment_files: [], resource_limitations: [] };
+                  },
+                };
+                const result = await beginDispatch(loadAdapter(doc, collector)).responsePromise;
+                if (!result.ok || !result.payload.body_text.includes("visible message")) {
+                  throw new Error(JSON.stringify(result));
+                }
+                if (resourceCalls !== 0 || result.payload.attachment_files.length !== 0) {
+                  throw new Error("unverified host controls reached resource collection");
+                }
+                if (
+                  result.payload.resource_limitations.length !== 1 ||
+                  !result.payload.resource_limitations[0].limitation.includes("verified current-message resource controls")
+                ) {
+                  throw new Error(`safe unavailable limitation missing: ${JSON.stringify(result)}`);
                 }
               },
 
@@ -310,6 +396,9 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
 
     def test_collector_failure_keeps_body_analysis_safe(self) -> None:
         self.run_node_case("collector_failure_keeps_body_analysis_safe")
+
+    def test_unverified_host_controls_keep_body_analysis_safe(self) -> None:
+        self.run_node_case("unverified_host_controls_keep_body_analysis_safe")
 
     def test_hidden_frame_message_is_not_extracted(self) -> None:
         self.run_node_case("hidden_frame_message_is_not_extracted")

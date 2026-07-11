@@ -124,12 +124,38 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
               return element.tagName.toLowerCase() === selector.toLowerCase();
             }
 
-            function messageDocument(children, background = []) {
+            function messageDocument(children, background = [], hostResources = []) {
               const current = new FakeElement({
                 attrs: { "data-email-current-message": "true" },
                 children,
               });
-              return new FakeDocument(new FakeElement({ tag: "body", children: [current, ...background] }));
+              const controls = new FakeElement({
+                attrs: { "data-email-host-resource-controls": "true" },
+                children: hostResources,
+              });
+              const container = new FakeElement({
+                attrs: { "data-email-current-message-container": "true" },
+                children: [current, controls],
+              });
+              const doc = new FakeDocument(new FakeElement({ tag: "body", children: [container, ...background] }));
+              doc.currentMessageRoot = current;
+              doc.currentMessageContainer = container;
+              doc.verifiedResourceCandidates = hostResources;
+              return doc;
+            }
+
+            function resourceDocument(resources, bodyChildren = [], background = []) {
+              return messageDocument(bodyChildren, background, resources);
+            }
+
+            function trustedResourceOptions(doc, options = {}) {
+              return {
+                currentMessageRoot: doc.currentMessageRoot,
+                currentMessageContainer: doc.currentMessageContainer,
+                verifiedResourceCandidates: doc.verifiedResourceCandidates,
+                resourceControlsVerified: true,
+                ...options,
+              };
             }
 
             function thread(text, attrs = {}, options = {}) {
@@ -143,6 +169,7 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
             function resource(filename, type, url, options = {}) {
               const attrs = {
                 "data-email-resource": "true",
+                "data-email-host-attachment": "true",
                 "data-filename": filename,
                 "data-type": type,
                 "data-resource-url": url,
@@ -265,21 +292,21 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
                 const calls = [];
                 const hiddenParent = new FakeElement({
                   style: { visibility: "hidden" },
-                  children: [resource("parent-hidden.pdf", "pdf", "/parent-hidden")],
+                  children: [resource("parent-hidden.pdf", "pdf", "/cgi-bin/download?file=parent-hidden")],
                 });
-                const background = resource("background.pdf", "pdf", "/background");
-                const doc = messageDocument([
-                  resource("visible.pdf", "pdf", "/visible"),
-                  resource("hidden.pdf", "pdf", "/hidden", { hidden: true }),
-                  resource("aria.pdf", "pdf", "/aria", { attrs: { "aria-hidden": "true" } }),
+                const background = resource("background.pdf", "pdf", "/cgi-bin/download?file=background");
+                const doc = resourceDocument([
+                  resource("visible.pdf", "pdf", "/cgi-bin/download?file=visible"),
+                  resource("hidden.pdf", "pdf", "/cgi-bin/download?file=hidden", { hidden: true }),
+                  resource("aria.pdf", "pdf", "/cgi-bin/download?file=aria", { attrs: { "aria-hidden": "true" } }),
                   hiddenParent,
                 ], [background]);
                 const api = loadCollector(async (url) => {
                   calls.push(url);
                   return response([1, 2]);
                 });
-                const result = await api.collectVisibleResources(doc);
-                if (calls.length !== 1 || calls[0] !== "https://exmail.qq.com/visible") {
+                const result = await api.collectVisibleResources(doc, trustedResourceOptions(doc));
+                if (calls.length !== 1 || calls[0] !== "https://exmail.qq.com/cgi-bin/download?file=visible") {
                   throw new Error(`unexpected fetches: ${JSON.stringify(calls)}`);
                 }
                 if (result.attachment_files.length !== 1) throw new Error("visible resource not collected");
@@ -290,12 +317,17 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
                 const calls = [];
                 const current = new FakeElement({
                   attrs: { "data-email-current-message": "true" },
-                  children: [
-                    thread("Hidden ancestor segment"),
-                    resource("hidden-ancestor.pdf", "pdf", "/hidden-ancestor"),
-                  ],
+                  children: [thread("Hidden ancestor segment")],
                 });
-                const hiddenAncestor = new FakeElement({ children: [current] });
+                const controls = new FakeElement({
+                  attrs: { "data-email-host-resource-controls": "true" },
+                  children: [resource("hidden-ancestor.pdf", "pdf", "/cgi-bin/download?file=hidden-ancestor")],
+                });
+                const container = new FakeElement({
+                  attrs: { "data-email-current-message-container": "true" },
+                  children: [current, controls],
+                });
+                const hiddenAncestor = new FakeElement({ children: [container] });
                 const body = new FakeElement({ tag: "body", children: [hiddenAncestor] });
                 const doc = new FakeDocument(body, "https://exmail.qq.com/cgi-bin/readmail", (element) => ({
                   display: element === hiddenAncestor ? "none" : "block",
@@ -306,7 +338,12 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
                   return response([1]);
                 });
                 const segments = api.extractVisibleThreadSegments(doc, { currentMessageRoot: current });
-                const resources = await api.collectVisibleResources(doc, { currentMessageRoot: current });
+                const resources = await api.collectVisibleResources(doc, {
+                  currentMessageRoot: current,
+                  currentMessageContainer: container,
+                  verifiedResourceCandidates: controls.children,
+                  resourceControlsVerified: true,
+                });
                 if (segments.length !== 0) throw new Error("segment beneath hidden ancestor was extracted");
                 if (calls.length !== 0) throw new Error("resource beneath hidden ancestor was fetched");
                 if (resources.attachment_files.length || resources.resource_limitations.length) {
@@ -314,20 +351,94 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
                 }
               },
 
+              email_authored_same_origin_links_are_never_fetched: async () => {
+                const calls = [];
+                const forgedBodyLink = resource(
+                  "forged.pdf",
+                  "pdf",
+                  "/cgi-bin/download?file=forged",
+                  { attrs: { download: "forged.pdf" } },
+                );
+                const trustedControl = resource(
+                  "trusted.pdf",
+                  "pdf",
+                  "/cgi-bin/download?file=trusted",
+                  { attrs: { "data-email-host-attachment": "true" } },
+                );
+                const doc = resourceDocument([trustedControl], [forgedBodyLink]);
+                const api = loadCollector(async (url) => {
+                  calls.push(url);
+                  return response([1, 2, 3]);
+                });
+                const result = await api.collectVisibleResources(doc, trustedResourceOptions(doc));
+                if (calls.length !== 1 || !calls[0].includes("file=trusted")) {
+                  throw new Error(`email-authored link was fetched: ${JSON.stringify(calls)}`);
+                }
+                if (result.attachment_files.length !== 1 || result.attachment_files[0].filename !== "trusted.pdf") {
+                  throw new Error(`trusted control was not collected: ${JSON.stringify(result)}`);
+                }
+              },
+
+              unverified_controls_fail_closed_without_fetching: async () => {
+                const calls = [];
+                const forgedBodyLink = resource(
+                  "forged.pdf",
+                  "pdf",
+                  "/cgi-bin/download?file=forged",
+                  { attrs: { download: "forged.pdf" } },
+                );
+                const doc = messageDocument([forgedBodyLink]);
+                const api = loadCollector(async (url) => {
+                  calls.push(url);
+                  return response([9]);
+                });
+                const result = await api.collectVisibleResources(doc, {
+                  currentMessageRoot: doc.currentMessageRoot,
+                  resourceControlsVerified: false,
+                  verifiedResourceCandidates: [],
+                });
+                if (calls.length !== 0) throw new Error(`unverified control was fetched: ${JSON.stringify(calls)}`);
+                if (result.attachment_files.length !== 0 || result.resource_limitations.length !== 1) {
+                  throw new Error(`missing unavailable limitation: ${JSON.stringify(result)}`);
+                }
+                if (!result.resource_limitations[0].limitation.includes("verified current-message resource controls")) {
+                  throw new Error(`unsafe limitation: ${JSON.stringify(result.resource_limitations)}`);
+                }
+              },
+
+              unapproved_same_origin_endpoints_are_never_fetched: async () => {
+                const calls = [];
+                const doc = resourceDocument([
+                  resource("mail.html", "pdf", "/cgi-bin/readmail?download=mail.html"),
+                ]);
+                const api = loadCollector(async (url) => {
+                  calls.push(url);
+                  return response([1]);
+                });
+                const result = await api.collectVisibleResources(doc, trustedResourceOptions(doc));
+                if (calls.length !== 0) throw new Error(`unapproved endpoint was fetched: ${JSON.stringify(calls)}`);
+                if (result.attachment_files.length !== 0 || result.resource_limitations.length !== 1) {
+                  throw new Error(`endpoint limitation missing: ${JSON.stringify(result)}`);
+                }
+                if (!result.resource_limitations[0].limitation.includes("approved Tencent Exmail attachment endpoint")) {
+                  throw new Error(`unexpected endpoint limitation: ${JSON.stringify(result.resource_limitations)}`);
+                }
+              },
+
               supported_same_origin_bytes_use_exact_upload_allowlist: async () => {
                 const calls = [];
-                const doc = messageDocument([
-                  resource("../../photo.png", "image/png", "/download/photo"),
-                  resource("scope.pdf", "application/pdf", "https://exmail.qq.com/download/pdf"),
-                  resource("cost.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "/download/xlsx"),
-                  resource("notes.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "/download/docx"),
+                const doc = resourceDocument([
+                  resource("../../photo.png", "image/png", "/cgi-bin/viewfile?file=photo"),
+                  resource("scope.pdf", "application/pdf", "https://exmail.qq.com/cgi-bin/download?file=pdf"),
+                  resource("cost.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "/cgi-bin/download?file=xlsx"),
+                  resource("notes.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", "/cgi-bin/download?file=docx"),
                 ]);
                 const payloads = [[0, 255], [1, 2, 3], [4], [5, 6]];
                 const api = loadCollector(async (url, options) => {
                   calls.push({ url, options });
                   return response(payloads[calls.length - 1]);
                 });
-                const result = await api.collectVisibleResources(doc);
+                const result = await api.collectVisibleResources(doc, trustedResourceOptions(doc));
                 if (result.resource_limitations.length !== 0) throw new Error(JSON.stringify(result));
                 if (result.attachment_files.length !== 4) throw new Error("not all supported types collected");
                 const expectedTypes = ["image", "pdf", "xlsx", "docx"];
@@ -349,19 +460,19 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
 
               unsafe_unsupported_failed_and_oversized_resources_return_limitations: async () => {
                 let fetchCount = 0;
-                const doc = messageDocument([
+                const doc = resourceDocument([
                   resource("outside.pdf", "pdf", "https://example.invalid/outside"),
-                  resource("script.exe", "application/octet-stream", "/script"),
-                  resource("unreadable.pdf", "pdf", "/unreadable"),
-                  resource("large.pdf", "pdf", "/large", { attrs: { "data-size": "5" } }),
+                  resource("script.exe", "application/octet-stream", "/cgi-bin/download?file=script"),
+                  resource("unreadable.pdf", "pdf", "/cgi-bin/download?file=unreadable"),
+                  resource("large.pdf", "pdf", "/cgi-bin/download?file=large", { attrs: { "data-size": "5" } }),
                 ]);
                 const api = loadCollector(async () => {
                   fetchCount += 1;
                   throw new Error("private download failure details");
                 });
-                const result = await api.collectVisibleResources(doc, {
+                const result = await api.collectVisibleResources(doc, trustedResourceOptions(doc, {
                   limits: { maxFiles: 5, maxFileBytes: 4, maxTotalBytes: 8 },
-                });
+                }));
                 if (result.attachment_files.length !== 0) throw new Error("unsafe bytes were emitted");
                 if (result.resource_limitations.length !== 4) throw new Error(JSON.stringify(result));
                 if (fetchCount !== 1) throw new Error(`unexpected fetch count: ${fetchCount}`);
@@ -377,19 +488,19 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
 
               count_and_total_byte_bounds_stop_additional_transfer: async () => {
                 const calls = [];
-                const doc = messageDocument([
-                  resource("first.pdf", "pdf", "/first", { attrs: { "data-size": "2" } }),
-                  resource("second.pdf", "pdf", "/second", { attrs: { "data-size": "3" } }),
-                  resource("total.pdf", "pdf", "/total", { attrs: { "data-size": "1" } }),
-                  resource("count.pdf", "pdf", "/count", { attrs: { "data-size": "1" } }),
+                const doc = resourceDocument([
+                  resource("first.pdf", "pdf", "/cgi-bin/download?file=first", { attrs: { "data-size": "2" } }),
+                  resource("second.pdf", "pdf", "/cgi-bin/download?file=second", { attrs: { "data-size": "3" } }),
+                  resource("total.pdf", "pdf", "/cgi-bin/download?file=total", { attrs: { "data-size": "1" } }),
+                  resource("count.pdf", "pdf", "/cgi-bin/download?file=count", { attrs: { "data-size": "1" } }),
                 ]);
                 const api = loadCollector(async (url) => {
                   calls.push(url);
                   return response(calls.length === 1 ? [1, 2] : [3, 4, 5]);
                 });
-                const result = await api.collectVisibleResources(doc, {
+                const result = await api.collectVisibleResources(doc, trustedResourceOptions(doc, {
                   limits: { maxFiles: 3, maxFileBytes: 4, maxTotalBytes: 5 },
-                });
+                }));
                 if (calls.length !== 2) throw new Error(`limits allowed extra transfer: ${JSON.stringify(calls)}`);
                 if (result.attachment_files.length !== 2) throw new Error(JSON.stringify(result));
                 const messages = result.resource_limitations.map((item) => item.limitation).join(" | ");
@@ -399,11 +510,11 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
 
               missing_content_length_streams_within_budget: async () => {
                 const streamed = streamingResponse([[1, 2], [3]]);
-                const doc = messageDocument([resource("streamed.pdf", "pdf", "/streamed")]);
+                const doc = resourceDocument([resource("streamed.pdf", "pdf", "/cgi-bin/download?file=streamed")]);
                 const api = loadCollector(async () => streamed.response);
-                const result = await api.collectVisibleResources(doc, {
+                const result = await api.collectVisibleResources(doc, trustedResourceOptions(doc, {
                   limits: { maxFiles: 2, maxFileBytes: 4, maxTotalBytes: 6 },
-                });
+                }));
                 if (result.attachment_files.length !== 1 || result.resource_limitations.length !== 0) {
                   throw new Error(`bounded stream was rejected: ${JSON.stringify(result)}`);
                 }
@@ -413,15 +524,15 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
 
               missing_length_without_stream_rejects_before_arraybuffer: async () => {
                 let arrayBufferCalls = 0;
-                const doc = messageDocument([resource("unknown.pdf", "pdf", "/unknown")]);
+                const doc = resourceDocument([resource("unknown.pdf", "pdf", "/cgi-bin/download?file=unknown")]);
                 const api = loadCollector(async () => ({
                   ok: true,
                   headers: { get: () => null },
                   arrayBuffer: async () => { arrayBufferCalls += 1; return Uint8Array.from([1, 2]).buffer; },
                 }));
-                const result = await api.collectVisibleResources(doc, {
+                const result = await api.collectVisibleResources(doc, trustedResourceOptions(doc, {
                   limits: { maxFiles: 2, maxFileBytes: 4, maxTotalBytes: 6 },
-                });
+                }));
                 if (arrayBufferCalls !== 0) throw new Error("unbounded arrayBuffer fallback was used");
                 if (result.attachment_files.length !== 0 || result.resource_limitations.length !== 1) {
                   throw new Error("missing-length fallback did not fail safely");
@@ -430,7 +541,7 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
 
               false_small_length_without_stream_rejects_before_arraybuffer: async () => {
                 let arrayBufferCalls = 0;
-                const doc = messageDocument([resource("false-small.pdf", "pdf", "/false-small")]);
+                const doc = resourceDocument([resource("false-small.pdf", "pdf", "/cgi-bin/download?file=false-small")]);
                 const api = loadCollector(async () => ({
                   ok: true,
                   headers: { get: (name) => name.toLowerCase() === "content-length" ? "1" : null },
@@ -439,9 +550,9 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
                     return Uint8Array.from([1, 2, 3, 4, 5]).buffer;
                   },
                 }));
-                const result = await api.collectVisibleResources(doc, {
+                const result = await api.collectVisibleResources(doc, trustedResourceOptions(doc, {
                   limits: { maxFiles: 2, maxFileBytes: 4, maxTotalBytes: 6 },
-                });
+                }));
                 if (arrayBufferCalls !== 0) throw new Error("non-stream arrayBuffer was invoked");
                 if (result.attachment_files.length !== 0 || result.resource_limitations.length !== 1) {
                   throw new Error("false-small non-stream response did not fail safely");
@@ -454,17 +565,17 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
                 const responses = [oversized, safe];
                 let fetchCount = 0;
                 let base64Count = 0;
-                const doc = messageDocument([
-                  resource("oversized.pdf", "pdf", "/oversized"),
-                  resource("safe.pdf", "pdf", "/safe"),
+                const doc = resourceDocument([
+                  resource("oversized.pdf", "pdf", "/cgi-bin/download?file=oversized"),
+                  resource("safe.pdf", "pdf", "/cgi-bin/download?file=safe"),
                 ]);
                 const api = loadCollector(
                   async () => responses[fetchCount++].response,
                   (binary) => { base64Count += 1; return Buffer.from(binary, "binary").toString("base64"); },
                 );
-                const result = await api.collectVisibleResources(doc, {
+                const result = await api.collectVisibleResources(doc, trustedResourceOptions(doc, {
                   limits: { maxFiles: 2, maxFileBytes: 4, maxTotalBytes: 6 },
-                });
+                }));
                 if (!oversized.state.cancelled) throw new Error("oversized reader was not cancelled");
                 if (oversized.state.readCount !== 2) throw new Error("reader did not stop at the first oversized chunk");
                 if (oversized.state.arrayBufferCalls !== 0 || safe.state.arrayBufferCalls !== 0) {
@@ -515,6 +626,15 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
 
     def test_stylesheet_hidden_root_and_resources_are_excluded(self) -> None:
         self.run_node_case("stylesheet_hidden_root_and_resources_are_excluded")
+
+    def test_email_authored_same_origin_links_are_never_fetched(self) -> None:
+        self.run_node_case("email_authored_same_origin_links_are_never_fetched")
+
+    def test_unverified_controls_fail_closed_without_fetching(self) -> None:
+        self.run_node_case("unverified_controls_fail_closed_without_fetching")
+
+    def test_unapproved_same_origin_endpoints_are_never_fetched(self) -> None:
+        self.run_node_case("unapproved_same_origin_endpoints_are_never_fetched")
 
     def test_supported_same_origin_bytes_use_exact_upload_allowlist(self) -> None:
         self.run_node_case("supported_same_origin_bytes_use_exact_upload_allowlist")

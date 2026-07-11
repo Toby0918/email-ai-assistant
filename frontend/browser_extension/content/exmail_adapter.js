@@ -11,6 +11,12 @@
     attachments: [],
   };
   const MAX_ATTACHMENTS = 8;
+  const CURRENT_MESSAGE_CONTAINER_ATTRIBUTE = "data-email-current-message-container";
+  const HOST_RESOURCE_CONTROLS_SELECTOR = "[data-email-host-resource-controls='true']";
+  const HOST_RESOURCE_SELECTOR = [
+    "[data-email-host-attachment='true']",
+    "[data-email-host-inline-resource='true']",
+  ].join(", ");
   const ATTACHMENT_PATTERN =
     /([A-Za-z0-9][A-Za-z0-9 _.,()[\]\-+&'#]*\.(pdf|docx?|xlsx?|pptx?|csv|zip|rar|7z|png|jpe?g|gif|txt))(?:\s*\(([^)\n]{1,40})\))?/gi;
   const BODY_SELECTORS = [
@@ -136,8 +142,23 @@
     }
 
     try {
+      const resourceContext = findVerifiedResourceContext(
+        extraction.document,
+        extraction.currentMessageRoot,
+      );
+      if (!resourceContext) {
+        payload.resource_limitations.push(
+          safeResourceLimitation(
+            "Resources are unavailable because verified current-message resource controls were not established; body analysis continued.",
+          ),
+        );
+        return { ...extraction.result, payload };
+      }
       const resources = await collector.collectVisibleResources(extraction.document, {
         currentMessageRoot: extraction.currentMessageRoot,
+        currentMessageContainer: resourceContext.currentMessageContainer,
+        verifiedResourceCandidates: resourceContext.verifiedResourceCandidates,
+        resourceControlsVerified: true,
       });
       payload.attachment_files = projectItems(resources && resources.attachment_files, [
         "filename", "type", "size", "content_base64",
@@ -153,6 +174,72 @@
       );
     }
     return { ...extraction.result, payload };
+  }
+
+  function findVerifiedResourceContext(doc, currentMessageRoot) {
+    const currentMessageContainer = findMarkedAncestor(
+      currentMessageRoot,
+      CURRENT_MESSAGE_CONTAINER_ATTRIBUTE,
+      "true",
+    );
+    if (!currentMessageContainer || !isVisibleElementInDocument(currentMessageContainer, doc)) {
+      return null;
+    }
+
+    const controlContainers = querySelectorAll(currentMessageContainer, HOST_RESOURCE_CONTROLS_SELECTOR);
+    const controls = controlContainers.find((candidate) =>
+      !containsElement(currentMessageRoot, candidate) &&
+      isVisibleElementInDocument(candidate, doc),
+    );
+    if (!controls) {
+      return null;
+    }
+
+    const verifiedResourceCandidates = querySelectorAll(controls, HOST_RESOURCE_SELECTOR).filter(
+      (candidate) =>
+        !containsElement(currentMessageRoot, candidate) &&
+        containsElement(currentMessageContainer, candidate) &&
+        isVisibleElementInDocument(candidate, doc),
+    );
+    return { currentMessageContainer, verifiedResourceCandidates };
+  }
+
+  function findMarkedAncestor(element, attributeName, expectedValue) {
+    let current = element;
+    while (current) {
+      if (
+        typeof current.getAttribute === "function" &&
+        String(current.getAttribute(attributeName) || "") === expectedValue
+      ) {
+        return current;
+      }
+      current = current.parentElement || current.parentNode;
+    }
+    return null;
+  }
+
+  function querySelectorAll(container, selector) {
+    if (!container || typeof container.querySelectorAll !== "function") {
+      return [];
+    }
+    return Array.from(container.querySelectorAll(selector) || []);
+  }
+
+  function containsElement(container, element) {
+    if (!container || !element) {
+      return false;
+    }
+    if (typeof container.contains === "function") {
+      return container.contains(element);
+    }
+    let current = element;
+    while (current) {
+      if (current === container) {
+        return true;
+      }
+      current = current.parentElement || current.parentNode;
+    }
+    return false;
   }
 
   function projectItems(value, allowedFields) {
