@@ -6,6 +6,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from scripts import repo_utils
 from scripts.repo_utils import (
     has_required_front_matter,
     is_ignored_by_gitignore,
@@ -20,6 +21,12 @@ from scripts.repo_utils import (
 
 
 class RepoUtilsTests(unittest.TestCase):
+    def test_dependency_pin_parser_rejects_conflicting_duplicates(self) -> None:
+        requirements = "openai==2.45.0\nOpenAI==2.46.0\nPillow==12.3.0\n"
+
+        with self.assertRaisesRegex(ValueError, r"openai.*2\.45\.0.*2\.46\.0"):
+            repo_utils.parse_pinned_dependency_versions(requirements)
+
     def test_load_gitignore_patterns_skips_comments_blanks_and_negations(self) -> None:
         # Negated patterns are intentionally ignored by this simple scanner.
         with tempfile.TemporaryDirectory() as tmp_dir:

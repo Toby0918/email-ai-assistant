@@ -1,5 +1,5 @@
 ---
-last_update: 2026-06-29
+last_update: 2026-07-11
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -206,7 +206,13 @@ password = "..."
 OPENAI_API_KEY=your_api_key_here
 ```
 
-## 9. 文档元信息检查
+## 9. 依赖精确版本冲突检查
+
+`requirements.txt` 中同一个规范化包名不得同时出现不同的 `==` 版本。包名比较忽略大小写，并将 `-`、`_`和 `.` 视为等价分隔符。重复的相同版本可以解析，但任何冲突版本都必须使静态约束失败。
+
+可执行实现位于 `scripts/repo_utils.py` 的 `parse_pinned_dependency_versions()`，并由 `tests/test_repo_utils.py` 的合成冲突用例和 `tests/test_static_linter_constraints.py` 的真实 `requirements.txt` 检查共同覆盖。
+
+## 10. 文档元信息检查
 
 `docs/` 下所有 Markdown 文件必须包含 YAML front matter：
 
@@ -220,7 +226,7 @@ source_type: operation_guide
 ---
 ```
 
-## 10. 对应测试文件
+## 11. 对应测试文件
 
 自定义静态检查实现文件：
 
@@ -240,7 +246,7 @@ python -m unittest discover -s tests -p "test_static_linter_constraints.py"
 python -m unittest discover -s tests
 ```
 
-## 11. 修改规则
+## 12. 修改规则
 
 如果新增或修改 linter 规则，必须同步更新：
 

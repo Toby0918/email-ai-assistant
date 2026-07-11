@@ -1,5 +1,5 @@
 ---
-last_update: 2026-06-29
+last_update: 2026-07-11
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -56,6 +56,7 @@ CI pipeline
 | 不要自动处理邮箱 | 禁止自动发送、删除、归档邮件关键词 | `tests/test_static_linter_constraints.py` |
 | 架构层次乱了 | 禁止指定模块之间的反向依赖 | `tests/test_architecture_constraints.py` |
 | 文档缺少维护信息 | `docs/*.md` 必须包含 YAML front matter | `tests/test_static_linter_constraints.py` |
+| 依赖版本冲突 | 同一规范化包名不得出现不同的 `==` 版本 | `tests/test_repo_utils.py` + `tests/test_static_linter_constraints.py` |
 | AI 输出不稳定 | AI 结果必须可解析、可校验 JSON | analyzer 相关单元测试 |
 | Prompt 边界不清 | Prompt 文档必须写清输入、输出、限制、安全边界 | 文档测试或 review checklist |
 | 安全边界被改了 | 修改安全边界必须同步更新 docs 和测试 | CI + review checklist |

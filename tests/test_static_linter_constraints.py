@@ -11,6 +11,7 @@ import re
 import unittest
 from pathlib import Path
 
+from scripts import repo_utils
 from scripts.repo_utils import (
     FORBIDDEN_REPO_FILE_NAMES,
     FORBIDDEN_REPO_SUFFIXES,
@@ -93,6 +94,19 @@ class PrintCallVisitor(ast.NodeVisitor):
 
 
 class StaticLinterConstraintTests(unittest.TestCase):
+    def test_active_phase_two_design_keeps_provider_disabled_by_default(self) -> None:
+        design = read_text(
+            ROOT
+            / "docs"
+            / "superpowers"
+            / "specs"
+            / "2026-07-09-phase-two-attachment-thread-analysis-design.md"
+        )
+
+        self.assertIn("defaults to `EMAIL_AGENT_LLM_PROVIDER=disabled`", design)
+        self.assertIn("only the default model name when Ollama is explicitly enabled", design)
+        self.assertNotIn("defaults to `EMAIL_AGENT_LLM_PROVIDER=ollama`", design)
+
     def test_pinned_dependency_versions_are_consistent_across_active_guidance(self) -> None:
         expected_versions = {
             "openai": "2.45.0",
@@ -102,6 +116,7 @@ class StaticLinterConstraintTests(unittest.TestCase):
             "pytesseract": "0.3.13",
         }
         requirements = read_text(ROOT / "requirements.txt")
+        repo_utils.parse_pinned_dependency_versions(requirements)
         guidance_files = [
             ROOT / "AGENTS.md",
             ROOT / "README.md",

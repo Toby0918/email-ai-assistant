@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import fnmatch
+import re
 from pathlib import Path
 from typing import Iterable
 
@@ -27,6 +28,32 @@ FORBIDDEN_REPO_FILE_NAMES = {
 }
 
 FORBIDDEN_REPO_SUFFIXES = {".db", ".sqlite", ".sqlite3"}
+
+_EXACT_DEPENDENCY_PIN = re.compile(
+    r"^\s*(?P<name>[A-Za-z0-9][A-Za-z0-9._-]*(?:\[[^\]]+\])?)\s*==\s*"
+    r"(?P<version>[^\s;#]+)"
+)
+_DEPENDENCY_NAME_SEPARATOR = re.compile(r"[-_.]+")
+
+
+def parse_pinned_dependency_versions(requirements: str) -> dict[str, str]:
+    """Parse exact pins and reject normalized package names with conflicting versions."""
+    versions: dict[str, str] = {}
+    for line_number, raw_line in enumerate(requirements.splitlines(), start=1):
+        match = _EXACT_DEPENDENCY_PIN.match(raw_line)
+        if match is None:
+            continue
+        raw_name = match.group("name").split("[", 1)[0]
+        name = _DEPENDENCY_NAME_SEPARATOR.sub("-", raw_name).lower()
+        version = match.group("version")
+        previous = versions.get(name)
+        if previous is not None and previous != version:
+            raise ValueError(
+                f"Conflicting exact dependency pins for {name}: "
+                f"{previous} and {version} (line {line_number})."
+            )
+        versions[name] = version
+    return versions
 
 
 def load_gitignore_patterns(root: Path) -> list[str]:
