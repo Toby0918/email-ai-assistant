@@ -23,6 +23,10 @@ class AttachmentInputError(ValueError):
     """Raised when a user-confirmed attachment cannot be safely stored."""
 
 
+class AttachmentOperationError(RuntimeError):
+    """Raised when validated attachment storage cannot operate safely."""
+
+
 @dataclass(frozen=True)
 class StoredAttachment:
     """Internal metadata for a contained temporary attachment file."""
@@ -45,8 +49,13 @@ def store_attachment_files(files: list[dict[str, object]], config: AppConfig) ->
             stored_files.append(_store_one_attachment(item, storage_dir, expires_at))
     except OSError as exc:
         _remove_files([item.path for item in stored_files])
-        raise AttachmentInputError("Temporary attachment storage is unavailable.") from exc
+        raise AttachmentOperationError("Temporary attachment storage is unavailable.") from exc
     return stored_files
+
+
+def validate_attachment_files(files: list[dict[str, object]], config: AppConfig) -> None:
+    """Validate bounded attachment input before any cleanup or storage operation."""
+    _decode_and_validate_files(files, config)
 
 
 def cleanup_expired_attachments(config: AppConfig, now: datetime | None = None) -> int:
@@ -63,7 +72,7 @@ def cleanup_expired_attachments(config: AppConfig, now: datetime | None = None) 
                 removed += 1
         return removed
     except OSError as exc:
-        raise AttachmentInputError("Temporary attachment cleanup is unavailable.") from exc
+        raise AttachmentOperationError("Temporary attachment cleanup is unavailable.") from exc
 
 
 def _decode_and_validate_files(

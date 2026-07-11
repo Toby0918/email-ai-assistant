@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 from backend.email_agent.attachment_storage import (
     AttachmentInputError,
+    AttachmentOperationError,
     cleanup_expired_attachments,
     store_attachment_files,
 )
@@ -59,7 +60,7 @@ class AttachmentStorageTests(unittest.TestCase):
                 "backend.email_agent.attachment_storage.os.utime",
                 side_effect=[None, OSError("disk write failed")],
             ):
-                with self.assertRaises(AttachmentInputError):
+                with self.assertRaises(AttachmentOperationError):
                     store_attachment_files(
                         [self._file("one.pdf", b"one"), self._file("two.pdf", b"two")],
                         config,
@@ -76,7 +77,7 @@ class AttachmentStorageTests(unittest.TestCase):
             expired_at = now - timedelta(seconds=1)
             os.utime(expired, (expired_at.timestamp(), expired_at.timestamp()))
             with patch.object(Path, "unlink", side_effect=OSError("permission denied")):
-                with self.assertRaises(AttachmentInputError):
+                with self.assertRaises(AttachmentOperationError):
                     cleanup_expired_attachments(config, now=now)
 
     def test_cleanup_expired_attachments_deletes_only_expired_files(self) -> None:

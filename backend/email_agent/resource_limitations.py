@@ -18,6 +18,9 @@ FAILED_LIMITATION = (
     "Resource could not be read from the current Tencent Exmail session; "
     "body analysis continued."
 )
+OPERATIONAL_LIMITATION = (
+    "Attachment resources are temporarily unavailable; body analysis continued."
+)
 
 
 def project_resource_limitations(value: Any) -> list[dict[str, object]]:
@@ -48,7 +51,7 @@ def resource_limitation_insights(value: Any) -> list[dict[str, object]]:
             "filename": item["filename"],
             "type": item["type"],
             "status": status,
-            "summary": _generic_summary(str(item["type"]), status),
+            "summary": _generic_summary(str(item["type"]), status, limitation),
             "key_facts": [],
             "limitations": [limitation],
         })
@@ -56,9 +59,11 @@ def resource_limitation_insights(value: Any) -> list[dict[str, object]]:
 
 
 def _canonical_limitation(value: Any, resource_type: str) -> str:
+    text = " ".join(str(value or "").split()).lower()
+    if "temporarily unavailable" in text:
+        return OPERATIONAL_LIMITATION
     if resource_type == "unsupported":
         return UNSUPPORTED_LIMITATION
-    text = " ".join(str(value or "").split()).lower()
     if any(marker in text for marker in ("exceed", "limit", "omitted")):
         return BOUNDED_LIMITATION
     if any(marker in text for marker in ("could not be read", "read failed", "fetch failed")):
@@ -85,7 +90,9 @@ def _safe_filename(value: Any) -> str:
     return safe.lstrip(".").strip()[:160] or "resource"
 
 
-def _generic_summary(resource_type: str, status: str) -> str:
+def _generic_summary(resource_type: str, status: str, limitation: str) -> str:
+    if limitation == OPERATIONAL_LIMITATION:
+        return "Attachment resources were unavailable; body analysis continued."
     if resource_type == "unsupported":
         return "Attachment type is unsupported; body analysis continued."
     if status == "failed":

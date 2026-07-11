@@ -6,6 +6,7 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from backend.email_agent.api import handle_analyze_current_email
 from backend.email_agent.config import load_config
@@ -124,6 +125,92 @@ class ApiTests(unittest.TestCase):
         for secret in ("private.example", "C:/private", "PRIVATE_TOKEN", "private_url"):
             with self.subTest(secret=secret):
                 self.assertNotIn(secret, serialized)
+
+    def test_body_only_analysis_continues_when_attachment_cleanup_is_locked(self) -> None:
+        received: dict[str, object] = {}
+
+        def analyzer(payload: dict[str, object]) -> dict[str, str]:
+            received.update(payload)
+            return {"summary": "body analysis continued"}
+
+        with patch(
+            "backend.email_agent.api.cleanup_expired_attachments",
+            side_effect=OSError(r"C:\private\locked-retention-path"),
+        ):
+            response = handle_analyze_current_email(
+                {
+                    "user_confirmed": True,
+                    "subject": "Synthetic body-only request",
+                    "from": "sender@example.test",
+                    "body_text": "Please review the body-only request.",
+                },
+                analyzer=analyzer,
+            )
+
+        self.assertTrue(response["ok"])
+        self.assertEqual(response["analysis"]["summary"], "body analysis continued")
+        self.assertEqual(received["stored_attachments"], [])
+        self.assertEqual(len(received["resource_limitations"]), 1)
+        serialized = str(received["resource_limitations"])
+        self.assertIn("temporarily unavailable", serialized)
+        self.assertNotIn("locked-retention-path", serialized)
+        self.assertNotIn("C:\\private", serialized)
+
+    def test_analysis_continues_without_bytes_when_attachment_storage_fails(self) -> None:
+        received: dict[str, object] = {}
+
+        def analyzer(payload: dict[str, object]) -> dict[str, str]:
+            received.update(payload)
+            return {"summary": "body analysis continued"}
+
+        with TemporaryDirectory() as directory:
+            config = replace(load_config(dotenv_path=None), attachment_temp_dir=directory)
+            with patch(
+                "backend.email_agent.api.store_attachment_files",
+                side_effect=OSError(r"C:\private\failed-write.pdf"),
+            ):
+                response = handle_analyze_current_email(
+                    {
+                        "user_confirmed": True,
+                        "subject": "Synthetic request",
+                        "from": "sender@example.test",
+                        "body_text": "Please review the request body.",
+                        "attachment_files": [
+                            {"filename": "quote.pdf", "type": "pdf", "content_base64": "YQ=="},
+                        ],
+                    },
+                    analyzer=analyzer,
+                    config=config,
+                )
+
+        self.assertTrue(response["ok"])
+        self.assertEqual(received["stored_attachments"], [])
+        self.assertEqual(len(received["resource_limitations"]), 1)
+        serialized = str(received["resource_limitations"])
+        self.assertIn("temporarily unavailable", serialized)
+        self.assertNotIn("failed-write.pdf", serialized)
+        self.assertNotIn("C:\\private", serialized)
+
+    def test_invalid_attachment_input_remains_invalid_before_cleanup(self) -> None:
+        with patch(
+            "backend.email_agent.api.cleanup_expired_attachments",
+            side_effect=OSError("cleanup must not run for invalid input"),
+        ) as cleanup:
+            response = handle_analyze_current_email(
+                {
+                    "user_confirmed": True,
+                    "subject": "Synthetic request",
+                    "from": "sender@example.test",
+                    "body_text": "Please review.",
+                    "attachment_files": [
+                        {"filename": "quote.pdf", "type": "pdf", "content_base64": "not-base64"},
+                    ],
+                },
+            )
+
+        self.assertFalse(response["ok"])
+        self.assertEqual(response["error"]["code"], "ATTACHMENT_INPUT_INVALID")
+        cleanup.assert_not_called()
 
     def test_handle_analyze_current_email_returns_result_without_email_actions(self) -> None:
         response = handle_analyze_current_email(
