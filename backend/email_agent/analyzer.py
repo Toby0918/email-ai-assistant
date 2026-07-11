@@ -21,6 +21,7 @@ from .thread_timeline import build_conversation_timeline
 
 
 MAX_ATTACHMENT_METADATA_ITEMS = 8
+MAX_STORED_ATTACHMENTS = 5
 MODEL_AUGMENTATION_FIELDS = ("summary", "priority", "priority_reason", "category", "tags")
 
 
@@ -160,7 +161,7 @@ def _stored_attachments(value: Any) -> list[StoredAttachment]:
         return []
     return [
         item
-        for item in value[:MAX_ATTACHMENT_METADATA_ITEMS]
+        for item in value[:MAX_STORED_ATTACHMENTS]
         if isinstance(item, StoredAttachment)
     ]
 

@@ -493,6 +493,11 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
                 }));
                 if (result.attachment_files.length !== 0) throw new Error("unsafe bytes were emitted");
                 if (result.resource_limitations.length !== 4) throw new Error(JSON.stringify(result));
+                const codes = result.resource_limitations.map((item) => item.code).sort();
+                const expectedCodes = ["frontend_limit", "resource_read_failed", "resource_unavailable", "unsupported_type"].sort();
+                if (JSON.stringify(codes) !== JSON.stringify(expectedCodes)) {
+                  throw new Error(`limitation code mapping changed: ${JSON.stringify(result)}`);
+                }
                 if (fetchCount !== 1) throw new Error(`unexpected fetch count: ${fetchCount}`);
                 const messages = result.resource_limitations.map((item) => item.limitation).join(" | ");
                 for (const expected of ["same-origin", "not supported", "could not be read", "per-file"]) {
@@ -631,6 +636,9 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
                 if (!result.resource_limitations[0].limitation.includes("deadline")) {
                   throw new Error(`deadline limitation missing: ${JSON.stringify(result)}`);
                 }
+                if (result.resource_limitations[0].code !== "collection_timeout") {
+                  throw new Error(`timeout code missing: ${JSON.stringify(result)}`);
+                }
               },
 
               stalled_stream_read_is_cancelled_and_returns_a_safe_limitation: async () => {
@@ -661,6 +669,9 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
                 }
                 if (!result.resource_limitations[0].limitation.includes("deadline")) {
                   throw new Error(`deadline limitation missing: ${JSON.stringify(result)}`);
+                }
+                if (result.resource_limitations[0].code !== "collection_timeout") {
+                  throw new Error(`timeout code missing: ${JSON.stringify(result)}`);
                 }
               },
 
@@ -746,6 +757,9 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
                 if (!receivedPayload.resource_limitations[0].limitation.includes("deadline")) {
                   throw new Error(`timeout limitation missing: ${JSON.stringify(receivedPayload)}`);
                 }
+                if (receivedPayload.resource_limitations[0].code !== "collection_timeout") {
+                  throw new Error(`timeout code missing: ${JSON.stringify(receivedPayload)}`);
+                }
                 if (elements.get("#analyze-button").disabled !== false) {
                   throw new Error("Analyze remained disabled after resource timeout");
                 }
@@ -779,6 +793,9 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
                 );
                 if (aggregate.length !== 1) {
                   throw new Error(`expected one aggregate omission: ${JSON.stringify(result)}`);
+                }
+                if (aggregate[0].code !== "candidate_omission") {
+                  throw new Error(`aggregate code missing: ${JSON.stringify(result)}`);
                 }
               },
             };

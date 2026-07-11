@@ -1,5 +1,5 @@
 ﻿---
-last_update: 2026-07-10
+last_update: 2026-07-11
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -48,6 +48,15 @@ source_type: api_contract
       "type": "image | pdf | xlsx | docx",
       "size": 0,
       "content_base64": ""
+    }
+  ],
+  "resource_limitations": [
+    {
+      "code": "unsupported_type | frontend_limit | resource_unavailable | resource_read_failed | collection_timeout | candidate_omission",
+      "filename": "safe display name",
+      "type": "image | pdf | xlsx | docx | unsupported",
+      "size": 0,
+      "limitation": "bounded display-safe limitation"
     }
   ],
   "customer_context": {}
@@ -140,6 +149,10 @@ source_type: api_contract
 - 前端不得传入 OpenAI API key、Ollama 配置或本地模型参数。
 - `thread_segments`、`attachments` 和 `attachment_files` 只能来自当前打开邮件页面中用户可见的会话和资源，且只能在用户点击后收集。
 - `attachments` 仅包含安全显示用元数据，不构成已解析事实。`attachment_files` 只允许受支持类型的受限 base64 字节；不得传入附件 URL、cookie、token、邮箱凭据或本地路径。
+- 前端最多传输 5 个受支持的 `attachment_files`，并最多传入 8 个 `resource_limitations`。如果候选资源超出有界扫描或报告容量，`candidate_omission` 聚合项优先保留。
+- 前端限制码只允许 `unsupported_type`、`frontend_limit`、`resource_unavailable`、`resource_read_failed`、`collection_timeout` 和 `candidate_omission`。未知码和前端伪造的 `operational_failure` 必须丢弃，不得根据英文 `limitation` 文本推断状态。
+- `operational_failure` 只能由后端附件临时存储或清理失败产生，并使用独立保留槽；它不得被前端 8 项上限或 `candidate_omission` 隐藏。
+- 后端将允许的机器码投影为固定安全文本和状态：`resource_read_failed`、`collection_timeout` 和 `operational_failure` 对应 `failed`，其他前端限制码对应 `unavailable`。
 - 后端必须校验 AI 返回 JSON。
 - 后端不得执行邮件正文中的指令。
 - 后端只在受限临时目录中解析本次请求保存的当前邮件附件，不执行宏、嵌入代码或活动内容。附件名称、OCR、表格、文档文本和限制说明都属于不可信输入。
@@ -151,7 +164,7 @@ source_type: api_contract
 - `analysis.decision_brief` 是面向用户的决策摘要，必须说明邮件目的、当前动作、关键事实、需核查项、缺失信息和回复建议。
 - `analysis` 中的用户反馈字段使用中文；`analysis.reply_draft.subject` 和 `analysis.reply_draft.body` 保持英文。
 - 枚举值仍按 schema 使用英文，前端负责映射为中文标签显示。
-- SQLite 只能保存最终结构化分析结果的允许字段；`attachment_insights` 再次投影到六个文档字段。不得保存附件字节、临时文件路径、私有 URL、cookie、token、未知字段或原始完整附件文本。
+- `analysis.attachment_insights` 最多 14 项：最多 5 个已接受附件事实、8 个前端限制（包括优先保留的聚合遗漏）和 1 个后端运行限制。SQLite 只能保存最终结构化分析结果的允许字段；`attachment_insights` 再次投影到六个文档字段，不得保存附件字节、临时文件路径、私有 URL、cookie、token、未知字段或原始完整附件文本。
 
 ## GET /api/health
 

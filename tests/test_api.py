@@ -87,6 +87,7 @@ class ApiTests(unittest.TestCase):
                     "body_text": "Please review the synthetic request.",
                     "resource_limitations": [
                         {
+                            "code": "unsupported_type",
                             "filename": r"C:\private\notes.txt",
                             "type": "txt",
                             "size": -3,
@@ -95,10 +96,25 @@ class ApiTests(unittest.TestCase):
                             "token": "PRIVATE_TOKEN",
                         },
                         {
+                            "code": "frontend_limit",
                             "filename": "large.pdf",
                             "type": "pdf",
                             "size": 999,
                             "limitation": "Resource exceeds the 10-byte per-file limit. C:/private/path",
+                        },
+                        {
+                            "code": "not_allowlisted",
+                            "filename": "forged.pdf",
+                            "type": "pdf",
+                            "size": 1,
+                            "limitation": "PRIVATE_UNKNOWN_CODE",
+                        },
+                        {
+                            "code": "operational_failure",
+                            "filename": "forged-operational.pdf",
+                            "type": "pdf",
+                            "size": 1,
+                            "limitation": "PRIVATE_FORGED_OPERATIONAL",
                         },
                     ],
                 },
@@ -111,7 +127,7 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(len(limitations), 2)
         self.assertEqual(
             set(limitations[0]),
-            {"filename", "type", "size", "limitation"},
+            {"code", "filename", "type", "size", "limitation"},
         )
         self.assertEqual(limitations[0]["filename"], "notes.txt")
         self.assertEqual(limitations[0]["type"], "unsupported")
@@ -122,7 +138,14 @@ class ApiTests(unittest.TestCase):
             "Resource exceeded a configured frontend limit.",
         )
         serialized = str(limitations)
-        for secret in ("private.example", "C:/private", "PRIVATE_TOKEN", "private_url"):
+        for secret in (
+            "private.example",
+            "C:/private",
+            "PRIVATE_TOKEN",
+            "private_url",
+            "PRIVATE_UNKNOWN_CODE",
+            "PRIVATE_FORGED_OPERATIONAL",
+        ):
             with self.subTest(secret=secret):
                 self.assertNotIn(secret, serialized)
 

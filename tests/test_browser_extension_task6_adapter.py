@@ -240,7 +240,7 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
                     await gate;
                     return {
                       attachment_files: [{ filename: "visible.pdf", type: "pdf", size: 3, content_base64: "AQID" }],
-                      resource_limitations: [{ filename: "limited.docx", type: "docx", size: 0,
+                      resource_limitations: [{ code: "resource_read_failed", filename: "limited.docx", type: "docx", size: 0,
                         limitation: "Resource could not be read from the current Tencent Exmail session." }],
                     };
                   },
@@ -260,7 +260,7 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
                 if (result.payload.thread_segments.length !== 2) throw new Error("expected two visible thread segments");
                 if (result.payload.attachment_files[0].content_base64 !== "AQID") throw new Error("attachment bytes missing");
                 assertExactKeys(result.payload.attachment_files[0], ["filename", "type", "size", "content_base64"], "file");
-                assertExactKeys(result.payload.resource_limitations[0], ["filename", "type", "size", "limitation"], "limitation");
+                assertExactKeys(result.payload.resource_limitations[0], ["code", "filename", "type", "size", "limitation"], "limitation");
                 if (result.payload.attachments.some((item) => item.filename.includes("background-private"))) {
                   throw new Error("background attachment metadata escaped the current root");
                 }
@@ -276,7 +276,7 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
                   throw new Error("missing collector emitted collected data");
                 }
                 if (result.payload.resource_limitations.length !== 1) throw new Error("missing safe collector limitation");
-                assertExactKeys(result.payload.resource_limitations[0], ["filename", "type", "size", "limitation"], "limitation");
+                assertExactKeys(result.payload.resource_limitations[0], ["code", "filename", "type", "size", "limitation"], "limitation");
               },
 
               collector_failure_keeps_body_analysis_safe: async () => {

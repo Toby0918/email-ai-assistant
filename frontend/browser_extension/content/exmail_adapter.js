@@ -138,7 +138,10 @@
     const collector = window.EmailAssistantCurrentMessageCollector;
     if (!collector || !extraction.currentMessageRoot) {
       payload.resource_limitations.push(
-        safeResourceLimitation("Current-message resources could not be collected without a verified collector and message root."),
+        safeResourceLimitation(
+          "resource_unavailable",
+          "Current-message resources could not be collected without a verified collector and message root.",
+        ),
       );
       return { ...extraction.result, payload };
     }
@@ -152,7 +155,7 @@
       );
     } catch (error) {
       payload.resource_limitations.push(
-        safeResourceLimitation("Visible thread segments could not be collected safely."),
+        safeResourceLimitation("resource_unavailable", "Visible thread segments could not be collected safely."),
       );
     }
 
@@ -164,6 +167,7 @@
       if (!resourceContext) {
         payload.resource_limitations.push(
           safeResourceLimitation(
+            "resource_unavailable",
             "Resources are unavailable because verified current-message resource controls were not established; body analysis continued.",
           ),
         );
@@ -180,12 +184,12 @@
       ]);
       payload.resource_limitations.push(
         ...projectItems(resources && resources.resource_limitations, [
-          "filename", "type", "size", "limitation",
+          "code", "filename", "type", "size", "limitation",
         ]),
       );
     } catch (error) {
       payload.resource_limitations.push(
-        safeResourceLimitation("Current-message resources could not be collected safely."),
+        safeResourceLimitation("resource_read_failed", "Current-message resources could not be collected safely."),
       );
     }
     return { ...extraction.result, payload };
@@ -395,8 +399,8 @@
       });
   }
 
-  function safeResourceLimitation(limitation) {
-    return { filename: "resource", type: "unsupported", size: 0, limitation };
+  function safeResourceLimitation(code, limitation) {
+    return { code, filename: "resource", type: "unsupported", size: 0, limitation };
   }
 
   function primitiveValue(value) {

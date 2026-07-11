@@ -1,6 +1,14 @@
 (function () {
   const ANALYZE_URL = "http://127.0.0.1:8765/api/analyze-current-email";
   const MAX_ANALYZE_TIMEOUT_MS = 15000;
+  const FRONTEND_RESOURCE_LIMITATION_CODES = new Set([
+    "unsupported_type",
+    "frontend_limit",
+    "resource_unavailable",
+    "resource_read_failed",
+    "collection_timeout",
+    "candidate_omission",
+  ]);
 
   async function analyzeCurrentEmail(payload, options) {
     const email = payload || {};
@@ -78,9 +86,7 @@
       attachment_files: projectItems(email.attachment_files, [
         "filename", "type", "size", "content_base64",
       ]),
-      resource_limitations: projectItems(email.resource_limitations, [
-        "filename", "type", "size", "limitation",
-      ]),
+      resource_limitations: projectResourceLimitations(email.resource_limitations),
     };
   }
 
@@ -139,6 +145,11 @@
         }
         return projected;
       });
+  }
+
+  function projectResourceLimitations(value) {
+    return projectItems(value, ["code", "filename", "type", "size", "limitation"])
+      .filter((item) => FRONTEND_RESOURCE_LIMITATION_CODES.has(item.code));
   }
 
   function stringValue(value) {

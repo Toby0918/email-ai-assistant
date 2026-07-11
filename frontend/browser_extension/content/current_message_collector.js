@@ -13,6 +13,14 @@
   const MAX_TOTAL_RESOURCE_BYTES = 25 * 1024 * 1024;
   const MAX_PER_RESOURCE_TIMEOUT_MS = 8000;
   const MAX_OVERALL_RESOURCE_TIMEOUT_MS = 20000;
+  const LIMITATION_CODES = Object.freeze({
+    unsupported: "unsupported_type",
+    frontendLimit: "frontend_limit",
+    unavailable: "resource_unavailable",
+    readFailed: "resource_read_failed",
+    timeout: "collection_timeout",
+    candidateOmission: "candidate_omission",
+  });
   const SUPPORTED_RESOURCE_TYPES = Object.freeze(["image", "pdf", "xlsx", "docx"]);
   const APPROVED_RESOURCE_PATHS = Object.freeze(["/cgi-bin/download", "/cgi-bin/viewfile"]);
   const CURRENT_MESSAGE_SELECTORS = [
@@ -91,6 +99,7 @@
       result.resource_limitations.push(
         limitedMetadata(
           { filename: "resource", type: "unsupported", size: 0 },
+          LIMITATION_CODES.unavailable,
           "Resources are unavailable because verified current-message resource controls were not established; body analysis continued.",
         ),
       );
@@ -125,7 +134,7 @@
       if (!metadata.type) {
         addResourceLimitation(
           result,
-          limitedMetadata(metadata, "Resource type is not supported."),
+          limitedMetadata(metadata, LIMITATION_CODES.unsupported, "Resource type is not supported."),
           omitted,
         );
         continue;
@@ -134,25 +143,25 @@
       const resolvedUrl = resolveResourceUrl(resourceUrl(element), baseHref);
       if (!resolvedUrl) {
         addResourceLimitation(result,
-          limitedMetadata(metadata, "Resource URL must be a same-origin Tencent Exmail HTTPS URL."),
+          limitedMetadata(metadata, LIMITATION_CODES.unavailable, "Resource URL must be a same-origin Tencent Exmail HTTPS URL."),
           omitted);
         continue;
       }
       if (!isApprovedResourceEndpoint(resolvedUrl)) {
         addResourceLimitation(result,
-          limitedMetadata(metadata, "Resource URL is not an approved Tencent Exmail attachment endpoint."),
+          limitedMetadata(metadata, LIMITATION_CODES.unavailable, "Resource URL is not an approved Tencent Exmail attachment endpoint."),
           omitted);
         continue;
       }
       if (metadata.size > limits.maxFileBytes) {
         addResourceLimitation(result,
-          limitedMetadata(metadata, `Resource exceeds the ${limits.maxFileBytes}-byte per-file limit.`),
+          limitedMetadata(metadata, LIMITATION_CODES.frontendLimit, `Resource exceeds the ${limits.maxFileBytes}-byte per-file limit.`),
           omitted);
         continue;
       }
       if (transferCount >= limits.maxFiles) {
         addResourceLimitation(result,
-          limitedMetadata(metadata, `Resource exceeds the ${limits.maxFiles}-file frontend limit.`),
+          limitedMetadata(metadata, LIMITATION_CODES.frontendLimit, `Resource exceeds the ${limits.maxFiles}-file frontend limit.`),
           omitted);
         continue;
       }
@@ -160,13 +169,13 @@
       transferCount += 1;
       if (metadata.size > 0 && totalBytes + metadata.size > limits.maxTotalBytes) {
         addResourceLimitation(result,
-          limitedMetadata(metadata, `Resource exceeds the ${limits.maxTotalBytes}-byte total frontend limit.`),
+          limitedMetadata(metadata, LIMITATION_CODES.frontendLimit, `Resource exceeds the ${limits.maxTotalBytes}-byte total frontend limit.`),
           omitted);
         continue;
       }
       if (typeof fetchImpl !== "function") {
         addResourceLimitation(result,
-          limitedMetadata(metadata, "Resource could not be read from the current Tencent Exmail session."),
+          limitedMetadata(metadata, LIMITATION_CODES.readFailed, "Resource could not be read from the current Tencent Exmail session."),
           omitted);
         continue;
       }
@@ -189,7 +198,7 @@
       } else {
         addResourceLimitation(
           result,
-          limitedMetadata(metadata, collected.limitation),
+          limitedMetadata(metadata, collected.code, collected.limitation),
           omitted,
         );
       }
@@ -429,14 +438,17 @@
         () => abortController(controller),
       );
       if (!response || response.ok !== true || !responseMatchesRequestedEndpoint(response, url)) {
-        return { limitation: "Resource could not be read from the current Tencent Exmail session." };
+        return {
+          code: LIMITATION_CODES.readFailed,
+          limitation: "Resource could not be read from the current Tencent Exmail session.",
+        };
       }
       const announcedSize = responseByteSize(response);
       if (announcedSize !== null) {
         const announcedLimitation = byteLimitation(announcedSize, limits, totalBytes);
         if (announcedLimitation) {
           await cancelResponseBody(response);
-          return { limitation: announcedLimitation };
+          return { code: LIMITATION_CODES.frontendLimit, limitation: announcedLimitation };
         }
       }
       const bodyResult = await readBoundedResponse(
@@ -447,16 +459,16 @@
         controller,
       );
       if (bodyResult.limitation) {
-        return { limitation: bodyResult.limitation };
+        return bodyResult;
       }
       const buffer = bodyResult.buffer;
       const byteSize = buffer && Number.isSafeInteger(buffer.byteLength) ? buffer.byteLength : 0;
       if (byteSize <= 0) {
-        return { limitation: "Resource is empty or unreadable." };
+        return { code: LIMITATION_CODES.readFailed, limitation: "Resource is empty or unreadable." };
       }
       const actualLimitation = byteLimitation(byteSize, limits, totalBytes);
       if (actualLimitation) {
-        return { limitation: actualLimitation };
+        return { code: LIMITATION_CODES.frontendLimit, limitation: actualLimitation };
       }
       return {
         file: {
@@ -468,9 +480,15 @@
       };
     } catch (error) {
       if (isDeadlineError(error)) {
-        return { limitation: "Resource collection deadline expired; body analysis continued without this resource." };
+        return {
+          code: LIMITATION_CODES.timeout,
+          limitation: "Resource collection deadline expired; body analysis continued without this resource.",
+        };
       }
-      return { limitation: "Resource could not be read from the current Tencent Exmail session." };
+      return {
+        code: LIMITATION_CODES.readFailed,
+        limitation: "Resource could not be read from the current Tencent Exmail session.",
+      };
     }
   }
 
@@ -479,7 +497,10 @@
     if (body && typeof body.getReader === "function") {
       return readBoundedStream(body, limits, totalBytes, deadline, controller);
     }
-    return { limitation: "Resource response body could not be read with bounded streaming." };
+    return {
+      code: LIMITATION_CODES.readFailed,
+      limitation: "Resource response body could not be read with bounded streaming.",
+    };
   }
 
   async function readBoundedStream(body, limits, totalBytes, deadline, controller) {
@@ -502,13 +523,16 @@
         const chunk = streamChunk(item.value);
         if (!chunk) {
           await cancelReader(reader);
-          return { limitation: "Resource could not be read from the current Tencent Exmail session." };
+          return {
+            code: LIMITATION_CODES.readFailed,
+            limitation: "Resource could not be read from the current Tencent Exmail session.",
+          };
         }
         const nextSize = byteSize + chunk.byteLength;
         const limitation = byteLimitation(nextSize, limits, totalBytes);
         if (limitation) {
           await cancelReader(reader);
-          return { limitation };
+          return { code: LIMITATION_CODES.frontendLimit, limitation };
         }
         if (chunk.byteLength > 0) {
           chunks.push(new Uint8Array(chunk));
@@ -519,9 +543,15 @@
     } catch (error) {
       cancelReader(reader);
       if (isDeadlineError(error)) {
-        return { limitation: "Resource collection deadline expired; body analysis continued without this resource." };
+        return {
+          code: LIMITATION_CODES.timeout,
+          limitation: "Resource collection deadline expired; body analysis continued without this resource.",
+        };
       }
-      return { limitation: "Resource could not be read from the current Tencent Exmail session." };
+      return {
+        code: LIMITATION_CODES.readFailed,
+        limitation: "Resource could not be read from the current Tencent Exmail session.",
+      };
     } finally {
       releaseReader(reader);
     }
@@ -713,6 +743,7 @@
     }
     result.resource_limitations.push(limitedMetadata(
       { filename: "additional-resources", type: "unsupported", size: 0 },
+      LIMITATION_CODES.candidateOmission,
       "One or more additional current-message resource candidates were omitted by bounded collection.",
     ));
   }
@@ -780,8 +811,9 @@
     return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : 0;
   }
 
-  function limitedMetadata(metadata, limitation) {
+  function limitedMetadata(metadata, code, limitation) {
     return {
+      code,
       filename: metadata.filename,
       type: metadata.type || "unsupported",
       size: metadata.size,

@@ -1,5 +1,5 @@
 ﻿---
-last_update: 2026-07-10
+last_update: 2026-07-11
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -108,6 +108,8 @@ AI 分析结果必须能解析为 JSON，并至少包含以下字段。
 - `conversation_timeline` 和 `attachment_insights` 是必填字段；模型输出不能覆盖后端确定性生成的这两个字段。
 - `conversation_timeline.open_items[].source` 只能是 `thread` 或 `attachment`。
 - `attachment_insights[].status` 只能是 `parsed`、`metadata_only`、`unavailable` 或 `failed`。
+- `attachment_insights` 最多 14 项，由最多 5 个已接受附件、8 个前端资源限制和 1 个后端运行限制组成。达到上限时必须优先保留候选资源聚合遗漏和后端运行失败。
+- 资源限制的 `type/status` 必须由允许的机器码确定，不得从英文限制文本推断。`resource_read_failed`、`collection_timeout` 和后端专用 `operational_failure` 对应 `failed`；`unsupported_type`、`frontend_limit`、`resource_unavailable` 和 `candidate_omission` 对应 `unavailable`。
 - 只有 `status=parsed` 的附件 `summary` 和 `key_facts` 可以影响决策摘要、风险、建议动作或回复草稿；其他状态只能产生限制说明和人工核查项。
 - 不能包含自动发送指令。
 - `analysis_engine` 由后端在 JSON 校验后附加；AI 输出中同名字段不可信，后端必须忽略或覆盖。
@@ -130,7 +132,7 @@ AI 分析结果必须能解析为 JSON，并至少包含以下字段。
 - `decision_brief.missing_info` 必须说明当前分析结果缺少哪些会影响回复质量的信息。
 - `decision_brief`、风险、建议动作和回复草稿必须优先引用 `conversation_timeline` 中最新未解决的外部请求。
 - 附件解析失败、OCR 不可用或格式不支持时，邮件正文分析仍必须继续，并在对应 `attachment_insights[].limitations` 中返回精确限制。
-- `attachment_insights` 在分析结果和 SQLite 边界都必须投影到 `filename`、`type`、`status`、`summary`、`key_facts`、`limitations` 六个字段；不得包含附件字节、临时路径、私有 URL、cookie、token、未知字段或原始完整附件文本。
+- `attachment_insights` 在分析结果和 SQLite 边界都必须投影到 `filename`、`type`、`status`、`summary`、`key_facts`、`limitations` 六个字段；资源限制文本必须是由机器码生成的固定安全文本。不得包含附件字节、临时路径、私有 URL、cookie、token、未知字段或原始完整附件文本。
 - `summary` 必须尽量自包含，让用户只看分析结果就能知道邮件在说什么、涉及哪些关键事实、下一步要做什么。
 - `risk_flags.evidence` 必须引用邮件中的具体事实，例如 PO、invoice、tracking、数量、日期、期限、质量问题或对方请求，不能只写泛化类别。
 - `suggested_actions.description` 必须说明要核查、升级或回复的具体事项。

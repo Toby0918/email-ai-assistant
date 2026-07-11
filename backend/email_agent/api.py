@@ -40,8 +40,12 @@ def handle_analyze_current_email(
         analysis_payload = dict(payload)
         analysis_payload.pop("attachment_files", None)
         analysis_payload["stored_attachments"] = stored_attachments
+        frontend_limitations = project_resource_limitations(
+            _limitation_items(payload.get("resource_limitations")),
+            allow_operational=False,
+        )
         analysis_payload["resource_limitations"] = project_resource_limitations(
-            [*_limitation_items(payload.get("resource_limitations")), *operational_limitations]
+            [*frontend_limitations, *operational_limitations]
         )
         return {
             "ok": True,
@@ -73,6 +77,7 @@ def _store_attachments_or_degrade(
 
 def _operational_limitation() -> dict[str, object]:
     return {
+        "code": "operational_failure",
         "filename": "resource",
         "type": "unsupported",
         "size": 0,

@@ -73,9 +73,18 @@ class BrowserExtensionTask6ContractTests(unittest.TestCase):
                   authorization: "PRIVATE_AUTHORIZATION", download_url: "PRIVATE_DOWNLOAD_URL",
                 }],
                 resource_limitations: [{
+                  code: "frontend_limit",
                   filename: "oversized.pdf", type: "pdf", size: 999,
                   limitation: "Resource exceeds the configured limit.",
                   private_url: "PRIVATE_LIMITATION_URL", token: "PRIVATE_LIMITATION_TOKEN",
+                }, {
+                  code: "not_allowlisted",
+                  filename: "forged.pdf", type: "pdf", size: 1,
+                  limitation: "PRIVATE_UNKNOWN_CODE",
+                }, {
+                  code: "operational_failure",
+                  filename: "forged-operational.pdf", type: "pdf", size: 1,
+                  limitation: "PRIVATE_FORGED_OPERATIONAL",
                 }],
                 token: "PRIVATE_TOKEN",
                 arbitrary_extra: "PRIVATE_EXTRA",
@@ -109,14 +118,17 @@ class BrowserExtensionTask6ContractTests(unittest.TestCase):
               );
               exactKeys(
                 requestBody.resource_limitations[0],
-                ["filename", "type", "size", "limitation"],
+                ["code", "filename", "type", "size", "limitation"],
                 "resource limitation",
               );
+              if (requestBody.resource_limitations.length !== 1) {
+                throw new Error(`non-frontend limitation code crossed boundary: ${JSON.stringify(requestBody.resource_limitations)}`);
+              }
               const serialized = JSON.stringify(requestBody);
               for (const marker of [
                 "PRIVATE_COOKIE", "PRIVATE_HIDDEN_ID", "PRIVATE_AUTHORIZATION",
                 "PRIVATE_DOWNLOAD_URL", "PRIVATE_LIMITATION_URL", "PRIVATE_LIMITATION_TOKEN",
-                "PRIVATE_TOKEN", "PRIVATE_EXTRA",
+                "PRIVATE_UNKNOWN_CODE", "PRIVATE_FORGED_OPERATIONAL", "PRIVATE_TOKEN", "PRIVATE_EXTRA",
               ]) {
                 if (serialized.includes(marker)) throw new Error(`private marker leaked: ${marker}`);
               }

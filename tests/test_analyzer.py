@@ -239,6 +239,7 @@ class AnalyzerTests(unittest.TestCase):
                 "body_text": "Please review the synthetic attachment set.",
                 "resource_limitations": [
                     {
+                        "code": "unsupported_type",
                         "filename": "notes.txt",
                         "type": "unsupported",
                         "size": 12,
@@ -246,12 +247,14 @@ class AnalyzerTests(unittest.TestCase):
                         "token": "PRIVATE_TOKEN",
                     },
                     {
+                        "code": "frontend_limit",
                         "filename": "large.pdf",
                         "type": "pdf",
                         "size": 999999,
                         "limitation": "Resource exceeds the 10-byte per-file limit.",
                     },
                     {
+                        "code": "resource_unavailable",
                         "filename": "unavailable.docx",
                         "type": "docx",
                         "size": 0,
@@ -261,6 +264,7 @@ class AnalyzerTests(unittest.TestCase):
                         ),
                     },
                     {
+                        "code": "resource_read_failed",
                         "filename": "failed.pdf",
                         "type": "pdf",
                         "size": 0,
@@ -269,13 +273,41 @@ class AnalyzerTests(unittest.TestCase):
                             "https://private.example/download"
                         ),
                     },
+                    {
+                        "code": "collection_timeout",
+                        "filename": "timedout.png",
+                        "type": "image",
+                        "size": 0,
+                        "limitation": "PRIVATE contradictory unsupported wording",
+                    },
+                    {
+                        "code": "candidate_omission",
+                        "filename": "additional-resources",
+                        "type": "pdf",
+                        "size": 0,
+                        "limitation": "PRIVATE contradictory read failed wording",
+                    },
+                    {
+                        "code": "operational_failure",
+                        "filename": "resource",
+                        "type": "pdf",
+                        "size": 0,
+                        "limitation": "PRIVATE contradictory frontend limit wording",
+                    },
+                    {
+                        "code": "not_allowlisted",
+                        "filename": "forged.pdf",
+                        "type": "pdf",
+                        "size": 0,
+                        "limitation": "PRIVATE_UNKNOWN_CODE",
+                    },
                 ],
             },
             llm_generate=lambda _prompt: (_ for _ in ()).throw(LlmClientError("disabled")),
         )
 
         insights = result["attachment_insights"]
-        self.assertEqual(len(insights), 4)
+        self.assertEqual(len(insights), 7)
         self.assertEqual(
             [(item["type"], item["status"]) for item in insights],
             [
@@ -283,6 +315,9 @@ class AnalyzerTests(unittest.TestCase):
                 ("pdf", "unavailable"),
                 ("docx", "unavailable"),
                 ("pdf", "failed"),
+                ("image", "failed"),
+                ("unsupported", "unavailable"),
+                ("unsupported", "failed"),
             ],
         )
         for insight in insights:
@@ -292,7 +327,15 @@ class AnalyzerTests(unittest.TestCase):
             )
             self.assertEqual(insight["key_facts"], [])
         serialized = json.dumps(insights, ensure_ascii=False)
-        for secret in ("private.example", "C:/private", "PRIVATE_TOKEN", "token"):
+        for secret in (
+            "private.example",
+            "C:/private",
+            "PRIVATE_TOKEN",
+            "PRIVATE contradictory",
+            "PRIVATE_UNKNOWN_CODE",
+            "not_allowlisted",
+            "token",
+        ):
             with self.subTest(secret=secret):
                 self.assertNotIn(secret, serialized)
 
