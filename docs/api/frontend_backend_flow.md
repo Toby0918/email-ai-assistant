@@ -13,7 +13,7 @@ source_type: api_contract
 1. 前端检测当前邮件是否可读取。
 2. 用户点击“分析此邮件”。
 3. 前端整理当前邮件字段：`subject`、`from`、`to`、`sent_at`、`body_text` 或 `body_html`；仅在此点击路径中有界收集当前邮件可见附件。
-4. 受支持的安全字节进入 `attachment_files`；未支持、超限、不可用、读取失败、超时或候选遗漏进入带允许 `code` 的 `resource_limitations`。
+4. 受支持的安全字节进入 `attachment_files`；未支持、超限、不可用、读取失败、超时或候选遗漏进入带允许 `code` 的 `resource_limitations`。响应头已声明超限时，前端只做非阻塞的 best-effort body cancel，并立即返回 `frontend_limit`，不得等待 cancel promise settle。
 5. 前端调用 `POST /api/analyze-current-email`；浏览器边界丢弃未知限制码和伪造的后端运行码。
 6. 后端再次校验限制码，用确定性映射生成状态和固定安全限制文本；附件存储或清理失败使用独立保留的运行限制。
 7. 后端清洗正文；如后端 AI 未配置、不可用或输出无效，第一版使用本地规则分析器。

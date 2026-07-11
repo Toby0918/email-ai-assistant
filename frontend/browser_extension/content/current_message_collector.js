@@ -461,7 +461,7 @@
       if (announcedSize !== null) {
         const announcedLimitation = byteLimitation(announcedSize, limits, totalBytes);
         if (announcedLimitation) {
-          await cancelResponseBody(response);
+          cancelResponseBody(response);
           return { code: LIMITATION_CODES.frontendLimit, limitation: announcedLimitation };
         }
       }
@@ -594,14 +594,14 @@
     return combined.buffer;
   }
 
-  async function cancelResponseBody(response) {
+  function cancelResponseBody(response) {
     const body = response && response.body;
     if (!body) {
       return;
     }
     if (typeof body.cancel === "function") {
       try {
-        await body.cancel();
+        Promise.resolve(body.cancel()).catch(() => {});
       } catch (error) {
         return;
       }
@@ -609,7 +609,7 @@
     }
     if (typeof body.getReader === "function") {
       const reader = body.getReader();
-      await cancelReader(reader);
+      cancelReader(reader);
       releaseReader(reader);
     }
   }

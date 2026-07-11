@@ -774,6 +774,48 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
                 }
               },
 
+              announced_oversize_never_settling_cancel_returns_immediately: async () => {
+                let cancelCalled = false;
+                const doc = resourceDocument([
+                  resource("announced-large.pdf", "pdf", "/cgi-bin/download?file=announced-large"),
+                ]);
+                const api = loadCollector(async () => ({
+                  ok: true,
+                  redirected: false,
+                  headers: {
+                    get: (name) => name.toLowerCase() === "content-length" ? "5" : null,
+                  },
+                  body: {
+                    cancel: () => {
+                      cancelCalled = true;
+                      return new Promise(() => {});
+                    },
+                  },
+                }));
+
+                const result = await withinTestDeadline(
+                  api.collectVisibleResources(doc, trustedResourceOptions(doc, {
+                    limits: {
+                      maxFiles: 1,
+                      maxFileBytes: 4,
+                      maxTotalBytes: 4,
+                      perResourceTimeoutMs: 20,
+                      overallTimeoutMs: 50,
+                    },
+                  })),
+                  "announced oversize cancellation",
+                );
+
+                if (!cancelCalled) throw new Error("best-effort response cancellation was not triggered");
+                if (result.attachment_files.length !== 0 || result.resource_limitations.length !== 1) {
+                  throw new Error(`announced oversize response was not rejected: ${JSON.stringify(result)}`);
+                }
+                const limitation = result.resource_limitations[0];
+                if (limitation.code !== "frontend_limit" || !limitation.limitation.includes("per-file")) {
+                  throw new Error(`announced-size limitation changed: ${JSON.stringify(result)}`);
+                }
+              },
+
               oversized_stream_cancels_without_upload_and_continues: async () => {
                 const oversized = streamingResponse([[1, 2, 3], [4, 5], [6]], { contentLength: "1" });
                 const safe = streamingResponse([[9, 10]]);
@@ -1076,6 +1118,9 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
 
     def test_false_small_length_without_stream_rejects_before_arraybuffer(self) -> None:
         self.run_node_case("false_small_length_without_stream_rejects_before_arraybuffer")
+
+    def test_announced_oversize_never_settling_cancel_returns_immediately(self) -> None:
+        self.run_node_case("announced_oversize_never_settling_cancel_returns_immediately")
 
     def test_oversized_stream_cancels_without_upload_and_continues(self) -> None:
         self.run_node_case("oversized_stream_cancels_without_upload_and_continues")
