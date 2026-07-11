@@ -4,6 +4,13 @@ from __future__ import annotations
 
 import re
 
+from .thread_clauses import (
+    COMMA_SPLIT_RE,
+    CONJUNCTION_SPLIT_RE,
+    SENTENCE_SPLIT_RE,
+    split_evidence_clauses,
+)
+
 
 MAX_REQUEST_ATOMS_PER_EVENT = 16
 MAX_REQUEST_ATOM_CHARS = 240
@@ -16,18 +23,16 @@ _REQUEST_RE = re.compile(
     re.IGNORECASE,
 )
 _DIRECT_REQUEST_RE = re.compile(
-    r"\b(please|could you|need|confirm|provide)\b|请|麻烦|需要|确认|提供",
+    r"\b(please|could you|need|provide)\b|请|麻烦|需要|提供",
     re.IGNORECASE,
 )
 _ACKNOWLEDGEMENT_RE = re.compile(
     r"\b(thanks?|received|acknowledged|noted)\b|谢谢|收到|已收悉",
     re.IGNORECASE,
 )
-_SENTENCE_SPLIT_RE = re.compile(r"[.!?。！？；;\n]+")
-_COMMA_SPLIT_RE = re.compile(r"[,\uFF0C]")
-_CONJUNCTION_SPLIT_RE = re.compile(r"\s+\band\b\s+|同时|并且|以及", re.IGNORECASE)
 _NON_REQUEST_DETAIL_RE = re.compile(
-    r"\b(is|are|was|were|has|have|had|attached|received|completed|resolved|pending|reference)\b",
+    r"\b(is|are|was|were|has|have|had|attached|received|completed|resolved|pending|reference)\b|"
+    r"已附|附件|供参考|已收到|已完成|待确认",
     re.IGNORECASE,
 )
 _OUTCOME_RE = re.compile(
@@ -73,19 +78,19 @@ def extract_request_atoms(
         return (), True
 
     atoms: list[dict[str, object]] = []
-    sentences = [sentence.strip() for sentence in _SENTENCE_SPLIT_RE.split(text) if sentence.strip()]
+    sentences = [sentence.strip() for sentence in SENTENCE_SPLIT_RE.split(text) if sentence.strip()]
     for sentence in sentences:
         if not _has_request_intent(sentence):
             continue
         comma_intent = False
-        clauses = [part.strip() for part in _COMMA_SPLIT_RE.split(sentence) if part.strip()]
+        clauses = [part.strip() for part in COMMA_SPLIT_RE.split(sentence) if part.strip()]
         for clause in clauses:
             explicit_intent = _has_request_intent(clause)
             inherited_intent = comma_intent and _is_bare_requested_item(clause)
             if not explicit_intent and not inherited_intent:
                 comma_intent = False
                 continue
-            fragments = [part.strip() for part in _CONJUNCTION_SPLIT_RE.split(clause) if part.strip()]
+            fragments = [part.strip() for part in CONJUNCTION_SPLIT_RE.split(clause) if part.strip()]
             intent_seen = inherited_intent
             for fragment in fragments:
                 fragment_has_intent = _has_request_intent(fragment)
@@ -143,14 +148,7 @@ def _request_identity(
 
 def extract_outcome_atoms(text: str) -> tuple[dict[str, object], ...]:
     atoms: list[dict[str, object]] = []
-    sentences = [sentence.strip() for sentence in _SENTENCE_SPLIT_RE.split(text) if sentence.strip()]
-    clauses = [
-        clause.strip()
-        for sentence in sentences
-        for conjunction_clause in _CONJUNCTION_SPLIT_RE.split(sentence)
-        for clause in _COMMA_SPLIT_RE.split(conjunction_clause)
-        if clause.strip()
-    ]
+    clauses = split_evidence_clauses(text, _has_outcome_evidence, _has_atomic_context)
     for clause in clauses:
         outcome = _OUTCOME_RE.search(clause) is not None
         blocker = _BLOCKER_RE.search(clause) is not None
@@ -165,6 +163,14 @@ def extract_outcome_atoms(text: str) -> tuple[dict[str, object], ...]:
             }
         )
     return tuple(atoms)
+
+
+def _has_outcome_evidence(text: str) -> bool:
+    return _OUTCOME_RE.search(text) is not None or _BLOCKER_RE.search(text) is not None
+
+
+def _has_atomic_context(text: str) -> bool:
+    return _IDENTIFIER_RE.search(text) is not None or bool(extract_topics(text))
 
 
 def extract_identifiers(text: str) -> tuple[str, ...]:
