@@ -13,11 +13,14 @@ _ADDRESS_RE = re.compile(
     rf"(?P<domain>{_DOMAIN_LABEL}(?:\.{_DOMAIN_LABEL})*\.[A-Z]{{2,63}})",
     re.IGNORECASE,
 )
+_BAD_DELIMITER_RE = re.compile(r"^\s*[,;]|[,;]\s*$|[,;]\s*[,;]")
 
 
 def classify_participant(
     sender: str, internal_domains: tuple[str, ...]
 ) -> tuple[str, bool]:
+    if not _sender_syntax_valid(sender):
+        return "external", False
     addresses = tuple(address.strip() for _, address in getaddresses([sender]) if address.strip())
     if not addresses and "@" not in sender:
         return "unknown", False
@@ -32,3 +35,19 @@ def classify_participant(
     internal = {domain.lower() for domain in internal_domains}
     role = "internal" if all(domain in internal for domain in domains) else "external"
     return role, True
+
+
+def _sender_syntax_valid(sender: str) -> bool:
+    if _BAD_DELIMITER_RE.search(sender) is not None:
+        return False
+    depth = 0
+    for character in sender:
+        if character == "<":
+            if depth:
+                return False
+            depth = 1
+        elif character == ">":
+            if not depth:
+                return False
+            depth = 0
+    return depth == 0

@@ -404,6 +404,37 @@ class ThreadTimelineTests(unittest.TestCase):
         self.assertEqual(result["current_status"], "unresolved")
         self.assertEqual(len(result["open_items"]), 1)
 
+    def test_malformed_sender_wrappers_cannot_apply_internal_outcome(self) -> None:
+        malformed_senders = (
+            "Sales <sales@cndlf.com",
+            "Sales sales@cndlf.com>",
+            "Sales >sales@cndlf.com<",
+            "Sales <sales@cndlf.com>,, Ops <ops@cndlf.com>",
+        )
+
+        for sender in malformed_senders:
+            with self.subTest(sender=sender):
+                segments = [
+                    {
+                        "position": "1",
+                        "from": "Buyer <buyer@example.org>",
+                        "sent_at": "2026-07-10T09:00:00+00:00",
+                        "body_text": "Please provide quotation RFQ-40.",
+                    },
+                    {
+                        "position": "2",
+                        "from": sender,
+                        "sent_at": "2026-07-10T10:00:00+00:00",
+                        "body_text": "RFQ-40 quotation completed.",
+                    },
+                ]
+
+                result = build_conversation_timeline(segments, ("cndlf.com",))
+
+                self.assertEqual(result["current_status"], "unresolved")
+                self.assertEqual(result["confidence"], "low")
+                self.assertIn("人工复核", result["open_items"][0]["item"])
+
     def test_negated_completion_does_not_resolve_request(self) -> None:
         segments = [
             {
@@ -511,6 +542,33 @@ class ThreadTimelineTests(unittest.TestCase):
             "RFQ-1 quotation will not be completed.",
             "RFQ-1 quotation would not be completed.",
             "RFQ-1 quotation will never be completed.",
+        )
+
+        for outcome in negative_outcomes:
+            with self.subTest(outcome=outcome):
+                segments = [
+                    {
+                        "position": "1",
+                        "from": "Buyer <buyer@example.org>",
+                        "body_text": "Please provide quotation RFQ-1.",
+                    },
+                    {
+                        "position": "2",
+                        "from": "Sales <sales@cndlf.com>",
+                        "body_text": outcome,
+                    },
+                ]
+
+                result = build_conversation_timeline(segments, ("cndlf.com",))
+
+                self.assertEqual(result["current_status"], "unresolved")
+                self.assertIn("阻塞", result["status_reason"])
+                self.assertEqual(len(result["open_items"]), 1)
+
+    def test_contracted_and_progressive_negation_do_not_resolve_request(self) -> None:
+        negative_outcomes = (
+            "RFQ-1 quotation won't be completed.",
+            "RFQ-1 quotation is not being completed.",
         )
 
         for outcome in negative_outcomes:
@@ -2089,6 +2147,41 @@ class ThreadTimelineTests(unittest.TestCase):
         self.assertEqual(result["current_status"], "unresolved")
         self.assertEqual(result["confidence"], "low")
         self.assertIn("人工复核", result["open_items"][0]["item"])
+
+    def test_every_bounded_metadata_truncation_requires_manual_review(self) -> None:
+        cases = {
+            "to": "Team <team@cndlf.com>" + ("x" * 600),
+            "sent_at": "2026-07-10T10:00:00+00:00" + ("x" * 600),
+            "timestamp_text": "2026-07-10T10:00:00+00:00" + ("x" * 600),
+            "position": "1" * 20,
+        }
+
+        for field, value in cases.items():
+            with self.subTest(field=field):
+                completion = {
+                    "position": "2",
+                    "from": "Sales <sales@cndlf.com>",
+                    "sent_at": "2026-07-10T10:00:00+00:00",
+                    "body_text": "RFQ-50 quotation completed.",
+                }
+                if field == "timestamp_text":
+                    completion.pop("sent_at")
+                completion[field] = value
+                segments = [
+                    {
+                        "position": "1",
+                        "from": "Buyer <buyer@example.org>",
+                        "sent_at": "2026-07-10T09:00:00+00:00",
+                        "body_text": "Please provide quotation RFQ-50.",
+                    },
+                    completion,
+                ]
+
+                result = build_conversation_timeline(segments, ("cndlf.com",))
+
+                self.assertEqual(result["current_status"], "unresolved")
+                self.assertEqual(result["confidence"], "low")
+                self.assertIn("人工复核", result["open_items"][0]["item"])
 
     def test_unknown_sender_request_requires_manual_review(self) -> None:
         sender_cases = ({}, {"from": "not a sender"})

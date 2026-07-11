@@ -66,20 +66,34 @@ def _normalize_segment(
     subject, subject_complete = _bounded_field_with_coverage(raw_segment, "subject")
     header, header_complete = _bounded_field_with_coverage(raw_segment, "header_text")
     sender_field, sender_complete = _bounded_field_with_coverage(raw_segment, "from")
-    metadata_complete = subject_complete and header_complete and sender_complete
+    recipient, recipient_complete = _bounded_field_with_coverage(raw_segment, "to")
+    sent_at, sent_at_complete = _bounded_field_with_coverage(raw_segment, "sent_at")
+    timestamp_text, timestamp_complete = _bounded_field_with_coverage(
+        raw_segment, "timestamp_text"
+    )
+    position, position_complete = _position_value_with_coverage(raw_segment.get("position"))
+    metadata_complete = all(
+        (
+            subject_complete,
+            header_complete,
+            sender_complete,
+            recipient_complete,
+            sent_at_complete,
+            timestamp_complete,
+            position_complete,
+        )
+    )
     if not body and not subject:
         return None, text_complete and metadata_complete
 
     sender = sender_field or _sender_from_header(header)
-    sent_at = _bounded_field(raw_segment, "sent_at")
-    timestamp_text = _bounded_field(raw_segment, "timestamp_text")
     return {
         "body": body,
         "subject": subject,
         "sender": sender,
-        "recipient": _bounded_field(raw_segment, "to"),
+        "recipient": recipient,
         "timestamp_text": sent_at or timestamp_text,
-        "position": _position_value(raw_segment.get("position")),
+        "position": position,
         "index": index,
     }, text_complete and metadata_complete
 
@@ -123,10 +137,6 @@ def _is_aware(value: object) -> bool:
     return isinstance(value, datetime) and value.tzinfo is not None and value.utcoffset() is not None
 
 
-def _bounded_field(segment: dict[object, object], field: str, limit: int = MAX_METADATA_CHARS) -> str:
-    return _bounded_field_with_coverage(segment, field, limit)[0]
-
-
 def _bounded_field_with_coverage(
     segment: dict[object, object], field: str, limit: int = MAX_METADATA_CHARS
 ) -> tuple[str, bool]:
@@ -143,15 +153,17 @@ def _sender_from_header(header: str) -> str:
     return re.sub(r"\r?\n[ \t]+", " ", match.group("sender")).strip()
 
 
-def _position_value(value: object) -> int | None:
+def _position_value_with_coverage(value: object) -> tuple[int | None, bool]:
     if isinstance(value, bool):
-        return None
+        return None, True
     if isinstance(value, int):
-        return value if 0 <= value <= MAX_POSITION else None
+        return (value if 0 <= value <= MAX_POSITION else None), True
     if not isinstance(value, str):
-        return None
+        return None, True
     candidate = value[:MAX_POSITION_CHARS].strip()
-    if len(value) > MAX_POSITION_CHARS or not candidate.isascii() or not candidate.isdigit():
-        return None
+    if len(value) > MAX_POSITION_CHARS:
+        return None, False
+    if not candidate.isascii() or not candidate.isdigit():
+        return None, True
     parsed = int(candidate)
-    return parsed if parsed <= MAX_POSITION else None
+    return (parsed if parsed <= MAX_POSITION else None), True
