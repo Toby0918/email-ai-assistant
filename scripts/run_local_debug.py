@@ -11,7 +11,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from backend.email_agent.server import run_server
+from backend.email_agent.server import run_server, validate_local_server_host
 
 
 def parse_args() -> argparse.Namespace:
@@ -24,8 +24,8 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    # The local debug server binds to loopback unless the caller opts otherwise.
-    run_server(host=args.host, port=args.port, database_path=args.database)
+    host = validate_local_server_host(args.host)
+    run_server(host=host, port=args.port, database_path=args.database)
     return 0
 
 

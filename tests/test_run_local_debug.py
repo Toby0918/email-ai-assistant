@@ -28,6 +28,20 @@ class RunLocalDebugTests(unittest.TestCase):
         self.assertIn("--host", result.stdout)
         self.assertIn("--port", result.stdout)
 
+    def test_script_rejects_non_loopback_host_before_bind(self) -> None:
+        result = subprocess.run(
+            [sys.executable, "-B", str(SCRIPT), "--host", "0.0.0.0", "--port", "0"],
+            cwd=ROOT,
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=10,
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("supported loopback address", result.stderr)
+        self.assertNotIn("0.0.0.0", result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -18,6 +18,8 @@ source_type: operation_guide
 - 依赖版本遵守 `AGENTS.md`。
 - 当前 provider 默认保持 `EMAIL_AGENT_LLM_PROVIDER=disabled`。如后续单独启用 OpenAI，API key 只能放在后端环境变量或后端本地 `.env`。
 - 后端启动时会加载项目根目录 `.env`；显式进程环境变量优先于 `.env`。
+- 本地 HTTP 服务 `--host` 只支持 `localhost` 或字面 IPv4 loopback（`127.0.0.0/8`），默认 `127.0.0.1`；通配地址、LAN/公网地址、DNS alias、userinfo 和 IPv6 在 bind 前拒绝。浏览器扩展固定调用 `http://127.0.0.1:8765`。
+- `/api/analyze-current-email` 在读 body 前要求单一且匹配实际端口的 loopback `Host`，并要求单一 `application/json`（可选 `charset=utf-8`）Content-Type。Host 门禁与 media-type CSRF 减缓必须同时保留。
 - 可选本地 Ollama/Qwen 只通过后端环境变量或后端本地 `.env` 启用：`EMAIL_AGENT_LLM_PROVIDER=ollama`、`EMAIL_AGENT_OLLAMA_BASE_URL=http://127.0.0.1:11434`、`EMAIL_AGENT_OLLAMA_MODEL=qwen3.6:latest`。
 - `EMAIL_AGENT_OLLAMA_BASE_URL` 只允许 `localhost` 或字面 loopback IP（`127.0.0.0/8`、`::1` 等 `ipaddress.is_loopback` 地址）；禁止 userinfo 和任何远程 HTTP(S) 主机。未来远程 provider 必须单独审批并完成隐私评审。
 - `EMAIL_AGENT_OLLAMA_MODEL` 可改为 `gemma4`，默认超时 `EMAIL_AGENT_OLLAMA_TIMEOUT_SECONDS=30`。
@@ -46,7 +48,7 @@ source_type: operation_guide
 ## Troubleshooting and rollback
 
 - 清理失败：验证 `EMAIL_AGENT_ATTACHMENT_TEMP_DIR` 指向后端可写目录及权限，修复后重试；不要把具体私有路径复制到 issue 或日志。
-- 后端不可达：运行 `status` 和 `/api/health`，确认 loopback 端口 `8765` 未冲突，再执行 `restart`。
+- 后端不可达：运行 `status` 和 `/api/health`，确认使用受支持的 `localhost`/IPv4 loopback 且端口 `8765` 未冲突，再执行 `restart`；不要改用 `0.0.0.0` 或 LAN 地址。
 - 图片无法 OCR：安装 Tesseract 可执行程序并配置 PATH，或接受 metadata-only 降级。
 - 本地模型失败：把 `EMAIL_AGENT_LLM_PROVIDER` 恢复为 `disabled`，重启服务并使用规则兜底。
 - 扩展回滚：在扩展管理页移除或禁用 unpacked extension；恢复上一份已验证的 `frontend/browser_extension` 文件后重新 `Load unpacked`/`Reload`。后端回滚使用上一已验证提交，再重新运行完整 release checklist。

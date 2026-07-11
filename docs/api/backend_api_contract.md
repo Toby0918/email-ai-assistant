@@ -14,6 +14,11 @@ source_type: api_contract
 
 ### 请求
 
+- 本地 HTTP 服务只允许绑定 `localhost` 或字面 IPv4 loopback（`127.0.0.0/8`）；当前不承诺 IPv6 bind。通配、LAN、公网和 DNS alias 必须在 socket bind 前拒绝，错误不得回显输入 host。
+- `Host` 必须恰好出现一次，且只能是 `localhost` 或字面 `127.0.0.0/8`，可省略端口；如携带端口，必须等于当前服务实际端口。缺失、重复、逗号拼接、userinfo、无效/错误端口、域名、通配或非 loopback Host 返回 `403 INVALID_HOST`。
+- `Content-Type` 必须恰好出现一次，并严格为大小写不敏感的 `application/json`，可带唯一 `charset=utf-8` 参数。缺失、重复、逗号拼接、`text/plain`、form、suffix JSON 或其他 media type 返回 `415 UNSUPPORTED_MEDIA_TYPE`。
+- Host 和 media type 门禁都在读取请求 body、调用分析器或写入 SQLite 之前执行。Content-Type 是 CSRF 减缓措施，并与 Host 门禁共同构成本地 API 边界。
+
 ```json
 {
   "user_confirmed": true,

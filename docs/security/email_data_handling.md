@@ -12,6 +12,8 @@ source_type: security_policy
 
 系统只处理用户当前打开并点击分析的邮件。输入字段包括主题、发件人、收件人、抄送、时间、正文和可选测试上下文。第二阶段可在同一次点击中接收当前邮件页面可见的受支持资源；不得读取其他邮件、文件夹或账户数据。
 
+本地分析服务只绑定 `localhost` 或字面 IPv4 `127.0.0.0/8`。分析请求必须同时通过单一 loopback `Host`（可带匹配的实际端口）和单一 `application/json`/可选 `charset=utf-8` 门禁；拒绝 DNS alias、userinfo、通配/LAN/公网 Host、重复/逗号拼接 header 和 simple `text/plain`/form media type。门禁拒绝发生在 body 读取、分析和持久化之前；Content-Type 只能描述为 CSRF 减缓，必须与 Host 校验共同使用。
+
 ## 清洗
 
 - HTML 正文应转换为可分析文本。

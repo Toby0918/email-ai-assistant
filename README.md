@@ -112,6 +112,8 @@ python scripts/run_local_debug.py
 http://127.0.0.1:8765
 ```
 
+本地服务仅允许绑定 `localhost` 或字面 IPv4 loopback（`127.0.0.0/8`）；不要使用 `0.0.0.0`、LAN/公网地址、DNS alias 或 IPv6。分析 POST 必须使用匹配实际端口的 loopback `Host` 和 `Content-Type: application/json`（可选 `charset=utf-8`）。
+
 页面只会在点击 `Analyze` 后调用本地后端接口。未配置 OpenAI API key 时，后端使用本地规则分析器返回可校验结果。
 
 ## Tencent Exmail browser extension prototype

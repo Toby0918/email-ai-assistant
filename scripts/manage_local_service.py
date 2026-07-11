@@ -21,6 +21,7 @@ if str(ROOT) not in sys.path:
 
 from backend.email_agent import attachment_storage
 from backend.email_agent import config as backend_config
+from backend.email_agent.server import validate_local_server_host
 
 
 DEFAULT_PID_FILE = ROOT / "outputs" / "local_debug_service.pid"
@@ -89,7 +90,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def config_from_args(args: argparse.Namespace) -> ServiceConfig:
     return ServiceConfig(
-        host=args.host,
+        host=validate_local_server_host(args.host),
         port=args.port,
         database=args.database,
         pid_file=Path(args.pid_file),
@@ -101,7 +102,8 @@ def config_from_args(args: argparse.Namespace) -> ServiceConfig:
 
 
 def check_health(host: str, port: int, timeout: float = 1.0) -> bool:
-    url = f"http://{host}:{port}/api/health"
+    safe_host = validate_local_server_host(host)
+    url = f"http://{safe_host}:{port}/api/health"
     try:
         with urllib.request.urlopen(url, timeout=timeout) as response:
             return response.status == 200
@@ -113,6 +115,7 @@ def status_service(
     config: ServiceConfig,
     health_checker: HealthChecker = check_health,
 ) -> CommandResult:
+    validate_local_server_host(config.host)
     pid = _read_pid(config.pid_file)
     healthy = health_checker(config.host, config.port, 1.0)
     if healthy and pid is not None:
@@ -130,6 +133,7 @@ def start_service(
     health_checker: HealthChecker = check_health,
     sleeper: Sleeper = time.sleep,
 ) -> CommandResult:
+    validate_local_server_host(config.host)
     if health_checker(config.host, config.port, 1.0):
         return CommandResult(0, f"already running at {_service_url(config)}", "running")
 
@@ -146,6 +150,7 @@ def _start_after_cleanup(
     health_checker: HealthChecker = check_health,
     sleeper: Sleeper = time.sleep,
 ) -> CommandResult:
+    validate_local_server_host(config.host)
     command = _build_start_command(config)
     config.pid_file.parent.mkdir(parents=True, exist_ok=True)
     pid = _launch_background(command, config, popen)
@@ -162,6 +167,7 @@ def stop_service(
     killer: Callable[[int], None] | None = None,
     sleeper: Sleeper = time.sleep,
 ) -> CommandResult:
+    validate_local_server_host(config.host)
     pid = _read_pid(config.pid_file)
     if pid is None:
         return _stop_without_pid(config, health_checker)
@@ -183,6 +189,7 @@ def restart_service(
     health_checker: HealthChecker = check_health,
     sleeper: Sleeper = time.sleep,
 ) -> CommandResult:
+    validate_local_server_host(config.host)
     cleanup_result, cleanup_error = _attempt_lifecycle_cleanup()
     if cleanup_error is not None:
         return cleanup_error

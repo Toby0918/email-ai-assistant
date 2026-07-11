@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import json
 import mimetypes
+import re
 import threading
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from ipaddress import IPv4Address, ip_address
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +19,8 @@ from .database import connect, initialize_schema, save_analysis
 
 ROOT = Path(__file__).resolve().parents[2]
 FRONTEND_ROOT = ROOT / "frontend" / "local_debug_page"
+INVALID_HOST_MESSAGE = "Request Host is not allowed."
+UNSUPPORTED_MEDIA_TYPE_MESSAGE = "Content-Type must be application/json."
 
 
 class EmailAssistantServer(ThreadingHTTPServer):
@@ -47,6 +51,14 @@ class EmailAssistantHandler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         if self.path != "/api/analyze-current-email":
             self._send_json({"ok": False, "error": {"code": "NOT_FOUND"}}, HTTPStatus.NOT_FOUND)
+            return
+        boundary_error = self._request_boundary_error()
+        if boundary_error is not None:
+            code, message, status = boundary_error
+            self._send_json(
+                {"ok": False, "error": {"code": code, "message": message}},
+                status,
+            )
             return
         content_length_error = self._content_length_error()
         if content_length_error is not None:
@@ -91,6 +103,29 @@ class EmailAssistantHandler(BaseHTTPRequestHandler):
             )
         return None
 
+    def _request_boundary_error(self) -> tuple[str, str, HTTPStatus] | None:
+        host_values = self._header_values("Host")
+        if len(host_values) != 1 or not _allowed_request_host(
+            host_values[0],
+            self.server.server_port,
+        ):
+            return "INVALID_HOST", INVALID_HOST_MESSAGE, HTTPStatus.FORBIDDEN
+        media_values = self._header_values("Content-Type")
+        if len(media_values) != 1 or not _is_json_media_type(media_values[0]):
+            return (
+                "UNSUPPORTED_MEDIA_TYPE",
+                UNSUPPORTED_MEDIA_TYPE_MESSAGE,
+                HTTPStatus.UNSUPPORTED_MEDIA_TYPE,
+            )
+        return None
+
+    def _header_values(self, name: str) -> list[str]:
+        get_all = getattr(self.headers, "get_all", None)
+        if callable(get_all):
+            return [str(value) for value in get_all(name, [])]
+        value = self.headers.get(name)
+        return [] if value is None else [str(value)]
+
     def _save_result(self, payload: dict[str, Any], analysis: dict[str, Any]) -> int:
         with self.server.database_lock:
             return save_analysis(
@@ -128,8 +163,8 @@ def create_server(
     database_path: str | None = None,
     config: AppConfig | None = None,
 ) -> EmailAssistantServer:
-    # Bind locally by default; this server is for first-version development only.
-    return EmailAssistantServer((host, port), database_path=database_path, config=config)
+    bind_host = validate_local_server_host(host)
+    return EmailAssistantServer((bind_host, port), database_path=database_path, config=config)
 
 
 def run_server(host: str = "127.0.0.1", port: int = 8765, database_path: str | None = None) -> None:
@@ -138,3 +173,50 @@ def run_server(host: str = "127.0.0.1", port: int = 8765, database_path: str | N
         server.serve_forever()
     finally:
         server.server_close()
+
+
+def _allowed_request_host(value: str, server_port: int) -> bool:
+    if value != value.strip() or "," in value or value.count(":") > 1:
+        return False
+    hostname, separator, port_text = value.partition(":")
+    if separator:
+        if not re.fullmatch(r"[0-9]{1,5}", port_text):
+            return False
+        port = int(port_text)
+        if not 1 <= port <= 65535 or port != server_port:
+            return False
+    if hostname.casefold() == "localhost":
+        return True
+    try:
+        address = ip_address(hostname)
+    except ValueError:
+        return False
+    return isinstance(address, IPv4Address) and address.is_loopback
+
+
+def _is_json_media_type(value: str) -> bool:
+    if value != value.strip() or "," in value:
+        return False
+    parts = value.split(";")
+    if parts[0].strip().casefold() != "application/json":
+        return False
+    if len(parts) == 1:
+        return True
+    return len(parts) == 2 and bool(
+        re.fullmatch(r"\s*charset\s*=\s*(?:\"?utf-8\"?)\s*", parts[1], re.IGNORECASE)
+    )
+
+
+def validate_local_server_host(host: str) -> str:
+    """Return a canonical supported bind host or raise a generic error."""
+    if not isinstance(host, str) or host != host.strip():
+        raise ValueError("Server host must be a supported loopback address.")
+    if host.casefold() == "localhost":
+        return "localhost"
+    try:
+        address = ip_address(host)
+    except ValueError:
+        raise ValueError("Server host must be a supported loopback address.") from None
+    if not isinstance(address, IPv4Address) or not address.is_loopback:
+        raise ValueError("Server host must be a supported loopback address.")
+    return str(address)

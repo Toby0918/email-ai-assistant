@@ -5,6 +5,7 @@ from __future__ import annotations
 import inspect
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -35,6 +36,14 @@ class ManageLocalServiceTests(unittest.TestCase):
             with self.subTest(command=command):
                 args = parser.parse_args([command])
                 self.assertEqual(args.command, command)
+
+    def test_config_rejects_non_loopback_host_before_service_actions(self) -> None:
+        args = manager.build_parser().parse_args(["start", "--host", "0.0.0.0"])
+
+        with self.assertRaisesRegex(ValueError, "supported loopback address") as caught:
+            manager.config_from_args(args)
+
+        self.assertNotIn("0.0.0.0", str(caught.exception))
 
     def test_status_reports_stopped_without_pid_or_health(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -82,6 +91,24 @@ class ManageLocalServiceTests(unittest.TestCase):
         self.assertEqual(launched[0][0], "python-test")
         self.assertIn("-B", launched[0])
         self.assertIn(str(ROOT / "scripts" / "run_local_debug.py"), launched[0])
+
+    def test_start_rejects_non_loopback_without_launch_or_pid(self) -> None:
+        launched: list[list[str]] = []
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pid_file = Path(tmpdir) / "service.pid"
+            config = replace(self._config(pid_file), host="0.0.0.0")
+
+            with self.assertRaisesRegex(ValueError, "supported loopback address") as caught:
+                manager.start_service(
+                    config,
+                    popen=lambda command, **kwargs: launched.append(command),
+                    health_checker=lambda host, port, timeout: False,
+                    sleeper=lambda seconds: None,
+                )
+
+            self.assertFalse(pid_file.exists())
+            self.assertEqual(launched, [])
+            self.assertNotIn("0.0.0.0", str(caught.exception))
 
     def test_stop_removes_stale_pid_file_without_killing_unknown_process(self) -> None:
         killed: list[int] = []

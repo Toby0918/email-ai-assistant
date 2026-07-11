@@ -66,6 +66,8 @@ AGENTS.md
 
 本地 Ollama/Qwen/Gemma 属于后端运行环境能力，不是新增 Python 依赖。`EMAIL_AGENT_OLLAMA_MODEL` 默认是 `qwen3.6:latest`，可选择 `gemma4`；调用失败或输出无效时必须回落到本地规则分析器。`EMAIL_AGENT_OLLAMA_BASE_URL` 只能使用 `localhost` 或字面 loopback IP，不得包含 userinfo，不得指向远程 HTTP(S) 主机；远程 provider 需要单独架构批准和隐私评审。
 
+本地邮件分析 HTTP 服务沿用 Python 标准库 `ThreadingHTTPServer`，不得为 Host/Content-Type 门禁新增 HTTP 框架。服务 bind 只支持 `localhost` 或字面 IPv4 `127.0.0.0/8`；分析 POST 必须在读 body 前校验单一 loopback Host 和单一 JSON media type。
+
 ## 4. 依赖管理规则
 
 1. 新增依赖前，必须先说明为什么现有工具不能满足需求。
