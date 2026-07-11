@@ -280,12 +280,35 @@
   }
 
   function hasAmbiguousBodyRoots(container, currentMessageRoot, doc) {
-    const roots = uniqueElements(querySelectorAll(container, BODY_SELECTORS.join(", ")))
+    const roots = uniqueElements([
+      ...(isKnownBodyRoot(container) ? [container] : []),
+      ...querySelectorAll(container, BODY_SELECTORS.join(", ")),
+    ])
       .filter((candidate) =>
         isVisibleElementInDocument(candidate, doc) &&
         normalizeText(candidate.innerText || candidate.textContent).length >= MIN_BODY_LENGTH,
       );
     return roots.length !== 1 || roots[0] !== currentMessageRoot;
+  }
+
+  function isKnownBodyRoot(element) {
+    if (!element) {
+      return false;
+    }
+    const id = String(
+      element.id || (typeof element.getAttribute === "function" ? element.getAttribute("id") : "") || "",
+    );
+    const className = String(
+      element.className ||
+      (typeof element.getAttribute === "function" ? element.getAttribute("class") : "") ||
+      "",
+    );
+    const classes = className.split(/\s+/).filter(Boolean);
+    return BODY_SELECTORS.some((selector) =>
+      selector.startsWith("#")
+        ? id === selector.slice(1)
+        : selector.startsWith(".") && classes.includes(selector.slice(1)),
+    );
   }
 
   function resourceSiblingSubtrees(bodyRoot, container) {

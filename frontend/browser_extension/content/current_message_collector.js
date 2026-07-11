@@ -320,9 +320,12 @@
 
   function hasKnownBodyAncestor(element, currentRoot, container) {
     let current = element;
-    while (current && current !== container) {
+    while (current) {
       if (current === currentRoot || isKnownBodyRoot(current)) {
         return true;
+      }
+      if (current === container) {
+        return false;
       }
       current = current.parentElement || current.parentNode;
     }

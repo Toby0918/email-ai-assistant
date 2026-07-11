@@ -509,6 +509,44 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
                 assertNoPrivateFields(result.resource_limitations);
               },
 
+              known_body_container_is_checked_before_candidate_fetch: async () => {
+                let fetchCount = 0;
+                const currentRoot = new FakeElement({
+                  attrs: { id: "mailContentContainer" },
+                  text: "Please review the nested visible message.",
+                });
+                const forgedLink = resource(
+                  "forged.pdf",
+                  "pdf",
+                  "/cgi-bin/download?file=forged",
+                );
+                const knownBodyContainer = new FakeElement({
+                  attrs: { class: "mail-content" },
+                  children: [currentRoot, forgedLink],
+                });
+                const doc = new FakeDocument(new FakeElement({
+                  tag: "body",
+                  children: [knownBodyContainer],
+                }));
+                const api = loadCollector(async () => {
+                  fetchCount += 1;
+                  return response([1]);
+                });
+                const result = await api.collectVisibleResources(doc, {
+                  currentMessageRoot: currentRoot,
+                  currentMessageContainer: knownBodyContainer,
+                  verifiedResourceCandidates: [forgedLink],
+                  resourceControlsVerified: true,
+                });
+
+                if (fetchCount !== 0 || result.attachment_files.length !== 0) {
+                  throw new Error(
+                    `known body container was not checked: fetch=${fetchCount} ` +
+                    `files=${result.attachment_files.length}`,
+                  );
+                }
+              },
+
               count_and_total_byte_bounds_stop_additional_transfer: async () => {
                 const calls = [];
                 const doc = resourceDocument([
@@ -853,6 +891,9 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
 
     def test_unsafe_unsupported_failed_and_oversized_resources_return_limitations(self) -> None:
         self.run_node_case("unsafe_unsupported_failed_and_oversized_resources_return_limitations")
+
+    def test_known_body_container_is_checked_before_candidate_fetch(self) -> None:
+        self.run_node_case("known_body_container_is_checked_before_candidate_fetch")
 
     def test_count_and_total_byte_bounds_stop_additional_transfer(self) -> None:
         self.run_node_case("count_and_total_byte_bounds_stop_additional_transfer")

@@ -12,6 +12,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ADAPTER = ROOT / "frontend" / "browser_extension" / "content" / "exmail_adapter.js"
+COLLECTOR = (
+    ROOT
+    / "frontend"
+    / "browser_extension"
+    / "content"
+    / "current_message_collector.js"
+)
 
 
 class BrowserExtensionTask6AdapterTests(unittest.TestCase):
@@ -24,6 +31,7 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
             const fs = require("fs");
             const vm = require("vm");
             const source = fs.readFileSync(__ADAPTER_PATH__, "utf8");
+            const collectorSource = fs.readFileSync(__COLLECTOR_PATH__, "utf8");
 
             class FakeElement {
               constructor({ tag = "div", id = "", className = "", role = "", text = "",
@@ -59,10 +67,12 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
                 return (name === "hidden" && this.hidden) || Object.prototype.hasOwnProperty.call(this.attrs, name);
               }
               querySelector(selector) {
-                return allElements(this).find((element) => matches(element, selector)) || null;
+                return this.querySelectorAll(selector)[0] || null;
               }
               querySelectorAll(selector) {
-                return allElements(this).filter((element) => matches(element, selector));
+                return this.children
+                  .flatMap((child) => allElements(child))
+                  .filter((element) => matches(element, selector));
               }
             }
 
@@ -157,6 +167,52 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
               };
               vm.runInNewContext(source, context, { filename: "exmail_adapter.js" });
               return listener;
+            }
+
+            function loadAdapterWithRealCollector(doc, fetchImpl) {
+              let listener;
+              const rootWindow = {
+                document: doc,
+                frames: [],
+                fetch: fetchImpl,
+                AbortController,
+                setTimeout,
+                clearTimeout,
+                btoa: (binary) => Buffer.from(binary, "binary").toString("base64"),
+              };
+              const context = {
+                URL,
+                Uint8Array,
+                ArrayBuffer,
+                AbortController,
+                setTimeout,
+                clearTimeout,
+                window: rootWindow,
+                document: doc,
+                chrome: { runtime: { onMessage: { addListener: (callback) => { listener = callback; } } } },
+              };
+              vm.runInNewContext(collectorSource, context, { filename: "current_message_collector.js" });
+              vm.runInNewContext(source, context, { filename: "exmail_adapter.js" });
+              return listener;
+            }
+
+            function oneByteResponse() {
+              let delivered = false;
+              const reader = {
+                read: async () => {
+                  if (delivered) return { done: true, value: undefined };
+                  delivered = true;
+                  return { done: false, value: Uint8Array.from([1]) };
+                },
+                cancel: async () => {},
+                releaseLock: () => {},
+              };
+              return {
+                ok: true,
+                redirected: false,
+                headers: { get: (name) => name.toLowerCase() === "content-length" ? "1" : null },
+                body: { getReader: () => reader },
+              };
             }
 
             function beginDispatch(listener, message = { type: "EXTRACT_CURRENT_EMAIL" }) {
@@ -330,6 +386,51 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
                 }
               },
 
+              nested_known_body_container_fails_closed_with_real_collector: async () => {
+                const subjectText = "Synthetic nested request";
+                const headerText = "From: sender@example.test\nTo: recipient@example.test";
+                const bodyText = "Please review the nested visible message.";
+                const subject = new FakeElement({ tag: "h1", id: "subject", text: subjectText });
+                const header = new FakeElement({ className: "read-header", text: headerText });
+                const currentRoot = new FakeElement({ id: "mailContentContainer", text: bodyText });
+                const forgedLink = new FakeElement({
+                  tag: "a",
+                  attrs: { download: "forged.pdf", href: "/cgi-bin/download?file=forged" },
+                });
+                const outerKnownBody = new FakeElement({
+                  className: "mail-content",
+                  text: `${subjectText}\n${headerText}\n${bodyText}`,
+                  children: [subject, header, currentRoot, forgedLink],
+                });
+                const doc = new FakeDocument(new FakeElement({
+                  tag: "body",
+                  text: `${subjectText}\n${headerText}\n${bodyText}`,
+                  children: [outerKnownBody],
+                }));
+                let fetchCount = 0;
+                const listener = loadAdapterWithRealCollector(doc, async () => {
+                  fetchCount += 1;
+                  return oneByteResponse();
+                });
+
+                const result = await beginDispatch(listener).responsePromise;
+                if (!result.ok || !result.payload.body_text.includes("nested visible message")) {
+                  throw new Error(`body analysis did not continue: ${JSON.stringify(result)}`);
+                }
+                if (fetchCount !== 0 || result.payload.attachment_files.length !== 0) {
+                  throw new Error(
+                    `nested known-body link escaped trust boundary: fetch=${fetchCount} ` +
+                    `files=${result.payload.attachment_files.length}`,
+                  );
+                }
+                if (
+                  result.payload.resource_limitations.length !== 1 ||
+                  result.payload.resource_limitations[0].code !== "resource_unavailable"
+                ) {
+                  throw new Error(`single unavailable limitation missing: ${JSON.stringify(result)}`);
+                }
+              },
+
               invalid_structural_envelopes_and_endpoints_fail_closed: async () => {
                 let resourceCalls = 0;
                 const collector = {
@@ -486,6 +587,7 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
             """
         )
         script = script.replace("__ADAPTER_PATH__", json.dumps(str(ADAPTER)))
+        script = script.replace("__COLLECTOR_PATH__", json.dumps(str(COLLECTOR)))
         script = script.replace("__CASE_NAME__", json.dumps(case_name))
         result = subprocess.run(
             ["node", "-e", script],
@@ -509,6 +611,9 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
 
     def test_unverified_host_controls_keep_body_analysis_safe(self) -> None:
         self.run_node_case("unverified_host_controls_keep_body_analysis_safe")
+
+    def test_nested_known_body_container_fails_closed_with_real_collector(self) -> None:
+        self.run_node_case("nested_known_body_container_fails_closed_with_real_collector")
 
     def test_invalid_structural_envelopes_and_endpoints_fail_closed(self) -> None:
         self.run_node_case("invalid_structural_envelopes_and_endpoints_fail_closed")
