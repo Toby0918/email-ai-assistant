@@ -5,19 +5,24 @@ from __future__ import annotations
 import re
 
 
+_TITLE_TOPIC = r"(?:quote|quotation|pricing|certificate|shipment|sample|quantity|invoice|payment|contract|order)"
+_ZH_TITLE_TOPIC = r"(?:报价|询价|证书|认证|发货|交期|样品|数量|发票|付款|合同|订单)"
 _REQUEST_RE = re.compile(
     r"\b(please|could you|need|confirm|provide)\b|"
     r"\b(?:rfq|quote|quotation|pricing|certificate|shipment|sample|invoice|payment|contract|order)\s+request\b|"
     r"\brequest(?:ing|ed)?\s+(?:rfq|quote|quotation|pricing|certificate|shipment|sample|invoice|payment|contract|order)\b|"
-    r"请|麻烦|需要|确认|提供",
+    rf"{_ZH_TITLE_TOPIC}(?:(?:、|，|,|和|及|以及){_ZH_TITLE_TOPIC})*(?:请求|需求)|"
+    r"请(?!求)|麻烦|需要|确认|提供",
     re.IGNORECASE,
 )
 _DIRECT_REQUEST_RE = re.compile(
-    r"\b(please|could you|need|provide)\b|请|麻烦|需要|提供",
+    r"\b(please|could you|need|provide)\b|请(?!求)|麻烦|需要|提供",
     re.IGNORECASE,
 )
 _RECEIPT_EVIDENCE_RE = re.compile(
-    r"\b(receipt|received|acknowledged)\b|收到|收悉|回执",
+    r"\b(receipt|received|acknowledged)\b|"
+    r"\brequests?\b(?:\s+\w+){0,4}\s+attached\b|"
+    r"收到|收悉|回执|请求.{0,12}(?:已附|随附|附件)",
     re.IGNORECASE,
 )
 _GENERIC_ACKNOWLEDGEMENT_RE = re.compile(r"\b(thanks?|noted)\b|谢谢", re.IGNORECASE)
@@ -26,9 +31,12 @@ _NON_REQUEST_DETAIL_RE = re.compile(
     r"已附|附件|供参考|已收到|已完成|待确认",
     re.IGNORECASE,
 )
-_TITLE_TOPIC = r"(?:quote|quotation|pricing|certificate|shipment|sample|quantity|invoice|payment|contract|order)"
 _COORDINATED_REQUEST_TITLE_RE = re.compile(
-    rf"^\s*{_TITLE_TOPIC}(?:\s+(?:and|&)\s+{_TITLE_TOPIC})+\s+requests?\s*$",
+    rf"^\s*{_TITLE_TOPIC}(?:(?:\s*,\s*|\s+(?:and|&)\s+){_TITLE_TOPIC})+\s+requests?\s*$",
+    re.IGNORECASE,
+)
+_ZH_COORDINATED_REQUEST_TITLE_RE = re.compile(
+    rf"^\s*{_ZH_TITLE_TOPIC}(?:(?:、|，|,|和|及|以及){_ZH_TITLE_TOPIC})+(?:请求|需求)\s*$",
     re.IGNORECASE,
 )
 
@@ -51,4 +59,7 @@ def is_non_request_detail(text: str) -> bool:
 
 
 def is_coordinated_request_title(text: str) -> bool:
-    return _COORDINATED_REQUEST_TITLE_RE.fullmatch(text) is not None
+    return any(
+        pattern.fullmatch(text) is not None
+        for pattern in (_COORDINATED_REQUEST_TITLE_RE, _ZH_COORDINATED_REQUEST_TITLE_RE)
+    )

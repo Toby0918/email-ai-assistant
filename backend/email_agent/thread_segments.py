@@ -63,12 +63,14 @@ def _normalize_segment(
         body_text=raw_text if isinstance(raw_text, str) else None,
         body_html=raw_html if isinstance(raw_html, str) else None,
     )
-    subject = _bounded_field(raw_segment, "subject")
+    subject, subject_complete = _bounded_field_with_coverage(raw_segment, "subject")
+    header, header_complete = _bounded_field_with_coverage(raw_segment, "header_text")
+    sender_field, sender_complete = _bounded_field_with_coverage(raw_segment, "from")
+    metadata_complete = subject_complete and header_complete and sender_complete
     if not body and not subject:
-        return None, text_complete
+        return None, text_complete and metadata_complete
 
-    header = _bounded_field(raw_segment, "header_text")
-    sender = _bounded_field(raw_segment, "from") or _sender_from_header(header)
+    sender = sender_field or _sender_from_header(header)
     sent_at = _bounded_field(raw_segment, "sent_at")
     timestamp_text = _bounded_field(raw_segment, "timestamp_text")
     return {
@@ -79,7 +81,7 @@ def _normalize_segment(
         "timestamp_text": sent_at or timestamp_text,
         "position": _position_value(raw_segment.get("position")),
         "index": index,
-    }, text_complete
+    }, text_complete and metadata_complete
 
 
 def _fingerprint(segment: dict[str, object]) -> tuple[str, str, str, str, str, int]:
@@ -122,8 +124,16 @@ def _is_aware(value: object) -> bool:
 
 
 def _bounded_field(segment: dict[object, object], field: str, limit: int = MAX_METADATA_CHARS) -> str:
+    return _bounded_field_with_coverage(segment, field, limit)[0]
+
+
+def _bounded_field_with_coverage(
+    segment: dict[object, object], field: str, limit: int = MAX_METADATA_CHARS
+) -> tuple[str, bool]:
     value = segment.get(field)
-    return value[:limit].strip() if isinstance(value, str) else ""
+    if not isinstance(value, str):
+        return "", True
+    return value[:limit].strip(), len(value) <= limit
 
 
 def _sender_from_header(header: str) -> str:

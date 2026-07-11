@@ -14,11 +14,14 @@ _BLOCKER_RE = re.compile(
     re.IGNORECASE,
 )
 _NEGATED_OUTCOME_RE = re.compile(
+    r"\b(?:cannot|can\s+not|can't|could\s+not|couldn't)\s+"
+    r"(?:be\s+)?(?:resolved|completed|closed|sent|delivered)\b|"
     r"\b(?:not|never)(?:\s+(?:not|yet|fully|been))*\s+"
     r"(?:resolved|completed|closed|sent|delivered)\b|"
     r"\b(?:isn't|aren't|wasn't|weren't|hasn't|haven't)\s+"
     r"(?:yet\s+|fully\s+|been\s+)?(?:resolved|completed|closed|sent|delivered)\b|"
-    r"(?:未|尚未|没有|并未|并非)(?:已经|已)?(?:解决|完成|关闭|发送|处理完成)",
+    r"(?:未|尚未|没有|并未|并非)(?:已经|已)?(?:解决|完成|关闭|发送|处理完成)|"
+    r"(?:无法|不能|不可)(?:被)?(?:解决|完成|关闭|发送|处理完成)",
     re.IGNORECASE,
 )
 
@@ -69,6 +72,14 @@ def _matching_request_index(
             index
             for index, state in enumerate(states)
             if identifiers.intersection(_request_event(state)["identifiers"])
+        ]
+        return matches[0] if len(matches) == 1 else None
+    positions = set(evidence["positions"])
+    if positions:
+        matches = [
+            index
+            for index, state in enumerate(states)
+            if positions.intersection(_request_event(state)["positions"])
         ]
         return matches[0] if len(matches) == 1 else None
     topics = set(evidence["topics"])

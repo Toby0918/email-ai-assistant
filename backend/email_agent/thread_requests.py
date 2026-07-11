@@ -17,6 +17,7 @@ from .thread_intent import (
     is_non_request_detail,
 )
 from .thread_outcomes import evidence_flags, has_outcome_evidence
+from .thread_positions import extract_positions
 
 
 MAX_REQUEST_ATOMS_PER_EVENT = 16
@@ -53,20 +54,18 @@ def extract_request_atoms(
     atoms: list[dict[str, object]] = []
     sentences = [sentence.strip() for sentence in SENTENCE_SPLIT_RE.split(text) if sentence.strip()]
     for sentence in sentences:
-        if not has_request_intent(sentence):
-            continue
-        comma_intent = False
+        comma_intent = is_coordinated_request_title(sentence)
         clauses = [part.strip() for part in COMMA_SPLIT_RE.split(sentence) if part.strip()]
         for clause in clauses:
-            explicit_intent = has_request_intent(clause)
+            fragments = [part.strip() for part in CONJUNCTION_SPLIT_RE.split(clause) if part.strip()]
+            fragment_intents = tuple(has_request_intent(fragment) for fragment in fragments)
+            explicit_intent = any(fragment_intents)
             inherited_intent = comma_intent and _is_bare_requested_item(clause)
             if not explicit_intent and not inherited_intent:
                 comma_intent = False
                 continue
-            fragments = [part.strip() for part in CONJUNCTION_SPLIT_RE.split(clause) if part.strip()]
             intent_seen = inherited_intent or is_coordinated_request_title(clause)
-            for fragment in fragments:
-                fragment_has_intent = has_request_intent(fragment)
+            for fragment, fragment_has_intent in zip(fragments, fragment_intents):
                 if fragment_has_intent:
                     intent_seen = True
                 elif intent_seen and not _is_bare_requested_item(fragment):
@@ -87,7 +86,9 @@ def extract_request_atoms(
 def _is_bare_requested_item(text: str) -> bool:
     if is_non_request_detail(text):
         return False
-    return _IDENTIFIER_RE.search(text) is not None or bool(extract_topics(text))
+    return bool(
+        _IDENTIFIER_RE.search(text) or extract_topics(text) or extract_positions(text)
+    )
 
 
 def merge_request_atom_sources(
@@ -113,10 +114,11 @@ def merge_request_atom_sources(
 
 def _request_identity(
     atom: dict[str, object],
-) -> tuple[tuple[str, ...], tuple[str, ...]] | None:
+) -> tuple[tuple[str, ...], tuple[str, ...], tuple[str, ...]] | None:
     identifiers = tuple(str(value) for value in atom["identifiers"])
     topics = tuple(str(value) for value in atom["topics"])
-    return (identifiers, topics) if topics else None
+    positions = tuple(str(value) for value in atom["positions"])
+    return (identifiers, topics, positions) if identifiers or topics or positions else None
 
 
 def extract_outcome_atoms(text: str) -> tuple[dict[str, object], ...]:
@@ -132,13 +134,16 @@ def extract_outcome_atoms(text: str) -> tuple[dict[str, object], ...]:
                 "blocker": blocker,
                 "identifiers": extract_identifiers(clause),
                 "topics": extract_topics(clause),
+                "positions": extract_positions(clause),
             }
         )
     return tuple(atoms)
 
 
 def _has_atomic_context(text: str) -> bool:
-    return _IDENTIFIER_RE.search(text) is not None or bool(extract_topics(text))
+    return bool(
+        _IDENTIFIER_RE.search(text) or extract_topics(text) or extract_positions(text)
+    )
 
 
 def extract_identifiers(text: str) -> tuple[str, ...]:
@@ -152,15 +157,18 @@ def extract_topics(text: str) -> tuple[str, ...]:
 def _atoms_from_clause(clause: str, due_hint: str) -> list[dict[str, object]]:
     identifier_matches = list(_IDENTIFIER_RE.finditer(clause))
     topic_matches = _topic_matches(clause)
-    if len(topic_matches) == 1 and len(identifier_matches) <= 1:
+    positions = extract_positions(clause)
+    if len(topic_matches) == 1 and len(identifier_matches) <= 1 and len(positions) <= 1:
         identifiers = tuple(match.group(0).upper() for match in identifier_matches)
-        return [_make_atom(clause, due_hint, identifiers, (topic_matches[0][0],))]
+        return [_make_atom(clause, due_hint, identifiers, (topic_matches[0][0],), positions)]
     if topic_matches:
         return _topic_atoms(clause, due_hint, topic_matches, identifier_matches)
-    return [
-        _make_atom(clause, due_hint, (match.group(0).upper(),), ())
-        for match in identifier_matches
-    ]
+    if len(identifier_matches) == 1 and len(positions) <= 1:
+        identifiers = (identifier_matches[0].group(0).upper(),)
+        return [_make_atom(clause, due_hint, identifiers, (), positions)]
+    atoms = [_make_atom(clause, due_hint, (match.group(0).upper(),), ()) for match in identifier_matches]
+    atoms.extend(_make_atom(clause, due_hint, (), (), (position,)) for position in positions)
+    return atoms
 
 
 def _topic_atoms(
@@ -207,6 +215,7 @@ def _make_atom(
     due_hint: str,
     identifiers: tuple[str, ...],
     topics: tuple[str, ...],
+    positions: tuple[str, ...] = (),
 ) -> dict[str, object]:
     bounded_text = display_text[:MAX_REQUEST_ATOM_CHARS].strip()
     return {
@@ -215,4 +224,5 @@ def _make_atom(
         "due_hint": due_hint,
         "identifiers": identifiers,
         "topics": topics,
+        "positions": positions,
     }

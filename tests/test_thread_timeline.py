@@ -348,6 +348,44 @@ class ThreadTimelineTests(unittest.TestCase):
         self.assertEqual(result["open_items"], [])
         self.assertIn("RFQ-42", result["status_reason"])
 
+    def test_malformed_mixed_sender_list_cannot_apply_internal_outcome(self) -> None:
+        segments = [
+            {
+                "position": "1",
+                "from": "Buyer <buyer@example.org>",
+                "body_text": "Please provide quotation RFQ-6.",
+            },
+            {
+                "position": "2",
+                "from": "Sales <sales@cndlf.com>, Buyer <buyer@example>",
+                "body_text": "RFQ-6 quotation completed.",
+            },
+        ]
+
+        result = build_conversation_timeline(segments, ("cndlf.com",))
+
+        self.assertEqual(result["current_status"], "unresolved")
+        self.assertEqual(len(result["open_items"]), 1)
+
+    def test_invalid_internal_address_candidate_cannot_apply_outcome(self) -> None:
+        segments = [
+            {
+                "position": "1",
+                "from": "Buyer <buyer@example.org>",
+                "body_text": "Please provide quotation RFQ-8.",
+            },
+            {
+                "position": "2",
+                "from": "Sales <sales@cndlf.com>, Alias <sales..alias@cndlf.com>",
+                "body_text": "RFQ-8 quotation completed.",
+            },
+        ]
+
+        result = build_conversation_timeline(segments, ("cndlf.com",))
+
+        self.assertEqual(result["current_status"], "unresolved")
+        self.assertEqual(len(result["open_items"]), 1)
+
     def test_negated_completion_does_not_resolve_request(self) -> None:
         segments = [
             {
@@ -421,6 +459,34 @@ class ThreadTimelineTests(unittest.TestCase):
 
         self.assertEqual(result["current_status"], "resolved")
         self.assertEqual(result["open_items"], [])
+
+    def test_modal_negated_completion_does_not_resolve_request(self) -> None:
+        negative_outcomes = (
+            "RFQ-7 quotation cannot be completed.",
+            "RFQ-7 quotation could not be completed.",
+            "RFQ-7 报价无法完成。",
+            "RFQ-7 报价不能完成。",
+        )
+
+        for outcome in negative_outcomes:
+            with self.subTest(outcome=outcome):
+                segments = [
+                    {
+                        "position": "1",
+                        "from": "Buyer <buyer@example.org>",
+                        "body_text": "Please provide quotation RFQ-7.",
+                    },
+                    {
+                        "position": "2",
+                        "from": "Sales <sales@cndlf.com>",
+                        "body_text": outcome,
+                    },
+                ]
+
+                result = build_conversation_timeline(segments, ("cndlf.com",))
+
+                self.assertEqual(result["current_status"], "unresolved")
+                self.assertEqual(len(result["open_items"]), 1)
 
     def test_later_blocker_reopens_matching_resolved_request(self) -> None:
         segments = [
@@ -931,6 +997,28 @@ class ThreadTimelineTests(unittest.TestCase):
         self.assertEqual(result["current_status"], "partially_resolved")
         self.assertIn("PART-4", result["latest_external_request"])
 
+    def test_coordinated_line_requests_remain_atomic(self) -> None:
+        segments = [
+            {
+                "position": "1",
+                "from": "Buyer <buyer@example.org>",
+                "sent_at": "2026-07-10T09:00:00+00:00",
+                "body_text": "Please provide quotation for line 1 and line 2.",
+            },
+            {
+                "position": "2",
+                "from": "Sales <sales@cndlf.com>",
+                "sent_at": "2026-07-10T10:00:00+00:00",
+                "body_text": "Quotation for line 1 completed.",
+            },
+        ]
+
+        result = build_conversation_timeline(segments, ("cndlf.com",))
+
+        self.assertEqual(result["current_status"], "partially_resolved")
+        self.assertIn("line 2", result["latest_external_request"].lower())
+        self.assertEqual(len(result["open_items"]), 1)
+
     def test_chinese_simultaneous_requests_are_tracked_separately(self) -> None:
         segments = [
             {
@@ -1085,6 +1173,45 @@ class ThreadTimelineTests(unittest.TestCase):
 
         self.assertEqual(result["current_status"], "resolved")
         self.assertEqual(result["open_items"], [])
+
+    def test_equivalent_identifier_only_subject_and_body_request_is_tracked_once(self) -> None:
+        segments = [
+            {
+                "position": "1",
+                "from": "Buyer <buyer@example.com>",
+                "subject": "Please confirm PART-204",
+                "body_text": "Please confirm PART-204",
+            },
+            {
+                "position": "2",
+                "from": "Sales <sales@cndlf.com>",
+                "body_text": "PART-204 completed.",
+            },
+        ]
+
+        result = build_conversation_timeline(segments, ("cndlf.com",))
+
+        self.assertEqual(result["current_status"], "resolved")
+        self.assertEqual(result["open_items"], [])
+
+    def test_repeated_identifier_only_body_requests_remain_distinct(self) -> None:
+        segments = [
+            {
+                "position": "1",
+                "from": "Buyer <buyer@example.com>",
+                "body_text": "Please confirm PART-205. Please confirm PART-205.",
+            },
+            {
+                "position": "2",
+                "from": "Sales <sales@cndlf.com>",
+                "body_text": "PART-205 completed.",
+            },
+        ]
+
+        result = build_conversation_timeline(segments, ("cndlf.com",))
+
+        self.assertEqual(result["current_status"], "unresolved")
+        self.assertEqual(len(result["open_items"]), 1)
 
     def test_repeated_topic_only_body_requests_remain_distinct(self) -> None:
         segments = [
@@ -1274,6 +1401,46 @@ class ThreadTimelineTests(unittest.TestCase):
         self.assertIn("quotation", result["latest_external_request"].lower())
         self.assertEqual(len(result["open_items"]), 1)
 
+    def test_three_item_coordinated_request_title_tracks_every_topic(self) -> None:
+        segments = [
+            {
+                "position": "1",
+                "from": "Buyer <buyer@example.org>",
+                "subject": "Quotation, certificate and shipment request",
+            },
+            {
+                "position": "2",
+                "from": "Sales <sales@cndlf.com>",
+                "body_text": "Certificate completed. Shipment completed.",
+            },
+        ]
+
+        result = build_conversation_timeline(segments, ("cndlf.com",))
+
+        self.assertEqual(result["current_status"], "partially_resolved")
+        self.assertIn("quotation", result["latest_external_request"].lower())
+        self.assertEqual(len(result["open_items"]), 1)
+
+    def test_chinese_coordinated_request_title_tracks_every_topic(self) -> None:
+        segments = [
+            {
+                "position": "1",
+                "from": "Buyer <buyer@example.org>",
+                "subject": "报价和证书请求",
+            },
+            {
+                "position": "2",
+                "from": "Sales <sales@cndlf.com>",
+                "body_text": "证书已完成。",
+            },
+        ]
+
+        result = build_conversation_timeline(segments, ("cndlf.com",))
+
+        self.assertEqual(result["current_status"], "partially_resolved")
+        self.assertIn("报价", result["latest_external_request"])
+        self.assertEqual(len(result["open_items"]), 1)
+
     def test_acknowledgement_sentence_does_not_hide_later_request_title(self) -> None:
         segments = [
             {
@@ -1291,6 +1458,38 @@ class ThreadTimelineTests(unittest.TestCase):
         result = build_conversation_timeline(segments, ("cndlf.com",))
 
         self.assertEqual(result["current_status"], "resolved")
+        self.assertEqual(result["open_items"], [])
+
+    def test_acknowledgement_clause_does_not_hide_later_direct_request(self) -> None:
+        result = build_conversation_timeline(
+            [
+                {
+                    "position": "1",
+                    "from": "Buyer <buyer@example.com>",
+                    "body_text": "We received the sample, but please confirm RFQ-2 quotation",
+                }
+            ],
+            ("cndlf.com",),
+        )
+
+        self.assertEqual(result["current_status"], "unresolved")
+        self.assertIn("RFQ-2", result["latest_external_request"])
+        self.assertEqual(len(result["open_items"]), 1)
+
+    def test_attached_request_reference_does_not_create_work(self) -> None:
+        result = build_conversation_timeline(
+            [
+                {
+                    "position": "1",
+                    "from": "Buyer <buyer@example.com>",
+                    "body_text": "Please note the quotation request is attached",
+                }
+            ],
+            ("cndlf.com",),
+        )
+
+        self.assertEqual(result["current_status"], "unknown")
+        self.assertEqual(result["latest_external_request"], "")
         self.assertEqual(result["open_items"], [])
 
     def test_threads_without_external_requests_have_unknown_status(self) -> None:
@@ -1489,6 +1688,58 @@ class ThreadTimelineTests(unittest.TestCase):
                 self.assertEqual(result["current_status"], "unresolved")
                 self.assertEqual(result["confidence"], "low")
                 self.assertIn("人工复核", result["open_items"][0]["item"])
+
+    def test_subject_truncation_requires_manual_review(self) -> None:
+        segments = [
+            {
+                "position": "1",
+                "from": "Buyer <buyer@example.com>",
+                "sent_at": "2026-07-10T09:00:00+00:00",
+                "subject": (
+                    "RFQ-501 quotation request. "
+                    + ("x" * 520)
+                    + " Please provide certificate PART-502."
+                ),
+            },
+            {
+                "position": "2",
+                "from": "Sales <sales@cndlf.com>",
+                "sent_at": "2026-07-10T10:00:00+00:00",
+                "body_text": "RFQ-501 quotation completed.",
+            },
+        ]
+
+        result = build_conversation_timeline(segments, ("cndlf.com",))
+
+        self.assertEqual(result["current_status"], "unresolved")
+        self.assertEqual(result["confidence"], "low")
+        self.assertIn("人工复核", result["open_items"][0]["item"])
+
+    def test_sender_truncation_cannot_hide_external_participant(self) -> None:
+        segments = [
+            {
+                "position": "1",
+                "from": "Buyer <buyer@example.com>",
+                "sent_at": "2026-07-10T09:00:00+00:00",
+                "body_text": "Please provide quotation RFQ-502.",
+            },
+            {
+                "position": "2",
+                "from": (
+                    "Sales <sales@cndlf.com>"
+                    + (" " * 520)
+                    + "Buyer <buyer@example.org>"
+                ),
+                "sent_at": "2026-07-10T10:00:00+00:00",
+                "body_text": "RFQ-502 quotation completed.",
+            },
+        ]
+
+        result = build_conversation_timeline(segments, ("cndlf.com",))
+
+        self.assertEqual(result["current_status"], "unresolved")
+        self.assertEqual(result["confidence"], "low")
+        self.assertIn("人工复核", result["open_items"][0]["item"])
 
     def test_oversized_segment_list_ignores_entries_beyond_limit(self) -> None:
         segments: list[object] = [{"body_text": 7} for _ in range(50)]
