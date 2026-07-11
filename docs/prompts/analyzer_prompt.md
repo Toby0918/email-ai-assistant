@@ -61,7 +61,7 @@ source_type: prompt_spec
 }
 ```
 
-Prompt 使用 `UNTRUSTED_EMAIL.*`、`UNTRUSTED_THREAD.*`、`UNTRUSTED_ATTACHMENT_METADATA[*].*` 和 `UNTRUSTED_ATTACHMENT[*].*` 标签逐字段传入受限上下文。正文在进入 Prompt 前有字符上限；会话和附件项也有数量与单字段字符上限。临时文件路径、附件字节、私有 URL、cookie 和 token 不进入 Prompt。
+Prompt 使用 `UNTRUSTED_EMAIL.*`、`UNTRUSTED_THREAD.*`、`UNTRUSTED_ATTACHMENT_METADATA[*].*` 和 `UNTRUSTED_ATTACHMENT[*].*` 标签逐字段传入受限上下文。正文在进入 Prompt 前有字符上限；`UNTRUSTED_ATTACHMENT` insight 使用独立 14 项上限，与后端可证明的 5 个附件 + 8 个前端限制 + 1 个运行限制容量一致。其他列表仍保持 8 项上限，所有单字段/嵌套列表继续受字符和数量预算约束；临时文件路径、附件字节、私有 URL、cookie 和 token 不进入 Prompt。
 
 `attachments` 只包含当前邮件页面已显示的附件元数据，不构成附件事实。只有对应 `attachment_insights[].status` 为 `parsed` 时，模型才可以参考该项的 `summary` 和 `key_facts`。`metadata_only`、`unavailable` 或 `failed` 项只能用于说明 `limitations`、缺失信息和人工核查要求，不能推断价格、数量、交期、合同或质量结论。
 

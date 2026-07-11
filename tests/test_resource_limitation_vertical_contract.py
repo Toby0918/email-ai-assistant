@@ -20,6 +20,8 @@ from unittest.mock import patch
 from openpyxl import Workbook
 
 from backend.email_agent.api import handle_analyze_current_email
+from backend.email_agent.analyzer import build_analysis_prompt
+from backend.email_agent.analysis_projection import project_attachment_insights
 from backend.email_agent.attachment_storage import StoredAttachment
 from backend.email_agent.config import load_config
 from backend.email_agent.database import initialize_schema, save_analysis
@@ -117,6 +119,41 @@ class ResourceLimitationVerticalContractTests(unittest.TestCase):
         )
         for insight in insights[5:]:
             self.assertEqual(insight["key_facts"], [])
+
+        prompt = build_analysis_prompt(
+            subject=str(request_payload["subject"]),
+            sender=str(request_payload["from"]),
+            clean_body=str(request_payload["body_text"]),
+            attachment_insights=insights,
+        )
+        self.assertIn("UNTRUSTED_ATTACHMENT[13].filename: resource", prompt)
+        self.assertIn(operational["limitation"], prompt)
+        self.assertIn("UNTRUSTED_ATTACHMENT[12].filename: additional-resources", prompt)
+        for forbidden in ("content_base64", "PRIVATE_TOKEN", "https://exmail.qq.com/cgi-bin"):
+            self.assertNotIn(forbidden, prompt)
+
+        bounded_last = {
+            **insights[13],
+            "limitations": ["FINAL_LIMITATION " + ("X" * 5_000)],
+            "token": "PRIVATE_TOKEN",
+            "private_url": "https://private.example.test/download",
+            "content_base64": "PRIVATE_BYTES",
+        }
+        bounded_prompt = build_analysis_prompt(
+            subject="Synthetic bounded prompt",
+            sender="sender@example.test",
+            clean_body="Synthetic body",
+            attachment_insights=project_attachment_insights([*insights[:13], bounded_last]),
+        )
+        limitation_line = next(
+            line
+            for line in bounded_prompt.splitlines()
+            if line.startswith("UNTRUSTED_ATTACHMENT[13].limitations:")
+        )
+        self.assertIn("FINAL_LIMITATION", limitation_line)
+        self.assertLessEqual(len(limitation_line), 300)
+        for forbidden in ("PRIVATE_TOKEN", "private.example.test", "PRIVATE_BYTES"):
+            self.assertNotIn(forbidden, bounded_prompt)
 
         connection = sqlite3.connect(":memory:")
         initialize_schema(connection)

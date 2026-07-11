@@ -108,7 +108,7 @@ AI 分析结果必须能解析为 JSON，并至少包含以下字段。
 - `conversation_timeline` 和 `attachment_insights` 是必填字段；模型输出不能覆盖后端确定性生成的这两个字段。
 - `conversation_timeline.open_items[].source` 只能是 `thread` 或 `attachment`。
 - `attachment_insights[].status` 只能是 `parsed`、`metadata_only`、`unavailable` 或 `failed`。
-- `attachment_insights` 最多 14 项，由最多 5 个已接受附件、8 个前端资源限制和 1 个后端运行限制组成。达到上限时必须优先保留候选资源聚合遗漏和后端运行失败。
+- `attachment_insights` 最多 14 项，由最多 5 个已接受附件、8 个前端资源限制和 1 个后端运行限制组成。达到上限时必须优先保留候选资源聚合遗漏和后端运行失败；模型 Prompt 的附件 insight 上限也必须独立保持 14，不能因其他通用列表的 8 项预算隐藏最后的限制。
 - 资源限制的 `type/status` 必须由允许的机器码确定，不得从英文限制文本推断。`resource_read_failed`、`collection_timeout` 和后端专用 `operational_failure` 对应 `failed`；`unsupported_type`、`frontend_limit`、`resource_unavailable` 和 `candidate_omission` 对应 `unavailable`。
 - 只有 `status=parsed` 的附件 `summary` 和 `key_facts` 可以影响决策摘要、风险、建议动作或回复草稿；其他状态只能产生限制说明和人工核查项。
 - 不能包含自动发送指令。

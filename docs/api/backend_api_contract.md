@@ -173,7 +173,7 @@ source_type: api_contract
 - `analysis.decision_brief` 是面向用户的决策摘要，必须说明邮件目的、当前动作、关键事实、需核查项、缺失信息和回复建议。
 - `analysis` 中的用户反馈字段使用中文；`analysis.reply_draft.subject` 和 `analysis.reply_draft.body` 保持英文。
 - 枚举值仍按 schema 使用英文，前端负责映射为中文标签显示。
-- `analysis.attachment_insights` 最多 14 项：最多 5 个已接受附件事实、8 个前端限制（包括优先保留的聚合遗漏）和 1 个后端运行限制。SQLite 只能保存最终结构化分析结果的允许字段；`attachment_insights` 再次投影到六个文档字段，不得保存附件字节、临时文件路径、私有 URL、cookie、token、未知字段或原始完整附件文本。
+- `analysis.attachment_insights` 最多 14 项：最多 5 个已接受附件事实、8 个前端限制（包括优先保留的聚合遗漏）和 1 个后端运行限制。Prompt 的 `UNTRUSTED_ATTACHMENT` 使用独立 14 项上限，确保最后的聚合遗漏和后端运行限制可见；其他 prompt 列表仍为 8 项，单字段与嵌套列表预算不变。SQLite 只能保存最终结构化分析结果的允许字段；`attachment_insights` 再次投影到六个文档字段，不得保存附件字节、临时文件路径、私有 URL、cookie、token、未知字段或原始完整附件文本。
 
 ## GET /api/health
 
