@@ -9,24 +9,17 @@ from .attachment_fact_safety import (
     MAX_ATTACHMENT_FACTS,
     bounded_attachment_source,
     sanitize_constructed_fact,
-    valid_business_identifier,
 )
-from .attachment_fact_context import is_reversed_fact_match, local_fact_segment
+from .attachment_fact_context import (
+    is_cancelled_action_span,
+    is_reversed_fact_match,
+    is_reversed_fact_span,
+    local_fact_segment,
+)
+from .attachment_identifiers import extract_reference_facts
 MAX_CANDIDATES_PER_CATEGORY = 3
 
 _SEPARATOR = r"\s*(?:[:#=|\-]\s*|\s+)"
-_IDENTIFIER_VALUE = r"(?=[A-Z0-9._/-]{4,64}\b)(?=[A-Z0-9._/-]*\d)[A-Z0-9][A-Z0-9._/-]{3,63}"
-_IDENTIFIER = re.compile(
-    rf"\b(?P<label>request\s+for\s+quotation|rfq|purchase\s+order|p\.?\s*o\.?|"
-    rf"order|invoice|tracking(?:\s+(?:number|no\.?))?|reference|ref)"
-    rf"(?:\s*(?:number|no\.?|#|id))?{_SEPARATOR}(?P<value>{_IDENTIFIER_VALUE})",
-    re.IGNORECASE,
-)
-_PREFIXED_IDENTIFIER = re.compile(
-    r"\b(?P<value>(?:RFQ|PO|INV|QUOTE|PART|ITEM|TRACK)[-_/.]"
-    r"(?=[A-Z0-9._/-]{2,60}\b)(?=[A-Z0-9._/-]*\d)[A-Z0-9._/-]+)",
-    re.IGNORECASE,
-)
 _NUMBER = r"(?:\d{1,3}(?:,\d{3}){1,3}|\d{1,9})(?:\.\d{1,4})?(?![\d.,-])"
 _QUANTITY_UNIT = r"(?:pcs?|pieces?|units?|sets?|kg|g|lbs?)"
 _LABELED_QUANTITY = re.compile(
@@ -147,28 +140,7 @@ def extract_attachment_facts(
 
 
 def _references(text: str) -> list[str]:
-    values: list[str] = []
-    for match in _IDENTIFIER.finditer(text):
-        label = _identifier_label(match.group("label"))
-        value = match.group("value").rstrip("._/-")
-        if not valid_business_identifier(value):
-            continue
-        separator = text[match.end("label"):match.start("value")]
-        if label == "Reference":
-            identifier = value
-        elif "-" in separator and not value.upper().startswith(f"{label.upper()}-"):
-            identifier = f"{label}-{value}"
-        else:
-            identifier = f"{label} {value}"
-        duplicate = any(existing.lower().endswith(value.lower()) for existing in values)
-        if not duplicate:
-            _append(values, f"Reference: {identifier}")
-    for match in _PREFIXED_IDENTIFIER.finditer(text):
-        value = match.group("value").rstrip("._/-")
-        duplicate = any(existing.lower().endswith(value.lower()) for existing in values)
-        if valid_business_identifier(value) and not duplicate:
-            _append(values, f"Reference: {value}")
-    return values[:MAX_CANDIDATES_PER_CATEGORY]
+    return extract_reference_facts(text)[:MAX_CANDIDATES_PER_CATEGORY]
 
 
 def _quantities(text: str) -> list[str]:
@@ -216,13 +188,20 @@ def _deadlines(text: str) -> list[str]:
 def _requested_actions(text: str) -> list[str]:
     values: list[str] = []
     for match in _REQUEST_SPAN.finditer(text):
-        if is_reversed_fact_match(text, match):
-            continue
         body = match.group("body")
-        verb = _mapped_match(body, _ACTION_VERBS)
-        target = _mapped_match(body, _ACTION_OBJECTS)
-        if verb and target:
-            _append(values, f"Requested action: {verb} {target}")
+        verb, verb_match = _mapped_candidate(body, _ACTION_VERBS)
+        target, target_match = _mapped_candidate(body, _ACTION_OBJECTS)
+        if not verb or not target or not verb_match or not target_match:
+            continue
+        body_start = match.start("body")
+        start = body_start + min(verb_match.start(), target_match.start())
+        end = body_start + max(verb_match.end(), target_match.end())
+        if (
+            is_reversed_fact_span(text, start, end)
+            or is_cancelled_action_span(text, start, end)
+        ):
+            continue
+        _append(values, f"Requested action: {verb} {target}")
     return values[:MAX_CANDIDATES_PER_CATEGORY]
 
 
@@ -250,29 +229,18 @@ def _matched_values(
     return values[:MAX_CANDIDATES_PER_CATEGORY]
 
 
-def _identifier_label(value: str) -> str:
-    normalized = re.sub(r"[^a-z]", "", value.lower())
-    if normalized in {"rfq", "requestforquotation"}:
-        return "RFQ"
-    if normalized in {"po", "purchaseorder"}:
-        return "PO"
-    if normalized == "invoice":
-        return "Invoice"
-    if normalized.startswith("tracking"):
-        return "Tracking"
-    if normalized == "order":
-        return "Order"
-    return "Reference"
-
-
-def _mapped_match(
+def _mapped_candidate(
     text: str,
     mappings: tuple[tuple[re.Pattern[str], str], ...],
-) -> str:
+) -> tuple[str, re.Match[str] | None]:
+    candidates: list[tuple[int, str, re.Match[str]]] = []
     for pattern, label in mappings:
-        if pattern.search(text):
-            return label
-    return ""
+        if match := pattern.search(text):
+            candidates.append((match.start(), label, match))
+    if not candidates:
+        return "", None
+    _start, label, match = min(candidates, key=lambda item: item[0])
+    return label, match
 
 
 def _specific_quality_signal(segment: str) -> bool:

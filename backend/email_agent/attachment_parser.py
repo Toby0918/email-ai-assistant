@@ -187,6 +187,7 @@ def _collect_xlsx_row(
 ) -> None:
     row_collector = TextBudget(MAX_XLSX_ROW_CHARACTERS)
     row_collector.add(sheet_title, MAX_XLSX_CELL_CHARACTERS, separator="")
+    fact_values: list[str] = []
     has_value = False
     for cell_index, value in enumerate(row):
         if value is None:
@@ -196,7 +197,9 @@ def _collect_xlsx_row(
                 row_collector.mark_omitted()
             break
         separator = ": " if not has_value else " | "
-        row_collector.add(str(value), MAX_XLSX_CELL_CHARACTERS, separator=separator)
+        cell_text = str(value)
+        row_collector.add(cell_text, MAX_XLSX_CELL_CHARACTERS, separator=separator)
+        fact_values.append(cell_text[:MAX_XLSX_CELL_CHARACTERS])
         has_value = True
     if not has_value:
         return
@@ -205,7 +208,7 @@ def _collect_xlsx_row(
     collector.add(
         row_collector.text,
         MAX_XLSX_ROW_CHARACTERS,
-        fact_value=row_collector.fact_text,
+        fact_value=" | ".join(fact_values),
     )
 
 

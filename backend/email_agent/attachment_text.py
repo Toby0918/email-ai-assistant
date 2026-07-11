@@ -19,8 +19,7 @@ _LOCAL_PATH = re.compile(
     r"(?:[^\\/\s]+[\\/])+[^\s]*)",
     re.IGNORECASE,
 )
-_LONG_NUMBER = re.compile(r"(?<!\w)\+?\d(?:[\d\s(),.-]*\d)?(?!\w)")
-_ISO_DATE = re.compile(r"\d{4}-\d{2}-\d{2}(?:\s+\d{1,2})?")
+_LONG_DIGIT_SEQUENCE = re.compile(r"\d(?:[\s(),.+_:/\\-]*\d){6,}")
 
 
 class TextBudget:
@@ -96,11 +95,7 @@ def sanitize_text(value: str) -> str:
     without_urls = _NON_WHITESPACE_TOKEN.sub(_redact_uri_token, without_controls)
     without_emails = _EMAIL_ADDRESS.sub("[email removed]", without_urls)
     without_paths = _LOCAL_PATH.sub("[path removed]", without_emails)
-    without_embedded_numbers = _NON_WHITESPACE_TOKEN.sub(
-        _redact_numeric_token,
-        without_paths,
-    )
-    without_long_numbers = _LONG_NUMBER.sub(_redact_long_number, without_embedded_numbers)
+    without_long_numbers = _LONG_DIGIT_SEQUENCE.sub("[number removed]", without_paths)
     return re.sub(r"\s+", " ", without_long_numbers).strip()
 
 
@@ -108,23 +103,4 @@ def _redact_uri_token(match: re.Match[str]) -> str:
     token = match.group(0)
     if _URI_MARKER.search(token):
         return "[link removed]"
-    return token
-
-
-def _redact_long_number(match: re.Match[str]) -> str:
-    value = match.group(0)
-    stripped = value.strip()
-    if _ISO_DATE.fullmatch(stripped):
-        return value
-    if sum(character.isdigit() for character in stripped) >= 7:
-        return "[number removed]"
-    return value
-
-
-def _redact_numeric_token(match: re.Match[str]) -> str:
-    token = match.group(0)
-    if _ISO_DATE.fullmatch(token):
-        return token
-    if sum(character.isdigit() for character in token) >= 7:
-        return "[number removed]"
     return token

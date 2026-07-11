@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import re
 
+from .attachment_identifiers import valid_constructed_reference
+
 
 MAX_ATTACHMENT_FACTS = 5
 MAX_ATTACHMENT_FACT_CHARACTERS = 240
@@ -19,21 +21,6 @@ _DATE_VALUE = (
     r"Jul(?:y)?|Aug(?:ust)?|Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|"
     r"Dec(?:ember)?)\s+\d{1,2}(?:,\s*\d{4})?|today|tomorrow)"
 )
-_PREFIXED_IDENTIFIER = re.compile(
-    r"(?:RFQ|PO|INV|QUOTE|PART|ITEM|TRACK)[-_/.]"
-    r"(?=[A-Z0-9._/-]{2,60}$)(?=[A-Z0-9._/-]*\d)[A-Z0-9._/-]+",
-    re.IGNORECASE,
-)
-_PREFIXED_VALUE = re.compile(
-    r"^(?:RFQ|PO|INV|QUOTE|PART|ITEM|TRACK)[-_](?P<core>[A-Z0-9][A-Z0-9_-]{2,31})$",
-    re.IGNORECASE,
-)
-_REPEATED_PREFIX = re.compile(
-    r"^(?:RFQ|PO|INV|QUOTE|PART|ITEM|TRACK)[-_]",
-    re.IGNORECASE,
-)
-_FORBIDDEN_IDENTIFIER_CHARACTERS = re.compile(r"[./\\@:]", re.IGNORECASE)
-_SEPARATED_PHONE = re.compile(r"(?:^|[^\d])\d{3}[-_]\d{4}(?:$|[^\d])")
 _CONSTRUCTED_FACTS = (
     re.compile(rf"Quantity: {_NUMBER}(?:\s*{_QUANTITY_UNIT})?", re.IGNORECASE),
     re.compile(
@@ -73,45 +60,10 @@ def sanitize_constructed_fact(value: object) -> str:
     ).strip()[:MAX_ATTACHMENT_FACT_CHARACTERS]
     if normalized.startswith("Reference: "):
         identifier = normalized.removeprefix("Reference: ")
-        return normalized if _valid_constructed_identifier(identifier) else ""
+        return normalized if valid_constructed_reference(identifier) else ""
     return normalized if any(pattern.fullmatch(normalized) for pattern in _CONSTRUCTED_FACTS) else ""
-
-
-def valid_business_identifier(value: str) -> bool:
-    """Reject phone/card/account shapes while allowing bounded explicit business IDs."""
-    if not re.fullmatch(r"[A-Z0-9][A-Z0-9._/-]{3,63}", value, re.IGNORECASE):
-        return False
-    if _FORBIDDEN_IDENTIFIER_CHARACTERS.search(value):
-        return False
-    prefixed = _PREFIXED_VALUE.fullmatch(value)
-    core = prefixed.group("core") if prefixed else value
-    if prefixed and _REPEATED_PREFIX.match(core):
-        return False
-    if not re.fullmatch(r"[A-Z0-9][A-Z0-9_-]{3,31}", core, re.IGNORECASE):
-        return False
-    digit_count = sum(character.isdigit() for character in core)
-    if not 1 <= digit_count <= 9 or _SEPARATED_PHONE.search(core):
-        return False
-    has_letter = any(character.isalpha() for character in core)
-    if not has_letter and digit_count < 4:
-        return False
-    return True
 
 
 def bounded_attachment_source(value: object) -> str:
     """Keep a bounded in-memory source only for strict component extraction."""
     return _CONTROL_CHARACTERS.sub("", str(value or ""))[:2_000]
-
-
-def _valid_constructed_identifier(identifier: str) -> bool:
-    labeled = re.fullmatch(
-        r"(?:RFQ|PO|Order|Invoice|Tracking) (?P<value>[A-Z0-9][A-Z0-9._/-]{3,63})",
-        identifier,
-        re.IGNORECASE,
-    )
-    if labeled:
-        return valid_business_identifier(labeled.group("value"))
-    return bool(
-        _PREFIXED_IDENTIFIER.fullmatch(identifier)
-        and valid_business_identifier(identifier)
-    )

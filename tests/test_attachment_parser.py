@@ -64,22 +64,32 @@ class _ObservedDocxCell:
 
 
 class AttachmentParserTests(unittest.TestCase):
-    def test_generic_sanitizer_redacts_embedded_long_numbers_but_keeps_iso_date(self) -> None:
-        sanitized = sanitize_text(
-            "RFQ7654321 PO123456789012 accountABC1234567890 "
-            "acctABC1234-5678-9012-3456XYZ due 2026-07-18"
+    def test_generic_sanitizer_redacts_every_long_digit_sequence(self) -> None:
+        cases = (
+            "RFQ7654321",
+            "PO123456789012",
+            "accountABC1234567890",
+            "acctABC1234-5678-9012-3456XYZ",
+            "due 2026-07-18",
+            "RFQ1234 567",
+            "RFQ1234\t567",
+            "acctABC1234 5678 9012 3456XYZ",
+            r"path1234\567",
+            "group1234_567",
+            "group1234/567",
+            "group1234:567",
+            "group1234+567",
+            "group1234.567",
         )
 
-        for secret in (
-            "7654321",
-            "123456789012",
-            "1234567890",
-            "1234-5678-9012-3456",
-            "acctABC1234",
-            "3456XYZ",
-        ):
-            self.assertNotIn(secret, sanitized)
-        self.assertIn("2026-07-18", sanitized)
+        for value in cases:
+            with self.subTest(value=value):
+                sanitized = sanitize_text(value)
+                self.assertLess(
+                    sum(character.isdigit() for character in sanitized),
+                    7,
+                    sanitized,
+                )
 
     def test_identifier_gate_rejects_prefixed_sensitive_shapes_and_deduplicates(self) -> None:
         facts = extract_attachment_facts("\n".join([
@@ -127,6 +137,170 @@ class AttachmentParserTests(unittest.TestCase):
             ],
         )
 
+    def test_modal_contractions_do_not_become_attachment_facts(self) -> None:
+        facts = extract_attachment_facts("\n".join([
+            "The item won't be due 2026-07-21.",
+            "Please note that we wouldn't provide quotation.",
+            "Please note that we shouldn't confirm quantity.",
+            "The part couldn't be damaged.",
+            "Please note that we mustn't review specification.",
+            "The item won’t be due 2026-07-22.",
+            "The item cannot be due 2026-07-23.",
+            "The item shan't be due 2026-07-24.",
+            "The item oughtn't be due 2026-07-25.",
+        ]))
+
+        self.assertEqual(facts, [])
+
+    def test_identifier_extraction_requires_a_complete_consistent_field(self) -> None:
+        rejected = (
+            "PO: 021-000-021",
+            "PO: 123-45-6789",
+            "Invoice: 12-3456789",
+            "RFQ: 202555019 9",
+            "RFQ: 138001380 00",
+            "RFQ: 4111 1111 1111 1111",
+            "RFQ: RFQRFQ7654321",
+            "RFQ: PO-7654322",
+            "Reference: RFQ-RFQ7654323",
+            "RFQ: 7654321 extra",
+            r"RFQ: X1234\private",
+            "Invoice: RFQ-7654321",
+            "RFQ | 202555019 | 9",
+            "RFQ | 138001380 | 00",
+            "RFQ | 4111 | 1111 | 1111 | 1111",
+        )
+        for value in rejected:
+            with self.subTest(value=value):
+                self.assertEqual(extract_attachment_facts(value), [])
+
+        accepted = {
+            "RFQ: 7654321.": ["Reference: RFQ 7654321"],
+            "RFQ: ABC1234": ["Reference: RFQ ABC1234"],
+            "Reference: RFQ-SAFE_42": ["Reference: RFQ-SAFE_42"],
+        }
+        for value, expected in accepted.items():
+            with self.subTest(value=value):
+                self.assertEqual(extract_attachment_facts(value), expected)
+
+    def test_multicell_identifier_continuations_never_cross_boundaries(self) -> None:
+        document = Document()
+        table = document.add_table(rows=3, cols=5)
+        docx_rows = (
+            ("RFQ", "202555019", "9"),
+            ("RFQ", "138001380", "00"),
+            ("RFQ", "4111", "1111", "1111", "1111"),
+        )
+        for row_index, values in enumerate(docx_rows):
+            for cell_index, value in enumerate(values):
+                table.cell(row_index, cell_index).text = value
+        docx_content = BytesIO()
+        document.save(docx_content)
+
+        workbook = Workbook()
+        sheet = workbook.active
+        for values in docx_rows:
+            sheet.append(values)
+        xlsx_content = BytesIO()
+        workbook.save(xlsx_content)
+
+        with TemporaryDirectory() as directory:
+            insights = parse_attachments([
+                self._write(directory, "continuation.docx", "docx", docx_content.getvalue()),
+                self._write(directory, "continuation.xlsx", "xlsx", xlsx_content.getvalue()),
+            ])
+
+        for insight in insights:
+            with self.subTest(filename=insight["filename"]):
+                self.assertEqual(insight["key_facts"], [])
+
+        prompt = build_analysis_prompt(
+            subject="Synthetic table continuation",
+            sender="sender@example.test",
+            clean_body="Please review the synthetic table.",
+            attachment_insights=insights,
+        )
+        connection = sqlite3.connect(":memory:")
+        initialize_schema(connection)
+        save_analysis(
+            connection,
+            subject="Synthetic table continuation",
+            sender="sender@example.test",
+            analysis={"summary": "Safe synthetic result.", "attachment_insights": insights},
+        )
+        stored_json = connection.execute(
+            "SELECT analysis_json FROM email_analysis"
+        ).fetchone()[0]
+        serialized_result = json.dumps(insights, ensure_ascii=False)
+        for secret in ("202555019", "138001380", "Reference: RFQ 4111"):
+            for boundary, value in (
+                ("result", serialized_result),
+                ("prompt", prompt),
+                ("storage", stored_json),
+            ):
+                with self.subTest(boundary=boundary, secret=secret):
+                    self.assertNotIn(secret, value)
+
+    def test_identifier_deduplication_uses_complete_canonical_identity(self) -> None:
+        cases = {
+            "RFQ: ABC1234\nPO: 1234": [
+                "Reference: RFQ ABC1234",
+                "Reference: PO 1234",
+            ],
+            "RFQ: XABC1234\nPO: ABC1234": [
+                "Reference: RFQ XABC1234",
+                "Reference: PO ABC1234",
+            ],
+            "Invoice: INV-7000001\nReference: INV-7000001": [
+                "Reference: Invoice INV-7000001",
+            ],
+        }
+        for value, expected in cases.items():
+            with self.subTest(value=value):
+                self.assertEqual(extract_attachment_facts(value), expected)
+
+    def test_reversal_context_is_bounded_to_the_candidate_clause(self) -> None:
+        rejected = (
+            "It won't be due 2026-07-18.",
+            "Action required: you shouldn't confirm quantity.",
+            "It hasn’t been due 2026-07-19.",
+            "It hadn't been due 2026-07-20.",
+            "The item is free from burrs.",
+            "Burrs are absent.",
+            "The scratch was repaired.",
+            "Leakage stopped.",
+            "Burrs were eliminated.",
+            "The damage was remediated.",
+            "Deadline: 2026-07-18 was withdrawn.",
+            "Deadline: 2026-07-18 was waived.",
+            "Deadline: 2026-07-18 was cancelled.",
+            "Deadline: 2026-07-18 was revoked.",
+            "Action required: cancel the request to confirm quantity.",
+            "Please disregard the request to provide quotation.",
+            "Please skip the request to review specification.",
+        )
+        for value in rejected:
+            with self.subTest(value=value):
+                self.assertEqual(extract_attachment_facts(value), [])
+
+        accepted = {
+            "Due date: 2026-07-18, but do not miss it.": [
+                "Deadline: due 2026-07-18",
+            ],
+            "Please confirm quantity, not price.": [
+                "Requested action: confirm quantity",
+            ],
+            "damaged but not leaking": [
+                "Quality issue: physical_damage",
+            ],
+            "scratched, but no burrs": [
+                "Quality issue: surface_damage",
+            ],
+        }
+        for value, expected in accepted.items():
+            with self.subTest(value=value):
+                self.assertEqual(extract_attachment_facts(value), expected)
+
     def test_cross_format_sensitive_identifiers_and_negations_never_cross_boundaries(self) -> None:
         payload = "\n".join([
             "RFQ: 202/555/0199",
@@ -147,13 +321,28 @@ class AttachmentParserTests(unittest.TestCase):
             "No scratches were found.",
             "Please don't confirm quantity.",
             "The part isn't damaged.",
+            "PO: 021-000-021",
+            "PO: 123-45-6789",
+            "Invoice: 12-3456789",
+            "RFQ: 202555019 9",
+            "RFQ: 138001380 00",
+            "RFQ: 4111 1111 1111 1111",
+            "RFQ: RFQRFQ7654321",
+            "RFQ: PO-7654322",
+            "Reference: RFQ-RFQ7654323",
+            "It won't be due 2026-07-19.",
+            "Action required: you shouldn't confirm quantity.",
+            "Burrs are absent.",
+            "The scratch was repaired.",
+            "Deadline: 2026-07-20 was revoked.",
+            "Please disregard the request to provide quotation.",
             "RFQ: 7654321",
         ])
         with TemporaryDirectory() as directory:
             items = [
                 self._write(directory, "security.pdf", "pdf", b"synthetic"),
                 self._write(directory, "security.docx", "docx", self._security_docx_bytes(payload)),
-                self._write(directory, "security.xlsx", "xlsx", self._security_xlsx_bytes()),
+                self._write(directory, "security.xlsx", "xlsx", self._security_xlsx_bytes(payload)),
                 self._write(directory, "security.png", "image", self._image_bytes()),
             ]
             page = MagicMock()
@@ -167,11 +356,15 @@ class AttachmentParserTests(unittest.TestCase):
                     insights = parse_attachments(items)
 
         for insight in insights:
-            self.assertEqual(insight["status"], "parsed")
-            self.assertIn("Reference: RFQ 7654321", insight["key_facts"])
-            self.assertNotIn("Deadline:", " ".join(insight["key_facts"]))
-            self.assertNotIn("Requested action:", " ".join(insight["key_facts"]))
-            self.assertNotIn("Quality issue:", " ".join(insight["key_facts"]))
+            filename = str(insight["filename"])
+            with self.subTest(filename=filename, expectation="parsed"):
+                self.assertEqual(insight["status"], "parsed")
+            with self.subTest(filename=filename, expectation="valid reference"):
+                self.assertIn("Reference: RFQ 7654321", insight["key_facts"])
+            joined_facts = " ".join(insight["key_facts"])
+            for forbidden_label in ("Deadline:", "Requested action:", "Quality issue:"):
+                with self.subTest(filename=filename, forbidden_label=forbidden_label):
+                    self.assertNotIn(forbidden_label, joined_facts)
 
         prompt = build_analysis_prompt(
             subject="Synthetic attachment security",
@@ -200,6 +393,14 @@ class AttachmentParserTests(unittest.TestCase):
             "private.example/1234",
             "RFQ-202-555-0199",
             "13800138000",
+            "021-000-021",
+            "123-45-6789",
+            "12-3456789",
+            "202555019",
+            "138001380",
+            "RFQRFQ7654321",
+            "PO-7654322",
+            "RFQ-RFQ7654323",
             "Deadline:",
             "Requested action:",
             "Quality issue:",
@@ -214,14 +415,18 @@ class AttachmentParserTests(unittest.TestCase):
                     self.assertNotIn(secret, value)
 
     def test_business_identifier_is_protected_only_inside_strict_fact_extraction(self) -> None:
-        raw = (
-            "RFQ: 7654321 unlabeled 7654322 phone +1 (202) 555-0199 "
-            "RFQ: 1234-5678-9012-3456 PO: 202-555-0199 "
-            "Invoice: 1234567890123456 RFQ: RFQ-1234567890123456 "
-            "PO: PO-1234567890123456 Quantity: 202-555-0199 "
-            "Amount: USD 1234-5678-9012-3456 "
-            "Amount: USD 1,234,567,890,123,456"
-        )
+        raw = "\n".join((
+            "RFQ: 7654321",
+            "unlabeled 7654322 phone +1 (202) 555-0199",
+            "RFQ: 1234-5678-9012-3456",
+            "PO: 202-555-0199",
+            "Invoice: 1234567890123456",
+            "RFQ: RFQ-1234567890123456",
+            "PO: PO-1234567890123456",
+            "Quantity: 202-555-0199",
+            "Amount: USD 1234-5678-9012-3456",
+            "Amount: USD 1,234,567,890,123,456",
+        ))
         sanitized = sanitize_text(raw)
         facts = extract_attachment_facts(raw)
 
@@ -262,6 +467,12 @@ class AttachmentParserTests(unittest.TestCase):
             "Reference: RFQ RFQ-X202-555-0199",
             "Reference: RFQ RFQ-private.example/1234",
             "Reference: RFQ 13800138000",
+            "Reference: PO 021-000-021",
+            "Reference: PO 123-45-6789",
+            "Reference: Invoice 12-3456789",
+            "Reference: RFQ RFQRFQ7654321",
+            "Reference: RFQ PO-7654322",
+            "Reference: RFQ-RFQ7654323",
             "Requested action: confirm quantity PRIVATE trailing prose",
             "Quality issue: physical_damage PRIVATE trailing prose",
             "Deadline: 2026-07-18",
@@ -554,8 +765,8 @@ class AttachmentParserTests(unittest.TestCase):
         document = Document()
         table = document.add_table(rows=2, cols=2)
         table.cell(0, 0).text = "Reference"
-        table.cell(0, 1).text = "Quantity"
-        table.cell(1, 0).text = "RFQ-TABLE-42"
+        table.cell(0, 1).text = "RFQ-TABLE-42"
+        table.cell(1, 0).text = "Quantity"
         table.cell(1, 1).text = "200 pcs"
         content = BytesIO()
         document.save(content)
@@ -573,8 +784,8 @@ class AttachmentParserTests(unittest.TestCase):
         document = Document()
         document.add_paragraph("Mixed document introduction")
         table = document.add_table(rows=1, cols=2)
-        table.cell(0, 0).text = "Part-MIXED-7"
-        table.cell(0, 1).text = "Needs review"
+        table.cell(0, 0).text = "Reference"
+        table.cell(0, 1).text = "PART-MIXED-7"
         content = BytesIO()
         document.save(content)
 
@@ -584,7 +795,7 @@ class AttachmentParserTests(unittest.TestCase):
 
         visible = self._visible_text(result[0])
         self.assertNotIn("Mixed document introduction", visible)
-        self.assertIn("Part-MIXED-7", visible)
+        self.assertIn("PART-MIXED-7", visible)
 
     def test_docx_table_rows_and_cells_stop_at_explicit_caps(self) -> None:
         unread_row_cell = _ObservedDocxCell("UNREACHED-ROW")
@@ -1194,23 +1405,13 @@ class AttachmentParserTests(unittest.TestCase):
         return content.getvalue()
 
     @staticmethod
-    def _security_xlsx_bytes() -> bytes:
+    def _security_xlsx_bytes(payload: str) -> bytes:
         workbook = Workbook()
         sheet = workbook.active
         sheet.title = "Security"
-        for row in (
-            ("RFQ", "202/555/0199"),
-            ("Reference", "RFQ-202-555-0199"),
-            ("Invoice", "INV-1234-5678-9012"),
-            ("Reference", "RFQ-/home/private/1234"),
-            ("Reference", "RFQ-www.private.example/1234"),
-            ("Status", "not due 2026-07-18"),
-            ("Action", "Do not respond within 3 days"),
-            ("Request", "Please do not confirm quantity"),
-            ("Quality", "not currently damaged; no evidence of burrs"),
-            ("RFQ", "7654321"),
-        ):
-            sheet.append(row)
+        lines = payload.splitlines()
+        for index in range(0, len(lines), 2):
+            sheet.append(["\n".join(lines[index:index + 2])])
         content = BytesIO()
         workbook.save(content)
         return content.getvalue()
