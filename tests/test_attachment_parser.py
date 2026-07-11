@@ -45,6 +45,17 @@ class _ObservedCell:
         return self.text
 
 
+class _ObservedDocxCell:
+    def __init__(self, text: str) -> None:
+        self._text = text
+        self.read_count = 0
+
+    @property
+    def text(self) -> str:
+        self.read_count += 1
+        return self._text
+
+
 class AttachmentParserTests(unittest.TestCase):
     def test_parse_pdf_returns_bounded_safe_text_facts(self) -> None:
         with TemporaryDirectory() as directory:
@@ -81,6 +92,74 @@ class AttachmentParserTests(unittest.TestCase):
             self.assertEqual(result[0]["status"], "parsed")
             self.assertIn("Purchase order", result[0]["summary"])
             self.assertIn("Paragraph limit", " ".join(result[0]["limitations"]))
+
+    def test_parse_docx_supports_table_only_documents(self) -> None:
+        document = Document()
+        table = document.add_table(rows=2, cols=2)
+        table.cell(0, 0).text = "Reference"
+        table.cell(0, 1).text = "Quantity"
+        table.cell(1, 0).text = "RFQ-TABLE-42"
+        table.cell(1, 1).text = "200 pcs"
+        content = BytesIO()
+        document.save(content)
+
+        with TemporaryDirectory() as directory:
+            stored = self._write(directory, "table-only.docx", "docx", content.getvalue())
+            result = parse_attachments([stored])
+
+        self.assertEqual(result[0]["status"], "parsed")
+        visible = self._visible_text(result[0])
+        self.assertIn("RFQ-TABLE-42", visible)
+        self.assertIn("200 pcs", visible)
+
+    def test_parse_docx_combines_paragraph_and_table_text(self) -> None:
+        document = Document()
+        document.add_paragraph("Mixed document introduction")
+        table = document.add_table(rows=1, cols=2)
+        table.cell(0, 0).text = "Part-MIXED-7"
+        table.cell(0, 1).text = "Needs review"
+        content = BytesIO()
+        document.save(content)
+
+        with TemporaryDirectory() as directory:
+            stored = self._write(directory, "mixed.docx", "docx", content.getvalue())
+            result = parse_attachments([stored])
+
+        visible = self._visible_text(result[0])
+        self.assertIn("Mixed document introduction", visible)
+        self.assertIn("Part-MIXED-7", visible)
+
+    def test_docx_table_rows_and_cells_stop_at_explicit_caps(self) -> None:
+        unread_row_cell = _ObservedDocxCell("UNREACHED-ROW")
+        unread_column_cell = _ObservedDocxCell("UNREACHED-CELL")
+        bounded_row = MagicMock()
+        bounded_row.cells = [
+            _ObservedDocxCell(f"Cell {index}")
+            for index in range(attachment_parser.MAX_DOCX_CELLS_PER_ROW)
+        ] + [unread_column_cell]
+        rows = [bounded_row]
+        for _index in range(attachment_parser.MAX_DOCX_ROWS_PER_TABLE - 1):
+            row = MagicMock()
+            row.cells = [_ObservedDocxCell("bounded")]
+            rows.append(row)
+        unread_row = MagicMock()
+        unread_row.cells = [unread_row_cell]
+        table = MagicMock()
+        table.rows = [*rows, unread_row]
+        document = MagicMock()
+        document.paragraphs = []
+        document.tables = [table]
+
+        with TemporaryDirectory() as directory:
+            stored = self._write(directory, "bounded-table.docx", "docx", self._docx_bytes())
+            with patch.object(attachment_parser, "Document", return_value=document):
+                result = parse_attachments([stored])
+
+        limitations = " ".join(result[0]["limitations"])
+        self.assertIn("Table row limit", limitations)
+        self.assertIn("Table cell limit", limitations)
+        self.assertEqual(unread_row_cell.read_count, 0)
+        self.assertEqual(unread_column_cell.read_count, 0)
 
     def test_parse_image_marks_ocr_unavailable_without_failing(self) -> None:
         with TemporaryDirectory() as directory:

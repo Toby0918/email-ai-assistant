@@ -16,6 +16,11 @@ except ImportError:  # pragma: no cover - dependency is pinned but OCR remains o
     pytesseract = None
 
 from .attachment_storage import StoredAttachment
+from .attachment_docx import (
+    MAX_DOCX_CELLS_PER_ROW,
+    MAX_DOCX_ROWS_PER_TABLE,
+    collect_docx_text,
+)
 from .attachment_safety import (
     decoder_failure_limitation,
     enforce_pdf_decoder_limits,
@@ -27,11 +32,9 @@ from .attachment_text import MAX_EXTRACTED_CHARACTERS, TextBudget, sanitize_text
 MAX_PDF_PAGES = 3
 MAX_XLSX_SHEETS = 3
 MAX_XLSX_ROWS_PER_SHEET = 30
-MAX_DOCX_PARAGRAPHS = 50
 MAX_PDF_PAGE_CHARACTERS = 1_000
 MAX_XLSX_CELL_CHARACTERS = 1_000
 MAX_XLSX_ROW_CHARACTERS = 1_100
-MAX_DOCX_PARAGRAPH_CHARACTERS = 1_000
 MAX_OCR_CHARACTERS = 2_000
 MAX_IMAGE_PIXELS = 25_000_000
 OCR_TIMEOUT_SECONDS = 5
@@ -127,17 +130,8 @@ def _parse_docx(item: StoredAttachment) -> dict[str, object]:
     if package_limitation:
         return _metadata_only(item, package_limitation)
     document = Document(item.path)
-    paragraphs = document.paragraphs
-    collector = TextBudget()
-    for paragraph in paragraphs[:MAX_DOCX_PARAGRAPHS]:
-        if collector.exhausted:
-            collector.mark_omitted()
-            break
-        collector.add(paragraph.text, MAX_DOCX_PARAGRAPH_CHARACTERS)
-    limitations = _character_limitations(collector)
-    if len(paragraphs) > MAX_DOCX_PARAGRAPHS:
-        limitations.append("Paragraph limit reached; remaining paragraphs were not parsed.")
-    return _text_insight(item, collector.text, limitations, "DOCX")
+    text, limitations = collect_docx_text(document)
+    return _text_insight(item, text, limitations, "DOCX")
 
 
 def _parse_image(item: StoredAttachment) -> dict[str, object]:
