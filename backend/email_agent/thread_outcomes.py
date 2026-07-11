@@ -14,6 +14,8 @@ _BLOCKER_RE = re.compile(
     re.IGNORECASE,
 )
 _NEGATED_OUTCOME_RE = re.compile(
+    r"\b(?:will|would|shall|should|may|might|must)\s+(?:not|never)\s+"
+    r"(?:(?:be|have\s+been)\s+)?(?:resolved|completed|closed|sent|delivered)\b|"
     r"\b(?:cannot|can\s+not|can't|could\s+not|couldn't)\s+"
     r"(?:be\s+)?(?:resolved|completed|closed|sent|delivered)\b|"
     r"\b(?:not|never)(?:\s+(?:not|yet|fully|been))*\s+"

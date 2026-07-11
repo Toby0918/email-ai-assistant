@@ -113,20 +113,41 @@ def merge_request_atom_sources(
     body_atoms: tuple[dict[str, object], ...],
 ) -> tuple[tuple[dict[str, object], ...], bool]:
     merged = list(subject_atoms)
-    subject_identities = [
-        identity
-        for atom in subject_atoms
+    subject_matches = [
+        (identity, index)
+        for index, atom in enumerate(subject_atoms)
         if (identity := _request_identity(atom)) is not None
     ]
+    coverage_complete = True
     for atom in body_atoms:
         identity = _request_identity(atom)
-        if identity is not None and identity in subject_identities:
-            subject_identities.remove(identity)
+        match = next(
+            (candidate for candidate in subject_matches if candidate[0] == identity),
+            None,
+        )
+        if identity is not None and match is not None:
+            subject_matches.remove(match)
+            merged[match[1]], due_complete = _merge_due_hint(merged[match[1]], atom)
+            coverage_complete = coverage_complete and due_complete
             continue
         if len(merged) >= MAX_REQUEST_ATOMS_PER_EVENT:
             return tuple(merged), False
         merged.append(atom)
-    return tuple(merged), True
+    return tuple(merged), coverage_complete
+
+
+def _merge_due_hint(
+    primary: dict[str, object], duplicate: dict[str, object]
+) -> tuple[dict[str, object], bool]:
+    primary_due = str(primary["due_hint"])
+    duplicate_due = str(duplicate["due_hint"])
+    merged = dict(primary)
+    if primary_due and duplicate_due and primary_due != duplicate_due:
+        merged["due_hint"] = ""
+        return merged, False
+    if not primary_due and duplicate_due:
+        merged["due_hint"] = duplicate_due
+    return merged, True
 
 
 def _request_identity(

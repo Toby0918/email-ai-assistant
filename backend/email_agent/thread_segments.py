@@ -15,7 +15,8 @@ MAX_POSITION_CHARS = 9
 MAX_POSITION = 1_000_000
 
 _HEADER_FROM_RE = re.compile(
-    r"(?:^|\n)\s*(?:from|发件人)\s*[:：]\s*(?P<sender>[^\r\n]+)",
+    r"(?:^|\n)[ \t]*(?:from|发件人)[ \t]*[:：][ \t]*"
+    r"(?P<sender>[^\r\n]+(?:\r?\n[ \t]+[^\r\n]*)*)",
     re.IGNORECASE,
 )
 
@@ -137,7 +138,9 @@ def _bounded_field_with_coverage(
 
 def _sender_from_header(header: str) -> str:
     match = _HEADER_FROM_RE.search(header)
-    return match.group("sender").strip() if match is not None else ""
+    if match is None:
+        return ""
+    return re.sub(r"\r?\n[ \t]+", " ", match.group("sender")).strip()
 
 
 def _position_value(value: object) -> int | None:
