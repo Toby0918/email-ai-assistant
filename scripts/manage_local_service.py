@@ -16,9 +16,19 @@ from typing import Any, Callable
 
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from backend.email_agent import attachment_storage
+from backend.email_agent import config as backend_config
+
+
 DEFAULT_PID_FILE = ROOT / "outputs" / "local_debug_service.pid"
 DEFAULT_LOG_FILE = ROOT / "outputs" / "local_debug_service.log"
 COMMANDS = ("start", "stop", "restart", "status")
+CLEANUP_FAILURE_MESSAGE = (
+    "Attachment cleanup failed. Check the configured temporary directory and permissions, then retry."
+)
 
 
 @dataclass(frozen=True)
@@ -40,8 +50,29 @@ class CommandResult:
     status: str | None = None
 
 
+@dataclass(frozen=True)
+class CleanupResult:
+    removed_count: int
+
+
+class LifecycleCleanupError(RuntimeError):
+    """Raised when lifecycle cleanup cannot complete safely."""
+
+
 HealthChecker = Callable[[str, int, float], bool]
 Sleeper = Callable[[float], None]
+
+
+def run_cleanup_before_service_start(
+    config: backend_config.AppConfig | None = None,
+) -> CleanupResult:
+    """Run bounded attachment expiry cleanup without exposing source details."""
+    try:
+        storage_config = config or backend_config.load_config()
+        removed_count = attachment_storage.cleanup_expired_attachments(storage_config)
+    except Exception:
+        raise LifecycleCleanupError(CLEANUP_FAILURE_MESSAGE) from None
+    return CleanupResult(removed_count=removed_count)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -102,6 +133,19 @@ def start_service(
     if health_checker(config.host, config.port, 1.0):
         return CommandResult(0, f"already running at {_service_url(config)}", "running")
 
+    cleanup_result, cleanup_error = _attempt_lifecycle_cleanup()
+    if cleanup_error is not None:
+        return cleanup_error
+    result = _start_after_cleanup(config, popen, health_checker, sleeper)
+    return _with_cleanup_result(result, cleanup_result)
+
+
+def _start_after_cleanup(
+    config: ServiceConfig,
+    popen: Callable[..., Any] | None = None,
+    health_checker: HealthChecker = check_health,
+    sleeper: Sleeper = time.sleep,
+) -> CommandResult:
     command = _build_start_command(config)
     config.pid_file.parent.mkdir(parents=True, exist_ok=True)
     pid = _launch_background(command, config, popen)
@@ -135,12 +179,16 @@ def stop_service(
 def restart_service(
     config: ServiceConfig,
     stopper: Callable[[ServiceConfig], CommandResult] = stop_service,
-    starter: Callable[[ServiceConfig], CommandResult] = start_service,
+    starter: Callable[[ServiceConfig], CommandResult] | None = None,
 ) -> CommandResult:
+    cleanup_result, cleanup_error = _attempt_lifecycle_cleanup()
+    if cleanup_error is not None:
+        return cleanup_error
     stop_result = stopper(config)
     if stop_result.exit_code not in {0, 3}:
-        return stop_result
-    return starter(config)
+        return _with_cleanup_result(stop_result, cleanup_result)
+    start_result = starter(config) if starter is not None else _start_after_cleanup(config)
+    return _with_cleanup_result(start_result, cleanup_result)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -160,6 +208,20 @@ def _dispatch(command: str, config: ServiceConfig) -> CommandResult:
     if command == "restart":
         return restart_service(config)
     return status_service(config)
+
+
+def _attempt_lifecycle_cleanup() -> tuple[CleanupResult, None] | tuple[None, CommandResult]:
+    try:
+        return run_cleanup_before_service_start(), None
+    except LifecycleCleanupError:
+        return None, CommandResult(5, CLEANUP_FAILURE_MESSAGE, "error")
+
+
+def _with_cleanup_result(result: CommandResult, cleanup_result: CleanupResult | None) -> CommandResult:
+    if cleanup_result is None:
+        return result
+    message = f"attachment cleanup removed={cleanup_result.removed_count}; {result.message}"
+    return CommandResult(result.exit_code, message, result.status)
 
 
 def _build_start_command(config: ServiceConfig) -> list[str]:

@@ -1,5 +1,5 @@
 ﻿---
-last_update: 2026-07-09
+last_update: 2026-07-11
 status: draft
 owner: "@tobyWang"
 review_cycle: monthly
@@ -43,16 +43,18 @@ source_type: product_spec
 
 ## 阶段 2.3：附件辅助分析
 
+- 自动化和合成样例范围已实现；真实 Tencent Exmail 邮件 smoke validation 仍待用户单独授权后运行。
 - 在用户明确点击后，支持当前打开邮件中可见的图片、PDF、XLSX 和 DOCX 资源的受限传输和后端解析。
 - 附件内容提取、OCR 和临时文件清理必须在后端完成，前端不调用 AI 或本地模型。
 - 临时源文件默认保留 24 小时，SQLite 只保存最终结构化分析结果，不保存附件二进制或私有下载信息。
+- 已在请求处理和本地服务 start/restart 生命周期执行过期清理；没有后台邮箱轮询器或常驻调度器。
 - 不声称已读取未下载、未打开、未解析或不受支持的附件内容。
 
 ## 阶段 2.4：可安装原型
 
-- 完成 Chrome / Edge unpacked extension 的稳定验证。
-- 增加扩展版本号、安装说明、本地服务健康检查和排障路径。
-- 形成用户可重复测试的安装包或发布清单。
+- Chrome / Edge unpacked extension `0.2.2` 已完成仓库内自动化和合成稳定验证；真实邮箱 smoke validation 待用户运行。
+- 已增加扩展版本号、安装/reload 说明、本地服务健康检查、生命周期安全诊断和排障路径。
+- 已形成可重复执行的 release checklist、rollback 步骤和 staged-snapshot 检查。
 - 继续禁止自动发送、删除、归档、移动、转发或回复邮件。
 
 ## 阶段 3：受控邮箱集成

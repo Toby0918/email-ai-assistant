@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-10
+last_update: 2026-07-11
 status: active
 owner: "@tobyWang"
 review_cycle: weekly
@@ -29,8 +29,8 @@ After a user clicks Analyze for the currently opened Tencent Exmail message, dow
 ## Approved Scope
 
 - Accept image, PDF, XLSX, and DOCX resources visible on the currently opened message.
-- Keep downloaded source files in a dedicated local temporary directory for 24 hours, then automatically delete them.
-- Use backend-only local Ollama models. Default to `qwen3.6`; allow `gemma4` through `EMAIL_AGENT_OLLAMA_MODEL`; fall back to rule analysis when either model fails or produces invalid JSON.
+- Keep downloaded source files in a dedicated local temporary directory for 24 hours, then delete expired sources during request processing and local-service start/restart. Do not add a background mailbox poller or always-running cleanup scheduler.
+- Use backend-only local Ollama models. Default to `qwen3.6:latest`; allow `gemma4` through `EMAIL_AGENT_OLLAMA_MODEL`; fall back to rule analysis when either model fails or produces invalid JSON. Keep the provider disabled by default.
 - Use pinned backend dependencies: openai 2.45.0, pypdf 6.14.2, python-docx 1.2.0, Pillow 12.3.0, and pytesseract 0.3.13.
 - Treat `cndlf.com` as the internal business-user domain. Treat other domains as external by default, with a future configurable partner allowlist.
 
@@ -56,7 +56,7 @@ After a user clicks Analyze for the currently opened Tencent Exmail message, dow
 3. The timeline clearly states what happened earlier, current resolution status, latest external request, and the next required action.
 4. Missing or unsupported resources produce a precise limitation entry and do not fail analysis of the email body.
 5. Temporary files are deleted after 24 hours; SQLite stores only structured, redacted insights.
-6. `qwen3.6` is the default model, `gemma4` is an environment-selected alternative, and invalid/unavailable model output falls back to rules.
+6. `qwen3.6:latest` is the default configured model when Ollama is explicitly enabled, `gemma4` is an environment-selected alternative, and invalid/unavailable model output falls back to rules. The provider remains disabled by default.
 
 ## Verification Plan
 
@@ -65,3 +65,11 @@ After a user clicks Analyze for the currently opened Tencent Exmail message, dow
 - API tests for bounded attachment input and graceful parser/model failures.
 - Full `python -m unittest discover -s tests`, JavaScript syntax checks, and `python -B scripts/maintenance_scan.py`.
 
+## Execution Result (2026-07-11)
+
+- Tasks 1-7 and the Task 8 lifecycle/release implementation were completed with automated unit tests, synthetic attachment/thread fixtures, architecture/static guards, JavaScript syntax checks, manifest parsing, documentation metadata checks, and maintenance scanning.
+- Local-service `start` now performs expiry cleanup once before launch. `restart` performs it once before stop/start and uses a no-cleanup internal launch path to avoid duplication. Request-time cleanup remains in place.
+- Lifecycle success output contains only the removed-file count and service state. Cleanup failure returns a fixed actionable error and does not start/restart the service or expose filenames, content, private URLs, cookie/token values, OCR text, or exception paths.
+- Supported inputs and defaults remain image/PDF/XLSX/DOCX, 5 files, 10 MiB per file, 25 MiB total, a backend-owned temporary directory, and 24-hour retention. Missing Tesseract degrades image OCR to metadata-only.
+- Chrome/Edge unpacked extension `0.2.2` is documented with install/reload, health, troubleshooting, rollback, and repeatable release checks.
+- **Pending external validation:** no real Tencent Exmail mailbox or message was accessed during this task. A user-run smoke test against a separately authorized real Tencent Exmail test message remains outstanding and is not represented as executed.

@@ -52,7 +52,7 @@ source_type: operation_guide
 - Produces: immutable `AppConfig` fields `attachment_temp_dir`, `attachment_retention_hours`, `attachment_max_files`, `attachment_max_file_bytes`, `attachment_max_total_bytes`, `internal_email_domains`.
 - Produces: non-sensitive engine labels `Local Qwen`, `Local Gemma`, and `Rule fallback`.
 
-- [ ] **Step 1: Write failing configuration and model-label tests**
+- [x] **Step 1: Write failing configuration and model-label tests**
 
 ```python
 def test_load_config_has_phase_two_defaults(self) -> None:
@@ -66,13 +66,13 @@ def test_configured_engine_label_identifies_gemma(self) -> None:
     self.assertEqual(configured_analysis_engine_label(config), "Local Gemma")
 ```
 
-- [ ] **Step 2: Run the targeted tests and confirm they fail because the fields are absent**
+- [x] **Step 2: Run the targeted tests and confirm they fail because the fields are absent**
 
 Run: `python -m unittest tests.test_config tests.test_llm_client`
 
 Expected: failure referencing missing phase-two configuration or missing Gemma label behavior.
 
-- [ ] **Step 3: Add the minimum approved dependencies and configuration**
+- [x] **Step 3: Add the minimum approved dependencies and configuration**
 
 ```text
 openai==2.45.0
@@ -90,13 +90,13 @@ internal_email_domains=_csv_env("EMAIL_AGENT_INTERNAL_EMAIL_DOMAINS", ("cndlf.co
 
 Update user-facing constraints so the approved scope is current-message-only attachment transfer and backend parsing, not mailbox access or automatic mail actions.
 
-- [ ] **Step 4: Run the targeted tests and architecture/static constraint checks**
+- [x] **Step 4: Run the targeted tests and architecture/static constraint checks**
 
 Run: `python -m unittest tests.test_config tests.test_llm_client tests.test_architecture_constraints tests.test_static_linter_constraints`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit the task**
+- [x] **Step 5: Commit the task**
 
 ```bash
 git add requirements.txt .env.example backend/email_agent/config.py backend/email_agent/llm_client.py AGENTS.md docs/product/feature_scope.md docs/product/roadmap.md docs/security/email_data_handling.md docs/constraints/tooling_constraints.md docs/constraints/architecture_constraints.md docs/constraints/linter_constraints.md tests/test_config.py tests/test_llm_client.py tests/test_architecture_constraints.py tests/test_static_linter_constraints.py
@@ -118,7 +118,7 @@ git commit -m "feat: configure phase two attachment analysis"
 - Produces: `cleanup_expired_attachments(config: AppConfig, now: datetime | None = None) -> int`.
 - `StoredAttachment` contains `safe_filename`, `type`, `path`, `byte_size`, and `expires_at`; it is backend-internal and never serialized into SQLite or the analysis response.
 
-- [ ] **Step 1: Write failing storage and API tests**
+- [x] **Step 1: Write failing storage and API tests**
 
 ```python
 def test_store_attachment_files_rejects_file_over_byte_limit(self) -> None:
@@ -134,13 +134,13 @@ def test_api_rejects_attachment_files_without_user_confirmation(self) -> None:
     self.assertEqual(response["error"]["code"], "USER_ACTION_REQUIRED")
 ```
 
-- [ ] **Step 2: Run targeted tests and confirm the missing-module failure**
+- [x] **Step 2: Run targeted tests and confirm the missing-module failure**
 
 Run: `python -m unittest tests.test_attachment_storage tests.test_api`
 
 Expected: failure because `attachment_storage` and the bounded request behavior do not exist.
 
-- [ ] **Step 3: Implement validation, storage, and local request bounds**
+- [x] **Step 3: Implement validation, storage, and local request bounds**
 
 ```python
 SUPPORTED_ATTACHMENT_TYPES = {"image", "pdf", "xlsx", "docx"}
@@ -152,13 +152,13 @@ def store_attachment_files(files: list[dict[str, object]], config: AppConfig) ->
 
 `server.py` must reject oversized `Content-Length` before reading JSON and return a stable local error. `api.py` must accept attachment bytes only with `user_confirmed is True`, pass `StoredAttachment` values to the analyzer without logging raw content, and always run cleanup before storing new files.
 
-- [ ] **Step 4: Run targeted tests and full server/API regression tests**
+- [x] **Step 4: Run targeted tests and full server/API regression tests**
 
 Run: `python -m unittest tests.test_attachment_storage tests.test_api tests.test_server`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit the task**
+- [x] **Step 5: Commit the task**
 
 ```bash
 git add backend/email_agent/attachment_storage.py backend/email_agent/api.py backend/email_agent/server.py tests/test_attachment_storage.py tests/test_api.py
@@ -179,7 +179,7 @@ git commit -m "feat: add bounded attachment storage"
 - Produces: `parse_attachments(items: list[StoredAttachment]) -> list[dict[str, object]]`.
 - Each output object has `filename`, `type`, `status`, `summary`, `key_facts`, and `limitations` only.
 
-- [ ] **Step 1: Write failing parser tests for every supported type and optional OCR**
+- [x] **Step 1: Write failing parser tests for every supported type and optional OCR**
 
 ```python
 def test_parse_pdf_returns_bounded_text_facts(self) -> None:
@@ -194,13 +194,13 @@ def test_parse_image_marks_ocr_unavailable_without_failing(self) -> None:
     self.assertIn("OCR", result[0]["limitations"][0])
 ```
 
-- [ ] **Step 2: Run parser tests and confirm they fail because the parser is absent**
+- [x] **Step 2: Run parser tests and confirm they fail because the parser is absent**
 
 Run: `python -m unittest tests.test_attachment_parser`
 
 Expected: import failure for `attachment_parser`.
 
-- [ ] **Step 3: Implement type-specific bounded extraction**
+- [x] **Step 3: Implement type-specific bounded extraction**
 
 ```python
 def parse_attachments(items: list[StoredAttachment]) -> list[dict[str, object]]:
@@ -220,13 +220,13 @@ def _parse_one(item: StoredAttachment) -> dict[str, object]:
 
 Use page/sheet/row/character limits. Strip control characters and replace extracted URLs with display-safe text. `pytesseract` failures must become a limitation, not an exception leaving the analysis route.
 
-- [ ] **Step 4: Run parser tests and verify no source text is emitted to logs or stored output**
+- [x] **Step 4: Run parser tests and verify no source text is emitted to logs or stored output**
 
 Run: `python -m unittest tests.test_attachment_parser tests.test_static_linter_constraints`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit the task**
+- [x] **Step 5: Commit the task**
 
 ```bash
 git add backend/email_agent/attachment_parser.py backend/email_agent/attachment_storage.py tests/test_attachment_parser.py tests/fixtures/phase_two
@@ -246,7 +246,7 @@ git commit -m "feat: parse supported email attachments"
 - Produces: `build_conversation_timeline(segments: list[dict[str, str]], internal_domains: tuple[str, ...]) -> dict[str, object]`.
 - Timeline has `previous_context`, `current_status`, `status_reason`, `latest_external_request`, `latest_internal_commitment`, `open_items`, and `confidence`.
 
-- [ ] **Step 1: Write failing timeline tests for internal/external classification and unresolved work**
+- [x] **Step 1: Write failing timeline tests for internal/external classification and unresolved work**
 
 ```python
 def test_timeline_marks_cndlf_sender_as_internal_and_latest_customer_request_open(self) -> None:
@@ -256,13 +256,13 @@ def test_timeline_marks_cndlf_sender_as_internal_and_latest_customer_request_ope
     self.assertEqual(result["open_items"][0]["owner_hint"], "internal_sales")
 ```
 
-- [ ] **Step 2: Run timeline tests and confirm the missing-module failure**
+- [x] **Step 2: Run timeline tests and confirm the missing-module failure**
 
 Run: `python -m unittest tests.test_thread_timeline tests.test_email_cleaner`
 
 Expected: import failure for `thread_timeline`.
 
-- [ ] **Step 3: Implement deterministic thread normalization and status calculation**
+- [x] **Step 3: Implement deterministic thread normalization and status calculation**
 
 ```python
 def build_conversation_timeline(segments, internal_domains):
@@ -274,13 +274,13 @@ def build_conversation_timeline(segments, internal_domains):
 
 Use timestamp order only when it parses; otherwise retain DOM order and lower confidence. Do not infer a matter is resolved from a generic acknowledgement. The latest unresolved external request takes precedence for `open_items` and later reply drafting.
 
-- [ ] **Step 4: Run timeline tests and existing cleaning tests**
+- [x] **Step 4: Run timeline tests and existing cleaning tests**
 
 Run: `python -m unittest tests.test_thread_timeline tests.test_email_cleaner`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit the task**
+- [x] **Step 5: Commit the task**
 
 ```bash
 git add backend/email_agent/thread_timeline.py backend/email_agent/email_cleaner.py tests/test_thread_timeline.py tests/test_email_cleaner.py
@@ -306,7 +306,7 @@ git commit -m "feat: build current email conversation timeline"
 - Consumes: parser output from Task 3 and timeline output from Task 4.
 - Produces: validated `analysis["attachment_insights"]` and `analysis["conversation_timeline"]`.
 
-- [ ] **Step 1: Write failing schema and rule fallback tests**
+- [x] **Step 1: Write failing schema and rule fallback tests**
 
 ```python
 def test_schema_requires_conversation_timeline_and_attachment_insights(self) -> None:
@@ -321,13 +321,13 @@ def test_rule_analysis_explains_latest_unresolved_customer_request(self) -> None
     self.assertIn("客户", result["decision_brief"]["requested_outcome"])
 ```
 
-- [ ] **Step 2: Run targeted tests and confirm required-field failures**
+- [x] **Step 2: Run targeted tests and confirm required-field failures**
 
 Run: `python -m unittest tests.test_analysis_schema tests.test_rule_analyzer tests.test_analyzer`
 
 Expected: failure for missing timeline and attachment-insight validation.
 
-- [ ] **Step 3: Implement schema validation, deterministic fallback, and bounded prompt context**
+- [x] **Step 3: Implement schema validation, deterministic fallback, and bounded prompt context**
 
 ```python
 REQUIRED_RESULT_FIELDS |= {"conversation_timeline", "attachment_insights"}
@@ -341,13 +341,13 @@ def analyze_current_email(email, llm_generate=generate_analysis, analysis_engine
 
 Prompt context must label every email/thread/file field as untrusted, include parser limitations, request Chinese analysis fields and an English reviewed draft, and prohibit unsupported commercial or legal commitments. The repair layer fills missing model fields from the deterministic timeline and insights; it must not invent parsed attachment facts.
 
-- [ ] **Step 4: Run targeted regression tests**
+- [x] **Step 4: Run targeted regression tests**
 
 Run: `python -m unittest tests.test_analysis_schema tests.test_analyzer tests.test_rule_analyzer`
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit the task**
+- [x] **Step 5: Commit the task**
 
 ```bash
 git add backend/email_agent/analysis_schema.py backend/email_agent/analyzer.py backend/email_agent/analysis_repair.py backend/email_agent/rule_analyzer.py backend/email_agent/rule_decision.py docs/data/analysis_result_schema.md docs/prompts/analyzer_prompt.md docs/api/backend_api_contract.md tests/test_analysis_schema.py tests/test_analyzer.py tests/test_rule_analyzer.py
@@ -370,7 +370,7 @@ git commit -m "feat: analyze attachment and thread context"
 - Produces: `payload.thread_segments` and bounded `payload.attachment_files` for only the open message.
 - `attachment_files` entries are `{filename, type, size, content_base64}` and have no cookie, token, or private URL fields.
 
-- [ ] **Step 1: Write failing extension behavior tests**
+- [x] **Step 1: Write failing extension behavior tests**
 
 ```javascript
 opened_message_extracts_thread_segments: () => {
@@ -387,13 +387,13 @@ explicit_click_collects_supported_attachment_bytes_only: async () => {
 }
 ```
 
-- [ ] **Step 2: Run extension behavior tests and confirm missing collection behavior**
+- [x] **Step 2: Run extension behavior tests and confirm missing collection behavior**
 
 Run: `python -m unittest tests.test_browser_extension_behavior tests.test_browser_extension_static tests.test_browser_extension_manifest`
 
 Expected: failure because thread segments and user-click-only byte transfer are absent.
 
-- [ ] **Step 3: Implement DOM-only current-message collection**
+- [x] **Step 3: Implement DOM-only current-message collection**
 
 ```javascript
 async function collectCurrentMessageResources(extraction) {
@@ -410,7 +410,7 @@ async function readSupportedResource(resource) {
 
 Call `collectCurrentMessageResources` only inside the Analyze click path. Enforce the same visible resource count and byte limits before upload. If a resource cannot be fetched from the current page session, include only safe metadata and a limitation. Do not add automated fetches on page load, URL scanning, or access to another tab/frame.
 
-- [ ] **Step 4: Run JavaScript syntax checks and extension tests**
+- [x] **Step 4: Run JavaScript syntax checks and extension tests**
 
 Run: `node --check frontend/browser_extension/content/exmail_adapter.js`
 
@@ -420,7 +420,7 @@ Run: `python -m unittest tests.test_browser_extension_behavior tests.test_browse
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit the task**
+- [x] **Step 5: Commit the task**
 
 ```bash
 git add frontend/browser_extension/manifest.json frontend/browser_extension/content/exmail_adapter.js frontend/browser_extension/shared/api_client.js frontend/browser_extension/popup.js tests/test_browser_extension_behavior.py tests/test_browser_extension_static.py tests/test_browser_extension_manifest.py
@@ -443,7 +443,7 @@ git commit -m "feat: collect current email attachments and thread"
 - Consumes: validated `analysis.conversation_timeline` and `analysis.attachment_insights` from Task 5.
 - Produces: readable side-panel sections that keep Copy Draft visible and render each insight/action as separate DOM nodes.
 
-- [ ] **Step 1: Write failing renderer tests**
+- [x] **Step 1: Write failing renderer tests**
 
 ```javascript
 const timeline = {
@@ -456,13 +456,13 @@ EmailAssistantRender.renderConversationTimeline(fields.timeline, timeline);
 if (fields.timeline.children.length < 3) throw new Error("expected timeline entries");
 ```
 
-- [ ] **Step 2: Run renderer tests and confirm missing render functions**
+- [x] **Step 2: Run renderer tests and confirm missing render functions**
 
 Run: `python -m unittest tests.test_browser_extension_renderer_behavior tests.test_frontend_local_debug`
 
 Expected: failure because the timeline and attachment-insight sections do not exist.
 
-- [ ] **Step 3: Implement structured, scroll-safe rendering**
+- [x] **Step 3: Implement structured, scroll-safe rendering**
 
 ```javascript
 function renderConversationTimeline(field, timeline) {
@@ -477,7 +477,7 @@ function renderConversationTimeline(field, timeline) {
 
 Render parsed attachment summaries and limitations separately. Do not render raw attachment text wholesale, dynamic HTML, or private download URLs. Put the draft label and Copy Draft control in the visible draft header; preserve the current persistent side-panel behavior.
 
-- [ ] **Step 4: Run targeted rendering tests and JavaScript checks**
+- [x] **Step 4: Run targeted rendering tests and JavaScript checks**
 
 Run: `node --check frontend/browser_extension/shared/render_analysis.js`
 
@@ -487,7 +487,7 @@ Run: `python -m unittest tests.test_browser_extension_renderer_behavior tests.te
 
 Expected: PASS.
 
-- [ ] **Step 5: Commit the task**
+- [x] **Step 5: Commit the task**
 
 ```bash
 git add frontend/browser_extension/popup.html frontend/browser_extension/popup.css frontend/browser_extension/popup.js frontend/browser_extension/shared/render_analysis.js frontend/local_debug_page/index.html frontend/local_debug_page/app.js tests/test_browser_extension_renderer_behavior.py tests/test_frontend_local_debug.py
@@ -514,7 +514,7 @@ git commit -m "feat: render thread and attachment insights"
 - Consumes: `cleanup_expired_attachments` from Task 2.
 - Produces: service startup/restart behavior that performs bounded expiry cleanup and status diagnostics without exposing attachment contents.
 
-- [ ] **Step 1: Write failing lifecycle and documentation-oriented tests**
+- [x] **Step 1: Write failing lifecycle and documentation-oriented tests**
 
 ```python
 def test_restart_service_runs_attachment_expiry_cleanup(self) -> None:
@@ -526,13 +526,13 @@ def test_status_output_does_not_include_attachment_file_content(self) -> None:
     self.assertNotIn("synthetic attachment content", output)
 ```
 
-- [ ] **Step 2: Run lifecycle tests and confirm missing cleanup wiring**
+- [x] **Step 2: Run lifecycle tests and confirm missing cleanup wiring**
 
 Run: `python -m unittest tests.test_manage_local_service tests.test_run_local_debug`
 
 Expected: failure because lifecycle cleanup is not called.
 
-- [ ] **Step 3: Wire cleanup into service operations and update operational documentation**
+- [x] **Step 3: Wire cleanup into service operations and update operational documentation**
 
 ```python
 def run_cleanup_before_service_start(config: AppConfig | None = None) -> CleanupResult:
@@ -542,7 +542,7 @@ def run_cleanup_before_service_start(config: AppConfig | None = None) -> Cleanup
 
 Document environment settings, optional Tesseract installation, `qwen3.6` default and `gemma4` switch, 24-hour retention, limitations, reload instructions, and manual Tencent Exmail tests. Regenerate the project status log after implementation.
 
-- [ ] **Step 4: Run full verification**
+- [x] **Step 4: Run full verification**
 
 Run: `python -m unittest discover -s tests`
 
@@ -558,10 +558,9 @@ Run: `node --check frontend/browser_extension/popup.js`
 
 Expected: all commands exit `0`; full test output has no failures; maintenance output reports no cleanup findings.
 
-- [ ] **Step 5: Commit the task**
+- [x] **Step 5: Commit the task**
 
 ```bash
 git add scripts/manage_local_service.py start_local_service.cmd restart_local_service.cmd status_local_service.cmd README.md docs/operations/setup_checklist.md docs/operations/testing_checklist.md docs/operations/deployment_notes.md docs/operations/project_status_log.md docs/operations/phase_two_attachment_thread_task_brief.md tests/test_manage_local_service.py tests/test_run_local_debug.py
 git commit -m "chore: document phase two attachment operations"
 ```
-

@@ -10,6 +10,7 @@
 
 - 用户点击按钮后分析当前打开的一封邮件。
 - 清洗邮件正文并生成结构化分析结果。
+- 在用户点击后，受限传输并解析当前邮件页面可见的图片、PDF、XLSX 和 DOCX 附件，并重建可见会话线程。
 - 展示摘要、优先级、分类、风险点、建议动作和回复草稿。
 - 将分析结果保存到本地 SQLite，用于调试、回看和功能验证。
 
@@ -59,6 +60,22 @@ Copy-Item .env.example .env
 
 OpenAI API key 只能放在后端本地环境或受控部署环境中，不能写入前端、浏览器扩展、Add-in 页面或 docs。
 
+第二阶段本地默认值如下；变量均只由 Python 后端读取：
+
+| 变量 | 默认值 | 用途 |
+|---|---|---|
+| `EMAIL_AGENT_LLM_PROVIDER` | `disabled` | 默认不调用模型；明确设置为 `ollama` 才启用本地 provider |
+| `EMAIL_AGENT_OLLAMA_BASE_URL` | `http://127.0.0.1:11434` | 后端本地 Ollama 地址 |
+| `EMAIL_AGENT_OLLAMA_MODEL` | `qwen3.6:latest` | 启用 Ollama 时的模型；可改为 `gemma4` |
+| `EMAIL_AGENT_OLLAMA_TIMEOUT_SECONDS` | `30` | 本地模型超时秒数 |
+| `EMAIL_AGENT_ATTACHMENT_TEMP_DIR` | `outputs/attachment_temp` | 后端受控临时附件目录 |
+| `EMAIL_AGENT_ATTACHMENT_RETENTION_HOURS` | `24` | 临时源文件保留时间 |
+| `EMAIL_AGENT_ATTACHMENT_MAX_FILES` | `5` | 单次请求最多附件数 |
+| `EMAIL_AGENT_ATTACHMENT_MAX_FILE_BYTES` | `10485760` | 单文件上限（10 MiB） |
+| `EMAIL_AGENT_ATTACHMENT_MAX_TOTAL_BYTES` | `26214400` | 单次请求总上限（25 MiB） |
+
+图片 OCR 使用可选的 Tesseract 可执行程序。Tesseract 缺失或 OCR 失败时，图片降级为仅元数据结果并记录限制；邮件正文和规则兜底仍继续运行。
+
 ## 本地调试运行
 
 第一版使用本地调试页面验证“点击分析当前邮件”的辅助窗口体验，不接入真实邮箱账号。
@@ -71,6 +88,8 @@ python scripts/manage_local_service.py status
 python scripts/manage_local_service.py restart
 python scripts/manage_local_service.py stop
 ```
+
+`start` 会在启动进程前执行一次过期附件清理；`restart` 会在停止和重新启动序列前执行一次，且不会通过嵌套 `start` 重复清理。成功输出只包含删除计数和服务状态。清理失败时命令返回通用可操作错误，不启动或重启服务，也不输出附件名、内容、私有 URL、cookie、token、OCR 文本或异常中的私有路径。请求处理时的既有清理仍保留；项目没有后台邮箱轮询器或常驻清理调度器。
 
 Windows 可直接双击这些快捷脚本：
 
@@ -99,17 +118,30 @@ http://127.0.0.1:8765
 
 Second-stage prototype files live in `frontend/browser_extension`.
 
+Current unpacked extension version: `0.2.2`.
+
 Local use:
 
 1. Start the backend with `start_local_service.cmd` or `python scripts/manage_local_service.py start`.
 2. Open Chrome or Edge extension management.
 3. Choose `Load unpacked`.
 4. Select the `frontend/browser_extension` folder.
-5. Open Tencent Exmail Web at `https://exmail.qq.com/`.
-6. Click the extension icon to open the persistent side panel.
-7. Open one email, then click the side panel's `Analyze current email` button.
+5. Confirm version `0.2.2`. After pulling or copying a new build, click `Reload` on the extension card before testing.
+6. Open Tencent Exmail Web at `https://exmail.qq.com/`.
+7. Click the extension icon to open the persistent side panel.
+8. Open one email, then click the side panel's `Analyze current email` button.
 
 The assistant runs in a persistent side panel, so clicking outside the assistant does not close it. The extension calls only the local backend. It does not store API keys, connect to a mailbox account, scan the mailbox, or automatically send/delete/archive email.
+
+Health and troubleshooting:
+
+- Run `python scripts/manage_local_service.py status`; a healthy managed service reports `running`, its PID, and the loopback URL only.
+- Or request `GET http://127.0.0.1:8765/api/health` and expect HTTP 200.
+- If startup reports attachment cleanup failure, verify `EMAIL_AGENT_ATTACHMENT_TEMP_DIR` and local directory permissions, then retry. The command intentionally omits the failing path.
+- If the extension cannot reach the backend, confirm port `8765`, restart the local service, then reload extension version `0.2.2`.
+- If image text is unavailable, install the Tesseract executable for optional OCR or accept the safe metadata-only degradation.
+
+Automated tests and synthetic fixtures cover the phase-two attachment/thread flow and lifecycle behavior. A manual smoke test against a real Tencent Exmail message has **not** been run by this project task and remains pending user-run external validation with separately authorized mailbox access.
 
 ## 可执行检查
 
