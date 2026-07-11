@@ -140,7 +140,7 @@ source_type: operation_guide
 
 | Status | Count |
 |---|---:|
-| active | 59 |
+| active | 60 |
 | draft | 29 |
 | deprecated | 0 |
 | missing_front_matter | 0 |
