@@ -16,6 +16,7 @@ from .email_cleaner import clean_email_body
 from .llm_client import LlmClientError, configured_analysis_engine_label, generate_analysis
 from .prompt_context import build_untrusted_context, normalize_text_list
 from .rule_analyzer import build_rule_based_analysis
+from .resource_limitations import resource_limitation_insights
 from .thread_timeline import build_conversation_timeline
 
 
@@ -37,7 +38,10 @@ def analyze_current_email(
     if not clean_body:
         raise AnalysisError("Email body is empty.")
     stored_attachments = _stored_attachments(email.get("stored_attachments"))
-    attachment_insights = _parse_attachment_insights(stored_attachments)
+    attachment_insights = project_attachment_insights([
+        *_parse_attachment_insights(stored_attachments),
+        *resource_limitation_insights(email.get("resource_limitations")),
+    ])
     thread_segments = email.get("thread_segments")
     timeline = _build_timeline(
         thread_segments if isinstance(thread_segments, list) else [],

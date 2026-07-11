@@ -69,6 +69,62 @@ class ApiTests(unittest.TestCase):
             self.assertNotIn("not-for-storage", str(stored[0]))
             self.assertTrue(Path(stored[0].path).is_file())
 
+    def test_api_projects_resource_limitations_to_exact_safe_fields(self) -> None:
+        with TemporaryDirectory() as directory:
+            config = replace(load_config(dotenv_path=None), attachment_temp_dir=directory)
+            received: dict[str, object] = {}
+
+            def analyzer(payload: dict[str, object]) -> dict[str, str]:
+                received.update(payload)
+                return {"summary": "ok"}
+
+            response = handle_analyze_current_email(
+                {
+                    "user_confirmed": True,
+                    "subject": "Synthetic request",
+                    "from": "sender@example.test",
+                    "body_text": "Please review the synthetic request.",
+                    "resource_limitations": [
+                        {
+                            "filename": r"C:\private\notes.txt",
+                            "type": "txt",
+                            "size": -3,
+                            "limitation": "Resource type is not supported. https://private.example/token",
+                            "private_url": "https://private.example/download",
+                            "token": "PRIVATE_TOKEN",
+                        },
+                        {
+                            "filename": "large.pdf",
+                            "type": "pdf",
+                            "size": 999,
+                            "limitation": "Resource exceeds the 10-byte per-file limit. C:/private/path",
+                        },
+                    ],
+                },
+                analyzer=analyzer,
+                config=config,
+            )
+
+        self.assertTrue(response["ok"])
+        limitations = received["resource_limitations"]
+        self.assertEqual(len(limitations), 2)
+        self.assertEqual(
+            set(limitations[0]),
+            {"filename", "type", "size", "limitation"},
+        )
+        self.assertEqual(limitations[0]["filename"], "notes.txt")
+        self.assertEqual(limitations[0]["type"], "unsupported")
+        self.assertEqual(limitations[0]["size"], 0)
+        self.assertEqual(limitations[0]["limitation"], "Resource type is not supported.")
+        self.assertEqual(
+            limitations[1]["limitation"],
+            "Resource exceeded a configured frontend limit.",
+        )
+        serialized = str(limitations)
+        for secret in ("private.example", "C:/private", "PRIVATE_TOKEN", "private_url"):
+            with self.subTest(secret=secret):
+                self.assertNotIn(secret, serialized)
+
     def test_handle_analyze_current_email_returns_result_without_email_actions(self) -> None:
         response = handle_analyze_current_email(
             {"user_confirmed": True, "subject": "x", "from": "a@example.com", "body_text": "hi"},

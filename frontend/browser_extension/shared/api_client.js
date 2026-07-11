@@ -29,6 +29,12 @@
           "size",
           "content_base64",
         ]),
+        resource_limitations: projectItems(email.resource_limitations, [
+          "filename",
+          "type",
+          "size",
+          "limitation",
+        ]),
       }),
     });
 

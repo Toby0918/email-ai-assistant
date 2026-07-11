@@ -9,6 +9,7 @@ from uuid import uuid4
 from .analyzer import AnalysisError, analyze_current_email
 from .attachment_storage import AttachmentInputError, cleanup_expired_attachments, store_attachment_files
 from .config import AppConfig, load_config
+from .resource_limitations import project_resource_limitations
 
 
 def handle_analyze_current_email(
@@ -29,6 +30,9 @@ def handle_analyze_current_email(
         analysis_payload = dict(payload)
         analysis_payload.pop("attachment_files", None)
         analysis_payload["stored_attachments"] = stored_attachments
+        analysis_payload["resource_limitations"] = project_resource_limitations(
+            payload.get("resource_limitations")
+        )
         return {
             "ok": True,
             "request_id": f"local-{uuid4().hex}",

@@ -231,6 +231,71 @@ class AnalyzerTests(unittest.TestCase):
             with self.subTest(secret=secret):
                 self.assertNotIn(secret, serialized)
 
+    def test_resource_limitations_become_safe_nonparsed_attachment_insights(self) -> None:
+        result = analyze_current_email(
+            {
+                "subject": "Synthetic attachment review",
+                "from": "customer@example.test",
+                "body_text": "Please review the synthetic attachment set.",
+                "resource_limitations": [
+                    {
+                        "filename": "notes.txt",
+                        "type": "unsupported",
+                        "size": 12,
+                        "limitation": "Resource type is not supported. https://private.example/notes",
+                        "token": "PRIVATE_TOKEN",
+                    },
+                    {
+                        "filename": "large.pdf",
+                        "type": "pdf",
+                        "size": 999999,
+                        "limitation": "Resource exceeds the 10-byte per-file limit.",
+                    },
+                    {
+                        "filename": "unavailable.docx",
+                        "type": "docx",
+                        "size": 0,
+                        "limitation": (
+                            "Resources are unavailable because verified current-message resource controls "
+                            "were not established; body analysis continued. C:/private/file"
+                        ),
+                    },
+                    {
+                        "filename": "failed.pdf",
+                        "type": "pdf",
+                        "size": 0,
+                        "limitation": (
+                            "Resource could not be read from the current Tencent Exmail session. "
+                            "https://private.example/download"
+                        ),
+                    },
+                ],
+            },
+            llm_generate=lambda _prompt: (_ for _ in ()).throw(LlmClientError("disabled")),
+        )
+
+        insights = result["attachment_insights"]
+        self.assertEqual(len(insights), 4)
+        self.assertEqual(
+            [(item["type"], item["status"]) for item in insights],
+            [
+                ("unsupported", "unavailable"),
+                ("pdf", "unavailable"),
+                ("docx", "unavailable"),
+                ("pdf", "failed"),
+            ],
+        )
+        for insight in insights:
+            self.assertEqual(
+                set(insight),
+                {"filename", "type", "status", "summary", "key_facts", "limitations"},
+            )
+            self.assertEqual(insight["key_facts"], [])
+        serialized = json.dumps(insights, ensure_ascii=False)
+        for secret in ("private.example", "C:/private", "PRIVATE_TOKEN", "token"):
+            with self.subTest(secret=secret):
+                self.assertNotIn(secret, serialized)
+
     def test_prompt_marks_bounded_email_thread_and_file_fields_as_untrusted(self) -> None:
         captured: dict[str, str] = {}
 
