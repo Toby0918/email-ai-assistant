@@ -75,15 +75,15 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
             }
 
             class FakeDocument {
-              constructor(body, baseURI = "https://exmail.qq.com/cgi-bin/readmail") {
+              constructor(body, baseURI = "https://exmail.qq.com/cgi-bin/readmail", computedStyle = null) {
                 this.body = body;
                 this.baseURI = baseURI;
                 this.location = new URL(baseURI);
                 this.defaultView = {
-                  getComputedStyle: (element) => ({
+                  getComputedStyle: computedStyle || ((element) => ({
                     display: element.style.display || "block",
                     visibility: element.style.visibility || "visible",
-                  }),
+                  })),
                 };
               }
 
@@ -160,13 +160,40 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
               };
             }
 
-            function loadCollector(fetchImpl) {
+            function streamingResponse(chunks, { contentLength = null } = {}) {
+              const values = chunks.map((chunk) => Uint8Array.from(chunk));
+              const state = { arrayBufferCalls: 0, cancelled: false, readCount: 0 };
+              const reader = {
+                read: async () => {
+                  state.readCount += 1;
+                  const value = values.shift();
+                  return value ? { done: false, value } : { done: true, value: undefined };
+                },
+                cancel: async () => { state.cancelled = true; },
+                releaseLock: () => {},
+              };
+              return {
+                response: {
+                  ok: true,
+                  headers: { get: (name) => name.toLowerCase() === "content-length" ? contentLength : null },
+                  body: { getReader: () => reader },
+                  arrayBuffer: async () => {
+                    state.arrayBufferCalls += 1;
+                    const joined = Uint8Array.from(values.flatMap((value) => Array.from(value)));
+                    return joined.buffer;
+                  },
+                },
+                state,
+              };
+            }
+
+            function loadCollector(fetchImpl, btoaImpl = null) {
               const context = {
                 URL,
                 Uint8Array,
                 ArrayBuffer,
                 fetch: fetchImpl,
-                btoa: (binary) => Buffer.from(binary, "binary").toString("base64"),
+                btoa: btoaImpl || ((binary) => Buffer.from(binary, "binary").toString("base64")),
               };
               context.window = context;
               vm.runInNewContext(source, context, { filename: "current_message_collector.js" });
@@ -261,6 +288,34 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
                 if (result.resource_limitations.length !== 0) throw new Error("hidden resource returned metadata");
               },
 
+              stylesheet_hidden_root_and_resources_are_excluded: async () => {
+                const calls = [];
+                const current = new FakeElement({
+                  attrs: { "data-email-current-message": "true" },
+                  children: [
+                    thread("Hidden ancestor segment"),
+                    resource("hidden-ancestor.pdf", "pdf", "/hidden-ancestor"),
+                  ],
+                });
+                const hiddenAncestor = new FakeElement({ children: [current] });
+                const body = new FakeElement({ tag: "body", children: [hiddenAncestor] });
+                const doc = new FakeDocument(body, "https://exmail.qq.com/cgi-bin/readmail", (element) => ({
+                  display: element === hiddenAncestor ? "none" : "block",
+                  visibility: "visible",
+                }));
+                const api = loadCollector(async (url) => {
+                  calls.push(url);
+                  return response([1]);
+                });
+                const segments = api.extractVisibleThreadSegments(doc, { currentMessageRoot: current });
+                const resources = await api.collectVisibleResources(doc, { currentMessageRoot: current });
+                if (segments.length !== 0) throw new Error("segment beneath hidden ancestor was extracted");
+                if (calls.length !== 0) throw new Error("resource beneath hidden ancestor was fetched");
+                if (resources.attachment_files.length || resources.resource_limitations.length) {
+                  throw new Error("hidden root emitted resource output");
+                }
+              },
+
               supported_same_origin_bytes_use_exact_upload_allowlist: async () => {
                 const calls = [];
                 const doc = messageDocument([
@@ -343,6 +398,67 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
                 if (!messages.includes("total frontend")) throw new Error("total-byte limitation missing");
                 if (!messages.includes("file frontend")) throw new Error("file-count limitation missing");
               },
+
+              missing_content_length_streams_within_budget: async () => {
+                const streamed = streamingResponse([[1, 2], [3]]);
+                const doc = messageDocument([resource("streamed.pdf", "pdf", "/streamed")]);
+                const api = loadCollector(async () => streamed.response);
+                const result = await api.collectVisibleResources(doc, {
+                  limits: { maxFiles: 2, maxFileBytes: 4, maxTotalBytes: 6 },
+                });
+                if (result.attachment_files.length !== 1 || result.resource_limitations.length !== 0) {
+                  throw new Error(`bounded stream was rejected: ${JSON.stringify(result)}`);
+                }
+                if (result.attachment_files[0].content_base64 !== "AQID") throw new Error("stream base64 mismatch");
+                if (streamed.state.arrayBufferCalls !== 0) throw new Error("stream fell back to arrayBuffer");
+              },
+
+              missing_length_without_stream_rejects_before_arraybuffer: async () => {
+                let arrayBufferCalls = 0;
+                const doc = messageDocument([resource("unknown.pdf", "pdf", "/unknown")]);
+                const api = loadCollector(async () => ({
+                  ok: true,
+                  headers: { get: () => null },
+                  arrayBuffer: async () => { arrayBufferCalls += 1; return Uint8Array.from([1, 2]).buffer; },
+                }));
+                const result = await api.collectVisibleResources(doc, {
+                  limits: { maxFiles: 2, maxFileBytes: 4, maxTotalBytes: 6 },
+                });
+                if (arrayBufferCalls !== 0) throw new Error("unbounded arrayBuffer fallback was used");
+                if (result.attachment_files.length !== 0 || result.resource_limitations.length !== 1) {
+                  throw new Error("missing-length fallback did not fail safely");
+                }
+              },
+
+              oversized_stream_cancels_without_upload_and_continues: async () => {
+                const oversized = streamingResponse([[1, 2, 3], [4, 5], [6]], { contentLength: "1" });
+                const safe = streamingResponse([[9, 10]]);
+                const responses = [oversized, safe];
+                let fetchCount = 0;
+                let base64Count = 0;
+                const doc = messageDocument([
+                  resource("oversized.pdf", "pdf", "/oversized"),
+                  resource("safe.pdf", "pdf", "/safe"),
+                ]);
+                const api = loadCollector(
+                  async () => responses[fetchCount++].response,
+                  (binary) => { base64Count += 1; return Buffer.from(binary, "binary").toString("base64"); },
+                );
+                const result = await api.collectVisibleResources(doc, {
+                  limits: { maxFiles: 2, maxFileBytes: 4, maxTotalBytes: 6 },
+                });
+                if (!oversized.state.cancelled) throw new Error("oversized reader was not cancelled");
+                if (oversized.state.readCount !== 2) throw new Error("reader did not stop at the first oversized chunk");
+                if (oversized.state.arrayBufferCalls !== 0 || safe.state.arrayBufferCalls !== 0) {
+                  throw new Error("stream unexpectedly buffered the whole body");
+                }
+                if (fetchCount !== 2) throw new Error("later safe resource was not processed");
+                if (base64Count !== 1) throw new Error("rejected content reached base64 encoding");
+                if (result.attachment_files.length !== 1 || result.attachment_files[0].filename !== "safe.pdf") {
+                  throw new Error(`unexpected uploads: ${JSON.stringify(result)}`);
+                }
+                if (result.resource_limitations.length !== 1) throw new Error("oversized limitation missing");
+              },
             };
 
             (async () => {
@@ -379,6 +495,9 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
     def test_hidden_and_background_resources_are_excluded(self) -> None:
         self.run_node_case("hidden_and_background_resources_are_excluded")
 
+    def test_stylesheet_hidden_root_and_resources_are_excluded(self) -> None:
+        self.run_node_case("stylesheet_hidden_root_and_resources_are_excluded")
+
     def test_supported_same_origin_bytes_use_exact_upload_allowlist(self) -> None:
         self.run_node_case("supported_same_origin_bytes_use_exact_upload_allowlist")
 
@@ -387,6 +506,15 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
 
     def test_count_and_total_byte_bounds_stop_additional_transfer(self) -> None:
         self.run_node_case("count_and_total_byte_bounds_stop_additional_transfer")
+
+    def test_missing_content_length_streams_within_budget(self) -> None:
+        self.run_node_case("missing_content_length_streams_within_budget")
+
+    def test_missing_length_without_stream_rejects_before_arraybuffer(self) -> None:
+        self.run_node_case("missing_length_without_stream_rejects_before_arraybuffer")
+
+    def test_oversized_stream_cancels_without_upload_and_continues(self) -> None:
+        self.run_node_case("oversized_stream_cancels_without_upload_and_continues")
 
 
 if __name__ == "__main__":

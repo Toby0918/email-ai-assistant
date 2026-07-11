@@ -211,14 +211,7 @@
 
   function isVisibleFrameWindow(targetWindow) {
     const frame = targetWindow.frameElement;
-    if (!frame || frame.hidden || (frame.hasAttribute && frame.hasAttribute("hidden"))) {
-      return false;
-    }
-    if (frame.getAttribute && String(frame.getAttribute("aria-hidden") || "").toLowerCase() === "true") {
-      return false;
-    }
-    const style = frame.style || {};
-    return style.display !== "none" && style.visibility !== "hidden" && style.visibility !== "collapse";
+    return Boolean(frame && isVisibleElementInDocument(frame, frame.ownerDocument || null));
   }
 
   function extractFromDocument(doc, allowDocumentBodyFallback) {
@@ -260,11 +253,15 @@
     if (knownBody) {
       return knownBody;
     }
+    if (hasKnownBodyCandidate(doc)) {
+      return null;
+    }
 
     if (
       allowDocumentBodyFallback &&
       isReadMessageDocument(doc) &&
       doc.body &&
+      isVisibleElementInDocument(doc.body, doc) &&
       normalizeText(doc.body.innerText || doc.body.textContent).length >= MIN_BODY_LENGTH
     ) {
       return doc.body;
@@ -277,11 +274,18 @@
     for (const selector of BODY_SELECTORS) {
       const element = doc.querySelector(selector);
       const text = normalizeText(element ? element.innerText || element.textContent : "");
-      if (text.length >= MIN_BODY_LENGTH) {
+      if (text.length >= MIN_BODY_LENGTH && isVisibleElementInDocument(element, doc)) {
         return element;
       }
     }
     return null;
+  }
+
+  function hasKnownBodyCandidate(doc) {
+    return BODY_SELECTORS.some((selector) => {
+      const element = doc.querySelector(selector);
+      return normalizeText(element ? element.innerText || element.textContent : "").length >= MIN_BODY_LENGTH;
+    });
   }
 
   function hasMessageContext(doc, allowDocumentBodyFallback) {
@@ -321,7 +325,7 @@
     for (const selector of selectors) {
       const element = doc.querySelector(selector);
       const text = normalizeText(element ? element.innerText || element.textContent : "");
-      if (text) {
+      if (text && isVisibleElementInDocument(element, doc)) {
         return text;
       }
     }
@@ -411,6 +415,9 @@
 
     const node = selection.getRangeAt(0).commonAncestorContainer;
     const element = node.nodeType === 1 ? node : node.parentElement || node.parentNode;
+    if (!isVisibleElementInDocument(element, doc)) {
+      return false;
+    }
     const bodyElement = findKnownBodyElement(doc);
     if (bodyElement) {
       return Boolean(element && (element === bodyElement || bodyElement.contains(element)));
@@ -434,6 +441,51 @@
       current = current.parentElement || current.parentNode;
     }
     return false;
+  }
+
+  function isVisibleElementInDocument(element, doc) {
+    if (!element) {
+      return false;
+    }
+    let current = element;
+    let reachedBody = !doc || !doc.body;
+    while (current) {
+      if (current.hidden || (current.hasAttribute && current.hasAttribute("hidden"))) {
+        return false;
+      }
+      if (current.getAttribute && String(current.getAttribute("aria-hidden") || "").toLowerCase() === "true") {
+        return false;
+      }
+      if (elementStyleHides(current, doc)) {
+        return false;
+      }
+      if (doc && current === doc.body) {
+        reachedBody = true;
+      }
+      current = current.parentElement || current.parentNode;
+    }
+    return reachedBody;
+  }
+
+  function elementStyleHides(element, doc) {
+    const style = element.style || {};
+    if (style.display === "none" || hiddenVisibility(style.visibility)) {
+      return true;
+    }
+    const view = doc && doc.defaultView;
+    if (!view || typeof view.getComputedStyle !== "function") {
+      return false;
+    }
+    try {
+      const computed = view.getComputedStyle(element);
+      return computed.display === "none" || hiddenVisibility(computed.visibility);
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function hiddenVisibility(value) {
+    return value === "hidden" || value === "collapse";
   }
 
   function normalizeText(value) {

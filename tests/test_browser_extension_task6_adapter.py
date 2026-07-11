@@ -67,7 +67,14 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
               constructor(body, title = "Tencent Exmail") {
                 this.body = body;
                 this.title = title;
-                this.defaultView = { getSelection: () => emptySelection() };
+                this.defaultView = {
+                  getSelection: () => emptySelection(),
+                  getComputedStyle: (element) => ({
+                    display: element.style.display || "block",
+                    visibility: element.style.visibility || "visible",
+                  }),
+                };
+                assignOwnerDocument(body, this);
               }
               querySelector(selector) {
                 return this.body.querySelector(selector);
@@ -76,6 +83,10 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
 
             function allElements(root) {
               return [root, ...root.children.flatMap((child) => allElements(child))];
+            }
+            function assignOwnerDocument(root, doc) {
+              root.ownerDocument = doc;
+              for (const child of root.children) assignOwnerDocument(child, doc);
             }
             function matches(element, selector) {
               if (selector.startsWith("#")) return element.id === selector.slice(1);
@@ -226,6 +237,47 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
                 const result = await pending.responsePromise;
                 if (result.ok) throw new Error("hidden frame message was extracted");
               },
+
+              stylesheet_hidden_frame_message_is_not_extracted: async () => {
+                const topDoc = mailboxDocument();
+                const { doc: hiddenDoc } = openedMessage();
+                const frameElement = new FakeElement({ tag: "iframe" });
+                frameElement.ownerDocument = topDoc;
+                frameElement.parentElement = topDoc.body;
+                frameElement.parentNode = topDoc.body;
+                topDoc.body.children.push(frameElement);
+                topDoc.defaultView.getComputedStyle = (element) => ({
+                  display: element === frameElement ? "none" : "block",
+                  visibility: "visible",
+                });
+                const hiddenWindow = { document: hiddenDoc, frames: [], frameElement };
+                const result = await beginDispatch(loadAdapter(topDoc, null, [hiddenWindow])).responsePromise;
+                if (result.ok) throw new Error("stylesheet-hidden frame message was extracted");
+              },
+
+              stylesheet_hidden_message_root_is_not_selected: async () => {
+                const subject = new FakeElement({ tag: "h1", id: "subject", text: "Hidden request" });
+                const messageText = "From: hidden@example.test\nHidden message body";
+                const currentRoot = new FakeElement({ className: "mail-content", text: messageText });
+                const hiddenAncestor = new FakeElement({ children: [currentRoot] });
+                const body = new FakeElement({ tag: "body", text: messageText, children: [subject, hiddenAncestor] });
+                const doc = new FakeDocument(body);
+                doc.defaultView.getComputedStyle = (element) => ({
+                  display: element === hiddenAncestor ? "none" : "block",
+                  visibility: "visible",
+                });
+                let collectorCalls = 0;
+                const collector = {
+                  extractVisibleThreadSegments: () => { collectorCalls += 1; return []; },
+                  collectVisibleResources: async () => { collectorCalls += 1; return {
+                    attachment_files: [], resource_limitations: [],
+                  }; },
+                };
+                const result = await beginDispatch(loadAdapter(doc, collector)).responsePromise;
+                if (result.ok || collectorCalls !== 0) {
+                  throw new Error("stylesheet-hidden current-message root was selected");
+                }
+              },
             };
 
             (async () => {
@@ -261,6 +313,12 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
 
     def test_hidden_frame_message_is_not_extracted(self) -> None:
         self.run_node_case("hidden_frame_message_is_not_extracted")
+
+    def test_stylesheet_hidden_frame_message_is_not_extracted(self) -> None:
+        self.run_node_case("stylesheet_hidden_frame_message_is_not_extracted")
+
+    def test_stylesheet_hidden_message_root_is_not_selected(self) -> None:
+        self.run_node_case("stylesheet_hidden_message_root_is_not_selected")
 
 
 if __name__ == "__main__":

@@ -206,6 +206,8 @@
 
   function isVisibleWithin(element, boundary, doc) {
     let current = element;
+    let reachedBoundary = false;
+    let reachedDocumentBody = !doc || !doc.body;
     while (current) {
       if (current.hidden || hasAttribute(current, "hidden")) {
         return false;
@@ -217,11 +219,14 @@
         return false;
       }
       if (current === boundary) {
-        return true;
+        reachedBoundary = true;
+      }
+      if (doc && current === doc.body) {
+        reachedDocumentBody = true;
       }
       current = current.parentElement || current.parentNode;
     }
-    return false;
+    return reachedBoundary && reachedDocumentBody;
   }
 
   function styleHides(element, doc) {
@@ -314,11 +319,18 @@
         return { limitation: "Resource could not be read from the current Tencent Exmail session." };
       }
       const announcedSize = responseByteSize(response);
-      const announcedLimitation = byteLimitation(announcedSize, limits, totalBytes);
-      if (announcedLimitation) {
-        return { limitation: announcedLimitation };
+      if (announcedSize !== null) {
+        const announcedLimitation = byteLimitation(announcedSize, limits, totalBytes);
+        if (announcedLimitation) {
+          await cancelResponseBody(response);
+          return { limitation: announcedLimitation };
+        }
       }
-      const buffer = await response.arrayBuffer();
+      const bodyResult = await readBoundedResponse(response, announcedSize, limits, totalBytes);
+      if (bodyResult.limitation) {
+        return { limitation: bodyResult.limitation };
+      }
+      const buffer = bodyResult.buffer;
       const byteSize = buffer && Number.isSafeInteger(buffer.byteLength) ? buffer.byteLength : 0;
       if (byteSize <= 0) {
         return { limitation: "Resource is empty or unreadable." };
@@ -340,6 +352,117 @@
     }
   }
 
+  async function readBoundedResponse(response, announcedSize, limits, totalBytes) {
+    const body = response.body;
+    if (body && typeof body.getReader === "function") {
+      return readBoundedStream(body, limits, totalBytes);
+    }
+    if (announcedSize === null || typeof response.arrayBuffer !== "function") {
+      return { limitation: "Resource response size could not be verified safely." };
+    }
+    return { buffer: await response.arrayBuffer() };
+  }
+
+  async function readBoundedStream(body, limits, totalBytes) {
+    const reader = body.getReader();
+    const chunks = [];
+    let byteSize = 0;
+    try {
+      while (true) {
+        const item = await reader.read();
+        if (!item || item.done) {
+          break;
+        }
+        const chunk = streamChunk(item.value);
+        if (!chunk) {
+          await cancelReader(reader);
+          return { limitation: "Resource could not be read from the current Tencent Exmail session." };
+        }
+        const nextSize = byteSize + chunk.byteLength;
+        const limitation = byteLimitation(nextSize, limits, totalBytes);
+        if (limitation) {
+          await cancelReader(reader);
+          return { limitation };
+        }
+        if (chunk.byteLength > 0) {
+          chunks.push(new Uint8Array(chunk));
+          byteSize = nextSize;
+        }
+      }
+      return { buffer: concatenateChunks(chunks, byteSize) };
+    } catch (error) {
+      await cancelReader(reader);
+      return { limitation: "Resource could not be read from the current Tencent Exmail session." };
+    } finally {
+      releaseReader(reader);
+    }
+  }
+
+  function streamChunk(value) {
+    if (value instanceof Uint8Array) {
+      return value;
+    }
+    if (value instanceof ArrayBuffer) {
+      return new Uint8Array(value);
+    }
+    if (value && ArrayBuffer.isView(value)) {
+      return new Uint8Array(value.buffer, value.byteOffset, value.byteLength);
+    }
+    return null;
+  }
+
+  function concatenateChunks(chunks, byteSize) {
+    const combined = new Uint8Array(byteSize);
+    let offset = 0;
+    for (const chunk of chunks) {
+      combined.set(chunk, offset);
+      offset += chunk.byteLength;
+    }
+    return combined.buffer;
+  }
+
+  async function cancelResponseBody(response) {
+    const body = response && response.body;
+    if (!body) {
+      return;
+    }
+    if (typeof body.cancel === "function") {
+      try {
+        await body.cancel();
+      } catch (error) {
+        return;
+      }
+      return;
+    }
+    if (typeof body.getReader === "function") {
+      const reader = body.getReader();
+      await cancelReader(reader);
+      releaseReader(reader);
+    }
+  }
+
+  async function cancelReader(reader) {
+    if (!reader || typeof reader.cancel !== "function") {
+      return;
+    }
+    try {
+      await reader.cancel();
+    } catch (error) {
+      return;
+    }
+  }
+
+  function releaseReader(reader) {
+    if (!reader || typeof reader.releaseLock !== "function") {
+      return;
+    }
+    try {
+      reader.releaseLock();
+    } catch (error) {
+      return;
+    }
+  }
+
   function byteLimitation(byteSize, limits, totalBytes) {
     if (!byteSize) {
       return "";
@@ -356,9 +479,14 @@
   function responseByteSize(response) {
     const headers = response.headers;
     if (!headers || typeof headers.get !== "function") {
-      return 0;
+      return null;
     }
-    return declaredByteSize(headers.get("content-length"));
+    const value = normalizeText(headers.get("content-length"));
+    if (!/^\d+$/.test(value)) {
+      return null;
+    }
+    const parsed = Number(value);
+    return Number.isSafeInteger(parsed) && parsed >= 0 ? parsed : null;
   }
 
   function arrayBufferToBase64(buffer) {
