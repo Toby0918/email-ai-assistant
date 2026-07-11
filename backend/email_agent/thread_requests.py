@@ -10,39 +10,18 @@ from .thread_clauses import (
     SENTENCE_SPLIT_RE,
     split_evidence_clauses,
 )
+from .thread_intent import (
+    has_request_intent,
+    has_request_syntax,
+    is_coordinated_request_title,
+    is_non_request_detail,
+)
+from .thread_outcomes import evidence_flags, has_outcome_evidence
 
 
 MAX_REQUEST_ATOMS_PER_EVENT = 16
 MAX_REQUEST_ATOM_CHARS = 240
 
-_REQUEST_RE = re.compile(
-    r"\b(please|could you|need|confirm|provide)\b|"
-    r"\b(?:rfq|quote|quotation|pricing|certificate|shipment|sample|invoice|payment|contract|order)\s+request\b|"
-    r"\brequest(?:ing|ed)?\s+(?:rfq|quote|quotation|pricing|certificate|shipment|sample|invoice|payment|contract|order)\b|"
-    r"请|麻烦|需要|确认|提供",
-    re.IGNORECASE,
-)
-_DIRECT_REQUEST_RE = re.compile(
-    r"\b(please|could you|need|provide)\b|请|麻烦|需要|提供",
-    re.IGNORECASE,
-)
-_ACKNOWLEDGEMENT_RE = re.compile(
-    r"\b(thanks?|received|acknowledged|noted)\b|谢谢|收到|已收悉",
-    re.IGNORECASE,
-)
-_NON_REQUEST_DETAIL_RE = re.compile(
-    r"\b(is|are|was|were|has|have|had|attached|received|completed|resolved|pending|reference)\b|"
-    r"已附|附件|供参考|已收到|已完成|待确认",
-    re.IGNORECASE,
-)
-_OUTCOME_RE = re.compile(
-    r"\b(resolved|completed|closed|has been sent|delivered)\b|已(?:解决|完成|关闭|发送|处理完成)",
-    re.IGNORECASE,
-)
-_BLOCKER_RE = re.compile(
-    r"\b(blocked|pending|unable|missing)\b|无法|缺少|待确认|阻塞",
-    re.IGNORECASE,
-)
 _IDENTIFIER_SUFFIX = (
     r"(?=[A-Z0-9-]{2,32}(?![A-Z0-9_-]))"
     r"(?=[A-Z0-9-]{0,31}\d)[A-Z0-9-]{2,32}"
@@ -65,35 +44,29 @@ _TOPIC_PATTERNS = (
 )
 
 
-def _has_request_intent(text: str) -> bool:
-    if _REQUEST_RE.search(text) is None:
-        return False
-    return _DIRECT_REQUEST_RE.search(text) is not None or _ACKNOWLEDGEMENT_RE.search(text) is None
-
-
 def extract_request_atoms(
     text: str, due_hint: str
 ) -> tuple[tuple[dict[str, object], ...], bool]:
-    if _REQUEST_RE.search(text) is None:
+    if not has_request_syntax(text):
         return (), True
 
     atoms: list[dict[str, object]] = []
     sentences = [sentence.strip() for sentence in SENTENCE_SPLIT_RE.split(text) if sentence.strip()]
     for sentence in sentences:
-        if not _has_request_intent(sentence):
+        if not has_request_intent(sentence):
             continue
         comma_intent = False
         clauses = [part.strip() for part in COMMA_SPLIT_RE.split(sentence) if part.strip()]
         for clause in clauses:
-            explicit_intent = _has_request_intent(clause)
+            explicit_intent = has_request_intent(clause)
             inherited_intent = comma_intent and _is_bare_requested_item(clause)
             if not explicit_intent and not inherited_intent:
                 comma_intent = False
                 continue
             fragments = [part.strip() for part in CONJUNCTION_SPLIT_RE.split(clause) if part.strip()]
-            intent_seen = inherited_intent
+            intent_seen = inherited_intent or is_coordinated_request_title(clause)
             for fragment in fragments:
-                fragment_has_intent = _has_request_intent(fragment)
+                fragment_has_intent = has_request_intent(fragment)
                 if fragment_has_intent:
                     intent_seen = True
                 elif intent_seen and not _is_bare_requested_item(fragment):
@@ -112,7 +85,7 @@ def extract_request_atoms(
 
 
 def _is_bare_requested_item(text: str) -> bool:
-    if _NON_REQUEST_DETAIL_RE.search(text) is not None:
+    if is_non_request_detail(text):
         return False
     return _IDENTIFIER_RE.search(text) is not None or bool(extract_topics(text))
 
@@ -148,10 +121,9 @@ def _request_identity(
 
 def extract_outcome_atoms(text: str) -> tuple[dict[str, object], ...]:
     atoms: list[dict[str, object]] = []
-    clauses = split_evidence_clauses(text, _has_outcome_evidence, _has_atomic_context)
+    clauses = split_evidence_clauses(text, has_outcome_evidence, _has_atomic_context)
     for clause in clauses:
-        outcome = _OUTCOME_RE.search(clause) is not None
-        blocker = _BLOCKER_RE.search(clause) is not None
+        outcome, blocker = evidence_flags(clause)
         if not outcome and not blocker:
             continue
         atoms.append(
@@ -165,10 +137,6 @@ def extract_outcome_atoms(text: str) -> tuple[dict[str, object], ...]:
     return tuple(atoms)
 
 
-def _has_outcome_evidence(text: str) -> bool:
-    return _OUTCOME_RE.search(text) is not None or _BLOCKER_RE.search(text) is not None
-
-
 def _has_atomic_context(text: str) -> bool:
     return _IDENTIFIER_RE.search(text) is not None or bool(extract_topics(text))
 
@@ -179,26 +147,6 @@ def extract_identifiers(text: str) -> tuple[str, ...]:
 
 def extract_topics(text: str) -> tuple[str, ...]:
     return tuple(name for name, pattern in _TOPIC_PATTERNS if pattern.search(text))
-
-
-def track_request_states(
-    events: list[dict[str, object]],
-) -> tuple[list[dict[str, object]], bool]:
-    states: list[dict[str, object]] = []
-    coverage_complete = True
-    for event in events:
-        coverage_complete = coverage_complete and bool(event["request_coverage_complete"])
-        for outcome_atom in event["outcome_atoms"]:
-            matching_index = _matching_request_index(states, outcome_atom)
-            if matching_index is not None:
-                if outcome_atom["blocker"]:
-                    states[matching_index]["blocked"] = True
-                elif outcome_atom["outcome"]:
-                    states[matching_index]["resolved"] = True
-                    states[matching_index]["blocked"] = False
-        for atom in event["request_atoms"]:
-            states.append({"event": atom, "resolved": False, "blocked": False})
-    return states, coverage_complete
 
 
 def _atoms_from_clause(clause: str, due_hint: str) -> list[dict[str, object]]:
@@ -268,29 +216,3 @@ def _make_atom(
         "identifiers": identifiers,
         "topics": topics,
     }
-
-
-def _matching_request_index(
-    states: list[dict[str, object]], outcome: dict[str, object]
-) -> int | None:
-    candidates = [index for index, state in enumerate(states) if not state["resolved"]]
-    outcome_identifiers = set(outcome["identifiers"])
-    if outcome_identifiers:
-        matches = [
-            index
-            for index in candidates
-            if outcome_identifiers.intersection(_event(states[index])["identifiers"])
-        ]
-        return matches[0] if len(matches) == 1 else None
-    outcome_topics = set(outcome["topics"])
-    matches = [
-        index
-        for index in candidates
-        if outcome_topics.intersection(_event(states[index])["topics"])
-    ]
-    return matches[0] if outcome_topics and len(matches) == 1 else None
-
-
-def _event(state: dict[str, object]) -> dict[str, object]:
-    event = state["event"]
-    return event if isinstance(event, dict) else {}

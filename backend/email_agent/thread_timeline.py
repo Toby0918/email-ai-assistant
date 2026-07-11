@@ -4,20 +4,17 @@ from __future__ import annotations
 
 import re
 
+from .thread_participants import participant_role
+from .thread_outcomes import track_request_states
 from .thread_requests import (
     extract_outcome_atoms,
     extract_request_atoms,
     merge_request_atom_sources,
-    track_request_states,
 )
 from .thread_segments import normalize_and_order_segments
 
 
 _MAX_SIGNAL_CHARS = 2_600
-_ADDRESS_RE = re.compile(
-    r"[A-Z0-9._%+-]+@(?P<domain>[A-Z0-9.-]+\.[A-Z]{2,})",
-    re.IGNORECASE,
-)
 _COMMITMENT_RE = re.compile(
     r"\b(will|plan|expect|arrange|follow up)\b|将|计划|预计|尽快|安排",
     re.IGNORECASE,
@@ -40,7 +37,7 @@ def _extract_event(segment: dict[str, object], internal_domains: tuple[str, ...]
     subject = str(segment["subject"])
     body = str(segment["body"])
     signal_text = _combine_text(subject, body, "\n")[:_MAX_SIGNAL_CHARS]
-    role = _participant_role(str(segment["sender"]), internal_domains)
+    role = participant_role(str(segment["sender"]), internal_domains)
     due_hint = _match_text(_DATE_RE, signal_text)
     request_atoms, coverage_complete = (
         _external_request_atoms(subject, body, due_hint) if role == "external" else ((), True)
@@ -185,13 +182,6 @@ def _event_identifier(event: object) -> str:
 
 def _event_dict(value: object) -> dict[str, object]:
     return value if isinstance(value, dict) else {}
-
-
-def _participant_role(sender: str, internal_domains: tuple[str, ...]) -> str:
-    match = _ADDRESS_RE.search(sender)
-    if match is None:
-        return "unknown"
-    return "internal" if match.group("domain").lower() in internal_domains else "external"
 
 
 def _normalize_domains(internal_domains: object) -> tuple[str, ...]:
