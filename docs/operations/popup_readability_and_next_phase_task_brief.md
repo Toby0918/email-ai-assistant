@@ -31,7 +31,7 @@ Make long RFQ-style analysis results readable in the popup by rendering risks, a
 
 ## Background
 
-Manual Tencent Exmail testing showed that long RFQ numbers, URLs, attachment names, risk evidence, and action descriptions are hard to read when displayed as one-line comma-separated text in the extension popup. A follow-up manual test also showed that long analysis content can hide the copy-draft button, and URL text inside risks/actions needs to be clickable.
+Prior user-provided Tencent Exmail trial feedback indicated that long RFQ numbers, URLs, attachment names, risk evidence, and action descriptions are hard to read when displayed as one-line comma-separated text in the extension popup. Follow-up user-provided feedback also indicated that long analysis content can hide the copy-draft button, and URL text inside risks/actions needs to be clickable.
 
 ## Scope
 

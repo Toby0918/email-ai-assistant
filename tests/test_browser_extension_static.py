@@ -258,10 +258,62 @@ class BrowserExtensionStaticTests(unittest.TestCase):
         self.assertIn("chrome.sidePanel.setPanelBehavior", script)
         self.assertIn("openPanelOnActionClick: true", script)
         self.assertIn("chrome.runtime.onInstalled.addListener", script)
-        self.assertNotIn("chrome.action.onClicked", script)
-        self.assertNotIn("sendMail", script)
-        self.assertNotIn("deleteMessage", script)
-        self.assertNotIn("archiveMessage", script)
+        forbidden = [
+            "chrome.action.onClicked",
+            "chrome.tabs",
+            "chrome.scripting",
+            "chrome.cookies",
+            "chrome.storage",
+            "fetch(",
+            "XMLHttpRequest",
+            "sendMail",
+            "archiveMessage",
+            "deleteMessage",
+            "trashMessage",
+            "messages.trash",
+            "messages.modify",
+            "moveMessage",
+            "forwardMessage",
+        ]
+        for marker in forbidden:
+            with self.subTest(marker=marker):
+                self.assertNotIn(marker, script)
+
+    def test_historical_task_briefs_attribute_observations_to_prior_user_feedback(self) -> None:
+        expectations = {
+            "browser_extension_side_panel_task_brief.md": [
+                "Prior user-reported Tencent Exmail trial feedback indicated",
+            ],
+            "popup_readability_and_next_phase_task_brief.md": [
+                "Prior user-provided Tencent Exmail trial feedback indicated",
+                "Follow-up user-provided feedback also indicated",
+            ],
+            "decision_brief_analysis_task_brief.md": [
+                "用户此前提供的 Tencent Exmail 试用反馈指出",
+            ],
+        }
+
+        for filename, required_phrases in expectations.items():
+            text = (ROOT / "docs" / "operations" / filename).read_text(encoding="utf-8")
+            for phrase in required_phrases:
+                with self.subTest(filename=filename, phrase=phrase):
+                    self.assertIn(phrase, text)
+
+    def test_historical_task_briefs_avoid_direct_manual_validation_claims(self) -> None:
+        briefs = [
+            ROOT / "docs" / "operations" / "browser_extension_side_panel_task_brief.md",
+            ROOT / "docs" / "operations" / "popup_readability_and_next_phase_task_brief.md",
+            ROOT / "docs" / "operations" / "decision_brief_analysis_task_brief.md",
+        ]
+        combined = "\n".join(path.read_text(encoding="utf-8") for path in briefs)
+
+        for unsupported_claim in (
+            "Manual Tencent Exmail testing showed",
+            "A follow-up manual test also showed",
+            "真实 Tencent Exmail 测试中",
+        ):
+            with self.subTest(unsupported_claim=unsupported_claim):
+                self.assertNotIn(unsupported_claim, combined)
 
     def test_side_panel_docs_describe_persistent_behavior(self) -> None:
         readme = (ROOT / "README.md").read_text(encoding="utf-8")

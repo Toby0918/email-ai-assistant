@@ -20,6 +20,7 @@ class BrowserExtensionManifestTests(unittest.TestCase):
         manifest = self.load_manifest()
 
         self.assertEqual(manifest["manifest_version"], 3)
+        self.assertEqual(manifest["version"], "0.2.2")
         self.assertEqual(manifest["name"], "Email AI Assistant for Tencent Exmail")
         self.assertIn("action", manifest)
 

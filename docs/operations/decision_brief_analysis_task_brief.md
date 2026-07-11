@@ -44,7 +44,7 @@ implemented
 
 ## 6. 背景与依据
 
-背景：真实 Tencent Exmail 测试中，原 summary、risks 和 actions 仍不足以让用户快速判断邮件要点和下一步动作。用户确认执行方案 A：先增加决策摘要和证据化结构，再进入附件/图片辅助分析。
+背景：用户此前提供的 Tencent Exmail 试用反馈指出，原 summary、risks 和 actions 仍不足以让用户快速判断邮件要点和下一步动作。用户确认执行方案 A：先增加决策摘要和证据化结构，再进入附件/图片辅助分析。
 
 相关文档：
 

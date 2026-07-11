@@ -32,7 +32,7 @@ When the user clicks the extension icon, the Email AI Assistant should stay visi
 
 ## Background
 
-Manual Tencent Exmail testing showed that the current action popup disappears after clicking elsewhere in the browser. Chrome / Edge action popups are transient by design. The persistent extension surface for this use case is the browser side panel.
+Prior user-reported Tencent Exmail trial feedback indicated that the current action popup disappears after clicking elsewhere in the browser. Chrome / Edge action popups are transient by design. The persistent extension surface for this use case is the browser side panel.
 
 ## Scope
 
