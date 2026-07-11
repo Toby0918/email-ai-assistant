@@ -266,6 +266,113 @@ class FrontendLocalDebugTests(unittest.TestCase):
         if result.returncode != 0:
             self.fail(result.stderr or result.stdout)
 
+    def test_local_debug_ignores_out_of_order_older_response(self) -> None:
+        if shutil.which("node") is None:
+            self.skipTest("Node.js is required for local debug behavior tests")
+
+        app = FRONTEND / "app.js"
+        script = textwrap.dedent(
+            r"""
+            const fs = require("fs");
+            const vm = require("vm");
+            const source = fs.readFileSync(__APP__, "utf8");
+            function deferred() {
+              let resolve;
+              const promise = new Promise((yes) => { resolve = yes; });
+              return { promise, resolve };
+            }
+            async function waitFor(predicate) {
+              for (let index = 0; index < 50; index += 1) {
+                if (predicate()) return;
+                await new Promise((resolve) => setTimeout(resolve, 0));
+              }
+              throw new Error("request did not start");
+            }
+            function analysis(marker) {
+              return {
+                priority: "normal", summary: marker, category: "unknown",
+                analysis_engine: { label: "Rule fallback" },
+                decision_brief: {}, conversation_timeline: {}, attachment_insights: [],
+                risk_flags: [], suggested_actions: [], reply_draft: { body: `Draft ${marker}` },
+              };
+            }
+            const listeners = new Map();
+            const elements = new Map();
+            function element(selector) {
+              if (!elements.has(selector)) {
+                elements.set(selector, {
+                  value: selector === "#subject" ? "Synthetic" :
+                    selector === "#from" ? "sender@example.test" :
+                    selector === "#body" ? "Synthetic body" : "",
+                  textContent: "", disabled: false, children: [], className: "",
+                  addEventListener: (type, callback) => listeners.set(`${selector}:${type}`, callback),
+                  replaceChildren(...children) {
+                    this.children = children;
+                    this.textContent = children.map((item) => item.textContent || "").join("\n");
+                  },
+                  appendChild(child) { this.children.push(child); return child; },
+                });
+              }
+              return elements.get(selector);
+            }
+            const first = deferred();
+            const second = deferred();
+            const queue = [first, second];
+            let fetchCalls = 0;
+            const context = {
+              AbortController, setTimeout, clearTimeout,
+              document: {
+                querySelector: element,
+                createElement: () => element(`#created-${Math.random()}`),
+                createTextNode: (text) => ({ textContent: String(text), children: [] }),
+              },
+              navigator: { clipboard: { writeText: async () => {} } },
+              fetch: async () => {
+                const gate = queue[fetchCalls++];
+                const payload = await gate.promise;
+                return { json: async () => payload };
+              },
+            };
+            context.window = context;
+            vm.runInNewContext(source, context, { filename: "app.js" });
+
+            (async () => {
+              const analyze = listeners.get("#analyze-button:click");
+              const older = analyze();
+              await waitFor(() => fetchCalls === 1);
+              const newer = analyze();
+              await waitFor(() => fetchCalls === 2);
+              second.resolve({ ok: true, saved_id: 2, analysis: analysis("newer") });
+              await newer;
+              first.resolve({ ok: true, saved_id: 1, analysis: analysis("older") });
+              await older;
+              if (elements.get("#summary").textContent !== "newer") {
+                throw new Error(`older response overwrote summary: ${elements.get("#summary").textContent}`);
+              }
+              if (elements.get("#draft").value !== "Draft newer") {
+                throw new Error(`older response overwrote draft: ${elements.get("#draft").value}`);
+              }
+              if (elements.get("#status").textContent !== "Saved #2") {
+                throw new Error(`older response overwrote status: ${elements.get("#status").textContent}`);
+              }
+            })().catch((error) => {
+              console.error(error && error.stack ? error.stack : error);
+              process.exitCode = 1;
+            });
+            """
+        ).replace("__APP__", repr(str(app)))
+        result = subprocess.run(
+            ["node", "-e", script],
+            cwd=ROOT,
+            capture_output=True,
+            encoding="utf-8",
+            text=True,
+            check=False,
+            timeout=10,
+        )
+        if result.returncode != 0:
+            self.fail(result.stderr or result.stdout)
+
     def test_local_debug_page_files_exist(self) -> None:
         # This first-version frontend is intentionally local and mailbox-free.
         self.assertTrue((FRONTEND / "index.html").exists())
@@ -320,7 +427,8 @@ class FrontendLocalDebugTests(unittest.TestCase):
         self.assertIn("try {", script)
         self.assertIn("catch (error)", script)
         self.assertIn("Local analysis service unavailable", script)
-        self.assertIn('clearAnalysis();\n    fields.status.textContent = "Local analysis service unavailable"', script)
+        self.assertIn("generation === analysisGeneration", script)
+        self.assertIn('fields.status.textContent = "Local analysis service unavailable"', script)
 
     def test_local_debug_page_renders_chinese_feedback_labels(self) -> None:
         script = (FRONTEND / "app.js").read_text(encoding="utf-8")

@@ -22,6 +22,7 @@ const fields = {
 };
 
 const ANALYZE_TIMEOUT_MS = 15000;
+let analysisGeneration = 0;
 
 const PRIORITY_LABELS = {
   urgent: "紧急",
@@ -98,6 +99,7 @@ const ATTACHMENT_UNC_PATH_MARKER_PATTERN = /\\\\/;
 const ATTACHMENT_POSIX_PATH_MARKER_PATTERN = /(^|[\s="'(=：])\/[A-Za-z0-9._-]/;
 
 fields.analyzeButton.addEventListener("click", async () => {
+  const generation = ++analysisGeneration;
   fields.analyzeButton.disabled = true;
   try {
     clearAnalysis();
@@ -113,6 +115,9 @@ fields.analyzeButton.addEventListener("click", async () => {
         body_text: fields.body.value,
         attachments,
     });
+    if (generation !== analysisGeneration) {
+      return;
+    }
     if (!data.ok) {
       clearAnalysis();
       fields.status.textContent = data.error?.message || "Analysis failed";
@@ -121,10 +126,14 @@ fields.analyzeButton.addEventListener("click", async () => {
     renderAnalysis(data.analysis);
     fields.status.textContent = `Saved #${data.saved_id}`;
   } catch (error) {
-    clearAnalysis();
-    fields.status.textContent = "Local analysis service unavailable";
+    if (generation === analysisGeneration) {
+      clearAnalysis();
+      fields.status.textContent = "Local analysis service unavailable";
+    }
   } finally {
-    fields.analyzeButton.disabled = false;
+    if (generation === analysisGeneration) {
+      fields.analyzeButton.disabled = false;
+    }
   }
 });
 

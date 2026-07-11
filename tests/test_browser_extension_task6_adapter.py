@@ -313,6 +313,35 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
                 }
               },
 
+              metadata_revalidation_never_collects_resources: async () => {
+                const { doc } = openedMessage();
+                let collectorCalls = 0;
+                const collector = {
+                  extractVisibleThreadSegments: () => { collectorCalls += 1; return []; },
+                  collectVisibleResources: async () => {
+                    collectorCalls += 1;
+                    return { attachment_files: [], resource_limitations: [] };
+                  },
+                };
+                const pending = beginDispatch(
+                  loadAdapter(doc, collector),
+                  { type: "REVALIDATE_CURRENT_EMAIL" },
+                );
+                if (pending.keepAlive !== true) {
+                  throw new Error("metadata revalidation message was not handled asynchronously");
+                }
+                const result = await pending.responsePromise;
+                if (collectorCalls !== 0) throw new Error("metadata revalidation collected resources");
+                assertExactKeys(result, ["ok", "message_fingerprint"], "revalidation response");
+                if (!result.ok || !/^msg-v1-[a-f0-9]{16}$/.test(result.message_fingerprint)) {
+                  throw new Error(`unsafe fingerprint response: ${JSON.stringify(result)}`);
+                }
+                const serialized = JSON.stringify(result);
+                for (const forbidden of ["Synthetic request", "sender@example.test", "visible message"]) {
+                  if (serialized.includes(forbidden)) throw new Error(`raw message metadata leaked: ${forbidden}`);
+                }
+              },
+
               hidden_frame_message_is_not_extracted: async () => {
                 const topDoc = mailboxDocument();
                 const { doc: hiddenDoc } = openedMessage();
@@ -399,6 +428,9 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
 
     def test_unverified_host_controls_keep_body_analysis_safe(self) -> None:
         self.run_node_case("unverified_host_controls_keep_body_analysis_safe")
+
+    def test_metadata_revalidation_never_collects_resources(self) -> None:
+        self.run_node_case("metadata_revalidation_never_collects_resources")
 
     def test_hidden_frame_message_is_not_extracted(self) -> None:
         self.run_node_case("hidden_frame_message_is_not_extracted")

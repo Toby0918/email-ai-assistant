@@ -1,6 +1,7 @@
 /* global chrome */
 (function () {
   const MESSAGE_TYPE = "EXTRACT_CURRENT_EMAIL";
+  const REVALIDATE_MESSAGE_TYPE = "REVALIDATE_CURRENT_EMAIL";
   const MIN_BODY_LENGTH = 5;
   const EMPTY_PAYLOAD = {
     subject: "",
@@ -44,12 +45,15 @@
   ];
 
   chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
-    if (!message || message.type !== MESSAGE_TYPE) {
+    if (!message || ![MESSAGE_TYPE, REVALIDATE_MESSAGE_TYPE].includes(message.type)) {
       return false;
     }
 
-    extractCurrentEmail()
-      .catch(() => safeExtractionFailure())
+    const task = message.type === MESSAGE_TYPE
+      ? extractCurrentEmail()
+      : Promise.resolve(revalidateCurrentEmail());
+    task
+      .catch(() => message.type === MESSAGE_TYPE ? safeExtractionFailure() : safeRevalidationFailure())
       .then(sendResponse);
     return true;
   });
@@ -59,7 +63,22 @@
     if (!extraction.result.ok) {
       return extraction.result;
     }
-    return collectCurrentMessageContext(extraction);
+    const result = await collectCurrentMessageContext(extraction);
+    return {
+      ...result,
+      message_fingerprint: messageFingerprint(extraction.result.payload),
+    };
+  }
+
+  function revalidateCurrentEmail() {
+    const extraction = findCurrentEmail();
+    if (!extraction.result.ok) {
+      return safeRevalidationFailure();
+    }
+    return {
+      ok: true,
+      message_fingerprint: messageFingerprint(extraction.result.payload),
+    };
   }
 
   function findCurrentEmail() {
@@ -278,6 +297,40 @@
       ok: false,
       error: "Current Tencent Exmail message extraction failed safely. Please reopen the message and try again.",
     };
+  }
+
+  function safeRevalidationFailure() {
+    return {
+      ok: false,
+      error: "Current Tencent Exmail message could not be revalidated safely.",
+    };
+  }
+
+  function messageFingerprint(payload) {
+    const email = payload || {};
+    const source = [
+      email.subject,
+      email.from,
+      Array.isArray(email.to) ? email.to.join(",") : "",
+      email.sent_at,
+      email.body_text,
+    ].map(normalizeText).join("\u001f");
+    const first = fingerprintHash(source, 0x811c9dc5);
+    const second = fingerprintHash(source, 0x9e3779b9);
+    return `msg-v1-${hex32(first)}${hex32(second)}`;
+  }
+
+  function fingerprintHash(value, seed) {
+    let hash = seed >>> 0;
+    for (let index = 0; index < value.length; index += 1) {
+      hash ^= value.charCodeAt(index);
+      hash = Math.imul(hash, 0x01000193) >>> 0;
+    }
+    return hash;
+  }
+
+  function hex32(value) {
+    return (value >>> 0).toString(16).padStart(8, "0");
   }
 
   function collectAccessibleDocuments(rootWindow) {

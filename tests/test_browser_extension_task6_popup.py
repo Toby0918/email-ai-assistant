@@ -40,6 +40,7 @@ class BrowserExtensionTask6PopupTests(unittest.TestCase):
             }
 
             let extractionCount = 0;
+            let revalidationCount = 0;
             let backendCount = 0;
             const context = {
               document: { querySelector: (selector) => elements.get(selector) || null },
@@ -48,10 +49,15 @@ class BrowserExtensionTask6PopupTests(unittest.TestCase):
                 tabs: {
                   query: async () => [{ id: 7, url: "https://exmail.qq.com/cgi-bin/readmail" }],
                   sendMessage: async (_tabId, message) => {
+                    if (message.type === "REVALIDATE_CURRENT_EMAIL") {
+                      revalidationCount += 1;
+                      return { ok: true, message_fingerprint: "msg-v1-aaaaaaaaaaaaaaaa" };
+                    }
                     extractionCount += 1;
                     if (message.type !== "EXTRACT_CURRENT_EMAIL") throw new Error("wrong extraction message");
                     return {
                       ok: true,
+                      message_fingerprint: "msg-v1-aaaaaaaaaaaaaaaa",
                       payload: {
                         subject: "Synthetic", from: "sender@example.test", to: [], sent_at: "",
                         body_text: "Synthetic body", attachments: [], thread_segments: [],
@@ -84,6 +90,7 @@ class BrowserExtensionTask6PopupTests(unittest.TestCase):
               if (typeof analyze !== "function") throw new Error("Analyze click handler missing");
               await analyze();
               if (extractionCount !== 1) throw new Error(`expected one extraction, got ${extractionCount}`);
+              if (revalidationCount !== 1) throw new Error(`expected one revalidation, got ${revalidationCount}`);
               if (backendCount !== 1) throw new Error(`expected one backend request, got ${backendCount}`);
             })().catch((error) => {
               console.error(error && error.stack ? error.stack : error);
@@ -132,6 +139,7 @@ class BrowserExtensionTask6PopupTests(unittest.TestCase):
                   query: async () => [{ id: 7, url: "https://exmail.qq.com/cgi-bin/readmail" }],
                   sendMessage: async () => ({
                     ok: true,
+                    message_fingerprint: "msg-v1-aaaaaaaaaaaaaaaa",
                     payload: {
                       subject: "Synthetic", from: "sender@example.test", to: [], sent_at: "",
                       body_text: "Synthetic body", attachments: [], thread_segments: [],
