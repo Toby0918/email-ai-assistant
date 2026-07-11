@@ -96,7 +96,11 @@ def sanitize_text(value: str) -> str:
     without_urls = _NON_WHITESPACE_TOKEN.sub(_redact_uri_token, without_controls)
     without_emails = _EMAIL_ADDRESS.sub("[email removed]", without_urls)
     without_paths = _LOCAL_PATH.sub("[path removed]", without_emails)
-    without_long_numbers = _LONG_NUMBER.sub(_redact_long_number, without_paths)
+    without_embedded_numbers = _NON_WHITESPACE_TOKEN.sub(
+        _redact_numeric_token,
+        without_paths,
+    )
+    without_long_numbers = _LONG_NUMBER.sub(_redact_long_number, without_embedded_numbers)
     return re.sub(r"\s+", " ", without_long_numbers).strip()
 
 
@@ -115,3 +119,12 @@ def _redact_long_number(match: re.Match[str]) -> str:
     if sum(character.isdigit() for character in stripped) >= 7:
         return "[number removed]"
     return value
+
+
+def _redact_numeric_token(match: re.Match[str]) -> str:
+    token = match.group(0)
+    if _ISO_DATE.fullmatch(token):
+        return token
+    if sum(character.isdigit() for character in token) >= 7:
+        return "[number removed]"
+    return token

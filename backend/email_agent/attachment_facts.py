@@ -11,6 +11,7 @@ from .attachment_fact_safety import (
     sanitize_constructed_fact,
     valid_business_identifier,
 )
+from .attachment_fact_context import is_reversed_fact_match, local_fact_segment
 MAX_CANDIDATES_PER_CATEGORY = 3
 
 _SEPARATOR = r"\s*(?:[:#=|\-]\s*|\s+)"
@@ -159,10 +160,13 @@ def _references(text: str) -> list[str]:
             identifier = f"{label}-{value}"
         else:
             identifier = f"{label} {value}"
-        _append(values, f"Reference: {identifier}")
+        duplicate = any(existing.lower().endswith(value.lower()) for existing in values)
+        if not duplicate:
+            _append(values, f"Reference: {identifier}")
     for match in _PREFIXED_IDENTIFIER.finditer(text):
         value = match.group("value").rstrip("._/-")
-        if valid_business_identifier(value):
+        duplicate = any(existing.lower().endswith(value.lower()) for existing in values)
+        if valid_business_identifier(value) and not duplicate:
             _append(values, f"Reference: {value}")
     return values[:MAX_CANDIDATES_PER_CATEGORY]
 
@@ -195,10 +199,16 @@ def _amounts(text: str) -> list[str]:
 def _deadlines(text: str) -> list[str]:
     values: list[str] = []
     for match in _RELATIVE_DEADLINE.finditer(text):
+        if is_reversed_fact_match(text, match):
+            continue
         _append(values, f"Deadline: {match.group('value').lower()}")
     for match in _LABELED_DEADLINE.finditer(text):
+        if is_reversed_fact_match(text, match):
+            continue
         _append(values, f"Deadline: due {match.group('value')}")
     for match in _BY_DEADLINE.finditer(text):
+        if is_reversed_fact_match(text, match):
+            continue
         _append(values, f"Deadline: by {match.group('value')}")
     return values[:MAX_CANDIDATES_PER_CATEGORY]
 
@@ -206,6 +216,8 @@ def _deadlines(text: str) -> list[str]:
 def _requested_actions(text: str) -> list[str]:
     values: list[str] = []
     for match in _REQUEST_SPAN.finditer(text):
+        if is_reversed_fact_match(text, match):
+            continue
         body = match.group("body")
         verb = _mapped_match(body, _ACTION_VERBS)
         target = _mapped_match(body, _ACTION_OBJECTS)
@@ -218,8 +230,9 @@ def _quality_issues(text: str) -> list[str]:
     values: list[str] = []
     for pattern, label in _QUALITY_SIGNALS:
         for match in pattern.finditer(text):
-            prefix = text[max(0, match.start() - 12):match.start()].lower()
-            if re.search(r"\b(?:no|not|without)\s*$", prefix):
+            if is_reversed_fact_match(text, match):
+                continue
+            if label == "quality_issue" and _specific_quality_signal(local_fact_segment(text, match)):
                 continue
             _append(values, f"Quality issue: {label}")
     return values[:MAX_CANDIDATES_PER_CATEGORY]
@@ -260,6 +273,13 @@ def _mapped_match(
         if pattern.search(text):
             return label
     return ""
+
+
+def _specific_quality_signal(segment: str) -> bool:
+    return any(
+        label != "quality_issue" and pattern.search(segment)
+        for pattern, label in _QUALITY_SIGNALS
+    )
 
 
 def _append(values: list[str], value: str) -> None:

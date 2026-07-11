@@ -24,8 +24,16 @@ _PREFIXED_IDENTIFIER = re.compile(
     r"(?=[A-Z0-9._/-]{2,60}$)(?=[A-Z0-9._/-]*\d)[A-Z0-9._/-]+",
     re.IGNORECASE,
 )
-_PHONE_SHAPE = re.compile(r"(?:\d{3}[-.]\d{3}[-.]\d{4}|\d{3}[-.]\d{4})")
-_GROUPED_ACCOUNT_SHAPE = re.compile(r"(?:\d{4}[-.]){2,}\d{4}")
+_PREFIXED_VALUE = re.compile(
+    r"^(?:RFQ|PO|INV|QUOTE|PART|ITEM|TRACK)[-_](?P<core>[A-Z0-9][A-Z0-9_-]{2,31})$",
+    re.IGNORECASE,
+)
+_REPEATED_PREFIX = re.compile(
+    r"^(?:RFQ|PO|INV|QUOTE|PART|ITEM|TRACK)[-_]",
+    re.IGNORECASE,
+)
+_FORBIDDEN_IDENTIFIER_CHARACTERS = re.compile(r"[./\\@:]", re.IGNORECASE)
+_SEPARATED_PHONE = re.compile(r"(?:^|[^\d])\d{3}[-_]\d{4}(?:$|[^\d])")
 _CONSTRUCTED_FACTS = (
     re.compile(rf"Quantity: {_NUMBER}(?:\s*{_QUANTITY_UNIT})?", re.IGNORECASE),
     re.compile(
@@ -73,15 +81,19 @@ def valid_business_identifier(value: str) -> bool:
     """Reject phone/card/account shapes while allowing bounded explicit business IDs."""
     if not re.fullmatch(r"[A-Z0-9][A-Z0-9._/-]{3,63}", value, re.IGNORECASE):
         return False
-    digit_count = sum(character.isdigit() for character in value)
-    if not 1 <= digit_count <= 12:
+    if _FORBIDDEN_IDENTIFIER_CHARACTERS.search(value):
         return False
-    if _PHONE_SHAPE.fullmatch(value) or _GROUPED_ACCOUNT_SHAPE.fullmatch(value):
+    prefixed = _PREFIXED_VALUE.fullmatch(value)
+    core = prefixed.group("core") if prefixed else value
+    if prefixed and _REPEATED_PREFIX.match(core):
         return False
-    has_letter = any(character.isalpha() for character in value)
+    if not re.fullmatch(r"[A-Z0-9][A-Z0-9_-]{3,31}", core, re.IGNORECASE):
+        return False
+    digit_count = sum(character.isdigit() for character in core)
+    if not 1 <= digit_count <= 9 or _SEPARATED_PHONE.search(core):
+        return False
+    has_letter = any(character.isalpha() for character in core)
     if not has_letter and digit_count < 4:
-        return False
-    if has_letter and len(value) > 32:
         return False
     return True
 

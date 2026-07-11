@@ -64,6 +64,155 @@ class _ObservedDocxCell:
 
 
 class AttachmentParserTests(unittest.TestCase):
+    def test_generic_sanitizer_redacts_embedded_long_numbers_but_keeps_iso_date(self) -> None:
+        sanitized = sanitize_text(
+            "RFQ7654321 PO123456789012 accountABC1234567890 "
+            "acctABC1234-5678-9012-3456XYZ due 2026-07-18"
+        )
+
+        for secret in (
+            "7654321",
+            "123456789012",
+            "1234567890",
+            "1234-5678-9012-3456",
+            "acctABC1234",
+            "3456XYZ",
+        ):
+            self.assertNotIn(secret, sanitized)
+        self.assertIn("2026-07-18", sanitized)
+
+    def test_identifier_gate_rejects_prefixed_sensitive_shapes_and_deduplicates(self) -> None:
+        facts = extract_attachment_facts("\n".join([
+            "RFQ: 202/555/0199",
+            "Reference: RFQ-202-555-0199",
+            "Invoice: INV-1234-5678-9012",
+            "Reference: RFQ-/home/private/1234",
+            "Reference: RFQ-www.private.example/1234",
+            "Reference: RFQ-private.example/1234",
+            "Reference: RFQ-RFQ-202-555-0199",
+            "Reference: RFQ-X202-555-0199",
+            "RFQ: 13800138000",
+            "RFQ: 2025550199",
+            "Invoice: INV-7000001",
+            "Reference: INV-7000001",
+        ]))
+
+        self.assertEqual(facts, ["Reference: Invoice INV-7000001"])
+
+    def test_negated_or_resolved_attachment_statements_do_not_become_facts(self) -> None:
+        facts = extract_attachment_facts("\n".join([
+            "This item is not due 2026-07-18.",
+            "Do not respond within 3 days.",
+            "Please do not confirm quantity.",
+            "Action required: never provide quotation.",
+            "The part is not currently damaged.",
+            "There is no evidence of burrs.",
+            "The dimension is not currently out of tolerance.",
+            "The prior surface damage is now resolved.",
+            "No scratches were found.",
+            "Please don't confirm quantity.",
+            "The part isn't damaged.",
+            "The item is free of burrs.",
+            "Due date: 2026-07-20.",
+            "Please provide the quotation.",
+            "Quality issue: scratched surface.",
+        ]))
+
+        self.assertEqual(
+            facts,
+            [
+                "Deadline: due 2026-07-20",
+                "Requested action: provide quotation",
+                "Quality issue: surface_damage",
+            ],
+        )
+
+    def test_cross_format_sensitive_identifiers_and_negations_never_cross_boundaries(self) -> None:
+        payload = "\n".join([
+            "RFQ: 202/555/0199",
+            "Reference: RFQ-202-555-0199",
+            "Invoice: INV-1234-5678-9012",
+            "Reference: RFQ-/home/private/1234",
+            "Reference: RFQ-www.private.example/1234",
+            "Reference: RFQ-private.example/1234",
+            "Reference: RFQ-RFQ-202-555-0199",
+            "RFQ: 13800138000",
+            "This item is not due 2026-07-18.",
+            "Do not respond within 3 days.",
+            "Please do not confirm quantity.",
+            "Action required: never provide quotation.",
+            "The part is not currently damaged.",
+            "There is no evidence of burrs.",
+            "The dimension is not currently out of tolerance.",
+            "No scratches were found.",
+            "Please don't confirm quantity.",
+            "The part isn't damaged.",
+            "RFQ: 7654321",
+        ])
+        with TemporaryDirectory() as directory:
+            items = [
+                self._write(directory, "security.pdf", "pdf", b"synthetic"),
+                self._write(directory, "security.docx", "docx", self._security_docx_bytes(payload)),
+                self._write(directory, "security.xlsx", "xlsx", self._security_xlsx_bytes()),
+                self._write(directory, "security.png", "image", self._image_bytes()),
+            ]
+            page = MagicMock()
+            page.extract_text.return_value = payload
+            reader = MagicMock()
+            reader.pages = [page]
+            ocr = MagicMock()
+            ocr.image_to_string.return_value = payload
+            with patch.object(attachment_parser, "PdfReader", return_value=reader):
+                with patch.object(attachment_parser, "pytesseract", ocr):
+                    insights = parse_attachments(items)
+
+        for insight in insights:
+            self.assertEqual(insight["status"], "parsed")
+            self.assertIn("Reference: RFQ 7654321", insight["key_facts"])
+            self.assertNotIn("Deadline:", " ".join(insight["key_facts"]))
+            self.assertNotIn("Requested action:", " ".join(insight["key_facts"]))
+            self.assertNotIn("Quality issue:", " ".join(insight["key_facts"]))
+
+        prompt = build_analysis_prompt(
+            subject="Synthetic attachment security",
+            sender="sender@example.test",
+            clean_body="Please review the synthetic attachment set.",
+            attachment_insights=insights,
+        )
+        connection = sqlite3.connect(":memory:")
+        initialize_schema(connection)
+        save_analysis(
+            connection,
+            subject="Synthetic attachment security",
+            sender="sender@example.test",
+            analysis={"summary": "Safe synthetic result.", "attachment_insights": insights},
+        )
+        stored_json = connection.execute(
+            "SELECT analysis_json FROM email_analysis"
+        ).fetchone()[0]
+        serialized_result = json.dumps(insights, ensure_ascii=False)
+        canaries = (
+            "202/555/0199",
+            "202-555-0199",
+            "1234-5678-9012",
+            "/home/private/1234",
+            "www.private.example/1234",
+            "private.example/1234",
+            "RFQ-202-555-0199",
+            "13800138000",
+            "Deadline:",
+            "Requested action:",
+            "Quality issue:",
+        )
+        for secret in canaries:
+            for boundary, value in (
+                ("result", serialized_result),
+                ("prompt", prompt),
+                ("storage", stored_json),
+            ):
+                with self.subTest(boundary=boundary, secret=secret):
+                    self.assertNotIn(secret, value)
+
     def test_business_identifier_is_protected_only_inside_strict_fact_extraction(self) -> None:
         raw = (
             "RFQ: 7654321 unlabeled 7654322 phone +1 (202) 555-0199 "
@@ -109,6 +258,10 @@ class AttachmentParserTests(unittest.TestCase):
             "PRIVATE arbitrary attachment prose",
             "Reference: RFQ RFQ-1234567890123456",
             "Reference: PO 202-555-0199",
+            "Reference: RFQ RFQ-RFQ-202-555-0199",
+            "Reference: RFQ RFQ-X202-555-0199",
+            "Reference: RFQ RFQ-private.example/1234",
+            "Reference: RFQ 13800138000",
             "Requested action: confirm quantity PRIVATE trailing prose",
             "Quality issue: physical_damage PRIVATE trailing prose",
             "Deadline: 2026-07-18",
@@ -1023,6 +1176,41 @@ class AttachmentParserTests(unittest.TestCase):
         sheet.append(["Action required", "provide quotation"])
         sheet.append(["Private", "buyer-xlsx@example.test"])
         sheet.append(["Private URL", "https://private.example.test/xlsx"])
+        content = BytesIO()
+        workbook.save(content)
+        return content.getvalue()
+
+    @staticmethod
+    def _security_docx_bytes(payload: str) -> bytes:
+        document = Document()
+        document.add_paragraph(payload)
+        table = document.add_table(rows=2, cols=2)
+        table.cell(0, 0).text = "Reference"
+        table.cell(0, 1).text = "RFQ-202-555-0199"
+        table.cell(1, 0).text = "RFQ"
+        table.cell(1, 1).text = "7654321"
+        content = BytesIO()
+        document.save(content)
+        return content.getvalue()
+
+    @staticmethod
+    def _security_xlsx_bytes() -> bytes:
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.title = "Security"
+        for row in (
+            ("RFQ", "202/555/0199"),
+            ("Reference", "RFQ-202-555-0199"),
+            ("Invoice", "INV-1234-5678-9012"),
+            ("Reference", "RFQ-/home/private/1234"),
+            ("Reference", "RFQ-www.private.example/1234"),
+            ("Status", "not due 2026-07-18"),
+            ("Action", "Do not respond within 3 days"),
+            ("Request", "Please do not confirm quantity"),
+            ("Quality", "not currently damaged; no evidence of burrs"),
+            ("RFQ", "7654321"),
+        ):
+            sheet.append(row)
         content = BytesIO()
         workbook.save(content)
         return content.getvalue()
