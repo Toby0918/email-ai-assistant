@@ -117,6 +117,21 @@ class LlmClientTests(unittest.TestCase):
         self.assertNotIn("SECRET_BODY", str(caught.exception))
         self.assertIn("Ollama analysis request failed", str(caught.exception))
 
+    def test_invalid_ollama_base_url_becomes_sanitized_client_error(self) -> None:
+        env = {
+            "EMAIL_AGENT_LLM_PROVIDER": "ollama",
+            "EMAIL_AGENT_OLLAMA_BASE_URL": "http://[PRIVATE_INVALID_HOST",
+        }
+
+        with patch.dict(os.environ, env, clear=True):
+            with patch("urllib.request.urlopen") as urlopen:
+                with self.assertRaises(LlmClientError) as caught:
+                    generate_analysis("synthetic prompt")
+
+        urlopen.assert_not_called()
+        self.assertEqual(str(caught.exception), "Ollama analysis request failed.")
+        self.assertNotIn("PRIVATE_INVALID_HOST", str(caught.exception))
+
     def test_ollama_empty_response_is_an_error(self) -> None:
         env = {"EMAIL_AGENT_LLM_PROVIDER": "ollama"}
         response_body = json.dumps({"response": ""}).encode("utf-8")

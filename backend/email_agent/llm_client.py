@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import urllib.error
+import urllib.parse
 import urllib.request
 
 from .config import AppConfig
@@ -43,12 +44,12 @@ def configured_analysis_engine_label(config: AppConfig | None = None) -> str:
 
 
 def _generate_with_ollama(prompt: str, config: AppConfig) -> str:
-    request = _ollama_request(prompt, config)
     try:
+        request = _ollama_request(prompt, config)
         with urllib.request.urlopen(request, timeout=config.ollama_timeout_seconds) as response:
             status = int(getattr(response, "status", 200))
             payload = response.read()
-    except (OSError, TimeoutError, urllib.error.URLError) as exc:
+    except (OSError, TimeoutError, TypeError, ValueError, urllib.error.URLError) as exc:
         raise LlmClientError("Ollama analysis request failed.") from exc
     if status != 200:
         raise LlmClientError("Ollama analysis request failed.")
@@ -64,12 +65,25 @@ def _ollama_request(prompt: str, config: AppConfig) -> urllib.request.Request:
         "think": False,
         "options": {"temperature": 0, "num_predict": 1200},
     }
+    endpoint = _ollama_endpoint(config.ollama_base_url)
     return urllib.request.Request(
-        f"{config.ollama_base_url}/api/generate",
+        endpoint,
         data=json.dumps(payload).encode("utf-8"),
         headers={"Content-Type": "application/json"},
         method="POST",
     )
+
+
+def _ollama_endpoint(base_url: str) -> str:
+    parsed = urllib.parse.urlsplit(base_url)
+    if (
+        parsed.scheme not in {"http", "https"}
+        or not parsed.hostname
+        or parsed.username
+        or parsed.password
+    ):
+        raise ValueError("Invalid Ollama base URL.")
+    return f"{base_url}/api/generate"
 
 
 def _parse_ollama_response(payload: bytes) -> str:

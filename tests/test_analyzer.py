@@ -684,6 +684,21 @@ class AnalyzerTests(unittest.TestCase):
         self.assertIn("质量", result["summary"])
         self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
 
+    def test_empty_model_object_with_no_augmentation_is_rule_fallback(self) -> None:
+        result = analyze_current_email(
+            {
+                "subject": "Delivery",
+                "from": "customer@example.test",
+                "body_text": "Please confirm delivery date for PO 123456.",
+            },
+            llm_generate=lambda _prompt: "{}",
+            analysis_engine_label="Local Qwen",
+        )
+
+        self.assertEqual(result["category"], "order_followup")
+        self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
+        self.assertEqual(result["analysis_engine"]["label"], "Rule fallback")
+
     def test_partial_model_json_is_repaired_instead_of_falling_back(self) -> None:
         def fake_llm(prompt: str) -> str:
             return json.dumps({

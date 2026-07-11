@@ -21,6 +21,7 @@ from .thread_timeline import build_conversation_timeline
 
 
 MAX_ATTACHMENT_METADATA_ITEMS = 8
+MODEL_AUGMENTATION_FIELDS = ("summary", "priority", "priority_reason", "category", "tags")
 
 
 class AnalysisError(ValueError):
@@ -48,7 +49,6 @@ def analyze_current_email(
         load_config().internal_email_domains,
     )
     attachments = _normalize_attachments(email.get("attachments"))
-
     prompt = build_analysis_prompt(
         subject=subject,
         sender=sender,
@@ -69,11 +69,13 @@ def analyze_current_email(
     )
     try:
         result = _parse_result(llm_generate(prompt), fallback=fallback)
-        return _with_analysis_engine(
-            result,
-            source="ai_model",
-            label=analysis_engine_label or configured_analysis_engine_label(),
-        )
+        if _has_model_augmentation(result, fallback):
+            return _with_analysis_engine(
+                result,
+                source="ai_model",
+                label=analysis_engine_label or configured_analysis_engine_label(),
+            )
+        return _with_analysis_engine(fallback, source="rule_fallback", label="Rule fallback")
     except (LlmClientError, AnalysisError):
         return _with_analysis_engine(fallback, source="rule_fallback", label="Rule fallback")
 
@@ -278,6 +280,10 @@ def _validate_decision_brief_language(value: Any) -> None:
 
 def _contains_chinese(value: Any) -> bool:
     return any("\u4e00" <= char <= "\u9fff" for char in str(value or ""))
+
+
+def _has_model_augmentation(result: dict[str, Any], fallback: dict[str, Any]) -> bool:
+    return any(result.get(field) != fallback.get(field) for field in MODEL_AUGMENTATION_FIELDS)
 
 
 def _with_analysis_engine(data: dict[str, Any], source: str, label: str) -> dict[str, Any]:
