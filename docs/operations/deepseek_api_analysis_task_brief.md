@@ -1,6 +1,6 @@
 ---
 last_update: 2026-07-12
-status: draft
+status: active
 owner: "@tobyWang"
 review_cycle: weekly
 source_type: operation_guide
@@ -231,7 +231,7 @@ Set `EMAIL_AGENT_LLM_PROVIDER=disabled` and restart the backend to immediately r
 - The user accepted DeepSeek remote processing and the documented default context caching for the current visible thread and bounded attachment extraction on 2026-07-12.
 - The user approved DeepSeek-led analysis while keeping all mailbox operation permissions forbidden on 2026-07-12.
 - The approval is operator-wide for this local installation whenever both `deepseek` and `model_led` are configured; every Analyze click under that configuration may send the current visible message scope to DeepSeek and is disclosed persistently before the click.
-- The written design specification still requires the Superpowers review gate before implementation planning starts.
+- The written design specification passed the Superpowers review gate and the user instructed implementation to start.
 
 ## 16. Pre-Execution Checklist
 
@@ -242,7 +242,7 @@ Set `EMAIL_AGENT_LLM_PROVIDER=disabled` and restart the backend to immediately r
 [x] No real mailbox, secret, or customer data will be accessed during development.
 [x] Expected file scope and rollback are identified.
 [x] The user approved the design direction and expanded analysis boundary.
-[ ] The written repository design has been reviewed by the user.
+[x] The written repository design has been reviewed by the user.
 ```
 
 ## 17. Execution Record
