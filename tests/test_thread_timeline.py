@@ -4,7 +4,13 @@ from __future__ import annotations
 
 import unittest
 
-from backend.email_agent.thread_timeline import build_conversation_timeline
+from backend.email_agent.thread_timeline import (
+    TimelineBuild,
+    TimelineOpenItem,
+    ThreadSource,
+    build_conversation_timeline,
+    build_timeline_skeleton,
+)
 
 
 class _TrackingText(str):
@@ -20,6 +26,85 @@ class _TrackingText(str):
 
 
 class ThreadTimelineTests(unittest.TestCase):
+    def test_skeleton_preserves_complete_bounded_open_item_set_and_order(self) -> None:
+        segments = [
+            {
+                "position": "3",
+                "from": "Sales <sales@cndlf.com>",
+                "sent_at": "2026-07-10T11:00:00+00:00",
+                "body_text": "We will review both requests.",
+            },
+            {
+                "position": "2",
+                "from": "Buyer <buyer@example.com>",
+                "sent_at": "2026-07-10T10:00:00+00:00",
+                "body_text": "Please provide certificate PART-202 by 2026-07-20.",
+            },
+            {
+                "position": "1",
+                "from": "Buyer <buyer@example.com>",
+                "sent_at": "2026-07-10T09:00:00+00:00",
+                "body_text": "Please provide quotation RFQ-101 by 2026-07-12.",
+            },
+        ]
+
+        build = build_timeline_skeleton(segments, ("cndlf.com",))
+
+        self.assertIsInstance(build, TimelineBuild)
+        self.assertTrue(ThreadSource.__dataclass_params__.frozen)
+        self.assertTrue(TimelineOpenItem.__dataclass_params__.frozen)
+        self.assertTrue(TimelineBuild.__dataclass_params__.frozen)
+        self.assertFalse(hasattr(build, "__dict__"))
+        self.assertFalse(hasattr(build.sources[0], "__dict__"))
+        self.assertFalse(hasattr(build.open_items[0], "__dict__"))
+        self.assertEqual(
+            [item.open_item_id for item in build.open_items],
+            ["open:0", "open:1"],
+        )
+        self.assertEqual(
+            [item.evidence_sources for item in build.open_items],
+            [("thread:0",), ("thread:1",)],
+        )
+        self.assertEqual(
+            [source.source_id for source in build.sources],
+            ["thread:0", "thread:1", "thread:2"],
+        )
+        self.assertEqual(build.public_timeline["open_items"][0]["source"], "thread")
+        self.assertNotIn("open_item_id", build.public_timeline["open_items"][0])
+        self.assertNotIn("evidence_sources", build.public_timeline["open_items"][0])
+        self.assertEqual(
+            build_conversation_timeline(segments, ("cndlf.com",)),
+            build.public_timeline,
+        )
+
+    def test_skeleton_caps_open_items_at_nineteen_facts_plus_coverage_guard(self) -> None:
+        segments = [
+            {
+                "position": str(segment_index + 1),
+                "from": "Buyer <buyer@example.com>",
+                "body_text": "; ".join(
+                    f"Please confirm PART-{item_index:03d}"
+                    for item_index in range(start, start + 10)
+                )
+                + ".",
+            }
+            for segment_index, start in enumerate((1, 11))
+        ]
+
+        build = build_timeline_skeleton(segments, ("cndlf.com",))
+
+        self.assertEqual(len(build.open_items), 20)
+        self.assertEqual(
+            [item.open_item_id for item in build.open_items],
+            [f"open:{index}" for index in range(20)],
+        )
+        self.assertIn("PART-019", build.open_items[18].item)
+        self.assertNotIn("PART-020", " ".join(item.item for item in build.open_items))
+        self.assertIn("人工复核", build.open_items[19].item)
+        self.assertEqual(build.open_items[19].evidence_sources, ())
+        self.assertEqual(len(build.public_timeline["open_items"]), 20)
+        self.assertEqual(build.public_timeline["confidence"], "low")
+
     def test_timeline_marks_cndlf_sender_as_internal_and_latest_customer_request_open(self) -> None:
         segments = [
             {
@@ -60,7 +145,10 @@ class ThreadTimelineTests(unittest.TestCase):
 
         self.assertEqual(result["current_status"], "unresolved")
         self.assertIn("PART-22", result["latest_external_request"])
-        self.assertEqual(result["open_items"][0]["due_hint"], "2026-07-20")
+        self.assertEqual(
+            [item["due_hint"] for item in result["open_items"]],
+            ["2026-07-12", "2026-07-20"],
+        )
 
     def test_timeline_uses_chronology_when_every_timestamp_is_timezone_aware(self) -> None:
         segments = [
@@ -692,7 +780,7 @@ class ThreadTimelineTests(unittest.TestCase):
 
         self.assertEqual(result["current_status"], "unresolved")
         self.assertIn("certificate", result["latest_external_request"])
-        self.assertEqual(len(result["open_items"]), 1)
+        self.assertEqual(len(result["open_items"]), 2)
 
     def test_all_independent_requests_require_matching_outcomes_to_resolve(self) -> None:
         segments = [
@@ -1144,7 +1232,7 @@ class ThreadTimelineTests(unittest.TestCase):
         self.assertEqual(result["current_status"], "partially_resolved")
         self.assertIn("3", result["latest_external_request"])
         self.assertIn("仍有2项", result["status_reason"])
-        self.assertEqual(len(result["open_items"]), 1)
+        self.assertEqual(len(result["open_items"]), 2)
 
     def test_chinese_simultaneous_requests_are_tracked_separately(self) -> None:
         segments = [
@@ -1468,7 +1556,7 @@ class ThreadTimelineTests(unittest.TestCase):
         result = build_conversation_timeline(segments, ("cndlf.com",))
 
         self.assertEqual(result["current_status"], "unresolved")
-        self.assertEqual(len(result["open_items"]), 1)
+        self.assertEqual(len(result["open_items"]), 2)
 
     def test_repeated_topic_only_body_requests_remain_distinct(self) -> None:
         segments = [
@@ -1487,7 +1575,7 @@ class ThreadTimelineTests(unittest.TestCase):
         result = build_conversation_timeline(segments, ("cndlf.com",))
 
         self.assertEqual(result["current_status"], "unresolved")
-        self.assertEqual(len(result["open_items"]), 1)
+        self.assertEqual(len(result["open_items"]), 2)
 
     def test_same_identity_body_requests_remain_distinct(self) -> None:
         segments = [
@@ -1509,7 +1597,7 @@ class ThreadTimelineTests(unittest.TestCase):
         result = build_conversation_timeline(segments, ("cndlf.com",))
 
         self.assertEqual(result["current_status"], "unresolved")
-        self.assertEqual(len(result["open_items"]), 1)
+        self.assertEqual(len(result["open_items"]), 2)
 
     def test_external_acknowledgement_does_not_create_request(self) -> None:
         result = build_conversation_timeline(
