@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-10
+last_update: 2026-07-12
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -65,6 +65,8 @@ AGENTS.md
 | pytesseract | 0.3.13 | 后端可选 OCR | Tesseract 缺失时仅降级 OCR，不能阻断规则兜底 |
 
 本地 Ollama/Qwen/Gemma 属于后端运行环境能力，不是新增 Python 依赖。`EMAIL_AGENT_OLLAMA_MODEL` 默认是 `qwen3.6:latest`，可选择 `gemma4`；调用失败或输出无效时必须回落到本地规则分析器。`EMAIL_AGENT_OLLAMA_BASE_URL` 只能使用 `localhost` 或字面 loopback IP，不得包含 userinfo，不得指向远程 HTTP(S) 主机；远程 provider 需要单独架构批准和隐私评审。
+
+专用 DeepSeek provider 复用已固定版本的 OpenAI-compatible `openai==2.45.0` SDK，不新增 Python 依赖。禁止安装 third-party DeepSeek SDK，也禁止提供可配置的 arbitrary remote base URL；DeepSeek endpoint 必须由后端代码固定，密钥只允许通过后端 `DEEPSEEK_API_KEY` 提供。
 
 本地邮件分析 HTTP 服务沿用 Python 标准库 `ThreadingHTTPServer`，不得为 Host/Content-Type 门禁新增 HTTP 框架。服务 bind 只支持 `localhost` 或字面 IPv4 `127.0.0.0/8`；分析 POST 必须在读 body 前校验单一 loopback Host 和单一 JSON media type。
 

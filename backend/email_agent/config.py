@@ -30,6 +30,10 @@ class AppConfig:
     attachment_max_file_bytes: int
     attachment_max_total_bytes: int
     internal_email_domains: tuple[str, ...]
+    deepseek_api_key: str | None = None
+    deepseek_model: str = "deepseek-v4-flash"
+    deepseek_timeout_seconds: int = 25
+    deepseek_output_mode: str = "conservative"
 
 
 def load_config(dotenv_path: str | Path | None = DEFAULT_DOTENV_PATH) -> AppConfig:
@@ -38,6 +42,12 @@ def load_config(dotenv_path: str | Path | None = DEFAULT_DOTENV_PATH) -> AppConf
         _load_backend_dotenv(Path(dotenv_path))
     return AppConfig(
         openai_api_key=os.getenv("OPENAI_API_KEY"),
+        deepseek_api_key=os.getenv("DEEPSEEK_API_KEY"),
+        deepseek_model=os.getenv("EMAIL_AGENT_DEEPSEEK_MODEL", "deepseek-v4-flash").strip()
+        or "deepseek-v4-flash",
+        deepseek_timeout_seconds=min(_int_env("EMAIL_AGENT_DEEPSEEK_TIMEOUT_SECONDS", 25), 25),
+        deepseek_output_mode=os.getenv("EMAIL_AGENT_DEEPSEEK_OUTPUT_MODE", "conservative").strip().lower()
+        or "conservative",
         sqlite_path=os.getenv("EMAIL_AGENT_SQLITE_PATH", "outputs/email_agent.sqlite3"),
         log_level=os.getenv("EMAIL_AGENT_LOG_LEVEL", "INFO"),
         llm_provider=os.getenv("EMAIL_AGENT_LLM_PROVIDER", "disabled").strip().lower() or "disabled",

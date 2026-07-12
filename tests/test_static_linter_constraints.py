@@ -94,6 +94,22 @@ class PrintCallVisitor(ast.NodeVisitor):
 
 
 class StaticLinterConstraintTests(unittest.TestCase):
+    def test_deepseek_reuses_pinned_openai_sdk_without_remote_base_url_configuration(self) -> None:
+        requirements = read_text(ROOT / "requirements.txt")
+        tooling = read_text(ROOT / "docs" / "constraints" / "tooling_constraints.md")
+        deployment = read_text(ROOT / "docs" / "operations" / "deployment_notes.md")
+
+        self.assertIn("openai==2.45.0", requirements)
+        self.assertNotRegex(requirements, r"(?im)^\s*deepseek(?:[-_.][A-Za-z0-9]+)*\s*[=<>~!]")
+        for path, guidance in (
+            ("docs/constraints/tooling_constraints.md", tooling),
+            ("docs/operations/deployment_notes.md", deployment),
+        ):
+            with self.subTest(path=path):
+                self.assertIn("OpenAI-compatible", guidance)
+                self.assertIn("arbitrary remote base URL", guidance)
+                self.assertIn("third-party DeepSeek SDK", guidance)
+
     def test_active_phase_two_design_keeps_provider_disabled_by_default(self) -> None:
         design = read_text(
             ROOT

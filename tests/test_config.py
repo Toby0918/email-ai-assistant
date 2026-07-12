@@ -15,6 +15,28 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ConfigTests(unittest.TestCase):
+    def test_load_config_has_safe_deepseek_defaults(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            config = load_config(dotenv_path=None)
+
+        self.assertIsNone(config.deepseek_api_key)
+        self.assertEqual(config.deepseek_model, "deepseek-v4-flash")
+        self.assertEqual(config.deepseek_timeout_seconds, 25)
+        self.assertEqual(config.deepseek_output_mode, "conservative")
+
+    def test_deepseek_key_does_not_fall_back_to_openai_key(self) -> None:
+        with patch.dict(os.environ, {"OPENAI_API_KEY": "synthetic-openai"}, clear=True):
+            config = load_config(dotenv_path=None)
+
+        self.assertIsNone(config.deepseek_api_key)
+
+    def test_env_example_has_no_configurable_deepseek_base_url(self) -> None:
+        sample = (ROOT / ".env.example").read_text(encoding="utf-8")
+
+        self.assertIn("DEEPSEEK_API_KEY=", sample)
+        self.assertIn("EMAIL_AGENT_DEEPSEEK_OUTPUT_MODE=conservative", sample)
+        self.assertNotIn("EMAIL_AGENT_DEEPSEEK_BASE_URL", sample)
+
     def test_load_config_has_phase_two_defaults(self) -> None:
         with patch.dict(os.environ, {}, clear=True):
             config = load_config(dotenv_path=None)
