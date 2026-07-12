@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import unittest
 
 from backend.email_agent.thread_timeline import (
@@ -77,6 +78,44 @@ class ThreadTimelineTests(unittest.TestCase):
             build.public_timeline,
         )
 
+    def test_open_item_provenance_uses_originating_source_not_open_index(self) -> None:
+        segments = [
+            {
+                "position": "1",
+                "from": "Sales <sales@cndlf.com>",
+                "body_text": "We will review the next customer request.",
+            },
+            {
+                "position": "2",
+                "from": "Buyer <buyer@example.com>",
+                "body_text": (
+                    "Please provide quotation RFQ-301 "
+                    "and certificate PART-302."
+                ),
+            },
+        ]
+
+        build = build_timeline_skeleton(segments, ("cndlf.com",))
+
+        self.assertEqual(
+            [item.open_item_id for item in build.open_items],
+            ["open:0", "open:1"],
+        )
+        self.assertEqual(
+            [item.evidence_sources for item in build.open_items],
+            [("thread:1",), ("thread:1",)],
+        )
+        self.assertEqual(
+            [source.source_id for source in build.sources],
+            ["thread:0", "thread:1"],
+        )
+        public_items = build.public_timeline["open_items"]
+        self.assertEqual(
+            [set(item) for item in public_items],
+            [{"item", "owner_hint", "due_hint", "source"}] * 2,
+        )
+        self.assertEqual([item["source"] for item in public_items], ["thread", "thread"])
+
     def test_skeleton_caps_open_items_at_nineteen_facts_plus_coverage_guard(self) -> None:
         segments = [
             {
@@ -98,7 +137,14 @@ class ThreadTimelineTests(unittest.TestCase):
             [item.open_item_id for item in build.open_items],
             [f"open:{index}" for index in range(20)],
         )
-        self.assertIn("PART-019", build.open_items[18].item)
+        self.assertEqual(
+            [
+                identifier
+                for item in build.open_items[:19]
+                for identifier in re.findall(r"PART-\d{3}", item.item)
+            ],
+            [f"PART-{index:03d}" for index in range(1, 20)],
+        )
         self.assertNotIn("PART-020", " ".join(item.item for item in build.open_items))
         self.assertIn("人工复核", build.open_items[19].item)
         self.assertEqual(build.open_items[19].evidence_sources, ())
