@@ -2,17 +2,63 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import os
+import time
 import unittest
-from unittest.mock import patch
+from dataclasses import replace
+from types import SimpleNamespace
+from unittest.mock import AsyncMock, MagicMock, patch
 
-from backend.email_agent.config import AppConfig
+from backend.email_agent.config import AppConfig, load_config
 from backend.email_agent.llm_client import (
     LlmClientError,
     configured_analysis_engine_label,
     generate_analysis,
 )
+
+
+DEEPSEEK_BASE_URL = "https://api.deepseek.com"
+
+
+async def _never_finishes(*args: object, **kwargs: object) -> object:
+    await asyncio.Future()
+    return object()
+
+
+def _deepseek_config(**changes: object) -> AppConfig:
+    config = replace(
+        load_config(dotenv_path=None),
+        llm_provider="deepseek",
+        deepseek_api_key="synthetic-deepseek-key",
+        deepseek_model="deepseek-v4-flash",
+        deepseek_timeout_seconds=25,
+    )
+    return replace(config, **changes)
+
+
+def _deepseek_response(
+    *,
+    content: object = '{"summary":"synthetic"}',
+    finish_reason: object = "stop",
+    extra_choices: tuple[object, ...] = (),
+) -> object:
+    first_choice = SimpleNamespace(
+        finish_reason=finish_reason,
+        message=SimpleNamespace(content=content),
+    )
+    return SimpleNamespace(choices=[first_choice, *extra_choices])
+
+
+def _async_client(response: object) -> tuple[MagicMock, AsyncMock]:
+    create = AsyncMock(return_value=response)
+    active_client = MagicMock()
+    active_client.chat.completions.create = create
+    context_manager = MagicMock()
+    context_manager.__aenter__ = AsyncMock(return_value=active_client)
+    context_manager.__aexit__ = AsyncMock(return_value=None)
+    return context_manager, create
 
 
 class FakeHttpResponse:
@@ -31,6 +77,292 @@ class FakeHttpResponse:
 
 
 class LlmClientTests(unittest.TestCase):
+    def test_configured_engine_label_identifies_deepseek_flash_and_pro(self) -> None:
+        expected_labels = {
+            "deepseek-v4-flash": "DeepSeek V4 Flash",
+            "deepseek-v4-pro": "DeepSeek V4 Pro",
+        }
+
+        for model, expected in expected_labels.items():
+            with self.subTest(model=model):
+                self.assertEqual(
+                    configured_analysis_engine_label(_deepseek_config(deepseek_model=model)),
+                    expected,
+                )
+
+    def test_deepseek_sends_exact_fixed_json_request(self) -> None:
+        config = _deepseek_config(deepseek_timeout_seconds=11)
+        client, create = _async_client(_deepseek_response())
+
+        with patch(
+            "backend.email_agent.llm_client.AsyncOpenAI",
+            return_value=client,
+        ) as client_constructor:
+            result = generate_analysis(
+                "UNTRUSTED_SYNTHETIC_JSON",
+                system_prompt="RETURN JSON",
+                config=config,
+                timeout_seconds=7,
+            )
+
+        self.assertEqual(result, '{"summary":"synthetic"}')
+        client_constructor.assert_called_once_with(
+            api_key="synthetic-deepseek-key",
+            base_url=DEEPSEEK_BASE_URL,
+            max_retries=0,
+            timeout=7,
+        )
+        create.assert_awaited_once_with(
+            model="deepseek-v4-flash",
+            messages=[
+                {"role": "system", "content": "RETURN JSON"},
+                {"role": "user", "content": "UNTRUSTED_SYNTHETIC_JSON"},
+            ],
+            response_format={"type": "json_object"},
+            temperature=0,
+            stream=False,
+            max_tokens=2400,
+            extra_body={"thinking": {"type": "disabled"}},
+        )
+
+    def test_deepseek_timeout_uses_minimum_of_caller_config_and_hard_cap(self) -> None:
+        cases = (
+            (3.0, 19, 3.0),
+            (19.0, 4, 4.0),
+            (40.0, 30, 25.0),
+        )
+
+        for caller_timeout, config_timeout, expected in cases:
+            with self.subTest(
+                caller_timeout=caller_timeout,
+                config_timeout=config_timeout,
+            ):
+                client, _create = _async_client(_deepseek_response())
+                config = _deepseek_config(deepseek_timeout_seconds=config_timeout)
+                with patch(
+                    "backend.email_agent.llm_client.AsyncOpenAI",
+                    return_value=client,
+                ) as client_constructor:
+                    generate_analysis(
+                        "{}",
+                        system_prompt="json",
+                        config=config,
+                        timeout_seconds=caller_timeout,
+                    )
+
+                self.assertEqual(client_constructor.call_args.kwargs["timeout"], expected)
+
+    def test_deepseek_zero_caller_timeout_is_not_replaced_by_config(self) -> None:
+        client, _create = _async_client(_deepseek_response())
+
+        with patch(
+            "backend.email_agent.llm_client.AsyncOpenAI",
+            return_value=client,
+        ) as client_constructor:
+            result = generate_analysis(
+                "{}",
+                system_prompt="json",
+                config=_deepseek_config(deepseek_timeout_seconds=20),
+                timeout_seconds=0,
+            )
+
+        self.assertEqual(result, '{"summary":"synthetic"}')
+        self.assertEqual(client_constructor.call_args.kwargs["timeout"], 0)
+
+    def test_deepseek_outer_timeout_cancels_never_finishing_sdk_call(self) -> None:
+        client, create = _async_client(_deepseek_response())
+        create.side_effect = _never_finishes
+        config = _deepseek_config(deepseek_timeout_seconds=20)
+
+        started = time.monotonic()
+        with patch(
+            "backend.email_agent.llm_client.AsyncOpenAI",
+            return_value=client,
+        ):
+            with self.assertRaises(LlmClientError) as caught:
+                generate_analysis(
+                    "{}",
+                    system_prompt="json",
+                    config=config,
+                    timeout_seconds=0.05,
+                )
+        elapsed = time.monotonic() - started
+
+        self.assertLess(elapsed, 1.0)
+        self.assertEqual(str(caught.exception), "DeepSeek analysis request timed out.")
+        self.assertIsNone(caught.exception.__cause__)
+
+    def test_deepseek_rejects_unapproved_model_before_client_construction(self) -> None:
+        config = _deepseek_config(deepseek_model="unapproved-model")
+
+        with patch(
+            "backend.email_agent.llm_client.AsyncOpenAI",
+        ) as client_constructor:
+            with self.assertRaises(LlmClientError) as caught:
+                generate_analysis(
+                    "{}",
+                    system_prompt="json",
+                    config=config,
+                    timeout_seconds=5,
+                )
+
+        client_constructor.assert_not_called()
+        self.assertEqual(str(caught.exception), "DeepSeek model is unsupported.")
+        self.assertIsNone(caught.exception.__cause__)
+
+    def test_deepseek_requires_dedicated_key_before_client_construction(self) -> None:
+        config = _deepseek_config(
+            deepseek_api_key=None,
+            openai_api_key="synthetic-openai-key",
+        )
+
+        with patch(
+            "backend.email_agent.llm_client.AsyncOpenAI",
+        ) as client_constructor:
+            with self.assertRaises(LlmClientError) as caught:
+                generate_analysis(
+                    "{}",
+                    system_prompt="json",
+                    config=config,
+                    timeout_seconds=5,
+                )
+
+        client_constructor.assert_not_called()
+        self.assertEqual(
+            str(caught.exception),
+            "DeepSeek API key is not configured for backend analysis.",
+        )
+        self.assertIsNone(caught.exception.__cause__)
+
+    def test_deepseek_accepts_only_stop_from_first_choice(self) -> None:
+        accepted_second_choice = SimpleNamespace(
+            finish_reason="stop",
+            message=SimpleNamespace(content='{"ignored":true}'),
+        )
+        rejected_reasons = ("length", "content_filter", "insufficient_system_resource", None)
+
+        for finish_reason in rejected_reasons:
+            with self.subTest(finish_reason=finish_reason):
+                response = _deepseek_response(
+                    finish_reason=finish_reason,
+                    extra_choices=(accepted_second_choice,),
+                )
+                client, _create = _async_client(response)
+                with patch(
+                    "backend.email_agent.llm_client.AsyncOpenAI",
+                    return_value=client,
+                ):
+                    with self.assertRaises(LlmClientError) as caught:
+                        generate_analysis(
+                            "{}",
+                            system_prompt="json",
+                            config=_deepseek_config(),
+                            timeout_seconds=5,
+                        )
+
+                self.assertEqual(
+                    str(caught.exception),
+                    "DeepSeek analysis response was incomplete.",
+                )
+                self.assertNotIn(str(finish_reason), str(caught.exception))
+                self.assertIsNone(caught.exception.__cause__)
+
+    def test_deepseek_rejects_empty_or_non_string_content(self) -> None:
+        for content in ("", "   ", None, {"summary": "not-text"}):
+            with self.subTest(content=content):
+                client, _create = _async_client(_deepseek_response(content=content))
+                with patch(
+                    "backend.email_agent.llm_client.AsyncOpenAI",
+                    return_value=client,
+                ):
+                    with self.assertRaises(LlmClientError) as caught:
+                        generate_analysis(
+                            "{}",
+                            system_prompt="json",
+                            config=_deepseek_config(),
+                            timeout_seconds=5,
+                        )
+
+                self.assertEqual(
+                    str(caught.exception),
+                    "DeepSeek analysis response was empty.",
+                )
+                self.assertIsNone(caught.exception.__cause__)
+
+    def test_deepseek_rejects_malformed_response_without_exposing_it(self) -> None:
+        response = SimpleNamespace(
+            choices=[],
+            private_detail="PRIVATE_RAW_PROVIDER_RESPONSE",
+        )
+        client, _create = _async_client(response)
+
+        with patch(
+            "backend.email_agent.llm_client.AsyncOpenAI",
+            return_value=client,
+        ):
+            with self.assertRaises(LlmClientError) as caught:
+                generate_analysis(
+                    "{}",
+                    system_prompt="json",
+                    config=_deepseek_config(),
+                    timeout_seconds=5,
+                )
+
+        self.assertEqual(
+            str(caught.exception),
+            "DeepSeek analysis response was incomplete.",
+        )
+        self.assertNotIn("PRIVATE_RAW_PROVIDER_RESPONSE", str(caught.exception))
+        self.assertIsNone(caught.exception.__cause__)
+
+    def test_deepseek_sdk_errors_are_fixed_and_suppress_cause(self) -> None:
+        client, create = _async_client(_deepseek_response())
+        create.side_effect = RuntimeError(
+            "PRIVATE_EXCEPTION SECRET_PROMPT SECRET_KEY PRIVATE_URL finish_reason=length"
+        )
+
+        with patch(
+            "backend.email_agent.llm_client.AsyncOpenAI",
+            return_value=client,
+        ):
+            with self.assertRaises(LlmClientError) as caught:
+                generate_analysis(
+                    "SECRET_PROMPT",
+                    system_prompt="json",
+                    config=_deepseek_config(deepseek_api_key="SECRET_KEY"),
+                    timeout_seconds=5,
+                )
+
+        self.assertEqual(str(caught.exception), "DeepSeek analysis request failed.")
+        self.assertIsNone(caught.exception.__cause__)
+        for forbidden in (
+            "PRIVATE_EXCEPTION",
+            "SECRET_PROMPT",
+            "SECRET_KEY",
+            "PRIVATE_URL",
+            "length",
+        ):
+            self.assertNotIn(forbidden, str(caught.exception))
+
+    def test_deepseek_failure_never_calls_ollama(self) -> None:
+        config = _deepseek_config()
+
+        with patch(
+            "backend.email_agent.llm_client._generate_with_deepseek",
+            side_effect=LlmClientError("DeepSeek analysis request failed."),
+        ) as deepseek:
+            with patch("backend.email_agent.llm_client._generate_with_ollama") as ollama:
+                with self.assertRaises(LlmClientError):
+                    generate_analysis(
+                        "{}",
+                        system_prompt="json",
+                        config=config,
+                        timeout_seconds=5,
+                    )
+
+        deepseek.assert_called_once()
+        ollama.assert_not_called()
+
     def test_configured_engine_label_identifies_gemma(self) -> None:
         config = AppConfig(
             openai_api_key=None,
@@ -76,6 +408,24 @@ class LlmClientTests(unittest.TestCase):
                     generate_analysis("prompt")
 
         urlopen.assert_not_called()
+
+    def test_openai_provider_remains_a_conservative_stub(self) -> None:
+        config = _deepseek_config(
+            llm_provider="openai",
+            openai_api_key="synthetic-openai-key",
+        )
+
+        with patch("backend.email_agent.llm_client.AsyncOpenAI") as async_client:
+            with patch("urllib.request.urlopen") as urlopen:
+                with self.assertRaises(LlmClientError) as caught:
+                    generate_analysis("synthetic prompt", config=config)
+
+        async_client.assert_not_called()
+        urlopen.assert_not_called()
+        self.assertEqual(
+            str(caught.exception),
+            "OpenAI integration is not enabled in the first skeleton.",
+        )
 
     def test_ollama_provider_posts_json_mode_generate_request(self) -> None:
         response_body = json.dumps({"response": "{\"summary\":\"客户询问。\"}"}).encode("utf-8")

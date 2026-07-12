@@ -2,28 +2,59 @@
 
 from __future__ import annotations
 
+import asyncio
 import ipaddress
 import json
 import urllib.error
 import urllib.parse
 import urllib.request
 
+from openai import AsyncOpenAI
+
 from .config import AppConfig
 from .config import load_config
+
+
+DEEPSEEK_BASE_URL = "https://api.deepseek.com"
+DEEPSEEK_MODELS = frozenset({"deepseek-v4-flash", "deepseek-v4-pro"})
 
 
 class LlmClientError(RuntimeError):
     """Raised when the LLM client cannot produce an analysis."""
 
 
-def generate_analysis(prompt: str) -> str:
-    config = load_config()
-    if config.llm_provider in {"", "disabled", "none"}:
+def generate_analysis(
+    user_prompt: str,
+    *,
+    system_prompt: str = "",
+    config: AppConfig | None = None,
+    timeout_seconds: float | None = None,
+) -> str:
+    current = config or load_config()
+    if current.llm_provider in {"", "disabled", "none"}:
         raise LlmClientError("LLM provider is disabled.")
-    if config.llm_provider == "ollama":
-        return _generate_with_ollama(prompt, config)
-    if config.llm_provider == "openai":
-        if not config.openai_api_key:
+    if current.llm_provider == "ollama":
+        return _generate_with_ollama(user_prompt, current)
+    if current.llm_provider == "deepseek":
+        if not current.deepseek_api_key:
+            raise LlmClientError(
+                "DeepSeek API key is not configured for backend analysis."
+            )
+        requested_timeout = (
+            current.deepseek_timeout_seconds
+            if timeout_seconds is None
+            else timeout_seconds
+        )
+        return asyncio.run(
+            _generate_with_deepseek(
+                system_prompt,
+                user_prompt,
+                current,
+                float(requested_timeout),
+            )
+        )
+    if current.llm_provider == "openai":
+        if not current.openai_api_key:
             raise LlmClientError("OpenAI API key is not configured for backend analysis.")
         raise LlmClientError("OpenAI integration is not enabled in the first skeleton.")
     raise LlmClientError("Unsupported LLM provider configured.")
@@ -41,7 +72,67 @@ def configured_analysis_engine_label(config: AppConfig | None = None) -> str:
         return "Local AI model"
     if current.llm_provider == "openai":
         return "OpenAI"
+    if current.llm_provider == "deepseek":
+        if current.deepseek_model == "deepseek-v4-flash":
+            return "DeepSeek V4 Flash"
+        if current.deepseek_model == "deepseek-v4-pro":
+            return "DeepSeek V4 Pro"
+        return "DeepSeek"
     return "Rule fallback"
+
+
+async def _generate_with_deepseek(
+    system_prompt: str,
+    user_prompt: str,
+    config: AppConfig,
+    timeout_seconds: float,
+) -> str:
+    if config.deepseek_model not in DEEPSEEK_MODELS:
+        raise LlmClientError("DeepSeek model is unsupported.")
+    effective_timeout = min(
+        timeout_seconds,
+        float(config.deepseek_timeout_seconds),
+        25.0,
+    )
+    try:
+        async with asyncio.timeout(effective_timeout):
+            async with AsyncOpenAI(
+                api_key=config.deepseek_api_key,
+                base_url=DEEPSEEK_BASE_URL,
+                max_retries=0,
+                timeout=effective_timeout,
+            ) as client:
+                response = await client.chat.completions.create(
+                    model=config.deepseek_model,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    response_format={"type": "json_object"},
+                    temperature=0,
+                    stream=False,
+                    max_tokens=2400,
+                    extra_body={"thinking": {"type": "disabled"}},
+                )
+    except TimeoutError:
+        raise LlmClientError("DeepSeek analysis request timed out.") from None
+    except Exception:
+        raise LlmClientError("DeepSeek analysis request failed.") from None
+    return _parse_deepseek_response(response)
+
+
+def _parse_deepseek_response(response: object) -> str:
+    choices = getattr(response, "choices", None)
+    if not isinstance(choices, (list, tuple)) or not choices:
+        raise LlmClientError("DeepSeek analysis response was incomplete.") from None
+    choice = choices[0]
+    if getattr(choice, "finish_reason", None) != "stop":
+        raise LlmClientError("DeepSeek analysis response was incomplete.") from None
+    message = getattr(choice, "message", None)
+    content = getattr(message, "content", None)
+    if not isinstance(content, str) or not content.strip():
+        raise LlmClientError("DeepSeek analysis response was empty.") from None
+    return content.strip()
 
 
 def _generate_with_ollama(prompt: str, config: AppConfig) -> str:

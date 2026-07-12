@@ -15,6 +15,36 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ConfigTests(unittest.TestCase):
+    def test_load_config_reads_and_normalizes_deepseek_overrides(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "DEEPSEEK_API_KEY": "synthetic-deepseek-key",
+                "EMAIL_AGENT_LLM_PROVIDER": " DeepSeek ",
+                "EMAIL_AGENT_DEEPSEEK_MODEL": " deepseek-v4-pro ",
+                "EMAIL_AGENT_DEEPSEEK_TIMEOUT_SECONDS": "17",
+                "EMAIL_AGENT_DEEPSEEK_OUTPUT_MODE": " MODEL_LED ",
+            },
+            clear=True,
+        ):
+            config = load_config(dotenv_path=None)
+
+        self.assertEqual(config.deepseek_api_key, "synthetic-deepseek-key")
+        self.assertEqual(config.llm_provider, "deepseek")
+        self.assertEqual(config.deepseek_model, "deepseek-v4-pro")
+        self.assertEqual(config.deepseek_timeout_seconds, 17)
+        self.assertEqual(config.deepseek_output_mode, "model_led")
+
+    def test_load_config_caps_deepseek_timeout_at_25_seconds(self) -> None:
+        with patch.dict(
+            os.environ,
+            {"EMAIL_AGENT_DEEPSEEK_TIMEOUT_SECONDS": "999"},
+            clear=True,
+        ):
+            config = load_config(dotenv_path=None)
+
+        self.assertEqual(config.deepseek_timeout_seconds, 25)
+
     def test_load_config_has_safe_deepseek_defaults(self) -> None:
         with patch.dict(os.environ, {}, clear=True):
             config = load_config(dotenv_path=None)
