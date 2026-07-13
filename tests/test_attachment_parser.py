@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import inspect
 import sqlite3
 import struct
+import time
 import unittest
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
@@ -1395,6 +1397,52 @@ class AttachmentParserTests(unittest.TestCase):
 
         self.assertEqual(ocr.image_to_string.call_args.kwargs, {"timeout": 5})
 
+    def test_worker_ocr_timeout_preserves_one_second_cleanup_grace(self) -> None:
+        with TemporaryDirectory() as directory:
+            stored = self._write(directory, "deadline.png", "image", self._image_bytes())
+            ocr = MagicMock()
+            ocr.image_to_string.return_value = "bounded OCR"
+
+            with (
+                patch.object(attachment_parser, "pytesseract", ocr),
+                patch.object(time, "monotonic", return_value=100.0),
+            ):
+                self._parse_one_with_deadline(
+                    stored,
+                    "attachment:0",
+                    deadline=104.25,
+                )
+
+        self.assertEqual(ocr.image_to_string.call_args.kwargs, {"timeout": 3.25})
+
+    def test_worker_does_not_start_ocr_without_safe_window(self) -> None:
+        with TemporaryDirectory() as directory:
+            stored = self._write(directory, "no-window.png", "image", self._image_bytes())
+            ocr = MagicMock()
+
+            with (
+                patch.object(attachment_parser, "pytesseract", ocr),
+                patch.object(time, "monotonic", return_value=100.0),
+            ):
+                result = self._parse_one_with_deadline(
+                    stored,
+                    "attachment:0",
+                    deadline=100.5,
+                )
+
+        ocr.image_to_string.assert_not_called()
+        self.assertEqual(result.display_insight["status"], "metadata_only")
+        self.assertIn("timed out", " ".join(result.display_insight["limitations"]).lower())
+
+    def test_display_api_matches_compat_bundle_projection(self) -> None:
+        with TemporaryDirectory() as directory:
+            item = self._write(directory, "wrong.txt", "pdf", b"synthetic")
+
+            display = parse_attachments([item])
+            bundles = parse_attachment_bundles_compat([item])
+
+        self.assertEqual(display, [bundle.display_insight for bundle in bundles])
+
     def test_pdf_exact_budget_reports_only_when_page_is_omitted(self) -> None:
         cases = ((False, False), (True, True))
         for has_remaining_page, expected_limit in cases:
@@ -1486,6 +1534,17 @@ class AttachmentParserTests(unittest.TestCase):
                 self.assertEqual(self._has_character_limit(result[0]), expected_limit)
                 if remaining_kind == "sheet":
                     second_sheet.iter_rows.assert_not_called()
+
+    @staticmethod
+    def _parse_one_with_deadline(
+        item: StoredAttachment,
+        source_id: str,
+        *,
+        deadline: float,
+    ) -> object:
+        if "deadline" not in inspect.signature(attachment_parser._parse_one_bundle).parameters:
+            raise AssertionError("_parse_one_bundle must accept the worker deadline")
+        return attachment_parser._parse_one_bundle(item, source_id, deadline=deadline)
 
     @staticmethod
     def _visible_text(insight: dict[str, object]) -> str:

@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import multiprocessing
+import time
 from collections.abc import Callable
-from pathlib import Path
+from multiprocessing.connection import Connection
+from multiprocessing.context import BaseContext
+from typing import Any
 
 from docx import Document
 from openpyxl import load_workbook
@@ -16,37 +20,36 @@ except ImportError:  # pragma: no cover - dependency is pinned but OCR remains o
     pytesseract = None
 
 from .attachment_storage import StoredAttachment
-from .attachment_model_context import AttachmentAnalysisBundle, attachment_model_candidate
-from .attachment_fact_safety import (
-    MAX_ATTACHMENT_FACT_CHARACTERS,
-    MAX_ATTACHMENT_FACTS,
-    sanitize_constructed_fact,
-)
-from .attachment_facts import extract_attachment_facts
+from .attachment_model_context import AttachmentAnalysisBundle
 from .attachment_docx import (
     MAX_DOCX_CELLS_PER_ROW,
     MAX_DOCX_ROWS_PER_TABLE,
-    collect_docx_text,
+    parse_docx_bundle,
+    parse_pdf_bundle,
+    parse_xlsx_bundle,
 )
 from .attachment_safety import (
     decoder_failure_limitation,
-    enforce_pdf_decoder_limits,
-    office_package_limitation,
 )
-from .attachment_text import MAX_EXTRACTED_CHARACTERS, TextBudget, sanitize_text
+from .attachment_text import (
+    MAX_EXTRACTED_CHARACTERS,
+    MAX_KEY_FACT_CHARACTERS,
+    MAX_KEY_FACTS,
+    TextBudget,
+    character_limitations as _character_limitations,
+    extension_limitation as _extension_limitation_for,
+    metadata_only as _metadata_only,
+    text_insight as _text_insight,
+    valid_worker_bundle as _valid_worker_bundle,
+)
 
-MAX_PDF_PAGES = 3
-MAX_XLSX_SHEETS = 3
-MAX_XLSX_ROWS_PER_SHEET = 30
-MAX_PDF_PAGE_CHARACTERS = 1_000
-MAX_XLSX_CELL_CHARACTERS = 1_000
-MAX_XLSX_ROW_CHARACTERS = 1_100
 MAX_OCR_CHARACTERS = 2_000
 MAX_IMAGE_PIXELS = 25_000_000
 OCR_TIMEOUT_SECONDS = 5
-MAX_SUMMARY_CHARACTERS = 600
-MAX_KEY_FACTS = MAX_ATTACHMENT_FACTS
-MAX_KEY_FACT_CHARACTERS = MAX_ATTACHMENT_FACT_CHARACTERS
+_TIMEOUT_LIMITATION = "Attachment parsing timed out; content was not parsed."
+_WORKER_FAILURE_LIMITATION = "Attachment content could not be parsed in the isolated worker."
+_POLL_INTERVAL_SECONDS = 0.05
+_JOIN_TIMEOUT_SECONDS = 0.2
 
 _ALLOWED_SUFFIXES = {
     "pdf": {".pdf"},
@@ -60,10 +63,153 @@ def parse_attachments(items: list[StoredAttachment]) -> list[dict[str, object]]:
     return [bundle.display_insight for bundle in parse_attachment_bundles_compat(items)]
 
 def parse_attachment_bundles_compat(items: list[StoredAttachment]) -> list[AttachmentAnalysisBundle]:
-    """Build in-process dual projections until Task 6 adds process isolation."""
+    """Build synchronous in-process bundles for display-only compatibility callers."""
     return [_parse_one_bundle(item, f"attachment:{index}") for index, item in enumerate(items)]
 
-def _parse_one_bundle(item: StoredAttachment, source_id: str) -> AttachmentAnalysisBundle:
+def parse_attachment_bundles(
+    items: list[StoredAttachment],
+    *,
+    deadline: float,
+    clock: Callable[[], float] = time.monotonic,
+    mp_context: BaseContext | None = None,
+) -> list[AttachmentAnalysisBundle]:
+    """Parse sequentially in spawned workers under one absolute deadline."""
+    context = mp_context or multiprocessing.get_context("spawn")
+    results: list[AttachmentAnalysisBundle] = []
+    for index, item in enumerate(items):
+        if clock() >= deadline:
+            results.extend(_metadata_only(remaining, _TIMEOUT_LIMITATION) for remaining in items[index:])
+            break
+        bundle, timed_out = _parse_in_worker(
+            item,
+            source_id=f"attachment:{index}",
+            deadline=deadline,
+            clock=clock,
+            context=context,
+        )
+        results.append(bundle)
+        if timed_out:
+            results.extend(_metadata_only(remaining, _TIMEOUT_LIMITATION) for remaining in items[index + 1:])
+            break
+    return results
+
+
+def _attachment_worker(
+    item: StoredAttachment,
+    source_id: str,
+    deadline: float,
+    send_connection: Connection,
+) -> None:
+    try:
+        send_connection.send(_parse_one_bundle(item, source_id, deadline=deadline))
+    except Exception:
+        return
+    finally:
+        send_connection.close()
+
+
+def _parse_in_worker(
+    item: StoredAttachment,
+    *,
+    source_id: str,
+    deadline: float,
+    clock: Callable[[], float],
+    context: BaseContext,
+) -> tuple[AttachmentAnalysisBundle, bool]:
+    try:
+        receive_connection, send_connection = context.Pipe(duplex=False)
+    except Exception:
+        return _metadata_only(item, _WORKER_FAILURE_LIMITATION), False
+    process = None
+    started = False
+    try:
+        try:
+            process = context.Process(
+                target=_attachment_worker,
+                args=(item, source_id, deadline, send_connection),
+            )
+            process.start()
+            started = True
+            send_connection.close()
+        except Exception:
+            return _metadata_only(item, _WORKER_FAILURE_LIMITATION), False
+        message, timed_out = _receive_message(process, receive_connection, deadline, clock)
+        if timed_out:
+            _stop_process(process)
+            return _metadata_only(item, _TIMEOUT_LIMITATION), True
+        _finish_process(process)
+        if clock() >= deadline:
+            return _metadata_only(item, _TIMEOUT_LIMITATION), True
+        if _valid_worker_bundle(message, item, source_id):
+            return message, False
+        return _metadata_only(item, _WORKER_FAILURE_LIMITATION), False
+    finally:
+        if not send_connection.closed:
+            send_connection.close()
+        if started and process is not None and process.is_alive():
+            _stop_process(process)
+        receive_connection.close()
+
+
+def _receive_message(
+    process: Any,
+    receive_connection: Connection,
+    deadline: float,
+    clock: Callable[[], float],
+) -> tuple[object | None, bool]:
+    while True:
+        remaining = deadline - clock()
+        if remaining <= 0:
+            return None, True
+        try:
+            if receive_connection.poll(min(_POLL_INTERVAL_SECONDS, remaining)):
+                if clock() >= deadline:
+                    return None, True
+                return receive_connection.recv(), False
+        except Exception:
+            return None, False
+        if not process.is_alive():
+            return None, False
+
+
+def _finish_process(process: Any) -> None:
+    process.join(_JOIN_TIMEOUT_SECONDS)
+    if process.is_alive():
+        _stop_process(process)
+
+
+def _stop_process(process: Any) -> None:
+    try:
+        process.terminate()
+    except Exception:
+        pass
+    try:
+        process.join(_JOIN_TIMEOUT_SECONDS)
+    except Exception:
+        pass
+    try:
+        alive = process.is_alive()
+    except Exception:
+        alive = False
+    if alive:
+        try:
+            process.kill()
+        except Exception:
+            pass
+        try:
+            process.join(_JOIN_TIMEOUT_SECONDS)
+        except Exception:
+            pass
+
+
+def _parse_one_bundle(
+    item: StoredAttachment,
+    source_id: str,
+    *,
+    deadline: float | None = None,
+) -> AttachmentAnalysisBundle:
+    if deadline is not None and time.monotonic() >= deadline:
+        return _metadata_only(item, _TIMEOUT_LIMITATION)
     extension_limitation = _extension_limitation(item)
     if extension_limitation:
         return _metadata_only(item, extension_limitation)
@@ -72,8 +218,12 @@ def _parse_one_bundle(item: StoredAttachment, source_id: str) -> AttachmentAnaly
         "pdf": _parse_pdf,
         "xlsx": _parse_xlsx,
         "docx": _parse_docx,
-        "image": _parse_image,
     }
+    if item.type == "image":
+        try:
+            return _parse_image(item, source_id, deadline=deadline)
+        except Exception:
+            return _metadata_only(item, decoder_failure_limitation(item.type))
     parser = parsers.get(item.type)
     if parser is None:
         return _metadata_only(item, "Unsupported attachment type.")
@@ -83,76 +233,20 @@ def _parse_one_bundle(item: StoredAttachment, source_id: str) -> AttachmentAnaly
         return _metadata_only(item, decoder_failure_limitation(item.type))
 
 def _parse_pdf(item: StoredAttachment, source_id: str) -> AttachmentAnalysisBundle:
-    enforce_pdf_decoder_limits()
-    reader = PdfReader(str(item.path), strict=True)
-    try:
-        collector = TextBudget()
-        for page in reader.pages[:MAX_PDF_PAGES]:
-            if collector.exhausted:
-                collector.mark_omitted()
-                break
-            collector.add(page.extract_text() or "", MAX_PDF_PAGE_CHARACTERS)
-        limitations = _character_limitations(collector)
-        if len(reader.pages) > MAX_PDF_PAGES:
-            limitations.append("Page limit reached; remaining pages were not parsed.")
-        return _text_insight(
-            item,
-            source_id,
-            collector.text,
-            limitations,
-            "PDF",
-            fact_text=collector.fact_text,
-        )
-    finally:
-        reader.close()
+    return parse_pdf_bundle(item, source_id, PdfReader, _text_insight)
 
 def _parse_xlsx(item: StoredAttachment, source_id: str) -> AttachmentAnalysisBundle:
-    package_limitation = office_package_limitation(item.path, item.type)
-    if package_limitation:
-        return _metadata_only(item, package_limitation)
-    workbook = load_workbook(item.path, read_only=True, data_only=True, keep_links=False)
-    try:
-        all_worksheets = workbook.worksheets
-        worksheets = all_worksheets[:MAX_XLSX_SHEETS]
-        limitations: list[str] = []
-        collector = TextBudget()
-        for worksheet in worksheets:
-            if collector.exhausted:
-                collector.mark_omitted()
-                break
-            for row_number, row in enumerate(worksheet.iter_rows(values_only=True), start=1):
-                if row_number > MAX_XLSX_ROWS_PER_SHEET:
-                    limitations.append("Row limit reached; remaining rows were not parsed.")
-                    break
-                if collector.exhausted:
-                    collector.mark_omitted()
-                    break
-                _collect_xlsx_row(collector, str(worksheet.title), row)
-                if collector.exhausted and collector.truncated:
-                    break
-        if len(all_worksheets) > MAX_XLSX_SHEETS:
-            limitations.append("Sheet limit reached; remaining sheets were not parsed.")
-    finally:
-        workbook.close()
-    limitations = [*_character_limitations(collector), *limitations]
-    return _text_insight(
-        item,
-        source_id,
-        collector.text,
-        limitations,
-        "XLSX",
-        fact_text=collector.fact_text,
-    )
+    return parse_xlsx_bundle(item, source_id, load_workbook, _text_insight)
 
 def _parse_docx(item: StoredAttachment, source_id: str) -> AttachmentAnalysisBundle:
-    package_limitation = office_package_limitation(item.path, item.type)
-    if package_limitation:
-        return _metadata_only(item, package_limitation)
-    document = Document(item.path)
-    text, fact_text, limitations = collect_docx_text(document)
-    return _text_insight(item, source_id, text, limitations, "DOCX", fact_text=fact_text)
+    return parse_docx_bundle(item, source_id, Document, _text_insight)
 
-def _parse_image(item: StoredAttachment, source_id: str) -> AttachmentAnalysisBundle:
+def _parse_image(
+    item: StoredAttachment,
+    source_id: str,
+    *,
+    deadline: float | None = None,
+) -> AttachmentAnalysisBundle:
     with Image.open(item.path) as image:
         width, height = image.size
         image.verify()
@@ -161,11 +255,16 @@ def _parse_image(item: StoredAttachment, source_id: str) -> AttachmentAnalysisBu
         return _metadata_only(item, "Image pixel limit exceeded; OCR was not attempted.", [dimensions])
     if pytesseract is None:
         return _metadata_only(item, "OCR is unavailable; image metadata only.", [dimensions])
+    ocr_timeout = OCR_TIMEOUT_SECONDS
+    if deadline is not None:
+        ocr_timeout = max(0, min(5, deadline - time.monotonic() - 1))
+        if ocr_timeout <= 0:
+            return _metadata_only(item, _TIMEOUT_LIMITATION, [dimensions])
     try:
         with Image.open(item.path) as image:
             collector = TextBudget()
             collector.add(
-                pytesseract.image_to_string(image, timeout=OCR_TIMEOUT_SECONDS),
+                pytesseract.image_to_string(image, timeout=ocr_timeout),
                 MAX_OCR_CHARACTERS,
             )
     except Exception:
@@ -182,116 +281,5 @@ def _parse_image(item: StoredAttachment, source_id: str) -> AttachmentAnalysisBu
         fact_text=collector.fact_text,
     )
 
-def _collect_xlsx_row(
-    collector: TextBudget, sheet_title: str, row: tuple[object, ...]
-) -> None:
-    row_collector = TextBudget(MAX_XLSX_ROW_CHARACTERS)
-    row_collector.add(sheet_title, MAX_XLSX_CELL_CHARACTERS, separator="")
-    fact_values: list[str] = []
-    has_value = False
-    for cell_index, value in enumerate(row):
-        if value is None:
-            continue
-        if row_collector.exhausted:
-            if any(remaining is not None for remaining in row[cell_index:]):
-                row_collector.mark_omitted()
-            break
-        separator = ": " if not has_value else " | "
-        cell_text = str(value)
-        row_collector.add(cell_text, MAX_XLSX_CELL_CHARACTERS, separator=separator)
-        fact_values.append(cell_text[:MAX_XLSX_CELL_CHARACTERS])
-        has_value = True
-    if not has_value:
-        return
-    if row_collector.truncated:
-        collector.truncated = True
-    collector.add(
-        row_collector.text,
-        MAX_XLSX_ROW_CHARACTERS,
-        fact_value=" | ".join(fact_values),
-    )
-
-def _character_limitations(collector: TextBudget) -> list[str]:
-    if collector.truncated:
-        return ["Character limit reached; remaining text was not parsed."]
-    return []
-
-
-def _text_insight(
-    item: StoredAttachment,
-    source_id: str,
-    text: str,
-    limitations: list[str],
-    label: str,
-    metadata_facts: list[str] | None = None,
-    *,
-    fact_text: str | None = None,
-) -> AttachmentAnalysisBundle:
-    sanitized = sanitize_text(text)
-    if not sanitized:
-        return _metadata_only(item, f"{label} contains no readable text.", metadata_facts)
-    bounded = sanitized[:MAX_EXTRACTED_CHARACTERS].rstrip()
-    if len(sanitized) > MAX_EXTRACTED_CHARACTERS:
-        limitations = [*limitations, "Character limit reached; remaining text was not parsed."]
-    facts = _facts_from_text(fact_text if fact_text is not None else bounded, metadata_facts)
-    display_insight = _insight(
-        item,
-        "parsed",
-        f"{label} content parsed; review structured facts.",
-        facts,
-        limitations,
-    )
-    candidate_text = fact_text if fact_text is not None else text
-    return AttachmentAnalysisBundle(
-        display_insight,
-        attachment_model_candidate(source_id, candidate_text),
-    )
-
-
-def _metadata_only(
-    item: StoredAttachment, limitation: str, facts: list[str] | None = None
-) -> AttachmentAnalysisBundle:
-    return AttachmentAnalysisBundle(_insight(
-        item,
-        "metadata_only",
-        f"{item.type.upper()} attachment metadata only.",
-        facts or [f"Size: {item.byte_size} bytes."],
-        [limitation],
-    ), None)
-
-
-def _insight(
-    item: StoredAttachment,
-    status: str,
-    summary: str,
-    facts: list[str],
-    limitations: list[str],
-) -> dict[str, object]:
-    safe_facts = [
-        cleaned
-        for fact in facts[:MAX_KEY_FACTS]
-        if (cleaned := sanitize_constructed_fact(fact))
-    ]
-    return {
-        "filename": item.safe_filename,
-        "type": item.type,
-        "status": status,
-        "summary": sanitize_text(summary)[:MAX_SUMMARY_CHARACTERS],
-        "key_facts": safe_facts,
-        "limitations": [sanitize_text(value)[:MAX_KEY_FACT_CHARACTERS] for value in limitations],
-    }
-
-
-def _facts_from_text(text: str, metadata_facts: list[str] | None) -> list[str]:
-    return extract_attachment_facts(text, metadata_facts)
-
-
 def _extension_limitation(item: StoredAttachment) -> str | None:
-    allowed_suffixes = _ALLOWED_SUFFIXES.get(item.type)
-    if allowed_suffixes is None:
-        return None
-    suffix = Path(item.safe_filename).suffix.lower()
-    if suffix in allowed_suffixes:
-        return None
-    expected = " or ".join(sorted(allowed_suffixes))
-    return f"Only {expected} files are parsed for {item.type.upper()} attachments."
+    return _extension_limitation_for(item, _ALLOWED_SUFFIXES)
