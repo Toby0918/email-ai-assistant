@@ -109,6 +109,10 @@ class DeepSeekPromptContextTests(unittest.TestCase):
             "parsed",
             "automatic mailbox",
             "price, delivery, payment, contract, quality, or legal",
+            "every claimed source independently supports the claim",
+            "Unknown sources are forbidden",
+            "unparsed sources are forbidden",
+            "Each attachment augmentation must cite its own parsed attachment source",
         )
 
         for text in required:
@@ -311,6 +315,16 @@ class DeepSeekPromptContextTests(unittest.TestCase):
             (
                 "wrong public prefix",
                 {"attachment:0": "PRIVATE_PUBLIC_SOURCE"},
+                self.attachment_context,
+            ),
+            (
+                "empty public suffix",
+                {"attachment:0": "attachment:"},
+                self.attachment_context,
+            ),
+            (
+                "whitespace public suffix",
+                {"attachment:0": "attachment:   \t"},
                 self.attachment_context,
             ),
             (

@@ -35,8 +35,9 @@ _AMOUNT_RE = re.compile(
 _DATE_RE = re.compile(r"\b(20\d{2})[-/](\d{1,2})[-/](\d{1,2})\b")
 _CHINESE_DATE_RE = re.compile(r"(20\d{2})年(\d{1,2})月(\d{1,2})日")
 _RELATIVE_DEADLINE_RE = re.compile(
-    r"\b(today|tomorrow|eod|end\s+of\s+day|this\s+week|next\s+week)\b|"
-    r"今天|明天|本周|下周|今日|明日",
+    r"\b(today|tomorrow|eod|end\s+of\s+day|this\s+week|next\s+week|"
+    r"within\s+\d+\s+(?:days?|hours?)|by\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))\b|"
+    r"今天|明天|本周|下周|今日|明日|\d+\s*(?:天|小时)内|周[一二三四五六日天]前",
     re.IGNORECASE,
 )
 _QUANTITY_RE = re.compile(
@@ -63,14 +64,15 @@ _NEGATION_RE = re.compile(
     r"尚未|未|没有|并未|不",
     re.IGNORECASE,
 )
-_SAFE_PROCEDURAL_RE = re.compile(
-    r"\bwe\s+(?:will\s+)?(?:review|check|verify)\b|"
-    r"我们(?:将|会)?(?:审核|检查|核实|复核)",
+_CLAUSE_RE = re.compile(r"[^;；.!?。！？\n]+")
+_ACTOR_RE = re.compile(r"\b(?:i|we)\b|我方|我们|我", re.IGNORECASE)
+_SAFE_ACTION_PREFIX_RE = re.compile(
+    r"\b(?:review|check|verify)\b(?:\s+(?:the|this|current))?\s*$|"
+    r"(?:审核|检查|核实|复核)(?:一下|本次|当前|该)?\s*$",
     re.IGNORECASE,
 )
-_COMMITMENT_CUE_RE = re.compile(
-    r"\bwe\s+(?:will|shall|confirm|guarantee|accept|agree|commit|promise)\b|"
-    r"我们(?:将|会|确认|保证|接受|同意|承诺)",
+_COMMITMENT_ACTION_RE = re.compile(
+    r"\b(?:accept|confirm|guarantee|commit|agree|deliver|pay)\b|接受|确认|保证|承诺|同意|交付|付款|支付",
     re.IGNORECASE,
 )
 _COMMITMENT_TERMS = {
@@ -109,12 +111,19 @@ def find_grounding_violations(
         if signatures and not claimed:
             violations[pointer] = GroundingViolation(pointer, _UNGROUNDED_REASON)
             continue
-        attachment_source = _attachment_source_for_pointer(envelope, pointer)
-        if signatures and attachment_source is not None and (
-            not claimed or any(source_id != attachment_source for source_id in claimed)
-        ):
-            violations[pointer] = GroundingViolation(pointer, _UNGROUNDED_REASON)
-            continue
+        attachment = _attachment_owner_for_pointer(envelope, pointer)
+        if attachment is not None:
+            owner_id, object_evidence = attachment
+            owner = sources.get(owner_id)
+            if owner_id not in claimed or owner_id not in object_evidence:
+                violations[pointer] = GroundingViolation(pointer, _UNGROUNDED_REASON)
+                continue
+            if owner is None:
+                violations[pointer] = GroundingViolation(pointer, _INVALID_SOURCE_REASON)
+                continue
+            if owner.kind != "attachment" or not owner.parsed:
+                violations[pointer] = GroundingViolation(pointer, _UNAVAILABLE_ATTACHMENT_REASON)
+                continue
         for source_id in claimed:
             source = sources.get(source_id)
             if source is None:
@@ -151,16 +160,21 @@ def _pointer(tokens: tuple[str, ...]) -> str:
     return "/" + "/".join(token.replace("~", "~0").replace("/", "~1") for token in tokens)
 
 
-def _attachment_source_for_pointer(envelope: object, pointer: str) -> str | None:
+def _attachment_owner_for_pointer(
+    envelope: object, pointer: str
+) -> tuple[str, tuple[str, ...]] | None:
     if not pointer.startswith("/attachment_augmentations/") or not isinstance(envelope, dict):
         return None
     tokens = pointer.split("/")
     try:
         item = envelope["attachment_augmentations"][int(tokens[2])]
         source_id = item["source_id"]
+        evidence_sources = item["evidence_sources"]
     except (IndexError, KeyError, TypeError, ValueError):
         return None
-    return source_id if isinstance(source_id, str) else None
+    if not isinstance(source_id, str) or not isinstance(evidence_sources, list):
+        return None
+    return source_id, tuple(value for value in evidence_sources if isinstance(value, str))
 
 
 def _critical_signatures(text: str) -> frozenset[str]:
@@ -199,21 +213,28 @@ def _critical_signatures(text: str) -> frozenset[str]:
 def _outcome_signatures(text: str) -> set[str]:
     signatures: set[str] = set()
     for match in _OUTCOME_RE.finditer(text):
-        prefix = text[max(0, match.start() - 28):match.start()]
+        prefix = re.split(r"[;；,.，。!?！？\n]", text[:match.start()])[-1]
         polarity = "negative" if _NEGATION_RE.search(prefix) else "positive"
         signatures.add(f"outcome:{_outcome_category(match.group(0))}:{polarity}")
     return signatures
 
 
 def _commitment_signatures(text: str) -> set[str]:
-    without_safe = _SAFE_PROCEDURAL_RE.sub("", text)
-    if _COMMITMENT_CUE_RE.search(without_safe) is None:
-        return set()
-    return {
-        "commitment:" + name
-        for name, pattern in _COMMITMENT_TERMS.items()
-        if pattern.search(without_safe)
-    }
+    signatures: set[str] = set()
+    for clause in _CLAUSE_RE.findall(text):
+        actor = _ACTOR_RE.search(clause)
+        if actor is None:
+            continue
+        for action in _COMMITMENT_ACTION_RE.finditer(clause, actor.end()):
+            if _SAFE_ACTION_PREFIX_RE.search(clause[actor.end():action.start()]):
+                continue
+            tail = clause[action.start():]
+            signatures.update(
+                "commitment:" + name
+                for name, pattern in _COMMITMENT_TERMS.items()
+                if pattern.search(tail)
+            )
+    return signatures
 
 
 def _compact(value: str) -> str:

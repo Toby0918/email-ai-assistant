@@ -76,14 +76,7 @@ def valid_envelope() -> dict[str, Any]:
                 "review_reasons": ["Review before sending."],
             },
         },
-        "attachment_augmentations": [
-            {
-                "source_id": "attachment:0",
-                "summary": "Drawing reviewed.",
-                "key_facts": ["General drawing detail."],
-                "evidence_sources": ["attachment:0"],
-            }
-        ],
+        "attachment_augmentations": [],
         "field_evidence": {},
     }
 
@@ -130,6 +123,25 @@ def set_pointer(root: dict[str, Any], pointer: str, value: str) -> None:
         current[final] = value
 
 
+def add_attachment_augmentation(
+    envelope: dict[str, Any],
+    *,
+    summary: str = "Drawing reviewed.",
+    key_facts: list[str] | None = None,
+    evidence_sources: list[str] | None = None,
+) -> None:
+    envelope["attachment_augmentations"] = [
+        {
+            "source_id": "attachment:0",
+            "summary": summary,
+            "key_facts": key_facts if key_facts is not None else [],
+            "evidence_sources": (
+                evidence_sources if evidence_sources is not None else ["attachment:0"]
+            ),
+        }
+    ]
+
+
 class ModelGroundingTests(unittest.TestCase):
     def setUp(self) -> None:
         self.sources = {
@@ -158,15 +170,25 @@ class ModelGroundingTests(unittest.TestCase):
         for pointer in APPROVED_TEXT_POINTERS:
             with self.subTest(pointer=pointer):
                 envelope = valid_envelope()
+                if pointer.startswith("/attachment_augmentations"):
+                    add_attachment_augmentation(
+                        envelope, key_facts=["General drawing detail."]
+                    )
                 set_pointer(envelope, pointer, critical)
                 source_id = (
                     "attachment:0"
                     if pointer.startswith("/attachment_augmentations")
                     else "thread:0"
                 )
+                field_evidence = {pointer: (source_id,)}
+                if pointer.startswith("/attachment_augmentations"):
+                    field_evidence = {
+                        "/attachment_augmentations/0/summary": (source_id,),
+                        "/attachment_augmentations/0/key_facts/0": (source_id,),
+                    }
                 violations = find_grounding_violations(
                     envelope,
-                    {pointer: (source_id,)},
+                    field_evidence,
                     self.sources,
                 )
                 self.assertEqual(
@@ -253,6 +275,7 @@ class ModelGroundingTests(unittest.TestCase):
 
     def test_nonparsed_attachment_cannot_support_critical_facts(self) -> None:
         envelope = valid_envelope()
+        add_attachment_augmentation(envelope)
         pointer = "/attachment_augmentations/0/summary"
         set_pointer(envelope, pointer, "Part PART-302 measures 12 x 30 mm.")
         sources = dict(self.sources)
@@ -277,6 +300,7 @@ class ModelGroundingTests(unittest.TestCase):
 
     def test_attachment_augmentation_requires_its_own_attachment_source(self) -> None:
         envelope = valid_envelope()
+        add_attachment_augmentation(envelope)
         pointer = "/attachment_augmentations/0/summary"
         fact = "Part PART-302 measures 12 x 30 mm."
         set_pointer(envelope, pointer, fact)
@@ -303,6 +327,132 @@ class ModelGroundingTests(unittest.TestCase):
         self.assertEqual([item.pointer for item in wrong], [pointer])
         self.assertEqual(supported, ())
 
+    def test_noncritical_attachment_leaf_requires_own_pointer_and_object_evidence(self) -> None:
+        pointer = "/attachment_augmentations/0/summary"
+        cases = (
+            ("missing pointer", ["attachment:0"], {}, self.sources),
+            (
+                "wrong object evidence",
+                ["thread:1"],
+                {pointer: ("attachment:0",)},
+                self.sources,
+            ),
+            (
+                "wrong attachment",
+                ["attachment:0"],
+                {pointer: ("attachment:1",)},
+                {
+                    **self.sources,
+                    "attachment:1": EvidenceSource(
+                        "attachment:1",
+                        "attachment",
+                        "Drawing reviewed.",
+                        "attachment:other.pdf",
+                        attachment_index=1,
+                        parsed=True,
+                    ),
+                },
+            ),
+            (
+                "own source missing",
+                ["attachment:0"],
+                {pointer: ("attachment:0",)},
+                {key: value for key, value in self.sources.items() if key != "attachment:0"},
+            ),
+            (
+                "own source wrong kind",
+                ["attachment:0"],
+                {pointer: ("attachment:0",)},
+                {
+                    **self.sources,
+                    "attachment:0": EvidenceSource(
+                        "attachment:0", "thread", "Drawing reviewed.", "thread"
+                    ),
+                },
+            ),
+            (
+                "own source unparsed",
+                ["attachment:0"],
+                {pointer: ("attachment:0",)},
+                {
+                    **self.sources,
+                    "attachment:0": EvidenceSource(
+                        "attachment:0",
+                        "attachment",
+                        "Drawing reviewed.",
+                        "attachment:synthetic.pdf",
+                        attachment_index=0,
+                        parsed=False,
+                    ),
+                },
+            ),
+        )
+
+        for label, object_evidence, field_evidence, sources in cases:
+            with self.subTest(label=label):
+                envelope = valid_envelope()
+                add_attachment_augmentation(
+                    envelope,
+                    summary="Drawing reviewed.",
+                    evidence_sources=object_evidence,
+                )
+                violations = find_grounding_violations(
+                    envelope, field_evidence, sources
+                )
+                self.assertEqual(
+                    [item.pointer for item in violations],
+                    [pointer],
+                )
+                self.assertNotIn("Drawing reviewed", violations[0].reason)
+
+    def test_attachment_object_evidence_cannot_override_critical_own_field_evidence(self) -> None:
+        pointer = "/attachment_augmentations/0/summary"
+        fact = "Part PART-302 measures 12 x 30 mm."
+        envelope = valid_envelope()
+        add_attachment_augmentation(
+            envelope,
+            summary=fact,
+            evidence_sources=["thread:1"],
+        )
+        sources = {
+            **self.sources,
+            "attachment:0": EvidenceSource(
+                "attachment:0",
+                "attachment",
+                fact,
+                "attachment:synthetic.pdf",
+                attachment_index=0,
+                parsed=True,
+            ),
+        }
+
+        violations = find_grounding_violations(
+            envelope, {pointer: ("attachment:0",)}, sources
+        )
+
+        self.assertEqual([item.pointer for item in violations], [pointer])
+
+    def test_every_noncritical_attachment_key_fact_requires_own_evidence(self) -> None:
+        envelope = valid_envelope()
+        add_attachment_augmentation(
+            envelope,
+            key_facts=["General fact one.", "General fact two."],
+        )
+        evidence = {
+            "/attachment_augmentations/0/summary": ("attachment:0",),
+            "/attachment_augmentations/0/key_facts/0": ("attachment:0",),
+        }
+
+        missing = find_grounding_violations(envelope, evidence, self.sources)
+        evidence["/attachment_augmentations/0/key_facts/1"] = ("attachment:0",)
+        valid = find_grounding_violations(envelope, evidence, self.sources)
+
+        self.assertEqual(
+            [item.pointer for item in missing],
+            ["/attachment_augmentations/0/key_facts/1"],
+        )
+        self.assertEqual(valid, ())
+
     def test_single_value_measurement_and_chinese_negated_outcome_are_critical(self) -> None:
         cases = (
             "Weight is 24 kg.",
@@ -321,11 +471,15 @@ class ModelGroundingTests(unittest.TestCase):
 
     def test_safe_procedural_review_language_needs_no_evidence(self) -> None:
         cases = (
+            "I will review the request.",
             "We will review the request.",
             "We will check delivery feasibility.",
             "We will verify the payment status.",
+            "我方将审核请求。",
             "我们将审核交期。",
             "我们会核实付款状态。",
+            "我们会核实一下付款状态。",
+            "我方将复核当前支付状态。",
         )
 
         for text in cases:
@@ -339,6 +493,9 @@ class ModelGroundingTests(unittest.TestCase):
 
     def test_unsupported_consequential_commitment_categories_are_violations(self) -> None:
         cases = (
+            "I accept the contract terms.",
+            "We can guarantee quality.",
+            "We will review price and confirm delivery.",
             "We guarantee the quoted price.",
             "We will deliver the order.",
             "We will pay the invoice.",
@@ -347,6 +504,9 @@ class ModelGroundingTests(unittest.TestCase):
             "We accept legal liability.",
             "我们承诺价格。",
             "我们保证交付。",
+            "我接受合同条款。",
+            "我们可以保证质量。",
+            "我方将审核价格并确认交付。",
         )
 
         for text in cases:
@@ -374,6 +534,67 @@ class ModelGroundingTests(unittest.TestCase):
         )
 
         self.assertEqual([item.pointer for item in violations], ["/analysis/summary"])
+
+    def test_outcome_negation_is_scoped_to_the_current_clause(self) -> None:
+        cases = (
+            ("No delay; shipment completed.", "Shipment completed."),
+            ("Payment is not completed.", "Payment is not completed."),
+            ("没有延误；货物已完成。", "货物已完成。"),
+            ("付款尚未完成。", "付款尚未完成。"),
+        )
+
+        for model_text, grounding_text in cases:
+            with self.subTest(model_text=model_text):
+                envelope = valid_envelope()
+                envelope["analysis"]["summary"] = model_text
+                sources = dict(self.sources)
+                sources["thread:0"] = EvidenceSource(
+                    "thread:0", "thread", grounding_text, "thread"
+                )
+                self.assertEqual(
+                    find_grounding_violations(
+                        envelope,
+                        {"/analysis/summary": ("thread:0",)},
+                        sources,
+                    ),
+                    (),
+                )
+
+    def test_relative_deadlines_require_same_source_evidence(self) -> None:
+        cases = (
+            "Please reply within 3 days.",
+            "Please reply within 24 hours.",
+            "Please reply by Friday.",
+            "请在3天内回复。",
+            "请在周五前回复。",
+        )
+
+        for text in cases:
+            with self.subTest(text=text):
+                envelope = valid_envelope()
+                envelope["analysis"]["summary"] = text
+                sources = dict(self.sources)
+                sources["thread:1"] = EvidenceSource(
+                    "thread:1", "thread", text, "thread"
+                )
+                missing = find_grounding_violations(envelope, {}, sources)
+                wrong = find_grounding_violations(
+                    envelope,
+                    {"/analysis/summary": ("thread:0",)},
+                    sources,
+                )
+                supported = find_grounding_violations(
+                    envelope,
+                    {"/analysis/summary": ("thread:1",)},
+                    sources,
+                )
+                self.assertEqual(
+                    [item.pointer for item in missing], ["/analysis/summary"]
+                )
+                self.assertEqual(
+                    [item.pointer for item in wrong], ["/analysis/summary"]
+                )
+                self.assertEqual(supported, ())
 
     def test_distinct_outcome_categories_are_not_interchangeable(self) -> None:
         envelope = valid_envelope()
