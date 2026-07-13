@@ -104,6 +104,9 @@ class DatabaseTests(unittest.TestCase):
         connection = sqlite3.connect(":memory:")
         initialize_schema(connection)
         analysis = {
+            "schema_version": "deepseek_analysis_v1",
+            "field_evidence": {"/analysis/summary": ["thread:0"]},
+            "attachment_augmentations": [{"source_id": "attachment:0"}],
             "summary": "客户请求确认交付。",
             "priority": "normal",
             "priority_reason": "需要内部核查。",
@@ -118,7 +121,7 @@ class DatabaseTests(unittest.TestCase):
                 }],
                 "key_facts": [{
                     "label": "PO", "value": "PO 42", "source": "latest_message",
-                    "path": "C:/private/key-fact",
+                    "path": "C:/private/key-fact", "source_id": "thread:0",
                 }],
                 "must_check": ["交期"],
                 "missing_info": ["库存"],
@@ -138,6 +141,7 @@ class DatabaseTests(unittest.TestCase):
                 "open_items": [{
                     "item": "核查交付", "owner_hint": "sales", "due_hint": "today",
                     "source": "thread", "private_url": "https://private.example/timeline",
+                    "open_item_id": "open:0",
                 }],
                 "confidence": "medium",
                 "token": "TIMELINE_PRIVATE_TOKEN",
@@ -146,15 +150,17 @@ class DatabaseTests(unittest.TestCase):
             "risk_flags": [{
                 "type": "delivery_risk", "level": "medium", "evidence": "交期未确认。",
                 "recommendation": "先核查。", "raw": "RISK_RAW_SECRET",
+                "evidence_sources": ["thread:0"],
             }],
             "suggested_actions": [{
                 "type": "check_delivery", "description": "核查交付。", "owner_hint": "sales",
                 "due_hint": "today", "path": "/private/action",
+                "timeline_interpretation": {"private": True},
             }],
             "reply_draft": {
                 "subject": "Re: Delivery", "body": "Hello, we are checking.",
                 "needs_human_review": True, "review_reasons": ["需要人工审核。"],
-                "token": "DRAFT_PRIVATE_TOKEN",
+                "token": "DRAFT_PRIVATE_TOKEN", "source_id": "thread:0",
             },
             "analysis_engine": {
                 "source": "rule_fallback", "label": "Rule fallback",
@@ -211,6 +217,12 @@ class DatabaseTests(unittest.TestCase):
         ):
             with self.subTest(secret=secret):
                 self.assertNotIn(secret, stored_json)
+        for provider_key in (
+            "schema_version", "field_evidence", "evidence_sources", "source_id",
+            "open_item_id", "timeline_interpretation", "attachment_augmentations",
+        ):
+            with self.subTest(provider_key=provider_key):
+                self.assertNotIn(provider_key, stored_json)
 
 
 if __name__ == "__main__":

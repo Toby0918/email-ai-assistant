@@ -25,12 +25,8 @@ FIELD_ORDER = (
     "reply_draft",
     "attachment_insights",
 )
-FIXED_9B1_FIELDS = (
-    "risk_flags",
-    "suggested_actions",
-    "reply_draft",
-    "attachment_insights",
-)
+DEFAULT_9B2_FALLBACK_FIELDS = ("risk_flags", "suggested_actions")
+UNSAFE_DRAFT_REASON = "模型草稿未通过安全检查，已保留规则草稿。"
 
 
 def _timeline() -> TimelineBuild:
@@ -189,6 +185,40 @@ class ModelResultSafetyTests(unittest.TestCase):
             evidence=copy.deepcopy(selected.get("field_evidence", {})) if evidence is None else evidence,
         )
 
+    def add_attachments(self) -> None:
+        self.fallback["attachment_insights"] = [
+            {
+                "filename": "synthetic.xlsx", "type": "xlsx", "status": "parsed",
+                "summary": "规则表格摘要。", "key_facts": ["规则表格事实。"],
+                "limitations": ["仅供人工复核。"],
+            },
+            {
+                "filename": "notes.pdf", "type": "pdf", "status": "parsed",
+                "summary": "规则 PDF 摘要。", "key_facts": ["规则 PDF 事实。"],
+                "limitations": [],
+            },
+        ]
+        self.sources["attachment:1"] = EvidenceSource(
+            "attachment:1", "attachment", "附件包含 PDF 说明。",
+            "attachment:notes.pdf", attachment_index=1, parsed=True,
+        )
+
+    def add_augmentation(
+        self, source_id: str, summary: str, key_facts: list[str]
+    ) -> None:
+        index = len(self.envelope["attachment_augmentations"])
+        self.envelope["attachment_augmentations"].append({
+            "source_id": source_id, "summary": summary, "key_facts": key_facts,
+            "evidence_sources": [source_id],
+        })
+        self.envelope["field_evidence"][
+            f"/attachment_augmentations/{index}/summary"
+        ] = [source_id]
+        for fact_index in range(len(key_facts)):
+            self.envelope["field_evidence"][
+                f"/attachment_augmentations/{index}/key_facts/{fact_index}"
+            ] = [source_id]
+
     def test_safe_direct_brief_and_timeline_values_merge(self) -> None:
         analysis = self.envelope["analysis"]
         analysis["summary"] = "客户需要新的报价答复。"
@@ -215,14 +245,14 @@ class ModelResultSafetyTests(unittest.TestCase):
         result = self.merge()
 
         self.assertTrue(result.used_model)
-        self.assertEqual(FIXED_9B1_FIELDS, result.fallback_fields)
+        self.assertEqual(DEFAULT_9B2_FALLBACK_FIELDS, result.fallback_fields)
         self.assertEqual("客户需要新的报价答复。", result.analysis["summary"])
         self.assertEqual("high", result.analysis["priority"])
         self.assertEqual("internal", result.analysis["category"])
         self.assertEqual("应先核实报价再回复客户。", result.analysis["decision_brief"]["one_line_conclusion"])
         self.assertEqual("核实产品报价。", result.analysis["conversation_timeline"]["open_items"][0]["item"])
         self.assertEqual("核实预计交期。", result.analysis["conversation_timeline"]["open_items"][1]["item"])
-        for field in FIXED_9B1_FIELDS:
+        for field in DEFAULT_9B2_FALLBACK_FIELDS:
             self.assertEqual(self.fallback[field], result.analysis[field])
             self.assertIsNot(self.fallback[field], result.analysis[field])
         validate_analysis_result(result.analysis)
@@ -241,7 +271,7 @@ class ModelResultSafetyTests(unittest.TestCase):
                 result = self.merge(envelope)
                 self.assertEqual(self.fallback[target], result.analysis[target])
                 self.assertEqual(
-                    tuple(field for field in FIELD_ORDER if field in {expected_field, *FIXED_9B1_FIELDS}),
+                    tuple(field for field in FIELD_ORDER if field in {expected_field, *DEFAULT_9B2_FALLBACK_FIELDS}),
                     result.fallback_fields,
                 )
                 self.assertEqual("high", result.analysis["priority"])
@@ -484,6 +514,282 @@ class ModelResultSafetyTests(unittest.TestCase):
                 self.assertEqual(self.timeline.public_timeline, result.analysis["conversation_timeline"])
                 self.assertIn("conversation_timeline", result.fallback_fields)
 
+    def test_local_risks_remain_exact_first_and_cannot_be_downgraded(self) -> None:
+        local = copy.deepcopy(self.fallback["risk_flags"])
+        downgraded = copy.deepcopy(local[1])
+        downgraded["level"] = "low"
+        self.envelope["analysis"]["risk_flags"] = [downgraded]
+
+        result = self.merge()
+
+        self.assertEqual(local, result.analysis["risk_flags"])
+        self.assertIsNot(local[0], result.analysis["risk_flags"][0])
+        self.assertIn("risk_flags", result.fallback_fields)
+
+    def test_safe_model_risk_appends_after_all_local_risks(self) -> None:
+        model_risk = {
+            "type": "quality_risk", "level": "medium",
+            "evidence": "附件说明需要人工核查质量信息。",
+            "recommendation": "请先复核质量记录再回复。",
+        }
+        self.envelope["analysis"]["risk_flags"] = [model_risk]
+
+        result = self.merge()
+
+        self.assertEqual(self.fallback["risk_flags"], result.analysis["risk_flags"][:-1])
+        self.assertEqual(model_risk, result.analysis["risk_flags"][-1])
+        self.assertNotIn("risk_flags", result.fallback_fields)
+        self.assertTrue(result.used_model)
+
+    def test_invalid_model_risk_is_isolated_while_safe_risk_is_kept(self) -> None:
+        safe = {
+            "type": "quality_risk", "level": "low", "evidence": "需要人工核查质量。",
+            "recommendation": "请复核质量记录。",
+        }
+        invalid = {
+            "type": "payment_risk", "level": "high", "evidence": "PO 999999 需要付款。",
+            "recommendation": "请先人工核实。",
+        }
+        english = {
+            "type": "security_risk", "level": "high", "evidence": "English only.",
+            "recommendation": "请人工核实。",
+        }
+        self.envelope["analysis"]["risk_flags"] = [safe, invalid, english]
+
+        result = self.merge()
+
+        self.assertEqual([*self.fallback["risk_flags"], safe], result.analysis["risk_flags"])
+        self.assertIn("risk_flags", result.fallback_fields)
+        self.assertTrue(result.used_model)
+
+    def test_malformed_model_risk_is_dropped_without_global_fallback(self) -> None:
+        safe = {
+            "type": "quality_risk", "level": "low", "evidence": "需要人工核查质量。",
+            "recommendation": "请复核质量记录。",
+        }
+        malformed = {"type": "payment_risk", "level": "high", "evidence": "付款待核实。"}
+        self.envelope["analysis"]["risk_flags"] = [safe, malformed]
+        self.envelope["analysis"]["priority"] = "high"
+
+        result = self.merge()
+
+        self.assertEqual([*self.fallback["risk_flags"], safe], result.analysis["risk_flags"])
+        self.assertEqual("high", result.analysis["priority"])
+        self.assertIn("risk_flags", result.fallback_fields)
+        self.assertNotEqual(("all",), result.fallback_fields)
+
+    def test_safe_manual_actions_replace_the_fallback_list(self) -> None:
+        actions = [
+            {"type": "reply", "description": "建议人工审核后回复客户。", "owner_hint": "sales", "due_hint": "unspecified"},
+            {"type": "confirm", "description": "请检查资料并准备回复草稿。", "owner_hint": "sales", "due_hint": "unspecified"},
+            {"type": "reply", "description": "请复制草稿供人工确认。", "owner_hint": "sales", "due_hint": "unspecified"},
+        ]
+        self.envelope["analysis"]["suggested_actions"] = actions
+
+        result = self.merge()
+
+        self.assertEqual(actions, result.analysis["suggested_actions"])
+        self.assertNotIn("suggested_actions", result.fallback_fields)
+        self.assertTrue(result.used_model)
+
+    def test_any_unsafe_action_replaces_the_entire_action_list(self) -> None:
+        phrases = (
+            "系统将自动发送邮件。", "直接回复客户，无需人工审核。", "邮件已删除。",
+            "消息已归档。", "邮件已移动。", "邮件已转发。", "款项已支付。",
+            "合同已签署。", "我们保证按期交付。",
+        )
+        pointer = "/analysis/suggested_actions/0/description"
+        for phrase in phrases:
+            with self.subTest(phrase=phrase):
+                envelope = copy.deepcopy(self.envelope)
+                envelope["analysis"]["suggested_actions"] = [{
+                    "type": "reply", "description": phrase,
+                    "owner_hint": "sales", "due_hint": "today",
+                }]
+                envelope["field_evidence"][pointer] = ["thread:0"]
+                sources = copy.deepcopy(self.sources)
+                sources["thread:0"] = EvidenceSource(
+                    "thread:0", "thread", phrase, "thread"
+                )
+                result = self.merge(envelope, sources=sources)
+                self.assertEqual(
+                    self.fallback["suggested_actions"], result.analysis["suggested_actions"]
+                )
+                self.assertIn("suggested_actions", result.fallback_fields)
+
+    def test_action_language_or_grounding_failure_replaces_whole_list(self) -> None:
+        cases = ("Review the request manually.", "PO 999999 需要处理。")
+        for description in cases:
+            with self.subTest(description=description):
+                envelope = copy.deepcopy(self.envelope)
+                envelope["analysis"]["suggested_actions"][0]["description"] = description
+                result = self.merge(envelope)
+                self.assertEqual(
+                    self.fallback["suggested_actions"], result.analysis["suggested_actions"]
+                )
+                self.assertIn("suggested_actions", result.fallback_fields)
+
+    def test_safe_english_draft_replaces_the_fallback_draft(self) -> None:
+        draft = {
+            "subject": "Re: your request",
+            "body": "Thank you. We received your request and will review and verify the details.",
+            "needs_human_review": True,
+            "review_reasons": ["发送前请人工复核内容。"],
+        }
+        self.envelope["analysis"]["reply_draft"] = draft
+
+        result = self.merge()
+
+        self.assertEqual(draft, result.analysis["reply_draft"])
+        self.assertNotIn("reply_draft", result.fallback_fields)
+        self.assertTrue(result.used_model)
+
+    def test_unsafe_draft_uses_deterministic_fallback_and_deduped_reason(self) -> None:
+        self.fallback["reply_draft"]["review_reasons"].append(UNSAFE_DRAFT_REASON)
+        cases = (
+            ("主题", "Thank you. We will review."),
+            ("Re: request", "邮件将自动发送。"),
+            ("Re: request", "We will deliver by Friday."),
+            ("Re: request", "The message was sent automatically."),
+        )
+        for subject, body in cases:
+            with self.subTest(body=body):
+                envelope = copy.deepcopy(self.envelope)
+                envelope["analysis"]["reply_draft"].update(subject=subject, body=body)
+                pointer = "/analysis/reply_draft/body"
+                envelope["field_evidence"][pointer] = ["thread:0"]
+                sources = copy.deepcopy(self.sources)
+                sources["thread:0"] = EvidenceSource("thread:0", "thread", body, "thread")
+                result = self.merge(envelope, sources=sources)
+                draft = result.analysis["reply_draft"]
+                self.assertEqual(self.fallback["reply_draft"], draft)
+                self.assertTrue(draft["needs_human_review"])
+                self.assertEqual(1, draft["review_reasons"].count(UNSAFE_DRAFT_REASON))
+                self.assertIn("reply_draft", result.fallback_fields)
+
+    def test_false_review_or_non_chinese_review_reason_falls_back_locally(self) -> None:
+        cases = (
+            {"needs_human_review": False},
+            {"review_reasons": ["English review reason."]},
+        )
+        for update in cases:
+            with self.subTest(update=update):
+                envelope = copy.deepcopy(self.envelope)
+                envelope["analysis"]["priority"] = "high"
+                envelope["analysis"]["reply_draft"].update(update)
+                result = self.merge(envelope)
+                self.assertEqual("high", result.analysis["priority"])
+                self.assertTrue(result.analysis["reply_draft"]["needs_human_review"])
+                self.assertEqual(
+                    1,
+                    result.analysis["reply_draft"]["review_reasons"].count(
+                        UNSAFE_DRAFT_REASON
+                    ),
+                )
+                self.assertIn("reply_draft", result.fallback_fields)
+                self.assertNotEqual(("all",), result.fallback_fields)
+
+    def test_safe_attachment_augmentation_replaces_only_model_text(self) -> None:
+        self.add_attachments()
+        self.add_augmentation("attachment:0", "模型表格摘要。", ["模型表格事实。"])
+
+        result = self.merge()
+
+        merged = result.analysis["attachment_insights"]
+        self.assertEqual("模型表格摘要。", merged[0]["summary"])
+        self.assertEqual(["模型表格事实。"], merged[0]["key_facts"])
+        for key in ("filename", "type", "status", "limitations"):
+            self.assertEqual(self.fallback["attachment_insights"][0][key], merged[0][key])
+        self.assertEqual(self.fallback["attachment_insights"][1], merged[1])
+        self.assertIn("attachment_insights", result.fallback_fields)
+        self.assertTrue(result.used_model)
+
+    def test_invalid_attachment_source_or_target_preserves_fallback(self) -> None:
+        cases = ("wrong kind", "unparsed", "label mismatch", "out of range")
+        for label in cases:
+            with self.subTest(label=label):
+                self.add_attachments()
+                source_id = "attachment:0"
+                if label == "wrong kind":
+                    source_id = "thread:0"
+                elif label == "unparsed":
+                    source = self.sources[source_id]
+                    self.sources[source_id] = EvidenceSource(
+                        source.source_id, source.kind, source.grounding_text,
+                        source.public_source, source.attachment_index, False,
+                    )
+                elif label == "label mismatch":
+                    source = self.sources[source_id]
+                    self.sources[source_id] = EvidenceSource(
+                        source.source_id, source.kind, source.grounding_text,
+                        "attachment:other.xlsx", source.attachment_index, True,
+                    )
+                else:
+                    source_id = "attachment:9"
+                    self.sources[source_id] = EvidenceSource(
+                        source_id, "attachment", "超出范围的附件。",
+                        "attachment:missing.pdf", attachment_index=9, parsed=True,
+                    )
+                self.add_augmentation(source_id, "模型摘要。", ["模型事实。"])
+                result = self.merge()
+                self.assertEqual(
+                    self.fallback["attachment_insights"], result.analysis["attachment_insights"]
+                )
+                self.assertIn("attachment_insights", result.fallback_fields)
+
+    def test_duplicate_attachment_source_or_index_invalidates_that_attachment(self) -> None:
+        cases = ("source", "index")
+        for label in cases:
+            with self.subTest(label=label):
+                self.add_attachments()
+                second_id = "attachment:0"
+                if label == "index":
+                    second_id = "attachment:duplicate-index"
+                    self.sources[second_id] = EvidenceSource(
+                        second_id, "attachment", "同一附件的重复来源。",
+                        "attachment:synthetic.xlsx", attachment_index=0, parsed=True,
+                    )
+                self.add_augmentation("attachment:0", "模型摘要一。", ["模型事实一。"])
+                self.add_augmentation(second_id, "模型摘要二。", ["模型事实二。"])
+                result = self.merge()
+                self.assertEqual(
+                    self.fallback["attachment_insights"], result.analysis["attachment_insights"]
+                )
+                self.assertIn("attachment_insights", result.fallback_fields)
+
+    def test_attachment_grounding_failure_is_local_and_mixed_merge_is_partial(self) -> None:
+        self.add_attachments()
+        self.add_augmentation("attachment:0", "模型表格摘要。", ["PO 999999 已完成。"])
+        self.add_augmentation("attachment:1", "模型 PDF 摘要。", ["模型 PDF 事实。"])
+
+        result = self.merge()
+
+        merged = result.analysis["attachment_insights"]
+        self.assertEqual(self.fallback["attachment_insights"][0], merged[0])
+        self.assertEqual("模型 PDF 摘要。", merged[1]["summary"])
+        self.assertEqual(["模型 PDF 事实。"], merged[1]["key_facts"])
+        self.assertIn("attachment_insights", result.fallback_fields)
+        self.assertTrue(result.used_model)
+
+    def test_attachment_merge_preserves_public_shape_and_does_not_mutate_inputs(self) -> None:
+        self.add_attachments()
+        self.add_augmentation("attachment:0", "模型表格摘要。", ["模型表格事实。"])
+        envelope_before = copy.deepcopy(self.envelope)
+        fallback_before = copy.deepcopy(self.fallback)
+        sources_before = copy.deepcopy(self.sources)
+
+        result = self.merge()
+
+        self.assertEqual(envelope_before, self.envelope)
+        self.assertEqual(fallback_before, self.fallback)
+        self.assertEqual(sources_before, self.sources)
+        self.assertEqual(set(), _provider_keys(result.analysis))
+        for item in result.analysis["attachment_insights"]:
+            self.assertEqual(
+                {"filename", "type", "status", "summary", "key_facts", "limitations"},
+                set(item),
+            )
+
     def test_malformed_or_unknown_global_source_returns_fixed_full_fallback(self) -> None:
         malformed = self.merge({"schema_version": "wrong"})
         self.assertEqual(self.fallback, malformed.analysis)
@@ -522,7 +828,7 @@ class ModelResultSafetyTests(unittest.TestCase):
         self.assertEqual(self.fallback, schema.analysis)
 
         with patch(
-            "backend.email_agent.model_result_safety._validate_analysis_language",
+            "backend.email_agent.model_result_safety.validate_public_language",
             side_effect=ValueError("language failed"),
         ):
             language = self.merge()
@@ -550,7 +856,7 @@ class ModelResultSafetyTests(unittest.TestCase):
     def test_used_model_and_fallback_field_order_are_deterministic(self) -> None:
         unchanged = self.merge()
         self.assertFalse(unchanged.used_model)
-        self.assertEqual(FIXED_9B1_FIELDS, unchanged.fallback_fields)
+        self.assertEqual(DEFAULT_9B2_FALLBACK_FIELDS, unchanged.fallback_fields)
 
         envelope = copy.deepcopy(self.envelope)
         envelope["analysis"]["summary"] = "English only."
@@ -567,7 +873,7 @@ class ModelResultSafetyTests(unittest.TestCase):
                 "tags",
                 "decision_brief",
                 "conversation_timeline",
-                *FIXED_9B1_FIELDS,
+                *DEFAULT_9B2_FALLBACK_FIELDS,
             }
         )
         self.assertEqual(expected, result.fallback_fields)

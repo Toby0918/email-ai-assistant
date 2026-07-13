@@ -1,6 +1,6 @@
 """Fail-closed projection of a private DeepSeek envelope into public analysis."""
 from __future__ import annotations
-import copy, re
+import copy
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
@@ -8,27 +8,16 @@ from typing import Any
 from .analysis_schema import validate_analysis_result
 from .deepseek_analysis_schema import validate_deepseek_analysis_v1, validate_envelope_evidence
 from .model_grounding import find_grounding_violations
+from .model_text_safety import has_chinese, has_unconditional_commitment, has_unsafe_operation, validate_public_language
 from .prompt_context import EvidenceSource
 from .thread_timeline import TimelineBuild
 _FIELDS = (
     "summary", "priority", "priority_reason", "category", "tags", "decision_brief",
-    "conversation_timeline", "risk_flags",
-    "suggested_actions", "reply_draft", "attachment_insights",
+    "conversation_timeline", "risk_flags", "suggested_actions", "reply_draft", "attachment_insights",
 )
-_FIXED = {"risk_flags", "suggested_actions", "reply_draft", "attachment_insights"}
-_CHINESE_RE = re.compile(r"[\u3400-\u9fff]")
-_AUTO_ACTION_RE = re.compile(
-    r"(?:自动|直接|无需人工|系统将).{0,16}(?:发送|回复|删除|归档|转发|支付|签署)|"
-    r"\b(?:auto(?:matically)?[- ]?|without human (?:review|approval).{0,12})(?:send|reply|delete|archive|forward|pay|sign)\b|"
-    r"\b(?:send|reply|delete|archive|forward|pay|sign).{0,12}(?:automatically|without human (?:review|approval))\b", re.I,
-)
-_COMMITMENT_RE = re.compile(
-    r"\b(?:i|we)\s+(?:(?:will|shall)\s+(?:ship|dispatch|deliver|fulfil|fulfill|pay)|"
-    r"(?:will\s+)?(?:guarantee|commit(?:\s+to)?|accept|agree(?:\s+to)?).{0,32}"
-    r"(?:price|quote|delivery|payment|contract|terms?|quality|warranty|legal|liability))\b|"
-    r"(?:我方|我们|我).{0,12}(?:保证|承诺|接受|同意|会|将).{0,20}"
-    r"(?:发货|交付|履行|付款|支付|价格|报价|合同|条款|质量|保修|法律|责任|赔偿)", re.I,
-)
+_DRAFT_REASON = "模型草稿未通过安全检查，已保留规则草稿。"
+_RISK_FIELDS = {"type", "level", "evidence", "recommendation"}
+_DRAFT_FIELDS = {"subject", "body", "needs_human_review", "review_reasons"}
 @dataclass(frozen=True, slots=True)
 class SafeMergeResult:
     analysis: dict[str, Any]
@@ -39,14 +28,15 @@ def merge_deepseek_analysis_v1(
     envelope: object, *, fallback: Mapping[str, Any], sources: Mapping[str, EvidenceSource],
     timeline: TimelineBuild, evidence: Mapping[str, Sequence[str]],
 ) -> SafeMergeResult:
-    """Merge only safe 9B1 fields; any global uncertainty returns the fallback."""
+    """Merge safe provider fields while retaining deterministic local safeguards."""
     try:
-        private = copy.deepcopy(validate_deepseek_analysis_v1(envelope))
+        private, raw = _validated_private(envelope, fallback)
         normalized_evidence = _validate_global_inputs(private, evidence, sources)
         violations = {item.pointer for item in find_grounding_violations(private, normalized_evidence, sources)}
         public = _public_fallback(fallback)
-        kept = set(_FIXED)
+        kept: set[str] = set()
         analysis = private["analysis"]
+        raw_analysis = raw["analysis"]
         _merge_direct(public, analysis, violations, kept)
         brief = _safe_brief(analysis["decision_brief"], sources, violations)
         if brief is None:
@@ -61,13 +51,32 @@ def merge_deepseek_analysis_v1(
             public["conversation_timeline"] = copy.deepcopy(timeline.public_timeline)
         else:
             public["conversation_timeline"] = merged_timeline
+        _merge_extended(public, fallback, private, raw_analysis, sources, violations, kept)
         validate_analysis_result(public)
-        _validate_analysis_language(public)
-        used_model = any(public[field] != fallback[field] for field in set(_FIELDS) - kept)
+        validate_public_language(public)
+        used_model = any(public[field] != fallback[field] for field in _FIELDS)
         fields = tuple(field for field in _FIELDS if field in kept)
         return SafeMergeResult(public, used_model, fields)
     except Exception:
         return SafeMergeResult(_public_fallback(fallback), False, ("all",))
+
+def _validated_private(envelope: object, fallback: Mapping[str, Any]
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    raw = copy.deepcopy(envelope)
+    candidate = copy.deepcopy(raw)
+    analysis = candidate["analysis"]
+    risks = analysis["risk_flags"]
+    if isinstance(risks, list):
+        placeholder = {"type": "security_risk", "level": "low", "evidence": "", "recommendation": ""}
+        analysis["risk_flags"] = [item if _risk_shape(item) else placeholder for item in risks]
+    else:
+        analysis["risk_flags"] = []
+    draft = analysis["reply_draft"]
+    if not _draft_shape(draft):
+        analysis["reply_draft"] = copy.deepcopy(fallback["reply_draft"])
+    else:
+        draft["needs_human_review"] = True
+    return validate_deepseek_analysis_v1(candidate), raw
 
 def _validate_global_inputs(
     envelope: dict[str, Any], evidence: Mapping[str, Sequence[str]],
@@ -98,13 +107,131 @@ def _merge_direct(
     for field in ("summary", "priority", "priority_reason", "category", "tags"):
         unsafe = False
         if field in {"summary", "priority_reason"}:
-            unsafe = not _has_chinese(analysis[field]) or f"/analysis/{field}" in violations
+            unsafe = not has_chinese(analysis[field]) or f"/analysis/{field}" in violations
         elif field == "tags":
             unsafe = any(pointer.startswith("/analysis/tags/") for pointer in violations)
         if unsafe:
             kept.add(field)
         else:
             public[field] = copy.deepcopy(analysis[field])
+
+def _merge_extended(public, fallback, private, raw_analysis, sources, violations, kept) -> None:
+    values = {
+        "risk_flags": _safe_risks(raw_analysis["risk_flags"], fallback["risk_flags"], violations),
+        "suggested_actions": _safe_actions(private["analysis"]["suggested_actions"], fallback["suggested_actions"], violations),
+        "reply_draft": _safe_draft(raw_analysis["reply_draft"], fallback["reply_draft"], violations),
+        "attachment_insights": _safe_attachments(private["attachment_augmentations"], fallback["attachment_insights"], sources, violations),
+    }
+    for field, (value, fell_back) in values.items():
+        public[field] = value
+        if fell_back:
+            kept.add(field)
+
+def _risk_shape(item: object) -> bool:
+    return isinstance(item, dict) and set(item) == _RISK_FIELDS and all(
+        isinstance(item[field], str) for field in _RISK_FIELDS
+    )
+
+def _draft_shape(value: object) -> bool:
+    if not isinstance(value, dict) or set(value) != _DRAFT_FIELDS:
+        return False
+    return all(isinstance(value[field], str) for field in ("subject", "body")) and (
+        isinstance(value["needs_human_review"], bool)
+        and isinstance(value["review_reasons"], list)
+        and all(isinstance(item, str) for item in value["review_reasons"])
+    )
+
+def _safe_risks(
+    items: object, fallback: object, violations: set[str]
+) -> tuple[list[dict[str, Any]], bool]:
+    result = copy.deepcopy(fallback)
+    if not isinstance(items, list):
+        return result, True
+    seen = {(item["type"], item["evidence"], item["recommendation"]) for item in result}
+    rejected = False
+    for index, item in enumerate(items):
+        pointer = f"/analysis/risk_flags/{index}/"
+        if not _risk_shape(item):
+            rejected = True
+            continue
+        key = (item["type"], item["evidence"], item["recommendation"])
+        unsafe = (
+            key in seen or not has_chinese(item["evidence"])
+            or not has_chinese(item["recommendation"])
+            or any(value.startswith(pointer) for value in violations)
+        )
+        if unsafe:
+            rejected = True
+            continue
+        result.append(copy.deepcopy(item))
+        seen.add(key)
+    return result, rejected or result == fallback
+
+def _safe_actions(
+    items: object, fallback: object, violations: set[str]
+) -> tuple[list[dict[str, Any]], bool]:
+    if not isinstance(items, list):
+        return copy.deepcopy(fallback), True
+    for index, item in enumerate(items):
+        prefix = f"/analysis/suggested_actions/{index}/"
+        description = item.get("description") if isinstance(item, dict) else None
+        if (
+            not isinstance(description, str) or not has_chinese(description)
+            or any(value.startswith(prefix) for value in violations)
+            or has_unsafe_operation(description) or has_unconditional_commitment(description)
+        ):
+            return copy.deepcopy(fallback), True
+    return copy.deepcopy(items), False
+
+def _safe_draft(
+    value: object, fallback: object, violations: set[str]
+) -> tuple[dict[str, Any], bool]:
+    safe = _draft_shape(value) and value["needs_human_review"] is True
+    if safe:
+        safe = not has_chinese(value["subject"]) and not has_chinese(value["body"])
+        safe = safe and all(has_chinese(item) for item in value["review_reasons"])
+        safe = safe and not any(
+            item.startswith("/analysis/reply_draft/") for item in violations
+        )
+        safe = safe and not has_unsafe_operation(value["subject"] + "\n" + value["body"])
+        safe = safe and not has_unconditional_commitment(value["subject"] + "\n" + value["body"])
+    if safe:
+        return copy.deepcopy(value), False
+    result = copy.deepcopy(fallback)
+    result["needs_human_review"] = True
+    if _DRAFT_REASON not in result["review_reasons"]:
+        result["review_reasons"].append(_DRAFT_REASON)
+    return result, True
+
+def _safe_attachments(
+    items: object, fallback: object, sources: Mapping[str, EvidenceSource],
+    violations: set[str],
+) -> tuple[list[dict[str, Any]], bool]:
+    result = copy.deepcopy(fallback)
+    if not isinstance(items, list) or not isinstance(result, list):
+        return result, True
+    ids = [item.get("source_id") if isinstance(item, dict) else None for item in items]
+    indexes = [sources[value].attachment_index if value in sources else None for value in ids]
+    accepted: set[int] = set()
+    rejected = False
+    for position, item in enumerate(items):
+        source_id, index = ids[position], indexes[position]
+        source = sources.get(source_id) if isinstance(source_id, str) else None
+        valid_index = isinstance(index, int) and not isinstance(index, bool) and 0 <= index < len(result)
+        valid = (
+            source is not None and source.kind == "attachment" and source.parsed
+            and valid_index and ids.count(source_id) == 1 and indexes.count(index) == 1
+            and result[index]["status"] == "parsed"
+            and source.public_source == "attachment:" + result[index]["filename"]
+            and not any(value.startswith(f"/attachment_augmentations/{position}/") for value in violations)
+        )
+        if not valid:
+            rejected = True
+            continue
+        result[index]["summary"] = copy.deepcopy(item["summary"])
+        result[index]["key_facts"] = copy.deepcopy(item["key_facts"])
+        accepted.add(index)
+    return result, rejected or len(accepted) < len(result)
 
 def _safe_brief(
     value: dict[str, Any], sources: Mapping[str, EvidenceSource], violations: set[str]
@@ -115,9 +242,9 @@ def _safe_brief(
                 value["reply_recommendation"]["reason"], *value["must_check"], *value["missing_info"]]
     required.extend(item["step"] for item in value["next_steps"])
     text = repr(value)
-    if any(not _has_chinese(item) for item in required):
+    if any(not has_chinese(item) for item in required):
         return None
-    if _AUTO_ACTION_RE.search(text) or _COMMITMENT_RE.search(text):
+    if has_unsafe_operation(text) or has_unconditional_commitment(text):
         return None
     result = copy.deepcopy(value)
     for collection in (result["next_steps"], result["key_facts"]):
@@ -134,13 +261,13 @@ def _safe_timeline(
 ) -> dict[str, Any] | None:
     if any(pointer.startswith("/analysis/timeline_interpretation/") for pointer in violations):
         return None
-    if not _has_chinese(value["previous_context"]) or not _has_chinese(value["status_reason"]):
+    if not has_chinese(value["previous_context"]) or not has_chinese(value["status_reason"]):
         return None
     known = {item.open_item_id: item for item in timeline.open_items}
     updates: dict[str, str] = {}
     for index, annotation in enumerate(value["open_item_annotations"]):
         item_id, text = annotation["open_item_id"], annotation["item"]
-        if item_id not in known or item_id in updates or not _has_chinese(text):
+        if item_id not in known or item_id in updates or not has_chinese(text):
             return None
         item = known[item_id]
         if not item.evidence_sources:
@@ -168,23 +295,5 @@ def _safe_timeline(
         "confidence": copy.deepcopy(base["confidence"]),
     }
 
-def _validate_analysis_language(value: dict[str, Any]) -> None:
-    brief = value["decision_brief"]
-    required = [value["summary"], value["priority_reason"], brief["one_line_conclusion"],
-                brief["requested_outcome"], brief["reply_recommendation"]["reason"]]
-    required += [item["step"] for item in brief["next_steps"]] + brief["must_check"] + brief["missing_info"]
-    timeline = value["conversation_timeline"]
-    required += [timeline["previous_context"], timeline["status_reason"]] + [item["item"] for item in timeline["open_items"]]
-    required += [item[field] for item in value["risk_flags"] for field in ("evidence", "recommendation")]
-    required += [item["description"] for item in value["suggested_actions"]] + value["reply_draft"]["review_reasons"]
-    if any(item and not _has_chinese(item) for item in required):
-        raise ValueError("Analysis prose must be Chinese.")
-    draft = value["reply_draft"]
-    if _has_chinese(draft["subject"]) or _has_chinese(draft["body"]):
-        raise ValueError("External reply draft must be English.")
-
 def _public_fallback(value: Mapping[str, Any]) -> dict[str, Any]:
     return {field: copy.deepcopy(value[field]) for field in _FIELDS}
-
-def _has_chinese(value: str) -> bool:
-    return bool(_CHINESE_RE.search(value))
