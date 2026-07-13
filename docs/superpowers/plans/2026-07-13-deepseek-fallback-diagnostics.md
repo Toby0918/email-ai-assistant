@@ -26,6 +26,8 @@ source_type: operation_guide
 - Emit exactly one terminal fallback event per failed model analysis. Do not emit a second event inside lower layers.
 - Keep every production function focused and below the project's recommended 50-line limit; keep every Python module below 300 lines.
 - Use only synthetic values in tests. No automated, subagent, or Codex-run test may call the live DeepSeek API.
+- When `log_file` is configured, install only the rotating file handler so one event produces one file entry on every platform. Use a stream handler only when no file is configured.
+- Keep runtime smoke verification isolated on `127.0.0.1:8878` with a dedicated PID file and provider disabled. Restart the normal 8765 service from the main checkout only after branch integration.
 - Use `apply_patch` for file edits. Each task follows RED -> GREEN -> focused verification -> commit.
 
 ---
@@ -726,14 +728,16 @@ def configure_logging(
     level: str = "INFO", *, log_file: str | Path | None = None
 ) -> None:
     numeric_level = getattr(logging, level.upper(), logging.INFO)
-    handlers: list[logging.Handler] = [logging.StreamHandler()]
-    if log_file is not None:
+    handlers: list[logging.Handler]
+    if log_file is None:
+        handlers = [logging.StreamHandler()]
+    else:
         path = Path(log_file)
         path.parent.mkdir(parents=True, exist_ok=True)
-        handlers.append(RotatingFileHandler(
+        handlers = [RotatingFileHandler(
             path, maxBytes=LOG_MAX_BYTES, backupCount=LOG_BACKUP_COUNT,
             encoding="utf-8",
-        ))
+        )]
     logging.basicConfig(
         level=numeric_level, format=LOG_FORMAT, handlers=handlers, force=True,
     )
@@ -874,17 +878,23 @@ git status --short --ignored
 
 Expected: full Python suite has zero failures; maintenance scan reports no findings; every JavaScript syntax command exits 0; diff check is clean; ignored `.env`, SQLite, outputs, and logs remain unstaged.
 
-- [ ] **Step 7: Restart and verify without invoking DeepSeek**
+- [ ] **Step 7: Verify an isolated service without invoking DeepSeek**
 
 Run:
 
 ```powershell
-& 'C:\Users\33506\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -B scripts\manage_local_service.py restart
-& 'C:\Users\33506\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -B scripts\manage_local_service.py status
-Invoke-RestMethod -Uri 'http://127.0.0.1:8765/api/health' -Method Get
+$py = 'C:\Users\33506\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe'
+$env:EMAIL_AGENT_LLM_PROVIDER = 'disabled'
+& $py -B scripts\manage_local_service.py start --host 127.0.0.1 --port 8878 --pid-file outputs\local_debug_service_verify.pid
+try {
+    & $py -B scripts\manage_local_service.py status --host 127.0.0.1 --port 8878 --pid-file outputs\local_debug_service_verify.pid
+    Invoke-RestMethod -Uri 'http://127.0.0.1:8878/api/health' -Method Get
+} finally {
+    & $py -B scripts\manage_local_service.py stop --host 127.0.0.1 --port 8878 --pid-file outputs\local_debug_service_verify.pid
+}
 ```
 
-Expected: managed service reports `running`, health returns `ok=true`, and no analysis POST or DeepSeek request is made.
+Expected: the isolated managed service reports `running`, health returns `ok=true`, cleanup stops it, and no analysis POST or DeepSeek request is made. After branch integration, restart the normal 8765 service from the main checkout so it retains the operator's existing backend-only `.env` configuration.
 
 - [ ] **Step 8: Commit Task 5**
 
