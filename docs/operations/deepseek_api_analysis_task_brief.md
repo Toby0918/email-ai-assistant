@@ -26,7 +26,7 @@ feature | security | prompt | test | api_contract
 active
 ```
 
-The user approved DeepSeek remote processing and documented default context caching for the current visible message/thread and bounded supported-attachment text. Tasks 1-13 implement the provider, safety, timing, persistence, frontend disclosure, and offline quality-gate contracts. DeepSeek may lead the displayed analysis, while mailbox actions remain forbidden and backend hard safety invariants remain authoritative. Task 14 still owns final status regeneration and release verification.
+The user approved DeepSeek remote processing and documented default context caching for the current visible message/thread and bounded supported-attachment text. Tasks 1-14 implement and verify the provider, safety, timing, persistence, frontend disclosure, offline quality-gate, and release-record contracts. DeepSeek may lead the displayed analysis, while mailbox actions remain forbidden and backend hard safety invariants remain authoritative. This task brief remains active as the operating contract; provider enablement and deployment remain opt-in and were not performed by Task 14.
 
 ## 4. Goal
 
@@ -247,23 +247,47 @@ Set `EMAIL_AGENT_LLM_PROVIDER=disabled` and restart the backend to immediately r
 ## 17. Execution Record
 
 ```text
-Actual modified files:
-- Tasks 1-12: backend provider, model safety, timing/persistence, and frontend contracts implemented in their planned files.
-- Task 13: synthetic fixture/evaluator/tests and synchronized prompt/schema/API/security/design/ADR contracts.
+Actual implementation file groups and commits:
+- Task 1 configuration/dependency boundary: .env.example, backend/email_agent/config.py, tooling/deployment docs, and configuration/static tests in 7a188ca (feat: configure backend DeepSeek provider).
+- Task 2 cooperative budget: backend/email_agent/analysis_budget.py and tests/test_analysis_budget.py in 9918356 (feat: define cooperative analysis budget).
+- Task 3 fixed-endpoint provider client: backend/email_agent/llm_client.py plus configuration/client tests in 31a4f1f (feat: add bounded DeepSeek provider client).
+- Task 4 backend timeline ownership: backend/email_agent/thread_timeline.py and timeline tests in e5def31 and cf55fde.
+- Task 5 ephemeral attachment model context: backend/email_agent/attachment_model_context.py, attachment_parser.py, and attachment tests in 5d70587, 722b400, and b94019f.
+- Task 6 hard-deadline attachment isolation: backend/email_agent/attachment_docx.py, attachment_parser.py, attachment_text.py, and parser/process tests in 95e47f7 and 3f05aba.
+- Task 7 private DeepSeek envelope: backend/email_agent/deepseek_analysis_schema.py and schema tests in 9286b42 and d050c23.
+- Task 8 source-labelled prompt and all-field grounding: backend/email_agent/prompt_context.py, model_grounding.py, and their tests in 4c4aea7 and fc26f18.
+- Task 9 local/schema safety and model-led merge: backend/email_agent/analysis_schema.py, rule_analyzer.py, model_result_safety.py, model_text_safety.py, and related schema/rule/database/safety tests in 515cc03, b78b4f0, a8386bd, bbbe542, and 73f27d3.
+- Task 10 request-path routing/deadlines: backend/email_agent/analysis_model_routes.py, analyzer.py, api.py, server.py, llm_client.py, and routing/provider tests in 6afcfc1 and e880da3.
+- Task 11 bounded persistence and failed-transaction quarantine: backend/email_agent/database.py, server.py, and database/server tests in fc77a7c, e584991, and 6fb7cd4.
+- Task 12 frontend wait/disclosure contracts: browser popup/API client, local-debug UI, and frontend contract tests in 9f014c2 and 259a2fa.
+- Task 13 offline evaluator/contracts: scripts/evaluate_deepseek_analysis.py, the 50-case fixture, evaluator support and three split test modules, plus prompt/schema/API/security/ADR/design/task-brief contracts in 9c9fcdb and 478be85.
 
-Test results:
-- Task 13 RED and GREEN evidence is recorded in .superpowers/sdd/task-13-report.md. The offline evaluator canonically validates both complete public results, reuses production critical-signature and unsafe-operation/commitment predicates, derives every metric, and rejects evidence/review-label disagreement. Its ten fallback cases map only to explicit provider or safety failures.
-- Exact final release totals and status regeneration remain assigned to Task 14.
+Task 14 final verification evidence:
+- Complete focused DeepSeek suite, including the split fixture and documentation contract modules: 358 tests passed in 20.502 seconds.
+- Offline evaluator exited 0 with exactly: case_count 50; schema_pass_rate 1.0; mandatory_risk_retention_rate 1.0; unsupported_critical_fact_count 0; commitment_action_violation_count 0; fallback_rate 0.2; latency_samples_ms [100.0, 101.0, 102.0, 103.0, 104.0].
+- The bundled Python status generator exited 0. It emitted the host-local 2026-07-13 date; the two generated date fields were normalized to the Task 14 project date 2026-07-12 without changing generator code. Generated documentation counts are active 66, draft 27, deprecated 0, missing_front_matter 0.
+- Post-generation full unittest discovery: 650 tests passed in 85.451 seconds.
+- Post-generation maintenance scan: exit 0; No cleanup findings detected.
+- All seven listed node --check commands exited 0; the extension manifest JSON parse printed manifest json: OK.
+- The exact brief manifest/architecture/static guard ran 24 tests in 12.736 seconds and passed. The expanded browser static/resource-timeout/local-debug/mechanical guard ran 58 tests in 1.184 seconds and passed.
+- Explicit frontend scan found no DeepSeek/OpenAI/Ollama/Qwen/Gemma endpoint, key, SDK, environment, or direct-provider markers.
+- Current frontend constants were verified as MAX_ANALYZE_TIMEOUT_MS = 35000, ANALYZE_TIMEOUT_MS = 35000, and MAX_OVERALL_RESOURCE_TIMEOUT_MS = 20000; the 35-second POST wait remains independent of the 20-second resource collection limit.
+- The post-edit Task 14 date/front-matter assertion passed. DeepSeek documentation, static, architecture, mechanical, and status-generator guards then ran 44 tests and passed.
+- git diff --check passed before this execution-record edit. Final post-edit diff and staged-snapshot evidence is recorded in .superpowers/sdd/task-14-report.md.
 
-Unfinished items:
-- Task 14 full focused release suite, project status regeneration, final task record, and release commit.
-- Any live synthetic DeepSeek comparison or real Tencent Exmail validation requires separate authorization.
+Rollback flags and release state:
+- EMAIL_AGENT_LLM_PROVIDER=disabled restores rule-only behavior and remains the default.
+- EMAIL_AGENT_DEEPSEEK_OUTPUT_MODE=conservative disables model-led consequential fields independently and remains the default.
+- No provider flag, API key, deployment setting, mailbox permission, or frontend request schema was enabled or changed by Task 14.
+- Written design review: complete.
+- Implementation plan: complete through Task 14.
+- Final release verification: complete in Task 14.
+- Historical Task 13 handoff marker: Final release verification: pending Task 14.
 
-Written design review: complete.
-Implementation plan: complete through Task 13.
-Final release verification: pending Task 14.
-
-Follow-up suggestions:
-- Perform any live API smoke test only with a locally configured key and a fully synthetic prompt after separate approval.
-- Keep real Tencent Exmail validation as a separately authorized external release step.
+Unfinished and explicitly deferred items:
+- A live paid DeepSeek API smoke test was not run; it requires separate authorization and a locally supplied backend key with fully synthetic input.
+- Real mailbox or real mail-data testing was not run and remains forbidden by the current task boundary.
+- Manual Chrome/Edge pixel/CSS verification of persistent notice visibility remains deferred; automated static/behavior contracts passed.
+- Deployment and provider enablement remain opt-in operator actions and were not performed.
+- No push or pull request was performed.
 ```

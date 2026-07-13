@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-11
+last_update: 2026-07-12
 status: active
 owner: "@tobyWang"
 review_cycle: weekly
@@ -15,7 +15,7 @@ source_type: operation_guide
 
 | Field | Value |
 |---|---|
-| Generated on | 2026-07-11 |
+| Generated on | 2026-07-12 |
 | Current stage | local_eval_mvp |
 | Git branch | codex/phase-two-completion |
 | Git HEAD reference | Run `git rev-parse --short HEAD` in this workspace |
@@ -140,8 +140,8 @@ source_type: operation_guide
 
 | Status | Count |
 |---|---:|
-| active | 60 |
-| draft | 29 |
+| active | 66 |
+| draft | 27 |
 | deprecated | 0 |
 | missing_front_matter | 0 |
 
