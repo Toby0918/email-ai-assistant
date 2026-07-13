@@ -192,6 +192,7 @@ git commit -m "feat: add sanitized fallback diagnostics"
 ### Task 2: Classify DeepSeek client failures without exposing raw errors
 
 **Files:**
+- Create: `backend/email_agent/llm_errors.py`
 - Modify: `backend/email_agent/llm_client.py:25-141`
 - Modify: `tests/test_llm_client.py:120-390`
 
@@ -245,7 +246,11 @@ Expected: FAIL because `LlmClientError.reason_code` and `_deepseek_failure_reaso
 
 - [ ] **Step 3: Implement client reason codes**
 
-Change the error type and add the SDK classifier:
+Define the error type and SDK classifier in the cohesive internal module
+`backend/email_agent/llm_errors.py`, then import both names into
+`backend/email_agent/llm_client.py` so the existing client-module interface remains
+available. This extraction is required to keep every production module below 300
+lines without compressing readable code:
 
 ```python
 from openai import APIConnectionError, APITimeoutError, AsyncOpenAI
@@ -296,6 +301,11 @@ except Exception as exc:
 
 Use `missing_key`, `unsupported_model`, `response_incomplete`, and `response_empty` at the corresponding fixed-message raises. Do not store `exc`, use `str(exc)`, or attach the original cause.
 
+Add an offline regression using synthetic SDK exceptions to lock the
+inheritance-sensitive ordering: `APITimeoutError` maps to `provider_timeout` and
+`APIConnectionError` maps to `provider_connection_error`. No request may leave the
+process.
+
 - [ ] **Step 4: Run client and static tests and verify GREEN**
 
 Run:
@@ -309,7 +319,7 @@ Expected: all tests pass; fixed public-safe error messages remain unchanged.
 - [ ] **Step 5: Commit Task 2**
 
 ```powershell
-git add backend/email_agent/llm_client.py tests/test_llm_client.py
+git add backend/email_agent/llm_errors.py backend/email_agent/llm_client.py tests/test_llm_client.py
 git commit -m "fix: classify DeepSeek client failures"
 ```
 
