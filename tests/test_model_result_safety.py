@@ -1,0 +1,583 @@
+from __future__ import annotations
+
+import copy
+import unittest
+from unittest.mock import patch
+
+from backend.email_agent.analysis_schema import validate_analysis_result
+from backend.email_agent.deepseek_analysis_schema import validate_deepseek_analysis_v1
+from backend.email_agent.model_result_safety import SafeMergeResult, merge_deepseek_analysis_v1
+from backend.email_agent.prompt_context import EvidenceSource
+from backend.email_agent.rule_analyzer import build_rule_based_analysis
+from backend.email_agent.thread_timeline import ThreadSource, TimelineBuild, TimelineOpenItem
+
+
+FIELD_ORDER = (
+    "summary",
+    "priority",
+    "priority_reason",
+    "category",
+    "tags",
+    "decision_brief",
+    "conversation_timeline",
+    "risk_flags",
+    "suggested_actions",
+    "reply_draft",
+    "attachment_insights",
+)
+FIXED_9B1_FIELDS = (
+    "risk_flags",
+    "suggested_actions",
+    "reply_draft",
+    "attachment_insights",
+)
+
+
+def _timeline() -> TimelineBuild:
+    public = {
+        "previous_context": "客户此前询问了报价。",
+        "current_status": "unresolved",
+        "status_reason": "客户仍在等待答复。",
+        "latest_external_request": "请提供报价和交期。",
+        "latest_internal_commitment": "销售将核实后回复。",
+        "open_items": [
+            {
+                "item": "确认产品报价。",
+                "owner_hint": "sales",
+                "due_hint": "unspecified",
+                "source": "thread",
+            },
+            {
+                "item": "确认预计交期。",
+                "owner_hint": "operations",
+                "due_hint": "unspecified",
+                "source": "thread",
+            },
+        ],
+        "confidence": "high",
+    }
+    open_items = (
+        TimelineOpenItem(
+            "open:0", "确认产品报价。", "sales", "unspecified", "thread", ("thread:0",)
+        ),
+        TimelineOpenItem(
+            "open:1", "确认预计交期。", "operations", "unspecified", "thread", ("thread:1",)
+        ),
+    )
+    sources = (
+        ThreadSource("thread:0", "buyer@example.com", "sales@example.com", "", "询价", "请提供报价。"),
+        ThreadSource("thread:1", "buyer@example.com", "sales@example.com", "", "询价", "请确认交期。"),
+    )
+    return TimelineBuild(public, open_items, sources)
+
+
+def _sources() -> dict[str, EvidenceSource]:
+    return {
+        "thread:0": EvidenceSource(
+            "thread:0", "thread", "客户询问报价，销售需要回复。", "thread"
+        ),
+        "thread:1": EvidenceSource(
+            "thread:1", "thread", "客户询问预计交期。", "thread"
+        ),
+        "attachment:0": EvidenceSource(
+            "attachment:0",
+            "attachment",
+            "附件包含产品清单。",
+            "attachment:synthetic.xlsx",
+            attachment_index=0,
+            parsed=True,
+        ),
+    }
+
+
+def _fallback(timeline: TimelineBuild) -> dict[str, object]:
+    result = build_rule_based_analysis(
+        "报价请求",
+        "buyer@example.com",
+        "请提供产品报价和预计交期。",
+        conversation_timeline=timeline.public_timeline,
+    )
+    safe_steps = ("核实产品报价。", "核实预计交期。", "检查相关状态。", "准备人工审核材料。")
+    for index, item in enumerate(result["decision_brief"]["next_steps"]):
+        item["source"] = "thread"
+        item["due_hint"] = "unspecified"
+        item["step"] = safe_steps[index]
+    for item in result["decision_brief"]["key_facts"]:
+        item["source"] = "thread"
+    return validate_analysis_result(result)
+
+
+def _envelope(fallback: dict[str, object], timeline: TimelineBuild) -> dict[str, object]:
+    brief = copy.deepcopy(fallback["decision_brief"])
+    for item in brief["next_steps"]:
+        item["source"] = "thread:0"
+    for item in brief["key_facts"]:
+        item["source"] = "thread:0"
+    envelope = {
+        "schema_version": "deepseek_analysis_v1",
+        "analysis": {
+            "summary": fallback["summary"],
+            "priority": fallback["priority"],
+            "priority_reason": fallback["priority_reason"],
+            "category": fallback["category"],
+            "tags": copy.deepcopy(fallback["tags"]),
+            "decision_brief": brief,
+            "timeline_interpretation": {
+                "previous_context": timeline.public_timeline["previous_context"],
+                "status_reason": timeline.public_timeline["status_reason"],
+                "open_item_annotations": [
+                    {"open_item_id": item.open_item_id, "item": item.item}
+                    for item in timeline.open_items
+                ],
+                "evidence_sources": ["thread:0", "thread:1"],
+            },
+            "risk_flags": copy.deepcopy(fallback["risk_flags"]),
+            "suggested_actions": copy.deepcopy(fallback["suggested_actions"]),
+            "reply_draft": copy.deepcopy(fallback["reply_draft"]),
+        },
+        "attachment_augmentations": [],
+        "field_evidence": {
+            "/analysis/timeline_interpretation/open_item_annotations/0/item": ["thread:0"],
+            "/analysis/timeline_interpretation/open_item_annotations/1/item": ["thread:1"],
+        },
+    }
+    return validate_deepseek_analysis_v1(envelope)
+
+
+def _provider_keys(value: object) -> set[str]:
+    forbidden = {
+        "schema_version",
+        "field_evidence",
+        "attachment_augmentations",
+        "timeline_interpretation",
+        "open_item_id",
+        "evidence_sources",
+        "source_id",
+    }
+    found: set[str] = set()
+    if isinstance(value, dict):
+        found.update(forbidden.intersection(value))
+        for nested in value.values():
+            found.update(_provider_keys(nested))
+    elif isinstance(value, list):
+        for nested in value:
+            found.update(_provider_keys(nested))
+    return found
+
+
+class ModelResultSafetyTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.timeline = _timeline()
+        self.sources = _sources()
+        self.fallback = _fallback(self.timeline)
+        self.envelope = _envelope(self.fallback, self.timeline)
+
+    def merge(
+        self,
+        envelope: dict[str, object] | None = None,
+        *,
+        evidence: dict[str, list[str]] | None = None,
+        sources: dict[str, EvidenceSource] | None = None,
+        timeline: TimelineBuild | None = None,
+    ) -> SafeMergeResult:
+        selected = self.envelope if envelope is None else envelope
+        return merge_deepseek_analysis_v1(
+            selected,
+            fallback=self.fallback,
+            sources=self.sources if sources is None else sources,
+            timeline=self.timeline if timeline is None else timeline,
+            evidence=copy.deepcopy(selected.get("field_evidence", {})) if evidence is None else evidence,
+        )
+
+    def test_safe_direct_brief_and_timeline_values_merge(self) -> None:
+        analysis = self.envelope["analysis"]
+        analysis["summary"] = "客户需要新的报价答复。"
+        analysis["priority"] = "high"
+        analysis["priority_reason"] = "客户正在等待明确答复。"
+        analysis["category"] = "internal"
+        analysis["tags"] = ["待报价", "待确认"]
+        brief = analysis["decision_brief"]
+        brief["one_line_conclusion"] = "应先核实报价再回复客户。"
+        brief["requested_outcome"] = "客户希望获得报价和交期。"
+        brief["next_steps"][0]["step"] = "由销售核实报价。"
+        interpretation = analysis["timeline_interpretation"]
+        interpretation["previous_context"] = "客户此前已经提出询价。"
+        interpretation["status_reason"] = "报价与交期仍待内部确认。"
+        interpretation["open_item_annotations"] = [
+            {"open_item_id": "open:1", "item": "核实预计交期。"},
+            {"open_item_id": "open:0", "item": "核实产品报价。"},
+        ]
+        self.envelope["field_evidence"] = {
+            "/analysis/timeline_interpretation/open_item_annotations/0/item": ["thread:1"],
+            "/analysis/timeline_interpretation/open_item_annotations/1/item": ["thread:0"],
+        }
+
+        result = self.merge()
+
+        self.assertTrue(result.used_model)
+        self.assertEqual(FIXED_9B1_FIELDS, result.fallback_fields)
+        self.assertEqual("客户需要新的报价答复。", result.analysis["summary"])
+        self.assertEqual("high", result.analysis["priority"])
+        self.assertEqual("internal", result.analysis["category"])
+        self.assertEqual("应先核实报价再回复客户。", result.analysis["decision_brief"]["one_line_conclusion"])
+        self.assertEqual("核实产品报价。", result.analysis["conversation_timeline"]["open_items"][0]["item"])
+        self.assertEqual("核实预计交期。", result.analysis["conversation_timeline"]["open_items"][1]["item"])
+        for field in FIXED_9B1_FIELDS:
+            self.assertEqual(self.fallback[field], result.analysis[field])
+            self.assertIsNot(self.fallback[field], result.analysis[field])
+        validate_analysis_result(result.analysis)
+
+    def test_summary_reason_and_all_tags_fall_back_individually(self) -> None:
+        cases = (
+            ("summary", "summary", "PO 999999 需要处理。"),
+            ("priority_reason", "priority_reason", "PO 999999 需要处理。"),
+            ("tags", "tags", ["正常", "PO 999999"]),
+        )
+        for target, expected_field, unsafe_value in cases:
+            with self.subTest(target=target):
+                envelope = copy.deepcopy(self.envelope)
+                envelope["analysis"][target] = unsafe_value
+                envelope["analysis"]["priority"] = "high"
+                result = self.merge(envelope)
+                self.assertEqual(self.fallback[target], result.analysis[target])
+                self.assertEqual(
+                    tuple(field for field in FIELD_ORDER if field in {expected_field, *FIXED_9B1_FIELDS}),
+                    result.fallback_fields,
+                )
+                self.assertEqual("high", result.analysis["priority"])
+
+    def test_summary_and_reason_language_failures_are_field_local(self) -> None:
+        for target in ("summary", "priority_reason"):
+            with self.subTest(target=target):
+                envelope = copy.deepcopy(self.envelope)
+                envelope["analysis"][target] = "English model prose only."
+                envelope["analysis"]["priority"] = "high"
+                result = self.merge(envelope)
+                self.assertEqual(self.fallback[target], result.analysis[target])
+                self.assertEqual("high", result.analysis["priority"])
+
+    def test_priority_and_category_are_accepted(self) -> None:
+        self.envelope["analysis"]["priority"] = "high"
+        self.envelope["analysis"]["category"] = "internal"
+        result = self.merge()
+        self.assertEqual("high", result.analysis["priority"])
+        self.assertEqual("internal", result.analysis["category"])
+        self.assertNotIn("priority", result.fallback_fields)
+        self.assertNotIn("category", result.fallback_fields)
+
+    def test_decision_brief_failures_replace_the_whole_brief(self) -> None:
+        cases: list[tuple[str, callable]] = [
+            (
+                "grounding",
+                lambda envelope: envelope["analysis"]["decision_brief"].__setitem__(
+                    "one_line_conclusion", "PO 999999 需要立即处理。"
+                ),
+            ),
+            (
+                "language",
+                lambda envelope: envelope["analysis"]["decision_brief"].__setitem__(
+                    "requested_outcome", "English prose only."
+                ),
+            ),
+            (
+                "auto execution",
+                lambda envelope: envelope["analysis"]["decision_brief"]["next_steps"][0].__setitem__(
+                    "step", "自动发送邮件并归档。"
+                ),
+            ),
+            (
+                "unknown source",
+                lambda envelope: envelope["analysis"]["decision_brief"]["key_facts"][0].__setitem__(
+                    "source", "missing:0"
+                ),
+            ),
+        ]
+        for label, mutate in cases:
+            with self.subTest(label=label):
+                envelope = copy.deepcopy(self.envelope)
+                mutate(envelope)
+                envelope["analysis"]["priority"] = "high"
+                result = self.merge(envelope)
+                self.assertEqual(self.fallback["decision_brief"], result.analysis["decision_brief"])
+                self.assertIn("decision_brief", result.fallback_fields)
+                self.assertEqual("high", result.analysis["priority"])
+
+    def test_grounded_unconditional_commitment_still_replaces_brief(self) -> None:
+        envelope = copy.deepcopy(self.envelope)
+        envelope["analysis"]["decision_brief"]["one_line_conclusion"] = "我方保证按期交付。"
+        pointer = "/analysis/decision_brief/one_line_conclusion"
+        envelope["field_evidence"][pointer] = ["thread:0"]
+        sources = copy.deepcopy(self.sources)
+        sources["thread:0"] = EvidenceSource(
+            "thread:0", "thread", "我方保证按期交付。", "thread"
+        )
+        result = self.merge(envelope, sources=sources)
+        self.assertEqual(self.fallback["decision_brief"], result.analysis["decision_brief"])
+        self.assertIn("decision_brief", result.fallback_fields)
+
+    def test_decision_brief_source_ids_are_projected_to_public_sources(self) -> None:
+        brief = self.envelope["analysis"]["decision_brief"]
+        brief["next_steps"][0]["source"] = "attachment:0"
+        brief["key_facts"][0]["source"] = "thread:1"
+        brief["one_line_conclusion"] = "应参考附件并核实事实。"
+        result = self.merge()
+        merged = result.analysis["decision_brief"]
+        self.assertEqual("attachment:synthetic.xlsx", merged["next_steps"][0]["source"])
+        self.assertEqual("thread", merged["key_facts"][0]["source"])
+        self.assertNotIn("decision_brief", result.fallback_fields)
+
+    def test_unconditional_commitment_and_direct_auto_action_variants_replace_brief(self) -> None:
+        phrases = (
+            "我们会按期发货。",
+            "We will ship by Friday.",
+            "系统将直接发送并归档。",
+            "发送后自动归档。",
+            "Send automatically and archive.",
+            "We will dispatch the shipment.",
+            "We will deliver the order.",
+            "We will pay the invoice.",
+            "We accept the price.",
+            "We guarantee the delivery.",
+            "We agree to the contract terms.",
+            "We guarantee the quality and warranty.",
+            "We accept legal liability.",
+        )
+        pointer = "/analysis/decision_brief/key_facts/0/value"
+        for phrase in phrases:
+            with self.subTest(phrase=phrase):
+                envelope = copy.deepcopy(self.envelope)
+                envelope["analysis"]["decision_brief"]["key_facts"][0]["value"] = phrase
+                envelope["field_evidence"][pointer] = ["thread:0"]
+                sources = copy.deepcopy(self.sources)
+                sources["thread:0"] = EvidenceSource("thread:0", "thread", phrase, "thread")
+                result = self.merge(envelope, sources=sources)
+                self.assertEqual(self.fallback["decision_brief"], result.analysis["decision_brief"])
+                self.assertIn("decision_brief", result.fallback_fields)
+
+    def test_safe_manual_review_wording_is_accepted(self) -> None:
+        self.envelope["analysis"]["decision_brief"]["next_steps"][0]["step"] = (
+            "建议人工核查后回复客户。"
+        )
+        result = self.merge()
+        self.assertEqual(
+            "建议人工核查后回复客户。",
+            result.analysis["decision_brief"]["next_steps"][0]["step"],
+        )
+        self.assertNotIn("decision_brief", result.fallback_fields)
+
+    def test_unparsed_attachment_source_replaces_whole_brief(self) -> None:
+        brief = self.envelope["analysis"]["decision_brief"]
+        brief["key_facts"][0]["source"] = "attachment:0"
+        brief["key_facts"][0]["value"] = "附件包含一般说明。"
+        sources = copy.deepcopy(self.sources)
+        sources["attachment:0"] = EvidenceSource(
+            "attachment:0", "attachment", "", "attachment:synthetic.xlsx",
+            attachment_index=0, parsed=False,
+        )
+        result = self.merge(sources=sources)
+        self.assertEqual(self.fallback["decision_brief"], result.analysis["decision_brief"])
+        self.assertIn("decision_brief", result.fallback_fields)
+
+    def test_timeline_annotations_preserve_backend_invariants_and_ignore_model_order(self) -> None:
+        interpretation = self.envelope["analysis"]["timeline_interpretation"]
+        interpretation["previous_context"] = "客户此前已讨论相关需求。"
+        interpretation["status_reason"] = "两个事项仍然需要确认。"
+        interpretation["open_item_annotations"] = [
+            {"open_item_id": "open:1", "item": "确认新的交期说明。"},
+            {"open_item_id": "open:0", "item": "确认新的报价说明。"},
+        ]
+        self.envelope["field_evidence"] = {
+            "/analysis/timeline_interpretation/open_item_annotations/0/item": ["thread:1"],
+            "/analysis/timeline_interpretation/open_item_annotations/1/item": ["thread:0"],
+        }
+        result = self.merge()
+        merged = result.analysis["conversation_timeline"]
+        self.assertEqual("客户此前已讨论相关需求。", merged["previous_context"])
+        self.assertEqual("两个事项仍然需要确认。", merged["status_reason"])
+        for key in (
+            "current_status",
+            "latest_external_request",
+            "latest_internal_commitment",
+            "confidence",
+        ):
+            self.assertEqual(self.timeline.public_timeline[key], merged[key])
+        self.assertEqual("确认新的报价说明。", merged["open_items"][0]["item"])
+        self.assertEqual("sales", merged["open_items"][0]["owner_hint"])
+        self.assertEqual("thread", merged["open_items"][0]["source"])
+        self.assertEqual("确认新的交期说明。", merged["open_items"][1]["item"])
+        self.assertNotIn("conversation_timeline", result.fallback_fields)
+
+    def test_omitted_timeline_id_retains_backend_item(self) -> None:
+        self.envelope["analysis"]["timeline_interpretation"]["open_item_annotations"] = [
+            {"open_item_id": "open:0", "item": "更新报价事项。"}
+        ]
+        self.envelope["field_evidence"].pop(
+            "/analysis/timeline_interpretation/open_item_annotations/1/item"
+        )
+        result = self.merge()
+        items = result.analysis["conversation_timeline"]["open_items"]
+        self.assertEqual("更新报价事项。", items[0]["item"])
+        self.assertEqual("确认预计交期。", items[1]["item"])
+
+    def test_unknown_or_duplicate_timeline_id_replaces_entire_timeline(self) -> None:
+        annotations = (
+            [{"open_item_id": "open:99", "item": "未知事项。"}],
+            [
+                {"open_item_id": "open:0", "item": "第一条说明。"},
+                {"open_item_id": "open:0", "item": "第二条说明。"},
+            ],
+        )
+        for value in annotations:
+            with self.subTest(value=value):
+                envelope = copy.deepcopy(self.envelope)
+                envelope["analysis"]["timeline_interpretation"]["open_item_annotations"] = value
+                envelope["field_evidence"] = {
+                    f"/analysis/timeline_interpretation/open_item_annotations/{index}/item": [
+                        "thread:0"
+                    ]
+                    for index in range(len(value))
+                }
+                envelope["analysis"]["priority"] = "high"
+                result = self.merge(envelope)
+                self.assertEqual(self.timeline.public_timeline, result.analysis["conversation_timeline"])
+                self.assertIn("conversation_timeline", result.fallback_fields)
+                self.assertEqual("high", result.analysis["priority"])
+
+    def test_timeline_annotation_requires_matched_nonempty_backend_evidence(self) -> None:
+        pointer = "/analysis/timeline_interpretation/open_item_annotations/0/item"
+        for claimed in ([], ["thread:1"]):
+            with self.subTest(claimed=claimed):
+                envelope = copy.deepcopy(self.envelope)
+                if claimed:
+                    envelope["field_evidence"][pointer] = claimed
+                else:
+                    envelope["field_evidence"].pop(pointer)
+                envelope["analysis"]["timeline_interpretation"]["open_item_annotations"][0]["item"] = (
+                    "更新报价事项。"
+                )
+                result = self.merge(envelope)
+                self.assertEqual(self.timeline.public_timeline, result.analysis["conversation_timeline"])
+                self.assertIn("conversation_timeline", result.fallback_fields)
+
+    def test_evidence_less_timeline_sentinel_remains_deterministic(self) -> None:
+        open_items = list(self.timeline.open_items)
+        open_items[0] = TimelineOpenItem(
+            "open:0", "确认产品报价。", "sales", "unspecified", "thread", ()
+        )
+        timeline = TimelineBuild(self.timeline.public_timeline, tuple(open_items), self.timeline.sources)
+        interpretation = self.envelope["analysis"]["timeline_interpretation"]
+        interpretation["open_item_annotations"][0]["item"] = "模型试图改写覆盖提示。"
+        interpretation["open_item_annotations"][1]["item"] = "核实新的交期说明。"
+        result = self.merge(timeline=timeline)
+        items = result.analysis["conversation_timeline"]["open_items"]
+        self.assertEqual("确认产品报价。", items[0]["item"])
+        self.assertEqual("核实新的交期说明。", items[1]["item"])
+        self.assertNotIn("conversation_timeline", result.fallback_fields)
+
+    def test_timeline_grounding_or_language_issue_replaces_entire_timeline(self) -> None:
+        cases = ("PO 999999 需要处理。", "English annotation only.")
+        for value in cases:
+            with self.subTest(value=value):
+                envelope = copy.deepcopy(self.envelope)
+                envelope["analysis"]["timeline_interpretation"]["open_item_annotations"][0]["item"] = value
+                result = self.merge(envelope)
+                self.assertEqual(self.timeline.public_timeline, result.analysis["conversation_timeline"])
+                self.assertIn("conversation_timeline", result.fallback_fields)
+
+    def test_malformed_or_unknown_global_source_returns_fixed_full_fallback(self) -> None:
+        malformed = self.merge({"schema_version": "wrong"})
+        self.assertEqual(self.fallback, malformed.analysis)
+        self.assertFalse(malformed.used_model)
+        self.assertEqual(("all",), malformed.fallback_fields)
+
+        envelope = copy.deepcopy(self.envelope)
+        pointer = "/analysis/summary"
+        envelope["field_evidence"] = {pointer: ["missing:0"]}
+        unknown = self.merge(envelope, evidence={pointer: ["missing:0"]})
+        self.assertEqual(self.fallback, unknown.analysis)
+        self.assertFalse(unknown.used_model)
+        self.assertEqual(("all",), unknown.fallback_fields)
+
+        mismatched = copy.deepcopy(self.sources)
+        mismatched["alias:0"] = mismatched.pop("thread:0")
+        invalid_registry = self.merge(sources=mismatched)
+        self.assertEqual(self.fallback, invalid_registry.analysis)
+        self.assertEqual(("all",), invalid_registry.fallback_fields)
+
+    def test_grounding_exception_or_final_validation_failure_returns_full_fallback(self) -> None:
+        with patch(
+            "backend.email_agent.model_result_safety.find_grounding_violations",
+            side_effect=RuntimeError("grounding failed"),
+        ):
+            grounded = self.merge()
+        self.assertEqual(("all",), grounded.fallback_fields)
+        self.assertEqual(self.fallback, grounded.analysis)
+
+        with patch(
+            "backend.email_agent.model_result_safety.validate_analysis_result",
+            side_effect=ValueError("schema failed"),
+        ):
+            schema = self.merge()
+        self.assertEqual(("all",), schema.fallback_fields)
+        self.assertEqual(self.fallback, schema.analysis)
+
+        with patch(
+            "backend.email_agent.model_result_safety._validate_analysis_language",
+            side_effect=ValueError("language failed"),
+        ):
+            language = self.merge()
+        self.assertEqual(("all",), language.fallback_fields)
+        self.assertEqual(self.fallback, language.analysis)
+
+    def test_provider_fields_are_absent_and_inputs_are_not_mutated(self) -> None:
+        envelope_before = copy.deepcopy(self.envelope)
+        fallback_before = copy.deepcopy(self.fallback)
+        sources_before = copy.deepcopy(self.sources)
+        timeline_before = copy.deepcopy(self.timeline)
+        self.envelope["analysis"]["summary"] = "模型生成了新的中文摘要。"
+
+        result = self.merge()
+
+        envelope_before["analysis"]["summary"] = "模型生成了新的中文摘要。"
+        self.assertEqual(envelope_before, self.envelope)
+        self.assertEqual(fallback_before, self.fallback)
+        self.assertEqual(sources_before, self.sources)
+        self.assertEqual(timeline_before, self.timeline)
+        self.assertEqual(set(), _provider_keys(result.analysis))
+        result.analysis["decision_brief"]["must_check"].append("调用方可修改副本。")
+        self.assertEqual(fallback_before, self.fallback)
+
+    def test_used_model_and_fallback_field_order_are_deterministic(self) -> None:
+        unchanged = self.merge()
+        self.assertFalse(unchanged.used_model)
+        self.assertEqual(FIXED_9B1_FIELDS, unchanged.fallback_fields)
+
+        envelope = copy.deepcopy(self.envelope)
+        envelope["analysis"]["summary"] = "English only."
+        envelope["analysis"]["tags"] = ["PO 999999"]
+        envelope["analysis"]["decision_brief"]["requested_outcome"] = "English only."
+        envelope["analysis"]["timeline_interpretation"]["status_reason"] = "English only."
+        result = self.merge(envelope)
+        expected = tuple(
+            field
+            for field in FIELD_ORDER
+            if field
+            in {
+                "summary",
+                "tags",
+                "decision_brief",
+                "conversation_timeline",
+                *FIXED_9B1_FIELDS,
+            }
+        )
+        self.assertEqual(expected, result.fallback_fields)
+
+    def test_safe_merge_result_is_frozen_and_slotted(self) -> None:
+        result = self.merge()
+        self.assertFalse(hasattr(result, "__dict__"))
+        with self.assertRaises((AttributeError, TypeError)):
+            result.used_model = True
+
+
+if __name__ == "__main__":
+    unittest.main()
