@@ -3,6 +3,7 @@
 # Keep exported modules explicit so experimental helpers are not exposed by accident.
 __all__ = [
     "analyzer",
+    "analysis_diagnostics",
     "analysis_schema",
     "api",
     "config",
