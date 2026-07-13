@@ -25,6 +25,12 @@ TARGET_DOCS = (
     "docs/operations/deepseek_api_analysis_task_brief.md",
     "docs/superpowers/specs/2026-07-12-deepseek-led-email-analysis-design.md",
 )
+BUDGET_ORDER_DOCS = (
+    "docs/api/backend_api_contract.md",
+    "docs/decisions/0005-deepseek-led-analysis.md",
+    "docs/operations/deepseek_api_analysis_task_brief.md",
+    "docs/superpowers/specs/2026-07-12-deepseek-led-email-analysis-design.md",
+)
 
 
 class DeepSeekDocumentationContractTests(unittest.TestCase):
@@ -74,6 +80,20 @@ class DeepSeekDocumentationContractTests(unittest.TestCase):
             "does not try Ollama",
         ):
             self.assertIn(marker, contract)
+
+    def test_analysis_budget_starts_before_request_body_read(self) -> None:
+        false_order_phrases = (
+            "after the validated request body is read",
+            "after the validated request body read",
+            "after request-body read",
+            "完成已校验的 request body 读取后调用",
+        )
+        for relative in BUDGET_ORDER_DOCS:
+            text = self._read(relative)
+            with self.subTest(path=relative):
+                self.assertIn("`start -> read -> api`", text)
+                for phrase in false_order_phrases:
+                    self.assertNotIn(phrase, text.casefold())
 
     def test_security_contract_discloses_remote_processing_without_retention_guarantee(self) -> None:
         policy = self._read("docs/security/email_data_handling.md")

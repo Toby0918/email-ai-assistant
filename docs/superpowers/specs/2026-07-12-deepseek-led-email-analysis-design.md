@@ -314,7 +314,7 @@ If JSON parsing, required schema, language boundaries, or overall source integri
 The approved synchronous budgets are:
 
 - Browser extension and local debug page: wait up to 35 seconds for `POST /api/analyze-current-email`.
-- Backend analysis target: 32 seconds from `AnalysisBudget.start()` immediately after the validated request body is read, measured by one monotonic clock across analysis, parsing, provider work, validation, and persistence. This is a cooperative target rather than a hard end-to-end guarantee because bounded request reading, local attachment writes, SQLite calls, and socket response writing are synchronous.
+- Backend analysis target: 32 seconds from `AnalysisBudget.start()`, which is called immediately before the request body is read and validated. The runtime order is `start -> read -> api`, so body-read time consumes the same monotonic target used across analysis, parsing, provider work, validation, and persistence. This is a cooperative target rather than a hard end-to-end guarantee because bounded request reading, local attachment writes, SQLite calls, and socket response writing are synchronous.
 - Fixed validation/response margin: 2 seconds reserved at the end of the backend deadline.
 - Attachment parse/OCR budget within the backend request: at most 8 seconds in total for model-context preparation. PDF, XLSX, DOCX, image decoding, and OCR run in spawn-based worker processes. At deadline, the backend terminates and joins the worker, discards partial private output, and emits a safe limitation for that attachment. Remaining attachments degrade without starting another worker.
 - DeepSeek attempt: `min(25 seconds, remaining backend time minus the fixed 2-second validation/response margin)`.

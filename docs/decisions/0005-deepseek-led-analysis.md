@@ -69,7 +69,7 @@ An isolated unsafe or unsupported field uses deterministic field fallback. A mal
 ### Deadlines and persistence
 
 - Frontends wait 35 seconds for the POST after independent browser resource collection, which has its own 20-second maximum.
-- After the validated request body is read, the backend starts a cooperative 32-second monotonic target, with an 8-second hard parser/OCR process deadline, a provider maximum of 25 seconds, a provider minimum of 5 seconds, and a fixed 2-second validation/response reserve.
+- The backend calls `AnalysisBudget.start()` immediately before reading and validating the request body; the runtime order is `start -> read -> api`, so body-read time consumes the cooperative 32-second monotonic target. The same target has an 8-second hard parser/OCR process deadline, a provider maximum of 25 seconds, a provider minimum of 5 seconds, and a fixed 2-second validation/response reserve.
 - SQLite uses one 0.5-second cumulative stage for lock/INSERT/commit with a 0.25-second response floor. Busy timeouts are recomputed from the same stage deadline.
 - Persistence must commit before success. Failure returns `PERSISTENCE_FAILED`. A rollback failure closes and quarantines the connection so a pending transaction cannot be reused.
 

@@ -189,7 +189,7 @@ DeepSeek-led 路线可使用当前可见线程和本地解析出的 ephemeral sa
 ### Deadline contract
 
 - 浏览器扩展和本地调试页在独立资源收集完成后使用 35-second POST wait；浏览器收集本身有独立的 20-second resource collection 上限，因此 35 秒不是从点击开始计算的硬性总时限。
-- 后端在完成已校验的 request body 读取后调用 `AnalysisBudget.start()`，使用 one monotonic 32-second cooperative target，共享给分析、parser、provider、校验和 persistence。受限 body 读取、附件写入、SQLite 和 socket response write 是同步阶段，所以不能描述为严格 end-to-end cancellation guarantee。
+- 后端在读取并校验 request body 之前立即调用 `AnalysisBudget.start()`；实际顺序是 `start -> read -> api`，所以受限 body 读取时间计入 one monotonic 32-second cooperative target。该 target 继续共享给分析、parser、provider、校验和 persistence。body 读取、附件写入、SQLite 和 socket response write 是同步阶段，所以不能描述为严格 end-to-end cancellation guarantee。
 - 附件 parser/OCR worker 使用 hard 8-second 总截止并在超时时终止；DeepSeek 使用剩余预算，最多为 25-second，且必须保留 2-second validation/response reserve。剩余 provider 时间少于 5-second 时跳过模型并返回规则结果。
 - 前端 abort 不能保证取消服务器工作；后端截止独立执行。
 
