@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import time
 from pathlib import Path
 from typing import Any
 
@@ -52,12 +53,35 @@ def save_analysis(
     *,
     busy_timeout_ms: int = 500,
 ) -> int:
-    connection.execute(f"PRAGMA busy_timeout = {max(0, busy_timeout_ms)}")
+    deadline = time.monotonic() + max(0, busy_timeout_ms) / 1000
     # Persist only the documented structured result and projected attachment insights.
     stored_analysis = project_analysis_for_storage(analysis)
-    cursor = connection.execute(
-        "INSERT INTO email_analysis (subject, sender, analysis_json) VALUES (?, ?, ?)",
-        (subject, sender, json.dumps(stored_analysis, ensure_ascii=False)),
-    )
-    connection.commit()
+    try:
+        _set_busy_timeout_until(connection, deadline)
+        cursor = connection.execute(
+            "INSERT INTO email_analysis (subject, sender, analysis_json) VALUES (?, ?, ?)",
+            (subject, sender, json.dumps(stored_analysis, ensure_ascii=False)),
+        )
+        _set_busy_timeout_until(connection, deadline)
+        connection.commit()
+    except sqlite3.Error:
+        _rollback_after_failure(connection)
+        raise
     return int(cursor.lastrowid)
+
+
+def _set_busy_timeout_until(
+    connection: sqlite3.Connection,
+    deadline: float,
+) -> None:
+    remaining_ms = int((deadline - time.monotonic()) * 1000)
+    if remaining_ms <= 0:
+        raise sqlite3.OperationalError("Persistence deadline expired.")
+    connection.execute(f"PRAGMA busy_timeout = {remaining_ms}")
+
+
+def _rollback_after_failure(connection: sqlite3.Connection) -> None:
+    try:
+        connection.rollback()
+    except sqlite3.Error:
+        return

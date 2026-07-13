@@ -5,9 +5,58 @@ from __future__ import annotations
 import inspect
 import json
 import sqlite3
+import threading
+import time
 import unittest
+from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from backend.email_agent.database import connect, initialize_schema, save_analysis
+
+
+PERSISTENCE_STAGE_SECONDS = 0.5
+SQLITE_SCHEDULING_TOLERANCE_SECONDS = 0.2
+
+
+class _InsertSignalingConnection:
+    def __init__(
+        self, connection: sqlite3.Connection, insert_started: threading.Event
+    ) -> None:
+        self._connection = connection
+        self._insert_started = insert_started
+
+    def execute(
+        self, statement: str, parameters: tuple[object, ...] = ()
+    ) -> sqlite3.Cursor:
+        if statement.startswith("INSERT INTO email_analysis"):
+            self._insert_started.set()
+        return self._connection.execute(statement, parameters)
+
+    def commit(self) -> None:
+        self._connection.commit()
+
+    def rollback(self) -> None:
+        self._connection.rollback()
+
+
+class _CommitFailOnceConnection:
+    def __init__(self, connection: sqlite3.Connection) -> None:
+        self._connection = connection
+        self._fail_commit = True
+
+    def execute(
+        self, statement: str, parameters: tuple[object, ...] = ()
+    ) -> sqlite3.Cursor:
+        return self._connection.execute(statement, parameters)
+
+    def commit(self) -> None:
+        if self._fail_commit:
+            self._fail_commit = False
+            raise sqlite3.OperationalError("PRIVATE_COMMIT_DETAIL")
+        self._connection.commit()
+
+    def rollback(self) -> None:
+        self._connection.rollback()
 
 
 class DatabaseTests(unittest.TestCase):
@@ -19,7 +68,7 @@ class DatabaseTests(unittest.TestCase):
 
         self.assertLessEqual(timeout, 500)
 
-    def test_save_analysis_applies_requested_busy_timeout(self) -> None:
+    def test_save_analysis_recomputes_requested_busy_timeout_before_commit(self) -> None:
         connection = sqlite3.connect(":memory:")
         self.addCleanup(connection.close)
         initialize_schema(connection)
@@ -34,7 +83,97 @@ class DatabaseTests(unittest.TestCase):
         )
 
         timeout = connection.execute("PRAGMA busy_timeout").fetchone()[0]
-        self.assertEqual(timeout, 37)
+        self.assertGreaterEqual(timeout, 0)
+        self.assertLess(timeout, 37)
+
+    def test_file_backed_insert_then_commit_contention_uses_one_cumulative_deadline(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as directory:
+            database_path = Path(directory) / "cumulative-deadline.sqlite3"
+            target = connect(str(database_path))
+            initialize_schema(target)
+            reader = sqlite3.connect(database_path, check_same_thread=False)
+            writer = sqlite3.connect(database_path, check_same_thread=False)
+            insert_started = threading.Event()
+            signaling_target = _InsertSignalingConnection(target, insert_started)
+            result: dict[str, object] = {}
+
+            reader.execute("BEGIN")
+            reader.execute("SELECT id FROM email_analysis").fetchall()
+            writer.execute("BEGIN IMMEDIATE")
+
+            def persist() -> None:
+                started = time.monotonic()
+                try:
+                    save_analysis(
+                        signaling_target,
+                        subject="first-marker",
+                        sender="synthetic@example.test",
+                        analysis={"summary": "First marker."},
+                        busy_timeout_ms=500,
+                    )
+                except sqlite3.Error as exc:
+                    result["error"] = exc
+                result["elapsed"] = time.monotonic() - started
+
+            persistence_thread = threading.Thread(target=persist, daemon=True)
+            try:
+                persistence_thread.start()
+                saw_insert = insert_started.wait(timeout=1.0)
+                time.sleep(0.4)
+                writer.rollback()
+                persistence_thread.join(timeout=1.5)
+                returned = not persistence_thread.is_alive()
+                elapsed = float(result.get("elapsed", 10.0))
+                error = result.get("error")
+            finally:
+                writer.rollback()
+                reader.rollback()
+                persistence_thread.join(timeout=2)
+                target.rollback()
+                writer.close()
+                reader.close()
+                target.close()
+
+            self.assertTrue(saw_insert)
+            self.assertTrue(returned)
+            self.assertIsInstance(error, sqlite3.Error)
+            self.assertLessEqual(
+                elapsed,
+                PERSISTENCE_STAGE_SECONDS + SQLITE_SCHEDULING_TOLERANCE_SECONDS,
+            )
+
+    def test_commit_failure_rolls_back_before_later_success(self) -> None:
+        connection = sqlite3.connect(":memory:")
+        self.addCleanup(connection.close)
+        initialize_schema(connection)
+        failing_once = _CommitFailOnceConnection(connection)
+
+        with self.assertRaises(sqlite3.Error):
+            save_analysis(
+                failing_once,
+                subject="failed-marker",
+                sender="synthetic@example.test",
+                analysis={"summary": "Failed marker."},
+            )
+        transaction_after_failure = connection.in_transaction
+
+        save_analysis(
+            failing_once,
+            subject="successful-marker",
+            sender="synthetic@example.test",
+            analysis={"summary": "Successful marker."},
+        )
+        stored_subjects = [
+            row[0]
+            for row in connection.execute(
+                "SELECT subject FROM email_analysis ORDER BY id"
+            ).fetchall()
+        ]
+
+        self.assertFalse(transaction_after_failure)
+        self.assertEqual(stored_subjects, ["successful-marker"])
 
     def test_save_analysis_persists_structured_result(self) -> None:
         connection = sqlite3.connect(":memory:")
