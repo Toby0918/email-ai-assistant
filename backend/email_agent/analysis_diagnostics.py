@@ -27,15 +27,27 @@ logger = logging.getLogger(__name__)
 logger.addHandler(logging.NullHandler())
 
 
+def _allowlisted_value(
+    value: object,
+    allowed: frozenset[str],
+    fallback: str,
+) -> str:
+    if type(value) is not str or value not in allowed:
+        return fallback
+    return value
+
+
 def log_analysis_fallback(
     *, code: str, stage: str, provider: str, model: str,
     output_mode: str, elapsed_ms: int,
 ) -> None:
-    safe_code = code if code in FALLBACK_REASON_CODES else "unexpected_analysis_error"
-    safe_stage = stage if stage in FALLBACK_STAGES else "analysis"
-    safe_provider = provider if provider in SAFE_PROVIDERS else "unknown"
-    safe_model = model if model in SAFE_MODELS else "unknown"
-    safe_mode = output_mode if output_mode in SAFE_OUTPUT_MODES else "unknown"
+    safe_code = _allowlisted_value(
+        code, FALLBACK_REASON_CODES, "unexpected_analysis_error"
+    )
+    safe_stage = _allowlisted_value(stage, FALLBACK_STAGES, "analysis")
+    safe_provider = _allowlisted_value(provider, SAFE_PROVIDERS, "unknown")
+    safe_model = _allowlisted_value(model, SAFE_MODELS, "unknown")
+    safe_mode = _allowlisted_value(output_mode, SAFE_OUTPUT_MODES, "unknown")
     safe_elapsed = elapsed_ms if type(elapsed_ms) is int and elapsed_ms >= 0 else 0
     logger.warning(
         "event=analysis_fallback code=%s stage=%s provider=%s model=%s "
