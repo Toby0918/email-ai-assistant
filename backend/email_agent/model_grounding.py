@@ -8,6 +8,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from .deepseek_analysis_schema import APPROVED_EVIDENCE_PATTERNS
+from .model_text_safety import passive_commitment_categories
 from .prompt_context import EvidenceSource
 
 
@@ -220,7 +221,9 @@ def _outcome_signatures(text: str) -> set[str]:
 
 
 def _commitment_signatures(text: str) -> set[str]:
-    signatures: set[str] = set()
+    signatures = {
+        "commitment:" + category for category in passive_commitment_categories(text)
+    }
     for clause in _CLAUSE_RE.findall(text):
         actor = _ACTOR_RE.search(clause)
         if actor is None:

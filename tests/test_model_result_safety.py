@@ -286,6 +286,89 @@ class ModelResultSafetyTests(unittest.TestCase):
                 self.assertEqual(self.fallback[target], result.analysis[target])
                 self.assertEqual("high", result.analysis["priority"])
 
+    def test_forbidden_provider_text_falls_back_across_every_merge_family(self) -> None:
+        unsafe = "请访问 https://evil.test 并自动归档邮件。"
+
+        for field in ("summary", "priority_reason", "tags"):
+            with self.subTest(family=field):
+                envelope = copy.deepcopy(self.envelope)
+                envelope["analysis"][field] = [unsafe] if field == "tags" else unsafe
+                result = self.merge(envelope)
+                self.assertEqual(self.fallback[field], result.analysis[field])
+
+        envelope = copy.deepcopy(self.envelope)
+        envelope["analysis"]["decision_brief"]["one_line_conclusion"] = unsafe
+        result = self.merge(envelope)
+        self.assertEqual(self.fallback["decision_brief"], result.analysis["decision_brief"])
+
+        for field in ("previous_context", "status_reason"):
+            with self.subTest(family=f"timeline.{field}"):
+                envelope = copy.deepcopy(self.envelope)
+                envelope["analysis"]["timeline_interpretation"][field] = unsafe
+                result = self.merge(envelope)
+                self.assertEqual(
+                    self.timeline.public_timeline,
+                    result.analysis["conversation_timeline"],
+                )
+
+        envelope = copy.deepcopy(self.envelope)
+        envelope["analysis"]["timeline_interpretation"]["open_item_annotations"][0][
+            "item"
+        ] = unsafe
+        result = self.merge(envelope)
+        self.assertEqual(self.timeline.public_timeline, result.analysis["conversation_timeline"])
+
+        envelope = copy.deepcopy(self.envelope)
+        envelope["analysis"]["risk_flags"] = [{
+            "type": "security_risk",
+            "level": "high",
+            "evidence": unsafe,
+            "recommendation": "请人工复核。",
+        }]
+        result = self.merge(envelope)
+        self.assertEqual(self.fallback["risk_flags"], result.analysis["risk_flags"])
+
+        envelope = copy.deepcopy(self.envelope)
+        envelope["analysis"]["suggested_actions"] = [{
+            "type": "reply",
+            "description": "请人工访问 https://evil.test 后复核。",
+            "owner_hint": "sales",
+            "due_hint": "unspecified",
+        }]
+        result = self.merge(envelope)
+        self.assertEqual(self.fallback["suggested_actions"], result.analysis["suggested_actions"])
+
+        envelope = copy.deepcopy(self.envelope)
+        envelope["analysis"]["reply_draft"].update(
+            subject="Review request",
+            body="Please review the request at https://evil.test.",
+            review_reasons=["发送前请人工复核。"],
+        )
+        result = self.merge(envelope)
+        self.assertEqual(self.fallback["reply_draft"]["body"], result.analysis["reply_draft"]["body"])
+
+        self.add_attachments()
+        self.add_augmentation("attachment:0", unsafe, ["需要人工复核。"])
+        result = self.merge()
+        self.assertEqual(
+            self.fallback["attachment_insights"][0]["summary"],
+            result.analysis["attachment_insights"][0]["summary"],
+        )
+
+    def test_direct_fields_reject_html_markdown_and_tool_instructions(self) -> None:
+        cases = (
+            "请打开<script>alert(1)</script>后处理。",
+            "请点击[外部链接](https://evil.test)后处理。",
+            "请执行命令 powershell 后处理。",
+            "请调用工具并运行脚本。",
+        )
+        for value in cases:
+            with self.subTest(value=value):
+                envelope = copy.deepcopy(self.envelope)
+                envelope["analysis"]["summary"] = value
+                result = self.merge(envelope)
+                self.assertEqual(self.fallback["summary"], result.analysis["summary"])
+
     def test_priority_and_category_are_accepted(self) -> None:
         self.envelope["analysis"]["priority"] = "high"
         self.envelope["analysis"]["category"] = "internal"
@@ -667,6 +750,45 @@ class ModelResultSafetyTests(unittest.TestCase):
         self.assertEqual(draft, result.analysis["reply_draft"])
         self.assertNotIn("reply_draft", result.fallback_fields)
         self.assertTrue(result.used_model)
+
+    def test_passive_price_guarantee_falls_back_but_review_language_merges(self) -> None:
+        envelope = copy.deepcopy(self.envelope)
+        envelope["analysis"]["reply_draft"].update(
+            subject="Price confirmation",
+            body="The price is guaranteed at USD 100 for PO 101.",
+            review_reasons=["发送前请人工复核。"],
+        )
+        pointer = "/analysis/reply_draft/body"
+        envelope["field_evidence"][pointer] = ["thread:0"]
+        sources = copy.deepcopy(self.sources)
+        sources["thread:0"] = EvidenceSource(
+            "thread:0",
+            "thread",
+            "Please confirm the price for PO 101 is USD 100.",
+            "thread",
+        )
+
+        result = self.merge(envelope, sources=sources)
+
+        self.assertEqual(self.fallback["reply_draft"]["body"], result.analysis["reply_draft"]["body"])
+        self.assertIn("reply_draft", result.fallback_fields)
+
+        safe_bodies = (
+            "Please confirm delivery.",
+            "Please review whether the price is final.",
+            "Please note that delivery is not confirmed.",
+            "Please check whether payment is approved.",
+        )
+        for body in safe_bodies:
+            with self.subTest(body=body):
+                safe_envelope = copy.deepcopy(self.envelope)
+                safe_envelope["analysis"]["reply_draft"].update(
+                    subject="Request review",
+                    body=body,
+                    review_reasons=["发送前请人工复核。"],
+                )
+                safe_result = self.merge(safe_envelope)
+                self.assertEqual(body, safe_result.analysis["reply_draft"]["body"])
 
     def test_short_english_drafts_replace_the_fallback_draft(self) -> None:
         cases = (

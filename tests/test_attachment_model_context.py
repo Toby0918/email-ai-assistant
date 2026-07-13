@@ -214,6 +214,29 @@ class AttachmentModelContextTests(unittest.TestCase):
                 for forbidden in forbidden_values:
                     self.assertNotIn(forbidden.casefold(), sanitized.text.casefold())
 
+    def test_natural_language_secret_labels_are_removed_without_benign_false_positives(self) -> None:
+        secrets = (
+            "Password is hunter2-secret",
+            "API key is ds-secret-12345",
+            "session id SESSIONSECRET42",
+            'password "quoted-secret"',
+            "token 'single-quoted-secret'",
+        )
+        for raw in secrets:
+            with self.subTest(raw=raw):
+                self.assertEqual(sanitize_remote_text(raw, 6_000).text, "")
+
+        benign = (
+            "Password reset status is complete.",
+            "API key rotation policy is under review.",
+            "Token expiry is tomorrow.",
+            "Cookie policy needs review.",
+            "Session ID expiry is 2026-07-20.",
+        )
+        for raw in benign:
+            with self.subTest(raw=raw):
+                self.assertEqual(sanitize_remote_text(raw, 6_000).text, raw)
+
     def test_generic_bare_hosts_and_ip_urls_are_removed_and_flagged(self) -> None:
         cases = (
             (

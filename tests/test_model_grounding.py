@@ -519,6 +519,42 @@ class ModelGroundingTests(unittest.TestCase):
                     ["/analysis/reply_draft/body"],
                 )
 
+    def test_passive_consequential_claims_require_grounding(self) -> None:
+        cases = (
+            "The price is guaranteed at USD 100.",
+            "Delivery is confirmed for 2026-07-20.",
+            "Payment is approved.",
+            "The contract is accepted.",
+            "Product quality is final.",
+            "The legal terms are agreed.",
+            "Delivery is scheduled for 2026-07-20.",
+        )
+        for text in cases:
+            with self.subTest(text=text):
+                envelope = valid_envelope()
+                envelope["analysis"]["reply_draft"]["body"] = text
+                violations = find_grounding_violations(envelope, {}, self.sources)
+                self.assertEqual(
+                    [item.pointer for item in violations],
+                    ["/analysis/reply_draft/body"],
+                )
+
+    def test_passive_requests_questions_negations_and_reviews_need_no_evidence(self) -> None:
+        cases = (
+            "Please confirm delivery.",
+            "Customer asks whether price is final.",
+            "Delivery is not confirmed.",
+            "Check whether payment is approved.",
+        )
+        for text in cases:
+            with self.subTest(text=text):
+                envelope = valid_envelope()
+                envelope["analysis"]["reply_draft"]["body"] = text
+                self.assertEqual(
+                    find_grounding_violations(envelope, {}, self.sources),
+                    (),
+                )
+
     def test_positive_and_negated_outcomes_are_not_interchangeable(self) -> None:
         envelope = valid_envelope()
         envelope["analysis"]["summary"] = "RFQ-42 is not completed."

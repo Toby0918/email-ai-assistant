@@ -238,6 +238,55 @@ class DeepSeekPromptContextTests(unittest.TestCase):
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, prompt)
 
+    def test_serialized_context_removes_natural_language_secrets_from_every_channel(self) -> None:
+        context = dict(self.context)
+        context.update(
+            subject="Password is hunter2-secret",
+            sender="API key is ds-secret-12345",
+            recipients=("session id SESSIONSECRET42",),
+            cc=('password "quoted-secret"',),
+        )
+        context["timeline"] = TimelineBuild(
+            self.timeline.public_timeline,
+            self.timeline.open_items,
+            (
+                ThreadSource(
+                    "thread:0",
+                    "buyer@example.com",
+                    "sales@cndlf.com",
+                    "2026-07-12",
+                    "Password is thread-secret",
+                    "API key thread-secret-12345 | PO 1013970520",
+                ),
+            ),
+        )
+        context["attachment_context"] = (
+            AttachmentModelContextItem(
+                "attachment:0",
+                "session id ATTACHMENTSECRET42 | RFQ RFQ-2026-001",
+                False,
+                False,
+            ),
+        )
+
+        prompt, sources = build_deepseek_untrusted_context(**context)
+
+        serialized = prompt + "\n" + "\n".join(
+            source.grounding_text for source in sources.values()
+        )
+        for forbidden in (
+            "hunter2-secret",
+            "ds-secret-12345",
+            "SESSIONSECRET42",
+            "quoted-secret",
+            "thread-secret",
+            "ATTACHMENTSECRET42",
+        ):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, serialized)
+        self.assertIn("PO 1013970520", serialized)
+        self.assertIn("RFQ RFQ-2026-001", serialized)
+
     def test_thread_sources_obey_count_per_source_and_total_text_bounds(self) -> None:
         sources = tuple(
             ThreadSource(

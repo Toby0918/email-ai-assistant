@@ -28,6 +28,48 @@ _COMMITMENT_RE = re.compile(
     r"(?:发货|交付|履行|付款|支付|价格|报价|合同|条款|质量|保修|法律|责任|赔偿)",
     re.IGNORECASE,
 )
+_CLAUSE_RE = re.compile(r"[^;；.!?。！？\n]+")
+_PASSIVE_STATUS_RE = re.compile(
+    r"\b(?:is|are|was|were|has been|have been)\s+"
+    r"(?:now\s+)?(?:guaranteed|confirmed|final|accepted|approved|agreed|scheduled)\b|"
+    r"(?:已|已经|现已)(?:保证|确认|最终确定|接受|批准|同意|安排)",
+    re.IGNORECASE,
+)
+_SAFE_PASSIVE_CONTEXT_RE = re.compile(
+    r"\b(?:not|never|whether|if|pending|unconfirmed)\b|"
+    r"\b(?:review|check|verify|ask(?:s|ed)?)\s+(?:whether|if)\b|"
+    r"(?:尚未|并未|没有|未被|是否|能否|待确认|待审核|请(?:审核|检查|核实|复核))",
+    re.IGNORECASE,
+)
+_CONSEQUENTIAL_TERMS = {
+    "price": re.compile(r"\b(price|quote|quotation|cost|discount)\b|价格|报价|折扣", re.I),
+    "delivery": re.compile(r"\b(deliver|delivery|shipment|dispatch|eta)\b|交付|交期|发货", re.I),
+    "payment": re.compile(r"\b(pay|payment|invoice)\b|付款|支付|发票", re.I),
+    "contract": re.compile(r"\b(contract|terms?)\b|合同|条款", re.I),
+    "quality": re.compile(r"\b(quality|warranty|specification)\b|质量|保修|规格", re.I),
+    "legal": re.compile(r"\b(legal|liability|liable|indemnity)\b|法律|责任|赔偿", re.I),
+}
+_HTML_RE = re.compile(r"<\s*/?\s*[A-Z][^>]*>", re.IGNORECASE)
+_MARKDOWN_LINK_RE = re.compile(r"!?\[[^\]\r\n]*\]\([^\)\r\n]+\)")
+_URI_RE = re.compile(
+    r"(?<![\w.+-])(?P<scheme>[A-Z][A-Z0-9+.-]{1,31}):[^\s<>{}\[\]]+",
+    re.IGNORECASE,
+)
+_WEB_ADDRESS_RE = re.compile(
+    r"(?<![@\w.-])(?:www\.)?(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+"
+    r"[A-Z]{2,63}(?::\d{1,5})?(?:/[^\s<>{}\[\]]*)?",
+    re.IGNORECASE,
+)
+_TOOL_INSTRUCTION_RE = re.compile(
+    r"(?:执行|运行|调用|点击|打开|访问).{0,8}(?:命令|脚本|工具|链接)|"
+    r"\b(?:run|execute|invoke|call|open|click|visit)\s+(?:the\s+)?"
+    r"(?:command|script|tool|shell|powershell|cmd|link)\b",
+    re.IGNORECASE,
+)
+_BUSINESS_URI_LABELS = {
+    "amount", "deadline", "due", "invoice", "part", "po", "price", "qty",
+    "quantity", "rfq", "size", "total", "usd", "eur", "cny", "rmb",
+}
 _COMMON_ENGLISH_WORDS = {
     "a", "an", "and", "are", "as", "at", "be", "best", "by", "can", "check",
     "confirm", "dear", "details", "dispatched", "email", "for", "friday", "from",
@@ -94,7 +136,56 @@ def has_unsafe_operation(value: str) -> bool:
 
 
 def has_unconditional_commitment(value: str) -> bool:
-    return bool(_COMMITMENT_RE.search(value))
+    return bool(_COMMITMENT_RE.search(value) or passive_commitment_categories(value))
+
+
+def passive_commitment_categories(value: str) -> frozenset[str]:
+    """Return consequential categories asserted as settled in passive voice."""
+    categories: set[str] = set()
+    for clause in _CLAUSE_RE.findall(value):
+        if "?" in clause or "？" in clause or _SAFE_PASSIVE_CONTEXT_RE.search(clause):
+            continue
+        if not _PASSIVE_STATUS_RE.search(clause):
+            continue
+        categories.update(
+            name for name, pattern in _CONSEQUENTIAL_TERMS.items() if pattern.search(clause)
+        )
+    return frozenset(categories)
+
+
+def is_safe_model_text(*values: object) -> bool:
+    """Apply the reusable fail-closed policy to provider-authored text."""
+    for value in values:
+        for text in _text_leaves(value):
+            if (
+                _contains_link_or_markup(text)
+                or _TOOL_INSTRUCTION_RE.search(text)
+                or has_unsafe_operation(text)
+                or has_unconditional_commitment(text)
+            ):
+                return False
+    return True
+
+
+def _text_leaves(value: object):
+    if isinstance(value, str):
+        yield value
+    elif isinstance(value, dict):
+        for child in value.values():
+            yield from _text_leaves(child)
+    elif isinstance(value, (list, tuple)):
+        for child in value:
+            yield from _text_leaves(child)
+
+
+def _contains_link_or_markup(value: str) -> bool:
+    if _HTML_RE.search(value) or _MARKDOWN_LINK_RE.search(value) or _WEB_ADDRESS_RE.search(value):
+        return True
+    for match in _URI_RE.finditer(value):
+        scheme = match.group("scheme").casefold()
+        if scheme not in _BUSINESS_URI_LABELS or match.group(0).startswith(f"{scheme}://"):
+            return True
+    return False
 
 
 def validate_public_language(value: dict[str, object]) -> None:

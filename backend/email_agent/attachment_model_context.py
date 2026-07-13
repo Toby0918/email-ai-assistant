@@ -48,8 +48,9 @@ _LABELED_SECRET = re.compile(
     r"(?i)\b(?:authorization|proxy[-_ ]?authorization|cookie|set[-_ ]?cookie|"
     r"password|passwd|pwd|api[-_ ]?key|client[-_ ]?secret|private[-_ ]?key|"
     r"access[-_ ]?token|refresh[-_ ]?token|id[-_ ]?token|auth[-_ ]?token|"
-    r"token|session(?:[-_ ]?id)?|credentials?|secret|key)"
-    r"\b\s*[:=]\s*[^|\r\n]*"
+    r"token|session[-_ ]?id|session(?![-_ ]?id)|credentials?|secret|key)"
+    r"\b(?![\s_-]+(?:reset|rotation|expiry|expiration|expired|policy|issue)\b)"
+    r"(?:(?:\s+(?:is|equals?))|\s*[:=]|\s+)\s*[^|\r\n]*"
 )
 _SAFE_BUSINESS_SUFFIX = re.compile(
     r"[.!?]\s+(?P<business>(?:(?:PO|RFQ|invoice|part|qty|quantity|due|deadline|"

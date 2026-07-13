@@ -7,8 +7,9 @@ from typing import Any
 
 from .analysis_schema import validate_analysis_result
 from .deepseek_analysis_schema import validate_deepseek_analysis_v1, validate_envelope_evidence
+from .model_context_projection import safe_decision_brief, safe_timeline_interpretation
 from .model_grounding import find_grounding_violations
-from .model_text_safety import has_chinese, has_unconditional_commitment, has_unsafe_operation, looks_english, validate_public_language
+from .model_text_safety import has_chinese, is_safe_model_text, looks_english, validate_public_language
 from .prompt_context import EvidenceSource
 from .thread_timeline import TimelineBuild
 _FIELDS = (
@@ -38,12 +39,12 @@ def merge_deepseek_analysis_v1(
         analysis = private["analysis"]
         raw_analysis = raw["analysis"]
         _merge_direct(public, analysis, violations, kept)
-        brief = _safe_brief(analysis["decision_brief"], sources, violations)
+        brief = safe_decision_brief(analysis["decision_brief"], sources, violations)
         if brief is None:
             kept.add("decision_brief")
         else:
             public["decision_brief"] = brief
-        merged_timeline = _safe_timeline(
+        merged_timeline = safe_timeline_interpretation(
             analysis["timeline_interpretation"], timeline, violations, normalized_evidence
         )
         if merged_timeline is None:
@@ -105,11 +106,11 @@ def _merge_direct(
     violations: set[str], kept: set[str],
 ) -> None:
     for field in ("summary", "priority", "priority_reason", "category", "tags"):
-        unsafe = False
+        unsafe = not is_safe_model_text(analysis[field])
         if field in {"summary", "priority_reason"}:
-            unsafe = not has_chinese(analysis[field]) or f"/analysis/{field}" in violations
+            unsafe = unsafe or not has_chinese(analysis[field]) or f"/analysis/{field}" in violations
         elif field == "tags":
-            unsafe = any(pointer.startswith("/analysis/tags/") for pointer in violations)
+            unsafe = unsafe or any(pointer.startswith("/analysis/tags/") for pointer in violations)
         if unsafe:
             kept.add(field)
         else:
@@ -158,6 +159,7 @@ def _safe_risks(
         unsafe = (
             key in seen or not has_chinese(item["evidence"])
             or not has_chinese(item["recommendation"])
+            or not is_safe_model_text(item)
             or any(value.startswith(pointer) for value in violations)
         )
         if unsafe:
@@ -178,7 +180,7 @@ def _safe_actions(items: object, fallback: object, violations: set[str]
         if (
             not isinstance(description, str) or not has_chinese(description)
             or any(value.startswith(prefix) for value in violations)
-            or has_unsafe_operation(combined) or has_unconditional_commitment(combined)
+            or not is_safe_model_text(combined)
         ):
             return copy.deepcopy(fallback), True
     return copy.deepcopy(items), False
@@ -190,11 +192,8 @@ def _safe_draft(
     if safe:
         safe = looks_english(value["subject"], value["body"])
         safe = safe and all(has_chinese(item) for item in value["review_reasons"])
-        safe = safe and not any(
-            item.startswith("/analysis/reply_draft/") for item in violations
-        )
-        safe = safe and not has_unsafe_operation(value["subject"] + "\n" + value["body"])
-        safe = safe and not has_unconditional_commitment(value["subject"] + "\n" + value["body"])
+        safe = safe and not any(item.startswith("/analysis/reply_draft/") for item in violations)
+        safe = safe and is_safe_model_text(value)
     if safe:
         return copy.deepcopy(value), False
     result = copy.deepcopy(fallback)
@@ -223,6 +222,7 @@ def _safe_attachments(
             and valid_index and ids.count(source_id) == 1 and indexes.count(index) == 1
             and result[index]["status"] == "parsed"
             and source.public_source == "attachment:" + result[index]["filename"]
+            and is_safe_model_text(item["summary"], item["key_facts"])
             and not any(value.startswith(f"/attachment_augmentations/{position}/") for value in violations)
         )
         if not valid:
@@ -232,68 +232,6 @@ def _safe_attachments(
         result[index]["key_facts"] = copy.deepcopy(item["key_facts"])
         accepted.add(index)
     return result, rejected or len(accepted) < len(result)
-
-def _safe_brief(
-    value: dict[str, Any], sources: Mapping[str, EvidenceSource], violations: set[str]
-) -> dict[str, Any] | None:
-    if any(pointer.startswith("/analysis/decision_brief/") for pointer in violations):
-        return None
-    required = [value["one_line_conclusion"], value["requested_outcome"],
-                value["reply_recommendation"]["reason"], *value["must_check"], *value["missing_info"]]
-    required.extend(item["step"] for item in value["next_steps"])
-    text = repr(value)
-    if any(not has_chinese(item) for item in required):
-        return None
-    if has_unsafe_operation(text) or has_unconditional_commitment(text):
-        return None
-    result = copy.deepcopy(value)
-    for collection in (result["next_steps"], result["key_facts"]):
-        for item in collection:
-            source = sources.get(item["source"])
-            if source is None or (source.kind == "attachment" and not source.parsed):
-                return None
-            item["source"] = source.public_source
-    return result
-
-def _safe_timeline(
-    value: dict[str, Any], timeline: TimelineBuild, violations: set[str],
-    evidence: Mapping[str, Sequence[str]],
-) -> dict[str, Any] | None:
-    if any(pointer.startswith("/analysis/timeline_interpretation/") for pointer in violations):
-        return None
-    if not has_chinese(value["previous_context"]) or not has_chinese(value["status_reason"]):
-        return None
-    known = {item.open_item_id: item for item in timeline.open_items}
-    updates: dict[str, str] = {}
-    for index, annotation in enumerate(value["open_item_annotations"]):
-        item_id, text = annotation["open_item_id"], annotation["item"]
-        if item_id not in known or item_id in updates or not has_chinese(text):
-            return None
-        item = known[item_id]
-        if not item.evidence_sources:
-            updates[item_id] = item.item
-            continue
-        pointer = f"/analysis/timeline_interpretation/open_item_annotations/{index}/item"
-        claimed = evidence.get(pointer, ())
-        if not claimed or not set(claimed).issubset(item.evidence_sources):
-            return None
-        updates[item_id] = text
-    base = timeline.public_timeline
-    return {
-        "previous_context": value["previous_context"],
-        "current_status": copy.deepcopy(base["current_status"]),
-        "status_reason": value["status_reason"],
-        "latest_external_request": copy.deepcopy(base["latest_external_request"]),
-        "latest_internal_commitment": copy.deepcopy(base["latest_internal_commitment"]),
-        "open_items": [
-            {
-                "item": updates.get(item.open_item_id, item.item), "owner_hint": item.owner_hint,
-                "due_hint": item.due_hint, "source": item.source,
-            }
-            for item in timeline.open_items
-        ],
-        "confidence": copy.deepcopy(base["confidence"]),
-    }
 
 def _public_fallback(value: Mapping[str, Any]) -> dict[str, Any]:
     return {field: copy.deepcopy(value[field]) for field in _FIELDS}
