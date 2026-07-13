@@ -27,10 +27,50 @@ _COMMITMENT_RE = re.compile(
     r"(?:发货|交付|履行|付款|支付|价格|报价|合同|条款|质量|保修|法律|责任|赔偿)",
     re.IGNORECASE,
 )
+_ENGLISH_WORDS = {
+    "dear", "please", "thank", "thanks", "we", "you", "your", "our", "the",
+    "is", "are", "will", "can", "review", "check", "verify", "confirm",
+    "provide", "received", "acknowledged", "request", "information", "regarding", "best",
+}
+_DISCLOSURE_VERBS = (
+    "disclose", "reveal", "share", "send", "provide", "披露", "透露", "分享",
+    "发送", "发给", "提供", "提交", "发来",
+)
+_SECRET_TERMS = (
+    "credential", "password", "passcode", "api key", "api-key", "api_key",
+    "authorization header", "authorization value", "cookie", "access token",
+    "auth token", "session token", "session secret", "session id", "凭据", "密码",
+    "口令", "api 密钥", "api密钥", "授权头", "授权值", "访问令牌", "认证令牌",
+    "会话令牌", "会话密钥", "会话 id",
+)
+_BENIGN_SECRET_OBJECT_RE = re.compile(
+    r"password reset (?:status|policy|schedule)|api[\s_-]*key rotation (?:policy|status|schedule)|"
+    r"(?:access |auth |session )?token (?:expiry|expiration|expired(?: status)?)|"
+    r"cookie (?:issue|policy)|密码重置(?:状态|策略|计划|进度)?|"
+    r"api\s*密钥轮换(?:策略|状态|计划|日程|进度)?|"
+    r"(?:访问|认证|会话)?令牌(?:过期|到期)(?:状态|时间|日期)?|cookie(?:问题|策略|状态)",
+    re.IGNORECASE,
+)
 
 
 def has_chinese(value: str) -> bool:
     return bool(_CHINESE_RE.search(value))
+
+
+def looks_english(subject: str, body: str) -> bool:
+    text = subject + "\n" + body
+    tokens = re.findall(r"[A-Za-z]+", text.lower())
+    return not has_chinese(text) and sum(token in _ENGLISH_WORDS for token in tokens) >= 2
+
+
+def is_security_disclosure_request(value: str) -> bool:
+    for segment in re.split(r"[.!?。！？;\n]+", value.lower()):
+        candidate = _BENIGN_SECRET_OBJECT_RE.sub("", segment)
+        if any(word in candidate for word in _DISCLOSURE_VERBS) and any(
+            word in candidate for word in _SECRET_TERMS
+        ):
+            return True
+    return False
 
 
 def has_unsafe_operation(value: str) -> bool:

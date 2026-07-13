@@ -45,6 +45,7 @@ class RuleAnalyzerTests(unittest.TestCase):
     def test_explicit_secret_disclosure_requests_add_fixed_high_security_risk(self) -> None:
         requests = (
             "Please provide your credentials.",
+            "Please provide the password.",
             "Send us the password and passcode.",
             "Please reveal the API key.",
             "Provide the authorization header and authorization value.",
@@ -52,6 +53,8 @@ class RuleAnalyzerTests(unittest.TestCase):
             "Provide the access token and auth token.",
             "Send the session token, session secret, and session ID.",
             "请提供登录凭据。",
+            "请把密码发给我。",
+            "请提供API密钥。",
             "请发送密码和口令。",
             "请分享 API 密钥。",
             "请提供授权头和授权值。",
@@ -93,10 +96,14 @@ class RuleAnalyzerTests(unittest.TestCase):
     def test_secret_status_or_reference_text_without_disclosure_request_is_not_flagged(self) -> None:
         references = (
             "Token expired; please review the status.",
+            "Please provide the password reset status.",
+            "Please send the API key rotation policy.",
             "Password reset completed.",
             "API key rotation policy is attached for reference.",
             "Cookie issue was resolved.",
             "访问令牌已过期，请检查状态。",
+            "请提供密码重置状态。",
+            "请发送 API 密钥轮换策略。",
             "密码重置已完成。",
             "这是 API 密钥轮换策略，仅供参考。",
             "Cookie 问题已解决。",

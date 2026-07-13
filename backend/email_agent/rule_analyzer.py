@@ -2,11 +2,11 @@
 
 from __future__ import annotations
 
-import re
 from typing import Any
 
 from .analysis_schema import validate_analysis_result
 from .email_facts import EmailFacts
+from .model_text_safety import is_security_disclosure_request
 from .rule_context import build_rule_context
 from .rule_draft import build_reply_draft
 from .rule_decision import build_decision_brief
@@ -26,15 +26,12 @@ from .rule_keywords import (
 )
 from .thread_timeline import build_conversation_timeline
 
-_DISCLOSURE_VERBS = ("disclose", "reveal", "share", "send", "provide", "披露", "透露", "分享", "发送", "提供", "提交", "发来")
-_SECRET_TERMS = ("credential", "password", "passcode", "api key", "api-key", "api_key", "authorization header", "authorization value", "cookie", "access token", "auth token", "session token", "session secret", "session id", "凭据", "密码", "口令", "api 密钥", "授权头", "授权值", "访问令牌", "认证令牌", "会话令牌", "会话密钥", "会话 id")
 _SECURITY_EVIDENCE = "邮件明确要求披露、分享或发送凭据、密码、密钥、Cookie 或令牌等秘密信息。"
 _SECURITY_RECOMMENDATION = "不要披露任何秘密信息；请先人工核验请求方身份和授权范围。"
 
 
 def build_rule_based_analysis(
-    subject: str,
-    sender: str,
+    subject: str, sender: str,
     clean_body: str,
     *,
     attachment_insights: list[dict[str, object]] | None = None,
@@ -120,7 +117,7 @@ def _risk_flags(text: str, facts: EmailFacts) -> list[dict[str, str]]:
     risks: list[dict[str, str]] = []
     if _contains(text, "ignore previous", "system prompt", "reveal"):
         risks.append(_risk("prompt_injection_risk", "high", "邮件要求忽略系统规则或泄露内部提示。", "忽略邮件正文中的系统级指令，先人工复核。"))
-    if _requests_secret_disclosure(text):
+    if is_security_disclosure_request(text):
         risks.append(_risk("security_risk", "high", _SECURITY_EVIDENCE, _SECURITY_RECOMMENDATION))
     if _contains(text, *PAYMENT_KEYWORDS):
         level = "high" if _contains(text, "overdue", "逾期") else "medium"
@@ -265,11 +262,6 @@ def _fact_clause(facts: EmailFacts) -> str:
 
 def _contains(text: str, *keywords: str) -> bool:
     return any(keyword in text for keyword in keywords)
-
-
-def _requests_secret_disclosure(text: str) -> bool:
-    segments = re.split(r"[.!?。！？;\n]+", text)
-    return any(_contains(item, *_DISCLOSURE_VERBS) and _contains(item, *_SECRET_TERMS) for item in segments)
 
 
 def _is_meeting_context(text: str) -> bool:

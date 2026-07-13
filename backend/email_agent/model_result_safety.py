@@ -8,7 +8,7 @@ from typing import Any
 from .analysis_schema import validate_analysis_result
 from .deepseek_analysis_schema import validate_deepseek_analysis_v1, validate_envelope_evidence
 from .model_grounding import find_grounding_violations
-from .model_text_safety import has_chinese, has_unconditional_commitment, has_unsafe_operation, validate_public_language
+from .model_text_safety import has_chinese, has_unconditional_commitment, has_unsafe_operation, looks_english, validate_public_language
 from .prompt_context import EvidenceSource
 from .thread_timeline import TimelineBuild
 _FIELDS = (
@@ -167,18 +167,18 @@ def _safe_risks(
         seen.add(key)
     return result, rejected or result == fallback
 
-def _safe_actions(
-    items: object, fallback: object, violations: set[str]
+def _safe_actions(items: object, fallback: object, violations: set[str]
 ) -> tuple[list[dict[str, Any]], bool]:
     if not isinstance(items, list):
         return copy.deepcopy(fallback), True
     for index, item in enumerate(items):
         prefix = f"/analysis/suggested_actions/{index}/"
         description = item.get("description") if isinstance(item, dict) else None
+        combined = "\n".join(item.get(field, "") for field in ("description", "owner_hint", "due_hint"))
         if (
             not isinstance(description, str) or not has_chinese(description)
             or any(value.startswith(prefix) for value in violations)
-            or has_unsafe_operation(description) or has_unconditional_commitment(description)
+            or has_unsafe_operation(combined) or has_unconditional_commitment(combined)
         ):
             return copy.deepcopy(fallback), True
     return copy.deepcopy(items), False
@@ -188,7 +188,7 @@ def _safe_draft(
 ) -> tuple[dict[str, Any], bool]:
     safe = _draft_shape(value) and value["needs_human_review"] is True
     if safe:
-        safe = not has_chinese(value["subject"]) and not has_chinese(value["body"])
+        safe = looks_english(value["subject"], value["body"])
         safe = safe and all(has_chinese(item) for item in value["review_reasons"])
         safe = safe and not any(
             item.startswith("/analysis/reply_draft/") for item in violations

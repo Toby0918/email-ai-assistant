@@ -617,6 +617,30 @@ class ModelResultSafetyTests(unittest.TestCase):
                 )
                 self.assertIn("suggested_actions", result.fallback_fields)
 
+    def test_unsafe_action_owner_or_due_hint_replaces_entire_list(self) -> None:
+        cases = (
+            {"owner_hint": "send automatically", "due_hint": "unspecified"},
+            {"owner_hint": "sales", "due_hint": "archive automatically"},
+        )
+        pointer = "/analysis/suggested_actions/0/description"
+        for fields in cases:
+            with self.subTest(fields=fields):
+                envelope = copy.deepcopy(self.envelope)
+                envelope["analysis"]["suggested_actions"] = [{
+                    "type": "reply", "description": "请人工审核后回复客户。", **fields,
+                }]
+                envelope["field_evidence"][pointer] = ["thread:0"]
+                sources = copy.deepcopy(self.sources)
+                sources["thread:0"] = EvidenceSource(
+                    "thread:0", "thread", "请人工审核后回复客户。", "thread"
+                )
+                result = self.merge(envelope, sources=sources)
+                self.assertEqual(
+                    self.fallback["suggested_actions"],
+                    result.analysis["suggested_actions"],
+                )
+                self.assertIn("suggested_actions", result.fallback_fields)
+
     def test_action_language_or_grounding_failure_replaces_whole_list(self) -> None:
         cases = ("Review the request manually.", "PO 999999 需要处理。")
         for description in cases:
@@ -631,7 +655,7 @@ class ModelResultSafetyTests(unittest.TestCase):
 
     def test_safe_english_draft_replaces_the_fallback_draft(self) -> None:
         draft = {
-            "subject": "Re: your request",
+            "subject": "Re: PO",
             "body": "Thank you. We received your request and will review and verify the details.",
             "needs_human_review": True,
             "review_reasons": ["发送前请人工复核内容。"],
@@ -643,6 +667,29 @@ class ModelResultSafetyTests(unittest.TestCase):
         self.assertEqual(draft, result.analysis["reply_draft"])
         self.assertNotIn("reply_draft", result.fallback_fields)
         self.assertTrue(result.used_model)
+
+    def test_non_english_latin_draft_uses_deterministic_fallback(self) -> None:
+        cases = (
+            ("Objet: votre demande", "Bonjour, merci. Nous examinerons les informations."),
+            ("Asunto: su solicitud", "Hola, gracias. Revisaremos la información."),
+        )
+        for subject, body in cases:
+            with self.subTest(subject=subject):
+                envelope = copy.deepcopy(self.envelope)
+                envelope["analysis"]["reply_draft"].update(
+                    subject=subject, body=body,
+                    review_reasons=["发送前请人工复核。"],
+                )
+                result = self.merge(envelope)
+                self.assertEqual(
+                    self.fallback["reply_draft"]["subject"],
+                    result.analysis["reply_draft"]["subject"],
+                )
+                self.assertIn(
+                    UNSAFE_DRAFT_REASON,
+                    result.analysis["reply_draft"]["review_reasons"],
+                )
+                self.assertIn("reply_draft", result.fallback_fields)
 
     def test_unsafe_draft_uses_deterministic_fallback_and_deduped_reason(self) -> None:
         self.fallback["reply_draft"]["review_reasons"].append(UNSAFE_DRAFT_REASON)
