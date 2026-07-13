@@ -16,6 +16,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 from backend.email_agent.config import AppConfig, load_config
 from backend.email_agent.llm_client import (
     LlmClientError,
+    _deepseek_failure_reason,
     configured_analysis_engine_label,
     generate_analysis,
 )
@@ -224,6 +225,7 @@ class LlmClientTests(unittest.TestCase):
 
         self.assertLess(elapsed, 1.0)
         self.assertEqual(str(caught.exception), "DeepSeek analysis request timed out.")
+        self.assertEqual(caught.exception.reason_code, "provider_timeout")
         self.assertIsNone(caught.exception.__cause__)
 
     def test_deepseek_rejects_unapproved_model_before_client_construction(self) -> None:
@@ -242,6 +244,7 @@ class LlmClientTests(unittest.TestCase):
 
         client_constructor.assert_not_called()
         self.assertEqual(str(caught.exception), "DeepSeek model is unsupported.")
+        self.assertEqual(caught.exception.reason_code, "unsupported_model")
         self.assertIsNone(caught.exception.__cause__)
 
     def test_deepseek_requires_dedicated_key_before_client_construction(self) -> None:
@@ -266,6 +269,7 @@ class LlmClientTests(unittest.TestCase):
             str(caught.exception),
             "DeepSeek API key is not configured for backend analysis.",
         )
+        self.assertEqual(caught.exception.reason_code, "missing_key")
         self.assertIsNone(caught.exception.__cause__)
 
     def test_deepseek_accepts_only_stop_from_first_choice(self) -> None:
@@ -298,6 +302,7 @@ class LlmClientTests(unittest.TestCase):
                     str(caught.exception),
                     "DeepSeek analysis response was incomplete.",
                 )
+                self.assertEqual(caught.exception.reason_code, "response_incomplete")
                 self.assertNotIn(str(finish_reason), str(caught.exception))
                 self.assertIsNone(caught.exception.__cause__)
 
@@ -321,6 +326,7 @@ class LlmClientTests(unittest.TestCase):
                     str(caught.exception),
                     "DeepSeek analysis response was empty.",
                 )
+                self.assertEqual(caught.exception.reason_code, "response_empty")
                 self.assertIsNone(caught.exception.__cause__)
 
     def test_deepseek_rejects_malformed_response_without_exposing_it(self) -> None:
@@ -346,6 +352,7 @@ class LlmClientTests(unittest.TestCase):
             str(caught.exception),
             "DeepSeek analysis response was incomplete.",
         )
+        self.assertEqual(caught.exception.reason_code, "response_incomplete")
         self.assertNotIn("PRIVATE_RAW_PROVIDER_RESPONSE", str(caught.exception))
         self.assertIsNone(caught.exception.__cause__)
 
@@ -368,6 +375,7 @@ class LlmClientTests(unittest.TestCase):
                 )
 
         self.assertEqual(str(caught.exception), "DeepSeek analysis request failed.")
+        self.assertEqual(caught.exception.reason_code, "provider_request_failed")
         self.assertIsNone(caught.exception.__cause__)
         for forbidden in (
             "PRIVATE_EXCEPTION",
@@ -377,6 +385,22 @@ class LlmClientTests(unittest.TestCase):
             "length",
         ):
             self.assertNotIn(forbidden, str(caught.exception))
+
+    def test_deepseek_status_errors_map_without_using_private_text(self) -> None:
+        cases = {
+            401: "provider_auth",
+            402: "provider_permission_or_balance",
+            403: "provider_permission_or_balance",
+            429: "provider_rate_limit",
+            500: "provider_server_error",
+            503: "provider_server_error",
+            418: "provider_http_error",
+        }
+        for status, expected in cases.items():
+            with self.subTest(status=status):
+                error = RuntimeError("PRIVATE_PROVIDER_BODY")
+                error.status_code = status
+                self.assertEqual(_deepseek_failure_reason(error), expected)
 
     def test_deepseek_failure_never_calls_ollama(self) -> None:
         config = _deepseek_config()
