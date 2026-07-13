@@ -5,9 +5,11 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import threading
 import time
 import unittest
 from dataclasses import replace
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -85,6 +87,27 @@ class FakeHttpResponse:
 
     def read(self) -> bytes:
         return self._payload
+
+
+class _TrickleHandler(BaseHTTPRequestHandler):
+    def do_POST(self) -> None:
+        length = int(self.headers.get("Content-Length", "0"))
+        self.rfile.read(length)
+        payload = json.dumps({"response": "{}"}).encode("utf-8")
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(payload)))
+        self.end_headers()
+        try:
+            for value in payload:
+                self.wfile.write(bytes((value,)))
+                self.wfile.flush()
+                time.sleep(0.04)
+        except (BrokenPipeError, ConnectionResetError):
+            return
+
+    def log_message(self, format: str, *args: object) -> None:
+        return
 
 
 class LlmClientTests(unittest.TestCase):
@@ -496,6 +519,29 @@ class LlmClientTests(unittest.TestCase):
 
         self.assertEqual(result, "{}")
         self.assertEqual(urlopen.call_args.kwargs["timeout"], 9)
+
+    def test_ollama_timeout_is_absolute_across_trickled_response_body(self) -> None:
+        server = ThreadingHTTPServer(("127.0.0.1", 0), _TrickleHandler)
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        started = time.monotonic()
+        try:
+            with self.assertRaises(LlmClientError) as caught:
+                generate_analysis(
+                    "synthetic prompt",
+                    config=_ollama_config(
+                        ollama_base_url=f"http://127.0.0.1:{server.server_port}"
+                    ),
+                    timeout_seconds=0.1,
+                )
+        finally:
+            elapsed = time.monotonic() - started
+            server.shutdown()
+            server.server_close()
+            thread.join(timeout=1)
+
+        self.assertLess(elapsed, 0.35)
+        self.assertEqual(str(caught.exception), "Ollama analysis request failed.")
 
     def test_ollama_nonpositive_routed_timeout_fails_before_network(self) -> None:
         for timeout in (0, -1):

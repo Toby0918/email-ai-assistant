@@ -16,7 +16,12 @@ from typing import Any
 from .analysis_budget import AnalysisBudget
 from .api import handle_analyze_current_email
 from .config import AppConfig, load_config
-from .database import connect, initialize_schema, save_analysis
+from .database import (
+    PersistenceConnectionPoisoned,
+    connect,
+    initialize_schema,
+    save_analysis,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -159,15 +164,19 @@ class EmailAssistantHandler(BaseHTTPRequestHandler):
             return None
         try:
             busy_timeout_ms = int(budget.remaining_until(deadline) * 1000)
-            if busy_timeout_ms <= 0:
+            database = self.server.database
+            if busy_timeout_ms <= 0 or database is None:
                 return None
             return save_analysis(
-                self.server.database,
+                database,
                 subject=str(payload.get("subject") or ""),
                 sender=str(payload.get("from") or ""),
                 analysis=analysis,
                 busy_timeout_ms=busy_timeout_ms,
             )
+        except PersistenceConnectionPoisoned:
+            self.server.database = None
+            return None
         except sqlite3.Error:
             return None
         finally:

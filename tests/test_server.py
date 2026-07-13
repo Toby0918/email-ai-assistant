@@ -70,6 +70,29 @@ class _CommitAndRollbackFailOnceConnection:
         self._connection.close()
 
 
+class _CommitRollbackCloseFailOnceConnection(_CommitAndRollbackFailOnceConnection):
+    def __init__(self, connection: sqlite3.Connection, private_path: str) -> None:
+        super().__init__(connection, private_path)
+        self._fail_close = True
+        self.insert_calls = 0
+
+    def execute(
+        self, statement: str, parameters: tuple[object, ...] = ()
+    ) -> sqlite3.Cursor:
+        if statement.startswith("INSERT INTO email_analysis"):
+            self.insert_calls += 1
+        return super().execute(statement, parameters)
+
+    def close(self) -> None:
+        self.close_called = True
+        if self._fail_close:
+            self._fail_close = False
+            raise sqlite3.OperationalError(
+                f"PRIVATE_CLOSE_DETAIL {self._private_path}"
+            )
+        self._connection.close()
+
+
 class ServerTests(unittest.TestCase):
     @staticmethod
     def _post_analysis(server: object) -> dict[str, object]:
@@ -309,6 +332,56 @@ class ServerTests(unittest.TestCase):
                 if fresh is not None:
                     fresh.close()
                 failing.close()
+
+    def test_triple_failure_detaches_database_before_later_request(self) -> None:
+        with TemporaryDirectory() as directory:
+            database_path = Path(directory) / "triple-failure.sqlite3"
+            connection = connect(str(database_path))
+            initialize_schema(connection)
+            failing = _CommitRollbackCloseFailOnceConnection(
+                connection, str(database_path)
+            )
+            handler = self._direct_handler()
+            del handler._save_result
+            handler.server.database = failing
+            handler.server.database_lock = threading.Lock()
+            handler._read_json = Mock(side_effect=[
+                {"user_confirmed": True, "subject": "FAILED_ROW", "from": "private"},
+                {"user_confirmed": True, "subject": "LATER_ROW", "from": "private"},
+            ])
+            budgets = (AnalysisBudget.start(), AnalysisBudget.start())
+
+            try:
+                with patch(
+                    "backend.email_agent.server.AnalysisBudget.start",
+                    side_effect=budgets,
+                ), patch(
+                    "backend.email_agent.server.handle_analyze_current_email",
+                    return_value=self._private_success(),
+                ):
+                    handler.do_POST()
+                    handler.do_POST()
+
+                responses = [call.args[0] for call in handler._send_json.call_args_list]
+                reader = connect(str(database_path), busy_timeout_seconds=0.05)
+                try:
+                    subjects = [
+                        row[0] for row in reader.execute(
+                            "SELECT subject FROM email_analysis ORDER BY id"
+                        ).fetchall()
+                    ]
+                finally:
+                    reader.close()
+
+                self.assertEqual(responses, [PERSISTENCE_ERROR, PERSISTENCE_ERROR])
+                self.assertIsNone(handler.server.database)
+                self.assertEqual(failing.insert_calls, 1)
+                self.assertEqual(subjects, [])
+            finally:
+                try:
+                    connection.rollback()
+                finally:
+                    connection.close()
 
     def test_python_database_lock_contention_returns_within_bounded_stage(self) -> None:
         config = replace(load_config(dotenv_path=None), llm_provider="disabled")

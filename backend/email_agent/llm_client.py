@@ -6,7 +6,9 @@ import asyncio
 import ipaddress
 import json
 import math
-import urllib.error
+import queue
+import threading
+import time
 import urllib.parse
 import urllib.request
 
@@ -156,16 +158,64 @@ def _ollama_timeout_seconds(
 def _generate_with_ollama(
     prompt: str, config: AppConfig, timeout_seconds: float
 ) -> str:
+    deadline = time.monotonic() + timeout_seconds
+    result: queue.Queue[object] = queue.Queue()
+    state: dict[str, object] = {}
+    worker = threading.Thread(
+        target=_ollama_exchange,
+        args=(prompt, config, timeout_seconds, deadline, state, result),
+        daemon=True,
+    )
+    worker.start()
     try:
-        request = _ollama_request(prompt, config)
-        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
-            status = int(getattr(response, "status", 200))
-            payload = response.read()
-    except (OSError, TimeoutError, TypeError, ValueError, urllib.error.URLError) as exc:
-        raise LlmClientError("Ollama analysis request failed.") from exc
+        outcome = result.get(timeout=max(0.0, deadline - time.monotonic()))
+    except queue.Empty:
+        _cancel_ollama_exchange(state)
+        raise LlmClientError("Ollama analysis request failed.") from None
+    if time.monotonic() > deadline or isinstance(outcome, BaseException):
+        _cancel_ollama_exchange(state)
+        raise LlmClientError("Ollama analysis request failed.") from None
+    status, payload = outcome
     if status != 200:
         raise LlmClientError("Ollama analysis request failed.")
     return _parse_ollama_response(payload)
+
+
+def _ollama_exchange(
+    prompt: str,
+    config: AppConfig,
+    timeout_seconds: float,
+    deadline: float,
+    state: dict[str, object],
+    result: queue.Queue[object],
+) -> None:
+    try:
+        request = _ollama_request(prompt, config)
+        if time.monotonic() >= deadline:
+            raise TimeoutError
+        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
+            state["response"] = response
+            status = int(getattr(response, "status", 200))
+            payload = response.read()
+        if time.monotonic() > deadline:
+            raise TimeoutError
+        result.put((status, payload))
+    except BaseException as exc:
+        result.put(exc)
+
+
+def _cancel_ollama_exchange(state: dict[str, object]) -> None:
+    response = state.get("response")
+    close = getattr(response, "close", None)
+    if callable(close):
+        threading.Thread(target=_ignore_close_error, args=(close,), daemon=True).start()
+
+
+def _ignore_close_error(close: object) -> None:
+    try:
+        close()
+    except Exception:
+        return
 
 
 def _ollama_request(prompt: str, config: AppConfig) -> urllib.request.Request:

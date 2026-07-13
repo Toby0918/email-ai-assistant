@@ -22,6 +22,12 @@ except ImportError:  # pragma: no cover - dependency is pinned but OCR remains o
 
 from .attachment_storage import StoredAttachment
 from .attachment_model_context import AttachmentAnalysisBundle
+from .attachment_worker_control import (
+    STARTED,
+    START_FAILED,
+    cleanup_process,
+    start_process_with_timeout,
+)
 from .attachment_docx import (
     MAX_DOCX_CELLS_PER_ROW,
     MAX_DOCX_ROWS_PER_TABLE,
@@ -50,7 +56,6 @@ OCR_TIMEOUT_SECONDS = 5
 _TIMEOUT_LIMITATION = "Attachment parsing timed out; content was not parsed."
 _WORKER_FAILURE_LIMITATION = "Attachment content could not be parsed in the isolated worker."
 _POLL_INTERVAL_SECONDS = 0.05
-_JOIN_TIMEOUT_SECONDS = 0.2
 _MAX_WORKER_MESSAGE_BYTES = BUFSIZE // 2
 
 _ALLOWED_SUFFIXES = {
@@ -131,25 +136,29 @@ def _parse_in_worker(
     except Exception:
         return _metadata_only(item, _WORKER_FAILURE_LIMITATION), False
     process = None
-    start_attempted = False
+    start_state: str | None = None
     try:
         try:
             process = context.Process(
                 target=_attachment_worker,
                 args=(item, source_id, deadline, send_connection),
             )
-            if clock() >= deadline:
+            remaining = deadline - clock()
+            if remaining <= 0:
                 return _metadata_only(item, _TIMEOUT_LIMITATION), True
-            start_attempted = True
-            process.start()
+            start_state = start_process_with_timeout(process, remaining)
             _safe_call(send_connection.close)
+            if start_state != STARTED:
+                limitation = (
+                    _WORKER_FAILURE_LIMITATION
+                    if start_state == START_FAILED else _TIMEOUT_LIMITATION
+                )
+                return _metadata_only(item, limitation), start_state != START_FAILED
         except Exception:
             return _metadata_only(item, _WORKER_FAILURE_LIMITATION), False
         message, timed_out = _receive_message(process, receive_connection, deadline, clock)
         if timed_out:
-            _stop_process(process)
             return _metadata_only(item, _TIMEOUT_LIMITATION), True
-        _finish_process(process)
         if clock() >= deadline:
             return _metadata_only(item, _TIMEOUT_LIMITATION), True
         if _valid_worker_bundle(message, item, source_id):
@@ -157,11 +166,9 @@ def _parse_in_worker(
         return _metadata_only(item, _WORKER_FAILURE_LIMITATION), False
     finally:
         _safe_call(send_connection.close)
-        if start_attempted and process is not None and _process_alive(process) is not False:
-            _stop_process(process)
         _safe_call(receive_connection.close)
-        if process is not None:
-            _safe_call(process.close)
+        if process is not None and start_state in {None, STARTED}:
+            cleanup_process(process, max(0.0, deadline - clock()))
 
 
 def _receive_message(
@@ -186,20 +193,6 @@ def _receive_message(
         return pickle.loads(payload), False
     except Exception:
         return None, False
-
-
-def _finish_process(process: Any) -> None:
-    _safe_call(process.join, _JOIN_TIMEOUT_SECONDS)
-    if _process_alive(process) is not False:
-        _stop_process(process)
-
-
-def _stop_process(process: Any) -> None:
-    _safe_call(process.terminate)
-    _safe_call(process.join, _JOIN_TIMEOUT_SECONDS)
-    if _process_alive(process) is not False:
-        _safe_call(process.kill)
-        _safe_call(process.join, _JOIN_TIMEOUT_SECONDS)
 
 
 def _process_alive(process: Any) -> bool | None:

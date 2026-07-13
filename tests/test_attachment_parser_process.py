@@ -5,6 +5,7 @@ from __future__ import annotations
 import multiprocessing
 import os
 import pickle
+import threading
 import time
 import unittest
 from datetime import UTC, datetime, timedelta
@@ -483,6 +484,60 @@ class _CleanupErrorContext:
                     connection._connection.close()
 
 
+class _BlockingLifecycleProcess:
+    def __init__(self, *, start_delay: float = 0.0, control_delay: float = 0.0) -> None:
+        self.start_delay = start_delay
+        self.control_delay = control_delay
+        self.start_finished = threading.Event()
+        self.stopped = threading.Event()
+        self.closed = threading.Event()
+        self._alive = False
+        self.terminate_calls = 0
+        self.kill_calls = 0
+
+    def start(self) -> None:
+        time.sleep(self.start_delay)
+        self._alive = True
+        self.start_finished.set()
+
+    def join(self, timeout: float | None = None) -> None:
+        if timeout:
+            time.sleep(min(timeout, 0.01))
+
+    def is_alive(self) -> bool:
+        return self._alive
+
+    def terminate(self) -> None:
+        self.terminate_calls += 1
+        time.sleep(self.control_delay)
+
+    def kill(self) -> None:
+        self.kill_calls += 1
+        time.sleep(self.control_delay)
+        self._alive = False
+        self.stopped.set()
+
+    def close(self) -> None:
+        time.sleep(self.control_delay)
+        self.closed.set()
+
+
+class _BlockingLifecycleContext:
+    def __init__(self, process: _BlockingLifecycleProcess) -> None:
+        self._context = multiprocessing.get_context("spawn")
+        self.process = process
+        self.pipes: list[tuple[Connection, Connection]] = []
+
+    def Pipe(self, duplex: bool = True) -> tuple[Connection, Connection]:
+        pipe = self._context.Pipe(duplex=duplex)
+        self.pipes.append(pipe)
+        return pipe
+
+    def Process(self, *, target: Callable[..., None], args: tuple[Any, ...]) -> _BlockingLifecycleProcess:
+        del target, args
+        return self.process
+
+
 class AttachmentParserProcessTests(unittest.TestCase):
     def test_receive_never_reads_a_ready_pipe_while_process_is_alive(self) -> None:
         process = _AlwaysAliveProcess()
@@ -559,6 +614,7 @@ class AttachmentParserProcessTests(unittest.TestCase):
         ))
         self.assertEqual(len(context.processes), 1)
         self.assertEqual(context.processes[0].start_calls, 0)
+        self.assertTrue(self._wait_until(lambda: context.processes[0].close_calls == 1))
         self.assertEqual(context.processes[0].close_calls, 1)
         self._assert_all_pipes_closed(context.pipes)
 
@@ -574,6 +630,9 @@ class AttachmentParserProcessTests(unittest.TestCase):
                 )
 
                 process = context.processes[0]
+                self.assertTrue(self._wait_until(
+                    lambda: not process.is_alive() and process.close_calls == 1
+                ))
                 self.assertEqual(
                     result[0].display_insight["limitations"],
                     [WORKER_FAILURE_LIMITATION],
@@ -603,6 +662,7 @@ class AttachmentParserProcessTests(unittest.TestCase):
                     self.fail(f"cleanup error escaped: {type(exc).__name__}")
 
                 process = context.processes[0]
+                self.assertTrue(self._wait_until(lambda: process.close_calls == 1))
                 self.assertEqual(result[0].display_insight["limitations"], [TIMEOUT_LIMITATION])
                 self.assertGreaterEqual(process.join_calls, 1)
                 self.assertGreaterEqual(process.is_alive_calls, 1)
@@ -612,6 +672,47 @@ class AttachmentParserProcessTests(unittest.TestCase):
                 self._assert_all_pipes_closed(context.pipes)
             finally:
                 context.cleanup()
+
+    def test_blocking_start_returns_by_deadline_then_quarantines_delayed_worker(self) -> None:
+        with TemporaryDirectory() as directory:
+            item = self._item(directory, "blocking-start.pdf")
+            process = _BlockingLifecycleProcess(start_delay=0.3)
+            context = _BlockingLifecycleContext(process)
+            started = time.monotonic()
+
+            result = self._parse_bundles(
+                [item], deadline=started + 0.05, mp_context=context
+            )
+            elapsed = time.monotonic() - started
+
+            self.assertLess(elapsed, 0.2)
+            self.assertEqual(result[0].display_insight["limitations"], [TIMEOUT_LIMITATION])
+            self.assertTrue(process.start_finished.wait(timeout=1.0))
+            self.assertTrue(process.stopped.wait(timeout=1.0))
+            self.assertTrue(process.closed.wait(timeout=1.0))
+            self.assertFalse(process.is_alive())
+            self._assert_all_pipes_closed(context.pipes)
+
+    def test_blocking_cleanup_controls_do_not_overrun_deadline_or_leave_worker(self) -> None:
+        with TemporaryDirectory() as directory:
+            item = self._item(directory, "blocking-cleanup.pdf")
+            process = _BlockingLifecycleProcess(control_delay=0.25)
+            context = _BlockingLifecycleContext(process)
+            started = time.monotonic()
+
+            result = self._parse_bundles(
+                [item], deadline=started + 0.05, mp_context=context
+            )
+            elapsed = time.monotonic() - started
+
+            self.assertLess(elapsed, 0.2)
+            self.assertEqual(result[0].display_insight["limitations"], [TIMEOUT_LIMITATION])
+            self.assertTrue(process.stopped.wait(timeout=2.0))
+            self.assertTrue(process.closed.wait(timeout=2.0))
+            self.assertGreaterEqual(process.terminate_calls, 1)
+            self.assertGreaterEqual(process.kill_calls, 1)
+            self.assertFalse(process.is_alive())
+            self._assert_all_pipes_closed(context.pipes)
 
     def test_default_spawn_uses_production_worker_and_returns_validated_bundle(self) -> None:
         with TemporaryDirectory() as directory:
@@ -648,6 +749,9 @@ class AttachmentParserProcessTests(unittest.TestCase):
             self.assertIsNone(result[0].model_candidate)
             self.assertEqual(len(context.processes), 1)
             process = context.processes[0]
+            self.assertTrue(self._wait_until(
+                lambda: not process.is_alive() and process.close_calls == 1
+            ))
             self.assertEqual(process.terminate_calls, 1)
             self.assertEqual(process.kill_calls, 1)
             self.assertGreaterEqual(len(process.join_timeouts), 2)
@@ -683,6 +787,9 @@ class AttachmentParserProcessTests(unittest.TestCase):
             ))
             self.assertEqual(len(context.processes), 2)
             self.assertEqual(context.worker_deadlines, [deadline, deadline])
+            self.assertTrue(self._wait_until(
+                lambda: all(process.close_calls == 1 for process in context.processes)
+            ))
             self.assertTrue(all(not process.is_alive() for process in context.processes))
             self.assertTrue(all(process.close_calls == 1 for process in context.processes))
             self._assert_all_pipes_closed(context.pipes)
@@ -756,6 +863,7 @@ class AttachmentParserProcessTests(unittest.TestCase):
             self.assertIsNone(result[0].model_candidate)
             self.assertNotIn("spawn-secret", repr(result))
             self.assertEqual(context.processes[0].start_calls, 1)
+            self.assertTrue(self._wait_until(lambda: context.processes[0].close_calls == 1))
             self.assertEqual(context.processes[0].close_calls, 1)
             self._assert_all_pipes_closed(context.pipes)
 
@@ -812,6 +920,15 @@ class AttachmentParserProcessTests(unittest.TestCase):
         for receive_connection, send_connection in pipes:
             if not receive_connection.closed or not send_connection.closed:
                 raise AssertionError("parse_attachment_bundles left a pipe endpoint open")
+
+    @staticmethod
+    def _wait_until(predicate: Callable[[], bool], timeout: float = 2.0) -> bool:
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            if predicate():
+                return True
+            time.sleep(0.01)
+        return predicate()
 
 
 if __name__ == "__main__":

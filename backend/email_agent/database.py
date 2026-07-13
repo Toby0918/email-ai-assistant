@@ -24,6 +24,10 @@ CREATE TABLE IF NOT EXISTS email_analysis (
 """
 
 
+class PersistenceConnectionPoisoned(sqlite3.DatabaseError):
+    """Raised when a failed transaction cannot be rolled back or closed."""
+
+
 def connect(
     path: str | None = None,
     *,
@@ -65,7 +69,10 @@ def save_analysis(
         _set_busy_timeout_until(connection, deadline)
         connection.commit()
     except sqlite3.Error:
-        _rollback_after_failure(connection)
+        if not _rollback_after_failure(connection):
+            raise PersistenceConnectionPoisoned(
+                "Persistence connection could not be quarantined."
+            ) from None
         raise
     return int(cursor.lastrowid)
 
@@ -80,15 +87,17 @@ def _set_busy_timeout_until(
     connection.execute(f"PRAGMA busy_timeout = {remaining_ms}")
 
 
-def _rollback_after_failure(connection: sqlite3.Connection) -> None:
+def _rollback_after_failure(connection: sqlite3.Connection) -> bool:
     try:
         connection.rollback()
+        return True
     except sqlite3.Error:
-        _close_after_failed_rollback(connection)
+        return _close_after_failed_rollback(connection)
 
 
-def _close_after_failed_rollback(connection: sqlite3.Connection) -> None:
+def _close_after_failed_rollback(connection: sqlite3.Connection) -> bool:
     try:
         connection.close()
+        return True
     except sqlite3.Error:
-        return
+        return False
