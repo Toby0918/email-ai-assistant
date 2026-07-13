@@ -47,7 +47,7 @@
 
     const task = message.type === MESSAGE_TYPE
       ? extractCurrentEmail()
-      : Promise.resolve(revalidateCurrentEmail());
+      : revalidateCurrentEmail();
     task
       .catch(() => message.type === MESSAGE_TYPE ? safeExtractionFailure() : safeRevalidationFailure())
       .then(sendResponse);
@@ -62,18 +62,19 @@
     const result = await collectCurrentMessageContext(extraction);
     return {
       ...result,
-      message_fingerprint: messageFingerprint(extraction.result.payload),
+      message_fingerprint: messageFingerprint(result.payload),
     };
   }
 
-  function revalidateCurrentEmail() {
+  async function revalidateCurrentEmail() {
     const extraction = findCurrentEmail();
     if (!extraction.result.ok) {
       return safeRevalidationFailure();
     }
+    const result = await collectCurrentMessageContext(extraction);
     return {
       ok: true,
-      message_fingerprint: messageFingerprint(extraction.result.payload),
+      message_fingerprint: messageFingerprint(result.payload),
     };
   }
 
@@ -451,16 +452,37 @@
 
   function messageFingerprint(payload) {
     const email = payload || {};
-    const source = [
-      email.subject,
-      email.from,
-      Array.isArray(email.to) ? email.to.join(",") : "",
-      email.sent_at,
-      email.body_text,
-    ].map(normalizeText).join("\u001f");
+    const source = JSON.stringify([
+      fingerprintValues([email.subject, email.from, email.to, email.sent_at, email.body_text]),
+      fingerprintItems(email.attachments, ["filename", "size", "type"]),
+      fingerprintItems(email.thread_segments, [
+        "position", "from", "to", "sent_at", "timestamp_text", "subject", "body_text",
+      ]),
+      fingerprintItems(email.attachment_files, ["filename", "type", "size", "content_base64"]),
+      fingerprintItems(email.resource_limitations, [
+        "code", "filename", "type", "size", "limitation",
+      ]),
+    ]);
     const first = fingerprintHash(source, 0x811c9dc5);
     const second = fingerprintHash(source, 0x9e3779b9);
     return `msg-v1-${hex32(first)}${hex32(second)}`;
+  }
+
+  function fingerprintItems(items, fields) {
+    return Array.isArray(items)
+      ? items.map((item) => fingerprintValues(fields.map((field) => item && item[field])))
+      : [];
+  }
+
+  function fingerprintValues(values) {
+    return (Array.isArray(values) ? values : [values]).map((value) => {
+      if (Array.isArray(value)) {
+        return fingerprintValues(value);
+      }
+      return ["string", "number", "boolean"].includes(typeof value)
+        ? normalizeText(String(value))
+        : "";
+    });
   }
 
   function fingerprintHash(value, seed) {

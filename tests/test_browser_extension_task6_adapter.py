@@ -659,32 +659,75 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
                 }
               },
 
-              metadata_revalidation_never_collects_resources: async () => {
-                const { doc } = openedMessage();
-                let collectorCalls = 0;
-                const collector = {
-                  extractVisibleThreadSegments: () => { collectorCalls += 1; return []; },
-                  collectVisibleResources: async () => {
-                    collectorCalls += 1;
-                    return { attachment_files: [], resource_limitations: [] };
-                  },
-                };
-                const pending = beginDispatch(
-                  loadAdapter(doc, collector),
-                  { type: "REVALIDATE_CURRENT_EMAIL" },
-                );
-                if (pending.keepAlive !== true) {
-                  throw new Error("metadata revalidation message was not handled asynchronously");
-                }
-                const result = await pending.responsePromise;
-                if (collectorCalls !== 0) throw new Error("metadata revalidation collected resources");
-                assertExactKeys(result, ["ok", "message_fingerprint"], "revalidation response");
-                if (!result.ok || !/^msg-v1-[a-f0-9]{16}$/.test(result.message_fingerprint)) {
-                  throw new Error(`unsafe fingerprint response: ${JSON.stringify(result)}`);
-                }
-                const serialized = JSON.stringify(result);
-                for (const forbidden of ["Synthetic request", "sender@example.test", "visible message"]) {
-                  if (serialized.includes(forbidden)) throw new Error(`raw message metadata leaked: ${forbidden}`);
+              full_scope_revalidation_detects_mutations: async () => {
+                const dimensions = [
+                  ["thread", (state) => { state.thread = "THREAD-MUTATED"; }],
+                  ["attachment metadata", (state) => { state.metadata = "metadata-mutated.pdf"; }],
+                  ["attachment content", (state) => { state.content = "Q09OVEVOVC1NVVRBVEVE"; }],
+                  ["resource limitation", (state) => { state.limitation = "LIMITATION-MUTATED"; }],
+                ];
+                for (const [label, mutate] of dimensions) {
+                  const state = {
+                    thread: "THREAD-ORIGINAL",
+                    metadata: "metadata-original.pdf",
+                    content: "Q09OVEVOVC1PUklHSU5BTA==",
+                    limitation: "LIMITATION-ORIGINAL",
+                  };
+                  const control = new FakeElement({
+                    tag: "a",
+                    attrs: { download: "scope.pdf", href: "/cgi-bin/download?file=scope" },
+                  });
+                  const { doc, currentRoot } = openedMessage("", { hostResources: [control] });
+                  Object.defineProperty(currentRoot, "innerText", {
+                    get: () => `Please review the visible message. ${state.metadata}`,
+                  });
+                  Object.defineProperty(currentRoot, "textContent", {
+                    get: () => `Please review the visible message. ${state.metadata}`,
+                  });
+                  doc.defaultView.getSelection = () => ({
+                    rangeCount: 1,
+                    toString: () => "Please review the fixed selected message.",
+                    getRangeAt: () => ({ commonAncestorContainer: currentRoot }),
+                  });
+                  const collector = {
+                    extractVisibleThreadSegments: () => [{
+                      position: 0, from: "sender@example.test", to: "recipient@example.test",
+                      sent_at: "", timestamp_text: "Today", subject: "Scope",
+                      body_text: state.thread,
+                    }],
+                    collectVisibleResources: async () => ({
+                      attachment_files: [{
+                        filename: "scope-resource.pdf", type: "pdf", size: 16,
+                        content_base64: state.content,
+                      }],
+                      resource_limitations: [{
+                        code: "resource_read_failed", filename: "limited.docx", type: "docx",
+                        size: 0, limitation: state.limitation,
+                      }],
+                    }),
+                  };
+                  const listener = loadAdapter(doc, collector);
+                  const initial = await beginDispatch(listener).responsePromise;
+                  const unchanged = await beginDispatch(
+                    listener, { type: "REVALIDATE_CURRENT_EMAIL" },
+                  ).responsePromise;
+                  if (unchanged.message_fingerprint !== initial.message_fingerprint) {
+                    throw new Error(`${label} unchanged scope was not stable`);
+                  }
+                  mutate(state);
+                  const changed = await beginDispatch(
+                    listener, { type: "REVALIDATE_CURRENT_EMAIL" },
+                  ).responsePromise;
+                  assertExactKeys(changed, ["ok", "message_fingerprint"], `${label} revalidation`);
+                  if (!changed.ok || changed.message_fingerprint === initial.message_fingerprint) {
+                    throw new Error(`${label} mutation did not invalidate the fingerprint`);
+                  }
+                  const serialized = JSON.stringify(changed);
+                  for (const forbidden of Object.values(state)) {
+                    if (serialized.includes(forbidden)) {
+                      throw new Error(`${label} raw analyzed scope leaked: ${forbidden}`);
+                    }
+                  }
                 }
               },
 
@@ -754,8 +797,9 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
         script = script.replace("__COLLECTOR_PATH__", json.dumps(str(COLLECTOR)))
         script = script.replace("__CASE_NAME__", json.dumps(case_name))
         result = subprocess.run(
-            ["node", "-e", script],
+            ["node", "-"],
             cwd=ROOT,
+            input=script,
             capture_output=True,
             text=True,
             check=False,
@@ -794,8 +838,8 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
     def test_invalid_structural_envelopes_and_endpoints_fail_closed(self) -> None:
         self.run_node_case("invalid_structural_envelopes_and_endpoints_fail_closed")
 
-    def test_metadata_revalidation_never_collects_resources(self) -> None:
-        self.run_node_case("metadata_revalidation_never_collects_resources")
+    def test_full_scope_revalidation_detects_mutations_without_raw_content(self) -> None:
+        self.run_node_case("full_scope_revalidation_detects_mutations")
 
     def test_hidden_frame_message_is_not_extracted(self) -> None:
         self.run_node_case("hidden_frame_message_is_not_extracted")
