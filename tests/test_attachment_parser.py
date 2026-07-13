@@ -22,7 +22,10 @@ from backend.email_agent import attachment_parser
 from backend.email_agent.analyzer import build_analysis_prompt
 from backend.email_agent.attachment_fact_safety import sanitize_constructed_fact
 from backend.email_agent.attachment_facts import extract_attachment_facts
-from backend.email_agent.attachment_parser import parse_attachments
+from backend.email_agent.attachment_parser import (
+    parse_attachment_bundles_compat,
+    parse_attachments,
+)
 from backend.email_agent.attachment_storage import StoredAttachment
 from backend.email_agent.attachment_text import sanitize_text
 from backend.email_agent.database import initialize_schema, save_analysis
@@ -64,6 +67,51 @@ class _ObservedDocxCell:
 
 
 class AttachmentParserTests(unittest.TestCase):
+    def test_parsed_bundle_has_private_candidate_and_metadata_only_does_not(self) -> None:
+        raw = "PO 1013970520 qty 24 due 2026-07-20 https://private.example.test/a"
+        with TemporaryDirectory() as directory:
+            parsed = self._write(directory, "parsed.pdf", "pdf", b"synthetic")
+            metadata_only = self._write(directory, "wrong.txt", "pdf", b"synthetic")
+            page = MagicMock()
+            page.extract_text.return_value = raw
+            reader = MagicMock()
+            reader.pages = [page]
+
+            with patch.object(attachment_parser, "PdfReader", return_value=reader):
+                bundles = parse_attachment_bundles_compat([parsed, metadata_only])
+
+        self.assertEqual(bundles[0].display_insight["status"], "parsed")
+        self.assertIsNotNone(bundles[0].model_candidate)
+        self.assertEqual(bundles[0].model_candidate.source_id, "attachment:0")
+        self.assertIn("PO 1013970520", bundles[0].model_candidate.text)
+        self.assertIsNone(bundles[1].model_candidate)
+        self.assertFalse(hasattr(bundles[0], "__dict__"))
+        self.assertNotIn(raw, repr(bundles[0]))
+
+    def test_public_attachment_output_recursively_excludes_model_projection(self) -> None:
+        raw = "PO 1013970520 qty 24 due 2026-07-20 PRIVATE-MODEL-TEXT"
+        with TemporaryDirectory() as directory:
+            parsed = self._write(directory, "parsed.pdf", "pdf", b"synthetic")
+            page = MagicMock()
+            page.extract_text.return_value = raw
+            reader = MagicMock()
+            reader.pages = [page]
+
+            with patch.object(attachment_parser, "PdfReader", return_value=reader):
+                public_output = parse_attachments([parsed])
+
+        serialized = json.dumps(public_output, ensure_ascii=False)
+        self.assertEqual(set(public_output[0]), EXPECTED_KEYS)
+        for forbidden in (
+            "model_candidate",
+            "model_text",
+            "source_id",
+            "attachment:0",
+            "PRIVATE-MODEL-TEXT",
+        ):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, serialized)
+
     def test_generic_sanitizer_redacts_every_long_digit_sequence(self) -> None:
         cases = (
             "RFQ7654321",

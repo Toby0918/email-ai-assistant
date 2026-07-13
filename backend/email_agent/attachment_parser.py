@@ -16,6 +16,7 @@ except ImportError:  # pragma: no cover - dependency is pinned but OCR remains o
     pytesseract = None
 
 from .attachment_storage import StoredAttachment
+from .attachment_model_context import AttachmentAnalysisBundle, attachment_model_candidate
 from .attachment_fact_safety import (
     MAX_ATTACHMENT_FACT_CHARACTERS,
     MAX_ATTACHMENT_FACTS,
@@ -33,7 +34,6 @@ from .attachment_safety import (
     office_package_limitation,
 )
 from .attachment_text import MAX_EXTRACTED_CHARACTERS, TextBudget, sanitize_text
-
 
 MAX_PDF_PAGES = 3
 MAX_XLSX_SHEETS = 3
@@ -55,18 +55,20 @@ _ALLOWED_SUFFIXES = {
     "image": {".bmp", ".gif", ".jpeg", ".jpg", ".png", ".tif", ".tiff", ".webp"},
 }
 
-
 def parse_attachments(items: list[StoredAttachment]) -> list[dict[str, object]]:
     """Return bounded, de-identified insights for stored current-email attachments."""
-    return [_parse_one(item) for item in items]
+    return [bundle.display_insight for bundle in parse_attachment_bundles_compat(items)]
 
+def parse_attachment_bundles_compat(items: list[StoredAttachment]) -> list[AttachmentAnalysisBundle]:
+    """Build in-process dual projections until Task 6 adds process isolation."""
+    return [_parse_one_bundle(item, f"attachment:{index}") for index, item in enumerate(items)]
 
-def _parse_one(item: StoredAttachment) -> dict[str, object]:
+def _parse_one_bundle(item: StoredAttachment, source_id: str) -> AttachmentAnalysisBundle:
     extension_limitation = _extension_limitation(item)
     if extension_limitation:
         return _metadata_only(item, extension_limitation)
 
-    parsers: dict[str, Callable[[StoredAttachment], dict[str, object]]] = {
+    parsers: dict[str, Callable[[StoredAttachment, str], AttachmentAnalysisBundle]] = {
         "pdf": _parse_pdf,
         "xlsx": _parse_xlsx,
         "docx": _parse_docx,
@@ -76,12 +78,11 @@ def _parse_one(item: StoredAttachment) -> dict[str, object]:
     if parser is None:
         return _metadata_only(item, "Unsupported attachment type.")
     try:
-        return parser(item)
+        return parser(item, source_id)
     except Exception:
         return _metadata_only(item, decoder_failure_limitation(item.type))
 
-
-def _parse_pdf(item: StoredAttachment) -> dict[str, object]:
+def _parse_pdf(item: StoredAttachment, source_id: str) -> AttachmentAnalysisBundle:
     enforce_pdf_decoder_limits()
     reader = PdfReader(str(item.path), strict=True)
     try:
@@ -96,6 +97,7 @@ def _parse_pdf(item: StoredAttachment) -> dict[str, object]:
             limitations.append("Page limit reached; remaining pages were not parsed.")
         return _text_insight(
             item,
+            source_id,
             collector.text,
             limitations,
             "PDF",
@@ -104,8 +106,7 @@ def _parse_pdf(item: StoredAttachment) -> dict[str, object]:
     finally:
         reader.close()
 
-
-def _parse_xlsx(item: StoredAttachment) -> dict[str, object]:
+def _parse_xlsx(item: StoredAttachment, source_id: str) -> AttachmentAnalysisBundle:
     package_limitation = office_package_limitation(item.path, item.type)
     if package_limitation:
         return _metadata_only(item, package_limitation)
@@ -136,23 +137,22 @@ def _parse_xlsx(item: StoredAttachment) -> dict[str, object]:
     limitations = [*_character_limitations(collector), *limitations]
     return _text_insight(
         item,
+        source_id,
         collector.text,
         limitations,
         "XLSX",
         fact_text=collector.fact_text,
     )
 
-
-def _parse_docx(item: StoredAttachment) -> dict[str, object]:
+def _parse_docx(item: StoredAttachment, source_id: str) -> AttachmentAnalysisBundle:
     package_limitation = office_package_limitation(item.path, item.type)
     if package_limitation:
         return _metadata_only(item, package_limitation)
     document = Document(item.path)
     text, fact_text, limitations = collect_docx_text(document)
-    return _text_insight(item, text, limitations, "DOCX", fact_text=fact_text)
+    return _text_insight(item, source_id, text, limitations, "DOCX", fact_text=fact_text)
 
-
-def _parse_image(item: StoredAttachment) -> dict[str, object]:
+def _parse_image(item: StoredAttachment, source_id: str) -> AttachmentAnalysisBundle:
     with Image.open(item.path) as image:
         width, height = image.size
         image.verify()
@@ -174,13 +174,13 @@ def _parse_image(item: StoredAttachment) -> dict[str, object]:
         return _metadata_only(item, "OCR returned no readable text; image metadata only.", [dimensions])
     return _text_insight(
         item,
+        source_id,
         collector.text,
         _character_limitations(collector),
         "Image OCR",
         [dimensions],
         fact_text=collector.fact_text,
     )
-
 
 def _collect_xlsx_row(
     collector: TextBudget, sheet_title: str, row: tuple[object, ...]
@@ -211,7 +211,6 @@ def _collect_xlsx_row(
         fact_value=" | ".join(fact_values),
     )
 
-
 def _character_limitations(collector: TextBudget) -> list[str]:
     if collector.truncated:
         return ["Character limit reached; remaining text was not parsed."]
@@ -220,13 +219,14 @@ def _character_limitations(collector: TextBudget) -> list[str]:
 
 def _text_insight(
     item: StoredAttachment,
+    source_id: str,
     text: str,
     limitations: list[str],
     label: str,
     metadata_facts: list[str] | None = None,
     *,
     fact_text: str | None = None,
-) -> dict[str, object]:
+) -> AttachmentAnalysisBundle:
     sanitized = sanitize_text(text)
     if not sanitized:
         return _metadata_only(item, f"{label} contains no readable text.", metadata_facts)
@@ -234,25 +234,30 @@ def _text_insight(
     if len(sanitized) > MAX_EXTRACTED_CHARACTERS:
         limitations = [*limitations, "Character limit reached; remaining text was not parsed."]
     facts = _facts_from_text(fact_text if fact_text is not None else bounded, metadata_facts)
-    return _insight(
+    display_insight = _insight(
         item,
         "parsed",
         f"{label} content parsed; review structured facts.",
         facts,
         limitations,
     )
+    candidate_text = fact_text if fact_text is not None else text
+    return AttachmentAnalysisBundle(
+        display_insight,
+        attachment_model_candidate(source_id, candidate_text),
+    )
 
 
 def _metadata_only(
     item: StoredAttachment, limitation: str, facts: list[str] | None = None
-) -> dict[str, object]:
-    return _insight(
+) -> AttachmentAnalysisBundle:
+    return AttachmentAnalysisBundle(_insight(
         item,
         "metadata_only",
         f"{item.type.upper()} attachment metadata only.",
         facts or [f"Size: {item.byte_size} bytes."],
         [limitation],
-    )
+    ), None)
 
 
 def _insight(
