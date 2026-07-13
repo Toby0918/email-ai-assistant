@@ -46,6 +46,7 @@ class RuleAnalyzerTests(unittest.TestCase):
         requests = (
             "Please provide your credentials.",
             "Please provide the password.",
+            "Please send the API-key itself.",
             "Send us the password and passcode.",
             "Please reveal the API key.",
             "Provide the authorization header and authorization value.",
@@ -97,7 +98,14 @@ class RuleAnalyzerTests(unittest.TestCase):
         references = (
             "Token expired; please review the status.",
             "Please provide the password reset status.",
+            "Please send the password-reset status.",
+            "Please send the password_reset status.",
             "Please send the API key rotation policy.",
+            "Please send the API-key_rotation status.",
+            "Please send the API_key-rotation_policy.",
+            "Please send the access token-expiry status.",
+            "Please send the auth token_expiration status.",
+            "Please send the cookie-policy.",
             "Password reset completed.",
             "API key rotation policy is attached for reference.",
             "Cookie issue was resolved.",

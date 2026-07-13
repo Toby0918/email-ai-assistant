@@ -668,8 +668,44 @@ class ModelResultSafetyTests(unittest.TestCase):
         self.assertNotIn("reply_draft", result.fallback_fields)
         self.assertTrue(result.used_model)
 
+    def test_short_english_drafts_replace_the_fallback_draft(self) -> None:
+        cases = (
+            ("Order update", "Shipment dispatched Friday."),
+            ("Re: PO 123", "Acknowledged."),
+            ("Re: PO 123", "PO 123 received."),
+        )
+        for subject, body in cases:
+            with self.subTest(subject=subject, body=body):
+                envelope = copy.deepcopy(self.envelope)
+                envelope["analysis"]["reply_draft"].update(
+                    subject=subject,
+                    body=body,
+                    review_reasons=["发送前请人工复核。"],
+                )
+                sources = copy.deepcopy(self.sources)
+                if "PO 123" in subject:
+                    envelope["field_evidence"]["/analysis/reply_draft/subject"] = [
+                        "thread:0"
+                    ]
+                    if "PO 123" in body:
+                        envelope["field_evidence"]["/analysis/reply_draft/body"] = [
+                            "thread:0"
+                        ]
+                    source = sources["thread:0"]
+                    sources["thread:0"] = EvidenceSource(
+                        source.source_id,
+                        source.kind,
+                        source.grounding_text + " PO 123",
+                        source.public_source,
+                    )
+                result = self.merge(envelope, sources=sources)
+                self.assertEqual(subject, result.analysis["reply_draft"]["subject"])
+                self.assertEqual(body, result.analysis["reply_draft"]["body"])
+                self.assertNotIn("reply_draft", result.fallback_fields)
+
     def test_non_english_latin_draft_uses_deterministic_fallback(self) -> None:
         cases = (
+            ("Re: your request", "Bonjour, merci. Nous examinerons les informations."),
             ("Objet: votre demande", "Bonjour, merci. Nous examinerons les informations."),
             ("Asunto: su solicitud", "Hola, gracias. Revisaremos la información."),
         )

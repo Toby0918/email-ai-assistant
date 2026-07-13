@@ -6,6 +6,7 @@ import re
 
 
 _CHINESE_RE = re.compile(r"[\u3400-\u9fff]")
+_CJK_RE = re.compile(r"[\u3040-\u30ff\u3400-\u9fff\uac00-\ud7af]")
 _AUTO_ACTION_RE = re.compile(
     r"(?:自动|直接|无需人工|系统将).{0,16}(?:发送|回复|删除|归档|移动|转发|支付|签署)|"
     r"\b(?:auto(?:matically)?[- ]?|directly[- ]?|without human (?:review|approval).{0,12})"
@@ -27,10 +28,17 @@ _COMMITMENT_RE = re.compile(
     r"(?:发货|交付|履行|付款|支付|价格|报价|合同|条款|质量|保修|法律|责任|赔偿)",
     re.IGNORECASE,
 )
-_ENGLISH_WORDS = {
-    "dear", "please", "thank", "thanks", "we", "you", "your", "our", "the",
-    "is", "are", "will", "can", "review", "check", "verify", "confirm",
-    "provide", "received", "acknowledged", "request", "information", "regarding", "best",
+_COMMON_ENGLISH_WORDS = {
+    "a", "an", "and", "are", "as", "at", "be", "best", "by", "can", "check",
+    "confirm", "dear", "details", "dispatched", "email", "for", "friday", "from",
+    "has", "have", "i", "in", "information", "is", "it", "of", "on", "or", "order",
+    "our", "please", "po", "provide", "received", "regarding", "request", "review",
+    "shipment", "thank", "thanks", "that", "the", "this", "to", "update", "verify",
+    "we", "will", "with", "you", "your", "acknowledged",
+}
+_NON_ENGLISH_MARKERS = {
+    "asunto", "bonjour", "demande", "examinerons", "gracias", "hola", "información",
+    "informations", "merci", "nous", "objet", "revisaremos", "solicitud", "votre",
 }
 _DISCLOSURE_VERBS = (
     "disclose", "reveal", "share", "send", "provide", "披露", "透露", "分享",
@@ -44,9 +52,11 @@ _SECRET_TERMS = (
     "会话令牌", "会话密钥", "会话 id",
 )
 _BENIGN_SECRET_OBJECT_RE = re.compile(
-    r"password reset (?:status|policy|schedule)|api[\s_-]*key rotation (?:policy|status|schedule)|"
-    r"(?:access |auth |session )?token (?:expiry|expiration|expired(?: status)?)|"
-    r"cookie (?:issue|policy)|密码重置(?:状态|策略|计划|进度)?|"
+    r"password[\s_-]+reset[\s_-]+(?:status|policy|schedule)|"
+    r"api[\s_-]*key[\s_-]+rotation[\s_-]+(?:policy|status|schedule)|"
+    r"(?:(?:access|auth|session)[\s_-]+)?token[\s_-]+"
+    r"(?:expiry|expiration|expired(?:[\s_-]+status)?)|"
+    r"cookie[\s_-]+(?:issue|policy)|密码重置(?:状态|策略|计划|进度)?|"
     r"api\s*密钥轮换(?:策略|状态|计划|日程|进度)?|"
     r"(?:访问|认证|会话)?令牌(?:过期|到期)(?:状态|时间|日期)?|cookie(?:问题|策略|状态)",
     re.IGNORECASE,
@@ -58,9 +68,15 @@ def has_chinese(value: str) -> bool:
 
 
 def looks_english(subject: str, body: str) -> bool:
-    text = subject + "\n" + body
-    tokens = re.findall(r"[A-Za-z]+", text.lower())
-    return not has_chinese(text) and sum(token in _ENGLISH_WORDS for token in tokens) >= 2
+    text_tokens = re.findall(r"[A-Za-zÀ-ÿ]+", (subject + "\n" + body).lower())
+    body_tokens = re.findall(r"[A-Za-zÀ-ÿ]+", body.lower())
+    if _CJK_RE.search(subject + "\n" + body):
+        return False
+    if any(token in _NON_ENGLISH_MARKERS for token in text_tokens):
+        return False
+    # Short business acknowledgements need one hit; longer prose needs 2, capped at 3.
+    required_hits = 1 if len(body_tokens) <= 3 else min(3, 2 + len(body_tokens) // 12)
+    return sum(token in _COMMON_ENGLISH_WORDS for token in body_tokens) >= required_hits
 
 
 def is_security_disclosure_request(value: str) -> bool:
