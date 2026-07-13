@@ -42,6 +42,76 @@ class RuleAnalyzerTests(unittest.TestCase):
         self.assertIn("prompt_injection_risk", risk_types)
         self.assertEqual(result["priority"], "high")
 
+    def test_explicit_secret_disclosure_requests_add_fixed_high_security_risk(self) -> None:
+        requests = (
+            "Please provide your credentials.",
+            "Send us the password and passcode.",
+            "Please reveal the API key.",
+            "Provide the authorization header and authorization value.",
+            "Share the cookie.",
+            "Provide the access token and auth token.",
+            "Send the session token, session secret, and session ID.",
+            "请提供登录凭据。",
+            "请发送密码和口令。",
+            "请分享 API 密钥。",
+            "请提供授权头和授权值。",
+            "请发送 Cookie。",
+            "请提供访问令牌和认证令牌。",
+            "请分享会话令牌、会话密钥和会话 ID。",
+        )
+        for clean_body in requests:
+            with self.subTest(clean_body=clean_body):
+                result = build_rule_based_analysis(
+                    subject="Access review",
+                    sender="synthetic-requester@example.test",
+                    clean_body=clean_body,
+                )
+
+                risks = [item for item in result["risk_flags"] if item["type"] == "security_risk"]
+                self.assertEqual(len(risks), 1)
+                self.assertEqual(risks[0], {
+                    "type": "security_risk",
+                    "level": "high",
+                    "evidence": "邮件明确要求披露、分享或发送凭据、密码、密钥、Cookie 或令牌等秘密信息。",
+                    "recommendation": "不要披露任何秘密信息；请先人工核验请求方身份和授权范围。",
+                })
+                self.assertTrue(result["reply_draft"]["needs_human_review"])
+
+    def test_multiple_secret_disclosure_phrases_do_not_duplicate_security_risk(self) -> None:
+        result = build_rule_based_analysis(
+            subject="Credential request",
+            sender="synthetic-requester@example.test",
+            clean_body=(
+                "Please provide the password and send the API key. "
+                "请分享 Cookie，并提供访问令牌。"
+            ),
+        )
+
+        risks = [item for item in result["risk_flags"] if item["type"] == "security_risk"]
+        self.assertEqual(len(risks), 1)
+
+    def test_secret_status_or_reference_text_without_disclosure_request_is_not_flagged(self) -> None:
+        references = (
+            "Token expired; please review the status.",
+            "Password reset completed.",
+            "API key rotation policy is attached for reference.",
+            "Cookie issue was resolved.",
+            "访问令牌已过期，请检查状态。",
+            "密码重置已完成。",
+            "这是 API 密钥轮换策略，仅供参考。",
+            "Cookie 问题已解决。",
+        )
+        for clean_body in references:
+            with self.subTest(clean_body=clean_body):
+                result = build_rule_based_analysis(
+                    subject="Security status",
+                    sender="synthetic-status@example.test",
+                    clean_body=clean_body,
+                )
+
+                risk_types = {item["type"] for item in result["risk_flags"]}
+                self.assertNotIn("security_risk", risk_types)
+
     def test_contract_category_takes_priority_over_payment_terms(self) -> None:
         result = build_rule_based_analysis(
             subject="合同条款确认",

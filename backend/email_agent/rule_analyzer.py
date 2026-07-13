@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from .analysis_schema import validate_analysis_result
@@ -24,6 +25,11 @@ from .rule_keywords import (
     RISK_LABELS,
 )
 from .thread_timeline import build_conversation_timeline
+
+_DISCLOSURE_VERBS = ("disclose", "reveal", "share", "send", "provide", "披露", "透露", "分享", "发送", "提供", "提交", "发来")
+_SECRET_TERMS = ("credential", "password", "passcode", "api key", "api-key", "api_key", "authorization header", "authorization value", "cookie", "access token", "auth token", "session token", "session secret", "session id", "凭据", "密码", "口令", "api 密钥", "授权头", "授权值", "访问令牌", "认证令牌", "会话令牌", "会话密钥", "会话 id")
+_SECURITY_EVIDENCE = "邮件明确要求披露、分享或发送凭据、密码、密钥、Cookie 或令牌等秘密信息。"
+_SECURITY_RECOMMENDATION = "不要披露任何秘密信息；请先人工核验请求方身份和授权范围。"
 
 
 def build_rule_based_analysis(
@@ -114,6 +120,8 @@ def _risk_flags(text: str, facts: EmailFacts) -> list[dict[str, str]]:
     risks: list[dict[str, str]] = []
     if _contains(text, "ignore previous", "system prompt", "reveal"):
         risks.append(_risk("prompt_injection_risk", "high", "邮件要求忽略系统规则或泄露内部提示。", "忽略邮件正文中的系统级指令，先人工复核。"))
+    if _requests_secret_disclosure(text):
+        risks.append(_risk("security_risk", "high", _SECURITY_EVIDENCE, _SECURITY_RECOMMENDATION))
     if _contains(text, *PAYMENT_KEYWORDS):
         level = "high" if _contains(text, "overdue", "逾期") else "medium"
         risks.append(_risk("payment_risk", level, _evidence("邮件提到付款、发票或汇款状态。", facts), "回复前请核对付款、发票或汇款状态，避免误承诺。"))
@@ -129,10 +137,8 @@ def _risk_flags(text: str, facts: EmailFacts) -> list[dict[str, str]]:
         risks.append(_risk("commitment_risk", "medium", _evidence("邮件要求确认价格、报价或交期。", facts), "回复前请确认报价、价格和交期，避免未经授权承诺。"))
     return risks
 
-
 def _risk(kind: str, level: str, evidence: str, recommendation: str) -> dict[str, str]:
     return {"type": kind, "level": level, "evidence": evidence, "recommendation": recommendation}
-
 
 def _evidence(default: str, facts: EmailFacts) -> str:
     details = _fact_clause(facts)
@@ -140,14 +146,12 @@ def _evidence(default: str, facts: EmailFacts) -> str:
         return default
     return f"{default} 关键信息：{details}。"
 
-
 def _summary(category: str, risks: list[dict[str, str]], text: str, facts: EmailFacts) -> str:
     base = _summary_base(category, risks, text)
     details = _fact_clause(facts)
     if details and category != "marketing":
         return f"{base} 关键信息：{details}。"
     return base
-
 
 def _summary_base(category: str, risks: list[dict[str, str]], text: str) -> str:
     if _has_risk(risks, "prompt_injection_risk"):
@@ -172,7 +176,6 @@ def _summary_base(category: str, risks: list[dict[str, str]], text: str) -> str:
         return "这封邮件主要是营销或参考资料，通常无需业务回复。"
     return "这封邮件需要人工查看后准备谨慎回复。"
 
-
 def _priority_reason(priority: str, risks: list[dict[str, str]], facts: EmailFacts) -> str:
     details = _fact_clause(facts)
     suffix = f" 相关事实：{details}。" if details else ""
@@ -180,23 +183,18 @@ def _priority_reason(priority: str, risks: list[dict[str, str]], facts: EmailFac
         return f"优先级为{_priority_label(priority)}，因为检测到{_risk_label(risks[0]['type'])}。{suffix}".strip()
     return f"优先级为普通，因为未检测到高风险信号。{suffix}".strip()
 
-
 def _priority_label(priority: str) -> str:
     return PRIORITY_LABELS.get(priority, priority)
-
 
 def _risk_label(risk_type: str) -> str:
     return RISK_LABELS.get(risk_type, risk_type)
 
-
 def _tags(category: str, risks: list[dict[str, str]]) -> list[str]:
     return [category, *[item["type"] for item in risks]]
-
 
 def _suggested_actions(category: str, risks: list[dict[str, str]], text: str, facts: EmailFacts) -> list[dict[str, str]]:
     action_types = _action_types(category, risks, text)
     return [_action(action_type, category, text, facts) for action_type in action_types]
-
 
 def _action_types(category: str, risks: list[dict[str, str]], text: str) -> list[str]:
     if _has_risk(risks, "prompt_injection_risk"):
@@ -216,7 +214,6 @@ def _action_types(category: str, risks: list[dict[str, str]], text: str) -> list
         actions.append("ignore" if category == "marketing" else "reply")
     return _unique(actions)
 
-
 def _action(action_type: str, category: str, text: str, facts: EmailFacts) -> dict[str, str]:
     return {
         "type": action_type,
@@ -224,7 +221,6 @@ def _action(action_type: str, category: str, text: str, facts: EmailFacts) -> di
         "owner_hint": _owner_hint(action_type, category),
         "due_hint": facts.deadlines[0] if facts.deadlines else "today",
     }
-
 
 def _action_description(action_type: str, category: str, text: str, facts: EmailFacts) -> str:
     details = _fact_clause(facts)
@@ -269,6 +265,11 @@ def _fact_clause(facts: EmailFacts) -> str:
 
 def _contains(text: str, *keywords: str) -> bool:
     return any(keyword in text for keyword in keywords)
+
+
+def _requests_secret_disclosure(text: str) -> bool:
+    segments = re.split(r"[.!?。！？;\n]+", text)
+    return any(_contains(item, *_DISCLOSURE_VERBS) and _contains(item, *_SECRET_TERMS) for item in segments)
 
 
 def _is_meeting_context(text: str) -> bool:

@@ -76,7 +76,7 @@ def validate_analysis_result(data: dict[str, Any]) -> dict[str, Any]:
     _require_fields(data, REQUIRED_RESULT_FIELDS, "analysis")
     _require_enum(data["priority"], PRIORITIES, "priority")
     _require_enum(data["category"], CATEGORIES, "category")
-    _require_list(data["tags"], "tags")
+    _validate_string_list(data["tags"], "tags")
     _validate_decision_brief(data["decision_brief"])
     _validate_conversation_timeline(data["conversation_timeline"])
     _validate_attachment_insights(data["attachment_insights"])
@@ -110,6 +110,8 @@ def _validate_risk_flags(items: Any) -> None:
         _require_fields(item, {"type", "level", "evidence", "recommendation"}, "risk_flag")
         _require_enum(item["type"], RISK_TYPES, "risk_flag.type")
         _require_enum(item["level"], RISK_LEVELS, "risk_flag.level")
+        for field in ("evidence", "recommendation"):
+            _require_string(item[field], f"risk_flag.{field}")
 
 
 def _validate_decision_brief(value: Any) -> None:
@@ -248,12 +250,16 @@ def _validate_actions(items: Any) -> None:
             raise AnalysisValidationError("suggested_actions items must be objects.")
         _require_fields(item, {"type", "description", "owner_hint", "due_hint"}, "suggested_action")
         _require_enum(item["type"], ACTION_TYPES, "suggested_action.type")
+        for field in ("description", "owner_hint", "due_hint"):
+            _require_string(item[field], f"suggested_action.{field}")
 
 
 def _validate_reply_draft(value: Any) -> None:
     if not isinstance(value, dict):
         raise AnalysisValidationError("reply_draft must be an object.")
     _require_fields(value, {"subject", "body", "needs_human_review", "review_reasons"}, "reply_draft")
+    for field in ("subject", "body"):
+        _require_string(value[field], f"reply_draft.{field}")
     if value["needs_human_review"] is not True:
         raise AnalysisValidationError("reply_draft.needs_human_review must be true.")
-    _require_list(value["review_reasons"], "reply_draft.review_reasons")
+    _validate_string_list(value["review_reasons"], "reply_draft.review_reasons")

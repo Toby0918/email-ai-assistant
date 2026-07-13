@@ -217,6 +217,47 @@ class AnalysisSchemaTests(unittest.TestCase):
         with self.assertRaises(AnalysisValidationError):
             validate_analysis_result(analysis)
 
+    def test_validate_analysis_result_rejects_non_string_public_nested_fields(self) -> None:
+        paths = (
+            ("tags", 0),
+            ("risk_flags", 0, "evidence"),
+            ("risk_flags", 0, "recommendation"),
+            ("suggested_actions", 0, "description"),
+            ("suggested_actions", 0, "owner_hint"),
+            ("suggested_actions", 0, "due_hint"),
+            ("reply_draft", "subject"),
+            ("reply_draft", "body"),
+            ("reply_draft", "review_reasons", 0),
+        )
+        for path in paths:
+            with self.subTest(path=path):
+                analysis = valid_analysis()
+                _set_nested_value(analysis, path, {"not": "a string"})
+
+                with self.assertRaises(AnalysisValidationError):
+                    validate_analysis_result(analysis)
+
+    def test_validate_analysis_result_preserves_valid_public_key_sets(self) -> None:
+        result = validate_analysis_result(valid_analysis())
+
+        self.assertEqual(set(result), {
+            "summary", "priority", "priority_reason", "category", "tags",
+            "decision_brief", "conversation_timeline", "attachment_insights",
+            "risk_flags", "suggested_actions", "reply_draft",
+        })
+        self.assertEqual(
+            set(result["risk_flags"][0]),
+            {"type", "level", "evidence", "recommendation"},
+        )
+        self.assertEqual(
+            set(result["suggested_actions"][0]),
+            {"type", "description", "owner_hint", "due_hint"},
+        )
+        self.assertEqual(
+            set(result["reply_draft"]),
+            {"subject", "body", "needs_human_review", "review_reasons"},
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
