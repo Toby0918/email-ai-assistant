@@ -12,6 +12,7 @@ from .analysis_schema import (
 
 SCHEMA_VERSION = "deepseek_analysis_v1"
 ERROR_TEXT = "DeepSeek analysis envelope is invalid."
+MAX_POINTER_INDEX_DIGITS = 10
 ENVELOPE_FIELDS = {"schema_version", "analysis", "attachment_augmentations", "field_evidence"}
 ANALYSIS_FIELDS = {
     "summary", "priority", "priority_reason", "category", "tags", "decision_brief",
@@ -57,7 +58,7 @@ def parse_deepseek_analysis_v1(raw: str | bytes | bytearray) -> dict[str, Any]:
             _invalid()
         value = json.loads(raw, object_pairs_hook=_object_without_duplicate_keys)
         return validate_deepseek_analysis_v1(value)
-    except (DeepSeekEnvelopeError, json.JSONDecodeError, RecursionError, TypeError, UnicodeDecodeError):
+    except (ValueError, RecursionError, TypeError, UnicodeDecodeError):
         _invalid()
 
 def validate_deepseek_analysis_v1(value: object) -> dict[str, Any]:
@@ -206,7 +207,12 @@ def _resolve_pointer(root: object, tokens: tuple[str, ...]) -> tuple[object, tup
 def _list_index(token: str) -> int:
     if token == "0":
         return 0
-    if not token or token[0] == "0" or any(char not in "0123456789" for char in token):
+    if (
+        not token
+        or len(token) > MAX_POINTER_INDEX_DIGITS
+        or token[0] == "0"
+        or any(char not in "0123456789" for char in token)
+    ):
         _invalid()
     return int(token)
 

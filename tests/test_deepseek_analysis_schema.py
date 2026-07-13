@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+import sys
 import unittest
 from collections.abc import Callable
 from typing import Any
@@ -152,6 +153,15 @@ class DeepSeekAnalysisSchemaTests(unittest.TestCase):
         self.assertEqual(str(caught.exception), ERROR_TEXT)
         self.assertNotIn(marker, str(caught.exception))
         self.assertIsNone(caught.exception.__cause__)
+
+    def test_oversized_json_integer_uses_fixed_generic_error(self) -> None:
+        digit_limit = sys.get_int_max_str_digits()
+        self.assertGreater(digit_limit, 0)
+        oversized_integer = "9" * (digit_limit + 1)
+
+        self.assert_invalid(
+            lambda: parse_deepseek_analysis_v1(oversized_integer)
+        )
 
     def test_envelope_requires_exact_top_level_keys_and_version(self) -> None:
         cases: tuple[tuple[str, Callable[[dict[str, Any]], None]], ...] = (
@@ -304,6 +314,19 @@ class DeepSeekAnalysisSchemaTests(unittest.TestCase):
                 self.assert_invalid(
                     lambda: validate_envelope_evidence(envelope, self.sources)
                 )
+
+    def test_oversized_decimal_array_index_uses_fixed_generic_error(self) -> None:
+        digit_limit = sys.get_int_max_str_digits()
+        self.assertGreater(digit_limit, 0)
+        oversized_index = "9" * (digit_limit + 1)
+        envelope = valid_envelope()
+        envelope["field_evidence"] = {
+            f"/analysis/tags/{oversized_index}": ["thread:0"]
+        }
+
+        self.assert_invalid(
+            lambda: validate_envelope_evidence(envelope, self.sources)
+        )
 
     def test_evidence_rejects_enum_boolean_and_provider_owned_targets(self) -> None:
         pointers = (
