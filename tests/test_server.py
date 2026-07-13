@@ -19,7 +19,7 @@ from unittest.mock import Mock, patch
 
 from backend.email_agent.analysis_budget import AnalysisBudget
 from backend.email_agent.config import load_config
-from backend.email_agent.database import initialize_schema
+from backend.email_agent.database import connect, initialize_schema, save_analysis
 from backend.email_agent.server import EmailAssistantHandler, create_server
 
 
@@ -34,10 +34,14 @@ PERSISTENCE_ERROR = {
 }
 
 
-class _CommitAndRollbackFailingConnection:
-    def __init__(self, connection: sqlite3.Connection) -> None:
+class _CommitAndRollbackFailOnceConnection:
+    def __init__(self, connection: sqlite3.Connection, private_path: str) -> None:
         self._connection = connection
+        self._private_path = private_path
+        self._fail_commit = True
+        self._fail_rollback = True
         self.rollback_called = False
+        self.close_called = False
 
     def execute(
         self, statement: str, parameters: tuple[object, ...] = ()
@@ -45,11 +49,25 @@ class _CommitAndRollbackFailingConnection:
         return self._connection.execute(statement, parameters)
 
     def commit(self) -> None:
-        raise sqlite3.OperationalError("PRIVATE_COMMIT_DETAIL")
+        if self._fail_commit:
+            self._fail_commit = False
+            raise sqlite3.OperationalError(
+                f"PRIVATE_COMMIT_DETAIL {self._private_path} INSERT INTO email_analysis"
+            )
+        self._connection.commit()
 
     def rollback(self) -> None:
         self.rollback_called = True
-        raise sqlite3.OperationalError("PRIVATE_ROLLBACK_DETAIL")
+        if self._fail_rollback:
+            self._fail_rollback = False
+            raise sqlite3.OperationalError(
+                f"PRIVATE_ROLLBACK_DETAIL {self._private_path}"
+            )
+        self._connection.rollback()
+
+    def close(self) -> None:
+        self.close_called = True
+        self._connection.close()
 
 
 class ServerTests(unittest.TestCase):
@@ -192,46 +210,105 @@ class ServerTests(unittest.TestCase):
         response = handler._send_json.call_args.args[0]
         self.assertEqual(response["saved_id"], 17)
 
-    def test_rollback_failure_returns_only_generic_persistence_error(self) -> None:
-        handler = self._direct_handler()
-        del handler._save_result
-        connection = sqlite3.connect(":memory:")
-        self.addCleanup(connection.close)
-        initialize_schema(connection)
-        failing = _CommitAndRollbackFailingConnection(connection)
-        handler.server.database = failing
-        handler.server.database_lock = threading.Lock()
-        handler._read_json = Mock(
-            return_value={
-                "user_confirmed": True,
-                "subject": "PRIVATE_EMAIL_SUBJECT",
-                "from": "private-sender@example.test",
-            }
-        )
-        budget = AnalysisBudget.start()
+    def test_rollback_failure_quarantines_transaction_and_returns_generic_error(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as directory:
+            database_path = Path(directory) / "private-rollback.sqlite3"
+            connection = connect(str(database_path))
+            initialize_schema(connection)
+            failing = _CommitAndRollbackFailOnceConnection(
+                connection, str(database_path)
+            )
+            handler = self._direct_handler()
+            del handler._save_result
+            handler.server.database = failing
+            handler.server.database_lock = threading.Lock()
+            handler._read_json = Mock(
+                return_value={
+                    "user_confirmed": True,
+                    "subject": "FAILED_MARKER",
+                    "from": "private-sender@example.test",
+                }
+            )
+            budget = AnalysisBudget.start()
+            fresh = None
+            try:
+                with patch(
+                    "backend.email_agent.server.AnalysisBudget.start",
+                    return_value=budget,
+                ), patch(
+                    "backend.email_agent.server.handle_analyze_current_email",
+                    return_value=self._private_success(),
+                ):
+                    handler.do_POST()
 
-        with patch(
-            "backend.email_agent.server.AnalysisBudget.start", return_value=budget
-        ), patch(
-            "backend.email_agent.server.handle_analyze_current_email",
-            return_value=self._private_success(),
-        ):
-            handler.do_POST()
+                response = handler._send_json.call_args.args[0]
+                try:
+                    failing.execute("SELECT 1")
+                except sqlite3.ProgrammingError:
+                    quarantined = True
+                    retained_in_transaction = None
+                else:
+                    quarantined = False
+                    retained_in_transaction = connection.in_transaction
 
-        response = handler._send_json.call_args.args[0]
-        self.assertTrue(failing.rollback_called)
-        self.assertEqual(response, PERSISTENCE_ERROR)
-        serialized = json.dumps(response)
-        for private_detail in (
-            "PRIVATE_COMMIT_DETAIL",
-            "PRIVATE_ROLLBACK_DETAIL",
-            "PRIVATE_EMAIL_SUBJECT",
-            "private-sender",
-            "PRIVATE_PROVIDER_DETAIL",
-        ):
-            with self.subTest(private_detail=private_detail):
-                self.assertNotIn(private_detail, serialized)
-        connection.rollback()
+                later_error = None
+                try:
+                    save_analysis(
+                        failing,
+                        subject="COMPROMISED_SUCCESS_MARKER",
+                        sender="synthetic@example.test",
+                        analysis={"summary": "Must not persist."},
+                        busy_timeout_ms=50,
+                    )
+                except sqlite3.Error as exc:
+                    later_error = exc
+
+                fresh = connect(str(database_path), busy_timeout_seconds=0.05)
+                subjects_before = [
+                    row[0]
+                    for row in fresh.execute(
+                        "SELECT subject FROM email_analysis ORDER BY id"
+                    ).fetchall()
+                ]
+                save_analysis(
+                    fresh,
+                    subject="SUCCESS_MARKER",
+                    sender="synthetic@example.test",
+                    analysis={"summary": "Safe success."},
+                    busy_timeout_ms=50,
+                )
+                subjects_after = [
+                    row[0]
+                    for row in fresh.execute(
+                        "SELECT subject FROM email_analysis ORDER BY id"
+                    ).fetchall()
+                ]
+
+                self.assertTrue(failing.rollback_called)
+                self.assertEqual(subjects_before, [])
+                self.assertEqual(subjects_after, ["SUCCESS_MARKER"])
+                self.assertTrue(failing.close_called)
+                self.assertTrue(quarantined)
+                self.assertIsNone(retained_in_transaction)
+                self.assertIsInstance(later_error, sqlite3.ProgrammingError)
+                self.assertEqual(response, PERSISTENCE_ERROR)
+                serialized = json.dumps(response)
+                for private_detail in (
+                    "PRIVATE_COMMIT_DETAIL",
+                    "PRIVATE_ROLLBACK_DETAIL",
+                    str(database_path),
+                    "INSERT INTO email_analysis",
+                    "private-sender",
+                    "PRIVATE_PROVIDER_DETAIL",
+                ):
+                    with self.subTest(private_detail=private_detail):
+                        self.assertNotIn(private_detail, serialized)
+            finally:
+                if fresh is not None:
+                    fresh.close()
+                failing.close()
 
     def test_python_database_lock_contention_returns_within_bounded_stage(self) -> None:
         config = replace(load_config(dotenv_path=None), llm_provider="disabled")

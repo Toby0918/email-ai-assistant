@@ -84,4 +84,11 @@ def _rollback_after_failure(connection: sqlite3.Connection) -> None:
     try:
         connection.rollback()
     except sqlite3.Error:
+        _close_after_failed_rollback(connection)
+
+
+def _close_after_failed_rollback(connection: sqlite3.Connection) -> None:
+    try:
+        connection.close()
+    except sqlite3.Error:
         return
