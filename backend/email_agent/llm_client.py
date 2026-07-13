@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import ipaddress
 import json
+import math
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -34,7 +35,11 @@ def generate_analysis(
     if current.llm_provider in {"", "disabled", "none"}:
         raise LlmClientError("LLM provider is disabled.")
     if current.llm_provider == "ollama":
-        return _generate_with_ollama(user_prompt, current)
+        return _generate_with_ollama(
+            user_prompt,
+            current,
+            _ollama_timeout_seconds(current, timeout_seconds),
+        )
     if current.llm_provider == "deepseek":
         if not current.deepseek_api_key:
             raise LlmClientError(
@@ -135,10 +140,25 @@ def _parse_deepseek_response(response: object) -> str:
     return content.strip()
 
 
-def _generate_with_ollama(prompt: str, config: AppConfig) -> str:
+def _ollama_timeout_seconds(
+    config: AppConfig, timeout_seconds: float | None
+) -> float:
+    requested = config.ollama_timeout_seconds if timeout_seconds is None else timeout_seconds
+    try:
+        routed = float(requested)
+    except (TypeError, ValueError):
+        raise LlmClientError("Ollama analysis timeout must be positive.") from None
+    if not math.isfinite(routed) or routed <= 0:
+        raise LlmClientError("Ollama analysis timeout must be positive.")
+    return min(float(config.ollama_timeout_seconds), routed)
+
+
+def _generate_with_ollama(
+    prompt: str, config: AppConfig, timeout_seconds: float
+) -> str:
     try:
         request = _ollama_request(prompt, config)
-        with urllib.request.urlopen(request, timeout=config.ollama_timeout_seconds) as response:
+        with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
             status = int(getattr(response, "status", 200))
             payload = response.read()
     except (OSError, TimeoutError, TypeError, ValueError, urllib.error.URLError) as exc:

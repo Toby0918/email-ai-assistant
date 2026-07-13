@@ -38,6 +38,17 @@ def _deepseek_config(**changes: object) -> AppConfig:
     return replace(config, **changes)
 
 
+def _ollama_config(**changes: object) -> AppConfig:
+    config = replace(
+        load_config(dotenv_path=None),
+        llm_provider="ollama",
+        ollama_base_url="http://127.0.0.1:11434",
+        ollama_model="qwen3.6:latest",
+        ollama_timeout_seconds=30,
+    )
+    return replace(config, **changes)
+
+
 def _deepseek_response(
     *,
     content: object = '{"summary":"synthetic"}',
@@ -454,6 +465,52 @@ class LlmClientTests(unittest.TestCase):
         self.assertFalse(payload["think"])
         self.assertEqual(payload["options"]["temperature"], 0)
         self.assertEqual(payload["options"]["num_predict"], 1200)
+
+    def test_ollama_uses_minimum_of_routed_and_configured_timeout(self) -> None:
+        response_body = json.dumps({"response": "{}"}).encode("utf-8")
+        cases = ((30, 6, 6), (4, 6, 4))
+        for configured, routed, expected in cases:
+            with self.subTest(configured=configured, routed=routed), patch(
+                "urllib.request.urlopen",
+                return_value=FakeHttpResponse(200, response_body),
+            ) as urlopen:
+                result = generate_analysis(
+                    "synthetic prompt",
+                    config=_ollama_config(ollama_timeout_seconds=configured),
+                    timeout_seconds=routed,
+                )
+
+            self.assertEqual(result, "{}")
+            self.assertEqual(urlopen.call_args.kwargs["timeout"], expected)
+
+    def test_ollama_without_routed_timeout_keeps_configured_timeout(self) -> None:
+        response_body = json.dumps({"response": "{}"}).encode("utf-8")
+        with patch(
+            "urllib.request.urlopen",
+            return_value=FakeHttpResponse(200, response_body),
+        ) as urlopen:
+            result = generate_analysis(
+                "synthetic prompt",
+                config=_ollama_config(ollama_timeout_seconds=9),
+            )
+
+        self.assertEqual(result, "{}")
+        self.assertEqual(urlopen.call_args.kwargs["timeout"], 9)
+
+    def test_ollama_nonpositive_routed_timeout_fails_before_network(self) -> None:
+        for timeout in (0, -1):
+            with self.subTest(timeout=timeout), patch("urllib.request.urlopen") as urlopen:
+                with self.assertRaises(LlmClientError) as caught:
+                    generate_analysis(
+                        "synthetic prompt",
+                        config=_ollama_config(),
+                        timeout_seconds=timeout,
+                    )
+
+            urlopen.assert_not_called()
+            self.assertEqual(
+                str(caught.exception), "Ollama analysis timeout must be positive."
+            )
 
     def test_ollama_errors_are_sanitized(self) -> None:
         env = {"EMAIL_AGENT_LLM_PROVIDER": "ollama"}

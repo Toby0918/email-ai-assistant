@@ -85,16 +85,15 @@ def route_analysis(
     analysis_engine_label: str | None,
 ) -> dict[str, Any]:
     """Return one validated public model result or the complete rule fallback."""
-    timeout = _provider_timeout(context)
-    if timeout is None:
-        return _rule_fallback(context.fallback)
     if llm_generate is None and context.config.llm_provider not in SUPPORTED_PRODUCTION_PROVIDERS:
+        return _rule_fallback(context.fallback)
+    if _provider_timeout(context) is None:
         return _rule_fallback(context.fallback)
     try:
         if _model_led(context.config):
-            result = _run_model_led(context, llm_generate, timeout)
+            result = _run_model_led(context, llm_generate)
         else:
-            result = _run_conservative(context, llm_generate, timeout)
+            result = _run_conservative(context, llm_generate)
     except Exception:
         return _rule_fallback(context.fallback)
     if result is None:
@@ -109,7 +108,6 @@ def route_analysis(
 def _run_model_led(
     context: AnalysisRouteContext,
     llm_generate: Callable[[str], str] | None,
-    timeout: float,
 ) -> dict[str, Any] | None:
     attachment_context = build_attachment_model_context(
         bundle.model_candidate
@@ -123,6 +121,9 @@ def _run_model_led(
         timeline=context.timeline, attachment_context=attachment_context,
         attachment_public_sources=mapping,
     )
+    timeout = _provider_timeout(context)
+    if timeout is None:
+        return None
     raw = _generate(prompt, context, llm_generate, timeout, DEEPSEEK_SYSTEM_PROMPT)
     envelope = parse_deepseek_analysis_v1(raw)
     evidence = validate_envelope_evidence(envelope, sources)
@@ -140,7 +141,6 @@ def _run_model_led(
 def _run_conservative(
     context: AnalysisRouteContext,
     llm_generate: Callable[[str], str] | None,
-    timeout: float,
 ) -> dict[str, Any] | None:
     prompt = build_analysis_prompt(
         context.subject, context.sender, context.clean_body,
@@ -148,6 +148,9 @@ def _run_conservative(
         sent_at=context.sent_at, conversation_timeline=context.timeline.public_timeline,
         attachment_insights=context.attachment_insights,
     )
+    timeout = _provider_timeout(context)
+    if timeout is None:
+        return None
     raw = _generate(prompt, context, llm_generate, timeout)
     result = _parse_result(raw, fallback=context.fallback)
     return result if _has_model_augmentation(result, context.fallback) else None

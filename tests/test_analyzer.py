@@ -12,7 +12,11 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from backend.email_agent.analysis_budget import AnalysisBudget
-from backend.email_agent.analyzer import AnalysisError, analyze_current_email
+from backend.email_agent.analyzer import (
+    AnalysisError,
+    analyze_current_email,
+    build_analysis_prompt,
+)
 from backend.email_agent.attachment_model_context import (
     AttachmentAnalysisBundle,
     attachment_model_candidate,
@@ -822,6 +826,49 @@ class AnalyzerTests(unittest.TestCase):
         self.assertIs(generate.call_args.kwargs["system_prompt"], DEEPSEEK_SYSTEM_PROMPT)
         self.assertEqual(generate.call_args.kwargs["timeout_seconds"], 17.0)
 
+    def test_model_led_timeout_is_computed_after_prompt_construction(self) -> None:
+        now = [100.0]
+        budget = AnalysisBudget.start(clock=lambda: now[0])
+
+        def build_slow_context(**kwargs):
+            now[0] = 108.0
+            return build_deepseek_untrusted_context(**kwargs)
+
+        with patch(
+            "backend.email_agent.analysis_model_routes.build_deepseek_untrusted_context",
+            side_effect=build_slow_context,
+        ), patch(
+            "backend.email_agent.analysis_model_routes.generate_analysis",
+            return_value="not json",
+        ) as generate:
+            result = analyze_current_email(
+                self._model_email(), config=self._deepseek_config(), budget=budget
+            )
+
+        self.assertEqual(generate.call_args.kwargs["timeout_seconds"], 22.0)
+        self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
+
+    def test_model_led_skips_generator_when_prompt_consumes_minimum_budget(self) -> None:
+        now = [100.0]
+        budget = AnalysisBudget.start(clock=lambda: now[0])
+
+        def build_slow_context(**kwargs):
+            now[0] = 126.0
+            return build_deepseek_untrusted_context(**kwargs)
+
+        with patch(
+            "backend.email_agent.analysis_model_routes.build_deepseek_untrusted_context",
+            side_effect=build_slow_context,
+        ), patch(
+            "backend.email_agent.analysis_model_routes.generate_analysis"
+        ) as generate:
+            result = analyze_current_email(
+                self._model_email(), config=self._deepseek_config(), budget=budget
+            )
+
+        generate.assert_not_called()
+        self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
+
     def test_injected_deepseek_generator_remains_one_positional_prompt(self) -> None:
         calls: list[str] = []
 
@@ -984,6 +1031,31 @@ class AnalyzerTests(unittest.TestCase):
         self.assertEqual(calls, [])
         self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
 
+    def test_initial_insufficient_budget_skips_both_prompt_builders(self) -> None:
+        budget = AnalysisBudget(deadline=4.9, _clock=lambda: 0.0)
+        base = load_config(dotenv_path=None)
+        configs = (
+            self._deepseek_config(),
+            replace(base, llm_provider="ollama"),
+        )
+
+        for config in configs:
+            with self.subTest(provider=config.llm_provider), patch(
+                "backend.email_agent.analysis_model_routes.build_deepseek_untrusted_context"
+            ) as model_led_prompt, patch(
+                "backend.email_agent.analysis_model_routes.build_analysis_prompt"
+            ) as conservative_prompt, patch(
+                "backend.email_agent.analysis_model_routes.generate_analysis"
+            ) as generate:
+                result = analyze_current_email(
+                    self._model_email(), config=config, budget=budget
+                )
+
+            model_led_prompt.assert_not_called()
+            conservative_prompt.assert_not_called()
+            generate.assert_not_called()
+            self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
+
     def test_deepseek_failure_never_invokes_ollama(self) -> None:
         with patch(
             "backend.email_agent.analysis_model_routes.generate_analysis",
@@ -1030,6 +1102,54 @@ class AnalyzerTests(unittest.TestCase):
         self.assertIs(generate.call_args.kwargs["config"], config)
         self.assertEqual(generate.call_args.kwargs["timeout_seconds"], 11.0)
         self.assertEqual(generate.call_args.kwargs["system_prompt"], "")
+        self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
+
+    def test_conservative_timeout_is_computed_after_prompt_construction(self) -> None:
+        now = [100.0]
+        budget = AnalysisBudget.start(clock=lambda: now[0])
+        config = replace(
+            load_config(dotenv_path=None), llm_provider="ollama",
+            ollama_timeout_seconds=30,
+        )
+
+        def build_slow_prompt(*args, **kwargs):
+            now[0] = 124.0
+            return build_analysis_prompt(*args, **kwargs)
+
+        with patch(
+            "backend.email_agent.analysis_model_routes.build_analysis_prompt",
+            side_effect=build_slow_prompt,
+        ), patch(
+            "backend.email_agent.analysis_model_routes.generate_analysis",
+            return_value="not json",
+        ) as generate:
+            result = analyze_current_email(
+                self._model_email(), config=config, budget=budget
+            )
+
+        self.assertEqual(generate.call_args.kwargs["timeout_seconds"], 6.0)
+        self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
+
+    def test_conservative_skips_generator_when_prompt_consumes_minimum_budget(self) -> None:
+        now = [100.0]
+        budget = AnalysisBudget.start(clock=lambda: now[0])
+        config = replace(load_config(dotenv_path=None), llm_provider="ollama")
+
+        def build_slow_prompt(*args, **kwargs):
+            now[0] = 126.0
+            return build_analysis_prompt(*args, **kwargs)
+
+        with patch(
+            "backend.email_agent.analysis_model_routes.build_analysis_prompt",
+            side_effect=build_slow_prompt,
+        ), patch(
+            "backend.email_agent.analysis_model_routes.generate_analysis"
+        ) as generate:
+            result = analyze_current_email(
+                self._model_email(), config=config, budget=budget
+            )
+
+        generate.assert_not_called()
         self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
 
     def test_model_led_requires_both_deepseek_provider_and_output_mode(self) -> None:
