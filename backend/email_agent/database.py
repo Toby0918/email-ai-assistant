@@ -23,6 +23,8 @@ CREATE TABLE IF NOT EXISTS email_analysis (
 )
 """
 
+NANOSECONDS_PER_MILLISECOND = 1_000_000
+
 
 class PersistenceConnectionPoisoned(sqlite3.DatabaseError):
     """Raised when a failed transaction cannot be rolled back or closed."""
@@ -57,16 +59,19 @@ def save_analysis(
     *,
     busy_timeout_ms: int = 500,
 ) -> int:
-    deadline = time.monotonic() + max(0, busy_timeout_ms) / 1000
+    deadline_ns = (
+        time.perf_counter_ns()
+        + max(0, busy_timeout_ms) * NANOSECONDS_PER_MILLISECOND
+    )
     # Persist only the documented structured result and projected attachment insights.
     stored_analysis = project_analysis_for_storage(analysis)
     try:
-        _set_busy_timeout_until(connection, deadline)
+        _set_busy_timeout_until(connection, deadline_ns)
         cursor = connection.execute(
             "INSERT INTO email_analysis (subject, sender, analysis_json) VALUES (?, ?, ?)",
             (subject, sender, json.dumps(stored_analysis, ensure_ascii=False)),
         )
-        _set_busy_timeout_until(connection, deadline)
+        _set_busy_timeout_until(connection, deadline_ns)
         connection.commit()
     except sqlite3.Error:
         if not _rollback_after_failure(connection):
@@ -79,9 +84,11 @@ def save_analysis(
 
 def _set_busy_timeout_until(
     connection: sqlite3.Connection,
-    deadline: float,
+    deadline_ns: int,
 ) -> None:
-    remaining_ms = int((deadline - time.monotonic()) * 1000)
+    remaining_ms = (
+        deadline_ns - time.perf_counter_ns()
+    ) // NANOSECONDS_PER_MILLISECOND
     if remaining_ms <= 0:
         raise sqlite3.OperationalError("Persistence deadline expired.")
     connection.execute(f"PRAGMA busy_timeout = {remaining_ms}")
