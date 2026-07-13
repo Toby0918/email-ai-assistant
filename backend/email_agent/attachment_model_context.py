@@ -13,12 +13,15 @@ MAX_MODEL_CHARACTERS_TOTAL = 24_000
 _CONTROL_CHARACTERS = re.compile(
     r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]"
 )
-_SCRIPT_BLOCK = re.compile(r"<script\b[^>]*>.*?</script\s*>", re.IGNORECASE | re.DOTALL)
-_ACTIVE_CONTENT_MARKER = re.compile(
-    r"(?i)(?:<\s*/?\s*(?:script|object|embed|iframe)\b[^>]*>|"
-    r"\b(?:vba|macro(?:s)?|auto_?open|document_?open|workbook_?open|"
+_ACTIVE_TAG_BLOCK = re.compile(
+    r"<(?P<tag>script|object|embed|iframe)\b[^>]*>.*?</(?P=tag)\s*>",
+    re.IGNORECASE | re.DOTALL,
+)
+_ACTIVE_TAG = re.compile(r"<\s*/?\s*(?:script|object|embed|iframe)\b[^>]*>", re.IGNORECASE)
+_ACTIVE_CONTENT_FIELD = re.compile(
+    r"(?i)(?:\b(?:vba|macro(?:s)?|auto_?open|document_?open|workbook_?open|"
     r"activex|ddeauto|powershell|cmd\.exe|mshta)\b|"
-    r"\bon(?:load|error|click|mouseover)\s*=)"
+    r"\bon(?:load|error|click|mouseover)\s*=)[^|\r\n]*"
 )
 _SCHEME_URI = re.compile(
     r"(?<![\w.+-])(?P<scheme>[A-Z][A-Z0-9+.-]{0,31}):[^\s<>{}\[\]]+",
@@ -26,11 +29,11 @@ _SCHEME_URI = re.compile(
 )
 _SCHEME_RELATIVE_URI = re.compile(r"(?<![\w:/])//[^\s<>{}\[\]]+")
 _WWW_URI = re.compile(r"(?<![@\w.-])www\.[^\s<>{}\[\]]+", re.IGNORECASE)
-_BARE_DOMAIN = re.compile(
-    r"(?<![@\w.-])(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+"
-    r"(?:com|org|net|edu|gov|mil|io|ai|co|cn|uk|de|fr|jp|au|ca|us|"
-    r"info|biz|dev|app|cloud|online|site|tech|test)"
-    r"(?::\d{1,5})?(?:/[^\s<>{}\[\]]*)?(?:\?[^\s<>{}\[\]]*)?(?:#[^\s<>{}\[\]]*)?",
+_BARE_HOST = re.compile(
+    r"(?<![\\/@\w.-])(?:[A-Z0-9._~%!$&'()*+,;=-]+:[^@\s/|]+@)?(?:"
+    r"(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,63}|"
+    r"(?:\d{1,3}\.){3}\d{1,3})"
+    r"(?::\d{1,5})?(?:/[^\s<>{}\[\]|]*)?(?:\?[^\s<>{}\[\]|]*)?(?:#[^\s<>{}\[\]|]*)?",
     re.IGNORECASE,
 )
 _EMAIL_ADDRESS = re.compile(
@@ -39,13 +42,13 @@ _EMAIL_ADDRESS = re.compile(
 )
 _LABELED_SECRET = re.compile(
     r"(?i)\b(?:authorization|proxy[-_ ]?authorization|cookie|set[-_ ]?cookie|"
-    r"password|passwd|pwd|api[-_ ]?key|access[-_ ]?token|refresh[-_ ]?token|"
-    r"id[-_ ]?token|auth[-_ ]?token|token|session(?:[-_ ]?id)?|credentials?|secret)"
-    r"\b\s*[:=]\s*(?:(?:bearer|basic)\s+)?"
-    r"(?:\"[^\"\r\n]*\"|'[^'\r\n]*'|[^\s,;|]+)"
+    r"password|passwd|pwd|api[-_ ]?key|client[-_ ]?secret|private[-_ ]?key|"
+    r"access[-_ ]?token|refresh[-_ ]?token|id[-_ ]?token|auth[-_ ]?token|"
+    r"token|session(?:[-_ ]?id)?|credentials?|secret|key)"
+    r"\b\s*[:=]\s*[^|\r\n]*"
 )
 _AUTH_SECRET = re.compile(
-    r"(?i)\b(?:bearer|basic)\s+[A-Z0-9._~+/=-]{6,}"
+    r"(?i)\b(?:bearer|basic)\b[^|\r\n]*"
 )
 _JWT_SECRET = re.compile(
     r"(?<![\w.-])[A-Z0-9_-]{8,}\.[A-Z0-9_-]{8,}\.[A-Z0-9_-]{8,}(?![\w.-])",
@@ -54,16 +57,20 @@ _JWT_SECRET = re.compile(
 _PREFIXED_SECRET = re.compile(
     r"(?i)(?<![\w-])(?:sk|pk|xox[baprs]|ghp|github_pat|akia)[-_][A-Z0-9_-]{12,}"
 )
-_BASE64_LIKE = re.compile(r"(?<![A-Z0-9+/])[A-Z0-9+/]{32,}={0,2}(?![A-Z0-9+/=])", re.IGNORECASE)
+_BASE64_LIKE = re.compile(
+    r"(?<![A-Z0-9+/_=-])[A-Z0-9+/_-]{32,}={0,2}(?![A-Z0-9+/_=-])",
+    re.IGNORECASE,
+)
 _WINDOWS_PATH = re.compile(r"(?<!\w)[A-Z]:[\\/][^\s|,;]+", re.IGNORECASE)
 _UNC_PATH = re.compile(r"(?<!\w)\\\\[^\\/\s]+[\\/][^\s|,;]+")
 _ROOTED_OR_DOT_PATH = re.compile(
-    r"(?<![\w@])(?:\.\.?[\\/]|~[\\/]|[\\/])"
-    r"(?:[A-Z0-9._~-]+[\\/])+[A-Z0-9._~-]+",
+    r"(?<![\w@])(?:\.{1,2}[\\/]|~?[\\/])"
+    r"[A-Z0-9._~-]+(?:[\\/][A-Z0-9._~-]+)*",
     re.IGNORECASE,
 )
 _RELATIVE_PATH = re.compile(
-    r"(?<![\w@.-])(?:[A-Z0-9._~-]+[\\/])+(?:[A-Z0-9._~-]+)",
+    r"(?<![\w@.-])(?:(?:[A-Z0-9._~-]+[\\/])+[A-Z0-9._~-]+\.[A-Z0-9]{1,10}|"
+    r"(?:[A-Z0-9._~-]+[\\/]){2,}[A-Z0-9._~-]+)",
     re.IGNORECASE,
 )
 _DATE_PATH_SHAPE = re.compile(r"\d{1,4}/\d{1,2}/\d{1,4}")
@@ -112,12 +119,11 @@ def sanitize_remote_text(
 ) -> SanitizedModelText:
     """Remove remote-model privacy canaries before applying the final character bound."""
     cleaned = _CONTROL_CHARACTERS.sub("", str(value or "")).replace("\r\n", "\n").replace("\r", "\n")
-    cleaned = _SCRIPT_BLOCK.sub(" ", cleaned)
-    cleaned = _ACTIVE_CONTENT_MARKER.sub(" ", cleaned)
     cleaned, link_was_present = _remove_links(cleaned, link_marker)
+    cleaned = _ACTIVE_TAG_BLOCK.sub(" ", cleaned)
+    cleaned = _ACTIVE_TAG.sub(" ", cleaned)
+    cleaned = _ACTIVE_CONTENT_FIELD.sub(" ", cleaned)
     cleaned, emails = _protect_emails(cleaned)
-    cleaned = _BARE_DOMAIN.sub(_marker(link_marker), cleaned)
-    link_was_present = link_was_present or bool(_BARE_DOMAIN.search(_restore_emails(cleaned, emails)))
     cleaned = _LABELED_SECRET.sub(" ", cleaned)
     cleaned = _AUTH_SECRET.sub(" ", cleaned)
     cleaned = _JWT_SECRET.sub(" ", cleaned)
@@ -125,7 +131,7 @@ def sanitize_remote_text(
     cleaned = _BASE64_LIKE.sub(_remove_base64_like, cleaned)
     cleaned = _UNC_PATH.sub(" ", cleaned)
     cleaned = _WINDOWS_PATH.sub(" ", cleaned)
-    cleaned = _ROOTED_OR_DOT_PATH.sub(" ", cleaned)
+    cleaned = _ROOTED_OR_DOT_PATH.sub(_remove_rooted_path, cleaned)
     cleaned = _RELATIVE_PATH.sub(_remove_relative_path, cleaned)
     normalized = _normalize(_restore_emails(cleaned, emails))
     limit = max(0, int(max_characters))
@@ -170,12 +176,11 @@ def _remove_links(value: str, link_marker: str | None) -> tuple[str, bool]:
         return _marker(link_marker)
 
     value = _SCHEME_URI.sub(replace_scheme, value)
-    for pattern in (_SCHEME_RELATIVE_URI, _WWW_URI):
+    for pattern in (_SCHEME_RELATIVE_URI, _WWW_URI, _BARE_HOST):
         if pattern.search(value):
             found = True
             value = pattern.sub(_marker(link_marker), value)
-    bare_found = bool(_BARE_DOMAIN.search(value))
-    return value, found or bare_found
+    return value, found
 
 
 def _protect_emails(value: str) -> tuple[str, tuple[str, ...]]:
@@ -201,8 +206,18 @@ def _marker(link_marker: str | None) -> str:
 def _remove_base64_like(match: re.Match[str]) -> str:
     value = match.group(0)
     has_mixed_classes = any(char.islower() for char in value) and any(char.isupper() for char in value)
-    looks_encoded = has_mixed_classes and (any(char.isdigit() for char in value) or value.endswith("="))
+    looks_encoded = has_mixed_classes and (
+        len(value) >= 40
+        or any(char.isdigit() for char in value)
+        or value.endswith("=")
+        or any(char in "+/_-" for char in value)
+    )
     return " " if looks_encoded else value
+
+
+def _remove_rooted_path(match: re.Match[str]) -> str:
+    value = match.group(0)
+    return " " if any(char.isalpha() for char in value) else value
 
 
 def _remove_relative_path(match: re.Match[str]) -> str:

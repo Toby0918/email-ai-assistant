@@ -154,6 +154,168 @@ class AttachmentModelContextTests(unittest.TestCase):
         self.assertEqual(tuple(item.source_id for item in items), ("attachment:1",))
         self.assertEqual(items[0].text, "PO 1013970520")
 
+    def test_credential_fields_remove_full_values_through_strong_boundaries(self) -> None:
+        cases = (
+            (
+                "multi-cookie",
+                "Cookie: session=COOKIE_ONE; csrftoken=COOKIE_TWO; auth=COOKIE_THREE | PO 1013970520",
+                ("COOKIE_ONE", "COOKIE_TWO", "COOKIE_THREE", "csrftoken", "auth="),
+            ),
+            (
+                "multiword password",
+                "password: PRIVATE ONE TWO | PO 1013970520",
+                ("PRIVATE", "ONE TWO"),
+            ),
+            ("generic key", "key=PRIVATE-KEY | PO 1013970520", ("PRIVATE-KEY",)),
+            (
+                "client secret",
+                "client_secret=PRIVATE-CLIENT VALUE | PO 1013970520",
+                ("PRIVATE-CLIENT", "VALUE"),
+            ),
+            (
+                "private key",
+                "private_key: PRIVATE KEY VALUE | PO 1013970520",
+                ("PRIVATE KEY VALUE",),
+            ),
+            (
+                "underscored session",
+                "session_id=PRIVATE SESSION VALUE | PO 1013970520",
+                ("PRIVATE SESSION VALUE",),
+            ),
+            (
+                "generic token",
+                "token=PRIVATE TOKEN VALUE | PO 1013970520",
+                ("PRIVATE TOKEN VALUE",),
+            ),
+            ("short bearer", "Bearer abc | PO 1013970520", ("Bearer", "abc")),
+            ("short basic", "Basic xyz | PO 1013970520", ("Basic", "xyz")),
+            (
+                "newline boundary",
+                "password: PRIVATE ONE TWO\nPO 1013970520",
+                ("PRIVATE", "ONE TWO"),
+            ),
+            (
+                "base64url",
+                "QWxhZGRpbjpPcGVuU2VzYW1lX3ByaXZhdGVfMTIzNDU2Nzg5 | PO 1013970520",
+                ("QWxhZGRp", "X3ByaXZhdGVf"),
+            ),
+            (
+                "long base64",
+                "QWxhZGRpbjpPcGVuU2VzYW1lMTIzNDU2Nzg5MDEyMzQ1Njc4OTA= | PO 1013970520",
+                ("QWxhZGRp",),
+            ),
+        )
+
+        for label, raw, forbidden_values in cases:
+            with self.subTest(label=label):
+                sanitized = sanitize_remote_text(raw, max_characters=6_000)
+                expected_text = "PO 1013970520" if "\n" in raw else "| PO 1013970520"
+                self.assertEqual(sanitized.text, expected_text)
+                for forbidden in forbidden_values:
+                    self.assertNotIn(forbidden.casefold(), sanitized.text.casefold())
+
+    def test_generic_bare_hosts_and_ip_urls_are_removed_and_flagged(self) -> None:
+        cases = (
+            (
+                "unknown tld",
+                "private.example.xyz/path?q=DOMAIN_SECRET#fragment",
+                ("private.example.xyz", "DOMAIN_SECRET", "fragment"),
+            ),
+            (
+                "unknown tld userinfo",
+                "private-user:private-pass@private.example.xyz/path?q=USER_SECRET#fragment",
+                ("private-user", "private-pass", "private.example.xyz", "USER_SECRET"),
+            ),
+            (
+                "bare ipv4",
+                "192.0.2.10:8443/path?q=IP_SECRET#fragment",
+                ("192.0.2.10", "IP_SECRET", "fragment"),
+            ),
+            (
+                "ipv4 userinfo",
+                "private-user:private-pass@192.0.2.10/path?q=IP_USER_SECRET#fragment",
+                ("private-user", "private-pass", "192.0.2.10", "IP_USER_SECRET"),
+            ),
+        )
+
+        for label, link, forbidden_values in cases:
+            with self.subTest(label=label):
+                sanitized = sanitize_remote_text(
+                    f"{link} | buyer@ordinary-mail.xyz | PO 1013970520",
+                    max_characters=6_000,
+                )
+                self.assertTrue(sanitized.link_was_present)
+                self.assertIn("buyer@ordinary-mail.xyz", sanitized.text)
+                self.assertIn("PO 1013970520", sanitized.text)
+                for forbidden in forbidden_values:
+                    self.assertNotIn(forbidden.casefold(), sanitized.text.casefold())
+
+        email_only = sanitize_remote_text("buyer@private.example.xyz", max_characters=6_000)
+        self.assertEqual(email_only.text, "buyer@private.example.xyz")
+        self.assertFalse(email_only.link_was_present)
+
+    def test_active_content_removes_marker_and_payload_through_strong_boundary(self) -> None:
+        cases = (
+            ("script", "<script>PRIVATE-SCRIPT</script>", ("script", "PRIVATE-SCRIPT")),
+            ("object", "<object data=x>PRIVATE-OBJECT</object>", ("object", "PRIVATE-OBJECT")),
+            ("iframe", "<iframe>PRIVATE-IFRAME</iframe>", ("iframe", "PRIVATE-IFRAME")),
+            ("embed", "<embed>PRIVATE-EMBED</embed>", ("embed", "PRIVATE-EMBED")),
+            (
+                "powershell",
+                "powershell -EncodedCommand PRIVATE-SHELL",
+                ("powershell", "EncodedCommand", "PRIVATE-SHELL"),
+            ),
+            ("vba", "VBA AutoOpen PRIVATE-MACRO", ("VBA", "AutoOpen", "PRIVATE-MACRO")),
+            ("activex", "ActiveX PRIVATE-ACTIVE", ("ActiveX", "PRIVATE-ACTIVE")),
+        )
+
+        for label, active_value, forbidden_values in cases:
+            with self.subTest(label=label):
+                sanitized = sanitize_remote_text(
+                    f"{active_value} | PO 1013970520",
+                    max_characters=6_000,
+                )
+                self.assertEqual(sanitized.text, "| PO 1013970520")
+                for forbidden in forbidden_values:
+                    self.assertNotIn(forbidden.casefold(), sanitized.text.casefold())
+
+    def test_explicit_local_paths_include_single_segment_rooted_paths(self) -> None:
+        cases = (
+            ("rooted", "/secret", "/secret"),
+            ("home", "~/secret", "~/secret"),
+            ("dot relative", "./secret", "./secret"),
+            ("parent relative", "../secret", "../secret"),
+            ("relative file", "private/quote.xlsx", "private/quote.xlsx"),
+            ("multi-segment", "private/folder/quote", "private/folder/quote"),
+        )
+
+        for label, path, forbidden in cases:
+            with self.subTest(label=label):
+                sanitized = sanitize_remote_text(
+                    f"{path} | PO 1013970520",
+                    max_characters=6_000,
+                )
+                self.assertNotIn(forbidden, sanitized.text)
+                self.assertIn("PO 1013970520", sanitized.text)
+
+    def test_slash_bearing_business_data_is_not_classified_as_a_path(self) -> None:
+        raw = (
+            "Part PN/ABC-42 | Currency USD/EUR | A/B table relation | "
+            "due 2026/07/20 | quantity 24/48 units"
+        )
+
+        sanitized = sanitize_remote_text(raw, max_characters=6_000)
+
+        for expected in (
+            "PN/ABC-42",
+            "USD/EUR",
+            "A/B table relation",
+            "2026/07/20",
+            "24/48 units",
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, sanitized.text)
+
 
 if __name__ == "__main__":
     unittest.main()
