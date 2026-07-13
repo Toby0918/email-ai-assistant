@@ -25,6 +25,200 @@ class BrowserExtensionTask6ContractTests(unittest.TestCase):
         self.assertIn("MAX_OVERALL_RESOURCE_TIMEOUT_MS = 20000", collector_source)
         self.assertNotIn("RESOURCE_COLLECTION_TIMEOUT_MS", api_source)
 
+    def test_oversized_resource_timeout_uses_active_20_second_cumulative_deadline(self) -> None:
+        if shutil.which("node") is None:
+            self.skipTest("Node.js is required for browser extension behavior tests")
+
+        script = textwrap.dedent(
+            r"""
+            const fs = require("fs");
+            const vm = require("vm");
+            const source = fs.readFileSync(__COLLECTOR_PATH__, "utf8");
+
+            class FakeElement {
+              constructor({ tag = "div", attrs = {}, children = [] } = {}) {
+                this.tagName = tag.toUpperCase();
+                this.attrs = { ...attrs };
+                this.children = children;
+                this.hidden = false;
+                this.style = {};
+                this.innerText = "";
+                this.textContent = "";
+                this.parentElement = null;
+                this.parentNode = null;
+                for (const child of children) {
+                  child.parentElement = this;
+                  child.parentNode = this;
+                }
+              }
+
+              getAttribute(name) {
+                return Object.prototype.hasOwnProperty.call(this.attrs, name)
+                  ? String(this.attrs[name])
+                  : null;
+              }
+
+              hasAttribute(name) {
+                return Object.prototype.hasOwnProperty.call(this.attrs, name);
+              }
+
+              querySelector(selector) {
+                return this.querySelectorAll(selector)[0] || null;
+              }
+
+              querySelectorAll(selector) {
+                return descendants(this).filter((element) => matchesAny(element, selector));
+              }
+            }
+
+            class FakeDocument {
+              constructor(body) {
+                this.body = body;
+                this.baseURI = "https://exmail.qq.com/cgi-bin/readmail";
+                this.location = new URL(this.baseURI);
+                this.defaultView = {
+                  getComputedStyle: (element) => ({
+                    display: element.style.display || "block",
+                    visibility: element.style.visibility || "visible",
+                  }),
+                };
+              }
+
+              querySelector(selector) {
+                return this.querySelectorAll(selector)[0] || null;
+              }
+
+              querySelectorAll(selector) {
+                return [this.body, ...descendants(this.body)].filter((element) =>
+                  matchesAny(element, selector),
+                );
+              }
+            }
+
+            function descendants(root) {
+              return root.children.flatMap((child) => [child, ...descendants(child)]);
+            }
+
+            function matchesAny(element, selectorList) {
+              return selectorList.split(",").some((selector) => matches(element, selector.trim()));
+            }
+
+            function matches(element, selector) {
+              const attributeMatch = selector.match(/^(?:([a-z]+))?\[([^=\]]+)(?:=['"]?([^'"]+)['"]?)?\]$/i);
+              if (attributeMatch) {
+                const [, tag, name, value] = attributeMatch;
+                if (tag && element.tagName.toLowerCase() !== tag.toLowerCase()) return false;
+                if (!element.hasAttribute(name)) return false;
+                return value === undefined || element.getAttribute(name) === value;
+              }
+              if (selector.startsWith(".")) {
+                const classes = String(element.getAttribute("class") || "").split(/\s+/);
+                return classes.includes(selector.slice(1));
+              }
+              if (selector.startsWith("#")) {
+                return element.getAttribute("id") === selector.slice(1);
+              }
+              return element.tagName.toLowerCase() === selector.toLowerCase();
+            }
+
+            function resource(index) {
+              const filename = `bounded-${index}.pdf`;
+              return new FakeElement({
+                tag: "a",
+                attrs: {
+                  href: `/cgi-bin/download?file=${index}`,
+                  download: filename,
+                  "data-filename": filename,
+                  "data-type": "pdf",
+                },
+              });
+            }
+
+            const resources = [1, 2, 3, 4].map(resource);
+            const currentRoot = new FakeElement({ attrs: { class: "mail-content" } });
+            const controls = new FakeElement({ children: resources });
+            const currentMessageContainer = new FakeElement({ children: [currentRoot, controls] });
+            const doc = new FakeDocument(new FakeElement({ tag: "body", children: [currentMessageContainer] }));
+
+            let now = 0;
+            let fetchCalls = 0;
+            let nextTimerId = 1;
+            const scheduledDelays = [];
+            class FakeDate extends Date {
+              static now() { return now; }
+            }
+            const context = {
+              URL,
+              Uint8Array,
+              ArrayBuffer,
+              AbortController,
+              Date: FakeDate,
+              setTimeout: (callback, delay) => {
+                scheduledDelays.push(delay);
+                now += delay;
+                callback();
+                return nextTimerId++;
+              },
+              clearTimeout: () => {},
+              fetch: () => {
+                fetchCalls += 1;
+                return new Promise(() => {});
+              },
+              btoa: (binary) => Buffer.from(binary, "binary").toString("base64"),
+            };
+            context.window = context;
+            vm.runInNewContext(source, context, { filename: "current_message_collector.js" });
+
+            (async () => {
+              const result = await context.EmailAssistantCurrentMessageCollector.collectVisibleResources(doc, {
+                topLevelDocument: doc,
+                currentMessageRoot: currentRoot,
+                currentMessageContainer,
+                verifiedResourceCandidates: resources,
+                resourceControlsVerified: true,
+                limits: {
+                  perResourceTimeoutMs: 999999,
+                  overallTimeoutMs: 999999,
+                },
+              });
+              const expectedDelays = [8000, 8000, 4000];
+              if (JSON.stringify(scheduledDelays) !== JSON.stringify(expectedDelays)) {
+                throw new Error(`unexpected cumulative deadline schedule: ${JSON.stringify(scheduledDelays)}`);
+              }
+              const scheduledTotal = scheduledDelays.reduce((total, delay) => total + delay, 0);
+              if (scheduledTotal !== 20000 || now !== 20000) {
+                throw new Error(`resource collection exceeded 20000ms: scheduled=${scheduledTotal}, clock=${now}`);
+              }
+              if (fetchCalls !== 3) {
+                throw new Error(`overall deadline allowed ${fetchCalls} resource fetches`);
+              }
+              const timeoutCount = result.resource_limitations.filter(
+                (item) => item.code === "collection_timeout",
+              ).length;
+              if (timeoutCount !== 3) {
+                throw new Error(`timed-out resources were not recorded: ${JSON.stringify(result)}`);
+              }
+              if (!result.resource_limitations.some((item) => item.code === "candidate_omission")) {
+                throw new Error(`post-deadline candidate was not omitted: ${JSON.stringify(result)}`);
+              }
+            })().catch((error) => {
+              console.error(error && error.stack ? error.stack : error);
+              process.exitCode = 1;
+            });
+            """
+        ).replace("__COLLECTOR_PATH__", json.dumps(str(RESOURCE_COLLECTOR)))
+
+        result = subprocess.run(
+            ["node", "-e", script],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+        if result.returncode != 0:
+            self.fail(result.stderr or result.stdout)
+
     def test_analysis_timeout_overrides_keep_small_values_and_cap_large_values(self) -> None:
         if shutil.which("node") is None:
             self.skipTest("Node.js is required for browser extension behavior tests")
