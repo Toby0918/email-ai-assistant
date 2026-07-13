@@ -7,11 +7,13 @@ import os
 import threading
 import unittest
 import urllib.request
+from dataclasses import replace
 from email.message import Message
 from http.client import HTTPConnection
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+from backend.email_agent.analysis_budget import AnalysisBudget
 from backend.email_agent.config import load_config
 from backend.email_agent.server import EmailAssistantHandler, create_server
 
@@ -82,6 +84,28 @@ class ServerTests(unittest.TestCase):
 
                 handler.rfile.read.assert_called_once()
                 analyze.assert_called_once()
+
+    def test_budget_starts_immediately_before_read_and_same_object_reaches_api(self) -> None:
+        handler = self._direct_handler()
+        budget = AnalysisBudget.start(clock=lambda: 0.0)
+        events: list[str] = []
+
+        handler._read_json = Mock(
+            side_effect=lambda: events.append("read") or {"user_confirmed": True}
+        )
+        with patch(
+            "backend.email_agent.server.AnalysisBudget.start",
+            side_effect=lambda: events.append("start") or budget,
+        ) as start, patch(
+            "backend.email_agent.server.handle_analyze_current_email",
+            side_effect=lambda *_args, **_kwargs: events.append("api")
+            or {"ok": False, "error": {"code": "SYNTHETIC"}},
+        ) as analyze:
+            handler.do_POST()
+
+        self.assertEqual(events, ["start", "read", "api"])
+        start.assert_called_once_with()
+        self.assertIs(analyze.call_args.kwargs["budget"], budget)
 
     def test_analyze_endpoint_rejects_untrusted_host_before_read_or_analysis(self) -> None:
         cases = (
@@ -248,7 +272,10 @@ class ServerTests(unittest.TestCase):
             thread.join(timeout=5)
 
     def test_analyze_endpoint_returns_analysis_and_saved_id(self) -> None:
-        server = create_server(host="127.0.0.1", port=0, database_path=":memory:")
+        config = replace(load_config(dotenv_path=None), llm_provider="disabled")
+        server = create_server(
+            host="127.0.0.1", port=0, database_path=":memory:", config=config
+        )
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
         try:

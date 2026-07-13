@@ -6,6 +6,7 @@ from collections.abc import Callable
 from typing import Any
 from uuid import uuid4
 
+from .analysis_budget import RESPONSE_MARGIN_SECONDS, AnalysisBudget
 from .analyzer import AnalysisError, analyze_current_email
 from .attachment_storage import (
     AttachmentInputError,
@@ -21,21 +22,23 @@ from .resource_limitations import OPERATIONAL_LIMITATION, project_resource_limit
 
 def handle_analyze_current_email(
     payload: dict[str, Any],
-    analyzer: Callable[[dict[str, Any]], dict[str, Any]] = analyze_current_email,
+    analyzer: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
     config: AppConfig | None = None,
+    *,
+    budget: AnalysisBudget | None = None,
 ) -> dict[str, Any]:
     # First phase requires an explicit user click before any analysis runs.
     if payload.get("user_confirmed") is not True:
         return _error("USER_ACTION_REQUIRED", "User must click the analysis button first.")
     try:
-        storage_config = config or load_config()
+        current_config = config or load_config()
+        current_budget = budget or AnalysisBudget.start()
         attachment_files = payload.get("attachment_files", [])
         if not isinstance(attachment_files, list):
             raise AttachmentInputError("Attachment files must be a list.")
-        validate_attachment_files(attachment_files, storage_config)
+        validate_attachment_files(attachment_files, current_config)
         stored_attachments, operational_limitations = _store_attachments_or_degrade(
-            attachment_files,
-            storage_config,
+            attachment_files, current_config, current_budget,
         )
         analysis_payload = dict(payload)
         analysis_payload.pop("attachment_files", None)
@@ -47,10 +50,17 @@ def handle_analyze_current_email(
         analysis_payload["resource_limitations"] = project_resource_limitations(
             [*frontend_limitations, *operational_limitations]
         )
+        analysis = (
+            analyzer(analysis_payload)
+            if analyzer is not None
+            else analyze_current_email(
+                analysis_payload, config=current_config, budget=current_budget
+            )
+        )
         return {
             "ok": True,
             "request_id": f"local-{uuid4().hex}",
-            "analysis": analyzer(analysis_payload),
+            "analysis": analysis,
         }
     except AttachmentInputError:
         return _error("ATTACHMENT_INPUT_INVALID", "Attachment input is invalid or exceeds configured limits.")
@@ -63,16 +73,27 @@ def _error(code: str, message: str) -> dict[str, Any]:
 
 
 def _store_attachments_or_degrade(
-    files: list[dict[str, object]], config: AppConfig
+    files: list[dict[str, object]], config: AppConfig, budget: AnalysisBudget
 ) -> tuple[list[StoredAttachment], list[dict[str, object]]]:
+    if _storage_time_exhausted(budget):
+        return [], [_operational_limitation()]
     try:
         cleanup_expired_attachments(config)
     except (AttachmentOperationError, OSError):
         return [], [_operational_limitation()]
+    if _storage_time_exhausted(budget):
+        return [], [_operational_limitation()]
     try:
-        return store_attachment_files(files, config), []
+        stored = store_attachment_files(files, config)
     except (AttachmentOperationError, OSError):
         return [], [_operational_limitation()]
+    if _storage_time_exhausted(budget):
+        return [], [_operational_limitation()]
+    return stored, []
+
+
+def _storage_time_exhausted(budget: AnalysisBudget) -> bool:
+    return budget.expired(reserve_seconds=RESPONSE_MARGIN_SECONDS)
 
 
 def _operational_limitation() -> dict[str, object]:

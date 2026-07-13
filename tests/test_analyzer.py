@@ -2,16 +2,29 @@
 
 from __future__ import annotations
 
+import copy
 import json
 import unittest
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
+from backend.email_agent.analysis_budget import AnalysisBudget
 from backend.email_agent.analyzer import AnalysisError, analyze_current_email
+from backend.email_agent.attachment_model_context import (
+    AttachmentAnalysisBundle,
+    attachment_model_candidate,
+)
 from backend.email_agent.attachment_storage import StoredAttachment
+from backend.email_agent.config import load_config
 from backend.email_agent.llm_client import LlmClientError
+from backend.email_agent.model_result_safety import SafeMergeResult
+from backend.email_agent.prompt_context import (
+    DEEPSEEK_SYSTEM_PROMPT,
+    build_deepseek_untrusted_context,
+)
 
 
 def _contains_chinese(text: str) -> bool:
@@ -132,7 +145,7 @@ class AnalyzerTests(unittest.TestCase):
     def test_unexpected_attachment_parser_error_returns_precise_limitation(self) -> None:
         with TemporaryDirectory() as directory:
             with patch(
-                "backend.email_agent.analyzer.parse_attachments",
+                "backend.email_agent.analyzer.parse_attachment_bundles",
                 side_effect=RuntimeError("forced parser failure"),
             ):
                 result = analyze_current_email(
@@ -161,7 +174,7 @@ class AnalyzerTests(unittest.TestCase):
 
     def test_unexpected_timeline_error_returns_unknown_timeline_and_body_analysis(self) -> None:
         with patch(
-            "backend.email_agent.analyzer.build_conversation_timeline",
+            "backend.email_agent.analyzer.build_timeline_skeleton",
             side_effect=RuntimeError("forced timeline failure"),
         ):
             result = analyze_current_email(
@@ -200,8 +213,8 @@ class AnalyzerTests(unittest.TestCase):
 
         with TemporaryDirectory() as directory:
             with patch(
-                "backend.email_agent.analyzer.parse_attachments",
-                return_value=parser_output,
+                "backend.email_agent.analyzer.parse_attachment_bundles",
+                return_value=[AttachmentAnalysisBundle(parser_output[0], None)],
             ):
                 result = analyze_current_email(
                     {
@@ -789,6 +802,275 @@ class AnalyzerTests(unittest.TestCase):
         self.assertEqual(result["suggested_actions"][0]["type"], "check_delivery")
         self.assertTrue(result["reply_draft"]["needs_human_review"])
         self.assertIn("PO 12345", result["reply_draft"]["body"])
+
+    def test_default_deepseek_generator_receives_same_config_system_and_timeout(self) -> None:
+        config = self._deepseek_config(deepseek_timeout_seconds=17)
+        budget = AnalysisBudget.start(clock=lambda: 100.0)
+
+        with patch(
+            "backend.email_agent.analysis_model_routes.generate_analysis",
+            return_value="not json",
+        ) as generate:
+            result = analyze_current_email(
+                self._model_email(), config=config, budget=budget
+            )
+
+        self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
+        generate.assert_called_once()
+        self.assertEqual(len(generate.call_args.args), 1)
+        self.assertIs(generate.call_args.kwargs["config"], config)
+        self.assertIs(generate.call_args.kwargs["system_prompt"], DEEPSEEK_SYSTEM_PROMPT)
+        self.assertEqual(generate.call_args.kwargs["timeout_seconds"], 17.0)
+
+    def test_injected_deepseek_generator_remains_one_positional_prompt(self) -> None:
+        calls: list[str] = []
+
+        def injected(prompt: str) -> str:
+            calls.append(prompt)
+            return "not json"
+
+        result = analyze_current_email(
+            self._model_email(),
+            llm_generate=injected,
+            config=self._deepseek_config(),
+        )
+
+        self.assertEqual(len(calls), 1)
+        self.assertIn('"context_type":"current_visible_email"', calls[0])
+        self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
+
+    def test_parser_uses_one_shared_deadline_and_private_context_never_returns(self) -> None:
+        display = {
+            "filename": "safe report.xlsx",
+            "type": "xlsx",
+            "status": "parsed",
+            "summary": "Spreadsheet extraction completed.",
+            "key_facts": ["RFQ 42"],
+            "limitations": [],
+        }
+        rejected = AttachmentAnalysisBundle(
+            {**display, "filename": "empty.pdf", "type": "pdf"},
+            attachment_model_candidate("attachment:0", "Authorization: Bearer synthetic-secret"),
+        )
+        accepted = AttachmentAnalysisBundle(
+            display,
+            attachment_model_candidate("attachment:1", "RFQ 42 requests 24 units."),
+        )
+        prompts: list[str] = []
+
+        with TemporaryDirectory() as directory:
+            stored = [self._broken_pdf(directory), self._broken_pdf(directory)]
+            stored[1] = StoredAttachment(
+                safe_filename="safe report.xlsx",
+                type="xlsx",
+                path=stored[1].path,
+                byte_size=stored[1].byte_size,
+                expires_at=stored[1].expires_at,
+            )
+            budget = AnalysisBudget.start(clock=lambda: 100.0)
+            with patch(
+                "backend.email_agent.analyzer.parse_attachment_bundles",
+                return_value=[rejected, accepted],
+            ) as parser, patch(
+                "backend.email_agent.analysis_model_routes.build_deepseek_untrusted_context",
+                wraps=build_deepseek_untrusted_context,
+            ) as build_context:
+                result = analyze_current_email(
+                    {**self._model_email(), "stored_attachments": stored},
+                    llm_generate=lambda prompt: prompts.append(prompt) or "not json",
+                    config=self._deepseek_config(),
+                    budget=budget,
+                )
+
+        parser.assert_called_once()
+        self.assertEqual(parser.call_args.kwargs["deadline"], 108.0)
+        self.assertEqual(result["attachment_insights"][1]["filename"], "safe report.xlsx")
+        self.assertIn('"source_id":"attachment:1"', prompts[0])
+        self.assertEqual(
+            build_context.call_args.kwargs["attachment_public_sources"],
+            {"attachment:1": "attachment:safe report.xlsx"},
+        )
+        self.assertNotIn('"source_id":"attachment:0"', prompts[0])
+        serialized = json.dumps(result, ensure_ascii=False)
+        for private_name in ("source_id", "grounding_text", "field_evidence", "model_candidate"):
+            self.assertNotIn(private_name, serialized)
+
+    def test_empty_attachment_list_does_not_start_parser(self) -> None:
+        with patch("backend.email_agent.analyzer.parse_attachment_bundles") as parser:
+            analyze_current_email(
+                self._model_email(),
+                llm_generate=lambda _prompt: "not json",
+                config=self._deepseek_config(),
+            )
+        parser.assert_not_called()
+
+    def test_safe_partial_model_merge_uses_ai_model_label(self) -> None:
+        def merge(_envelope, *, fallback, **_kwargs):
+            analysis = copy.deepcopy(fallback)
+            analysis["summary"] = "客户请求人工审核当前事项。"
+            return SafeMergeResult(analysis, True, ("priority",))
+
+        with patch(
+            "backend.email_agent.analysis_model_routes.parse_deepseek_analysis_v1",
+            return_value={},
+        ), patch(
+            "backend.email_agent.analysis_model_routes.validate_envelope_evidence",
+            return_value={},
+        ), patch(
+            "backend.email_agent.analysis_model_routes.merge_deepseek_analysis_v1",
+            side_effect=merge,
+        ):
+            result = analyze_current_email(
+                self._model_email(),
+                llm_generate=lambda _prompt: "{}",
+                config=self._deepseek_config(),
+            )
+
+        self.assertEqual(result["summary"], "客户请求人工审核当前事项。")
+        self.assertEqual(result["analysis_engine"], {
+            "source": "ai_model", "label": "DeepSeek V4 Flash"
+        })
+
+    def test_merge_with_no_surviving_model_field_returns_exact_rule_result(self) -> None:
+        def no_model(_envelope, *, fallback, **_kwargs):
+            mutated = copy.deepcopy(fallback)
+            mutated["summary"] = "must not escape"
+            return SafeMergeResult(mutated, False, ("all",))
+
+        patches = (
+            patch("backend.email_agent.analysis_model_routes.parse_deepseek_analysis_v1", return_value={}),
+            patch("backend.email_agent.analysis_model_routes.validate_envelope_evidence", return_value={}),
+            patch("backend.email_agent.analysis_model_routes.merge_deepseek_analysis_v1", side_effect=no_model),
+        )
+        with patches[0], patches[1], patches[2]:
+            result = analyze_current_email(
+                self._model_email(), llm_generate=lambda _prompt: "{}",
+                config=self._deepseek_config(),
+            )
+        baseline = analyze_current_email(
+            self._model_email(), llm_generate=lambda _prompt: "not json",
+            config=self._deepseek_config(),
+        )
+
+        self.assertEqual(result, baseline)
+        self.assertNotIn("must not escape", json.dumps(result))
+
+    def test_model_led_malformed_timeout_client_and_grounding_fail_closed(self) -> None:
+        config = self._deepseek_config()
+        cases = (
+            ("malformed", lambda _prompt: "not json"),
+            ("timeout", lambda _prompt: (_ for _ in ()).throw(TimeoutError("private"))),
+            ("client", lambda _prompt: (_ for _ in ()).throw(LlmClientError("private"))),
+        )
+        for name, generate in cases:
+            with self.subTest(name=name):
+                result = analyze_current_email(
+                    self._model_email(), llm_generate=generate, config=config
+                )
+                self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
+                self.assertNotIn("private", json.dumps(result))
+
+    def test_model_led_skips_provider_below_five_seconds(self) -> None:
+        calls: list[str] = []
+        budget = AnalysisBudget(deadline=4.9, _clock=lambda: 0.0)
+
+        result = analyze_current_email(
+            self._model_email(),
+            llm_generate=lambda prompt: calls.append(prompt) or "{}",
+            config=self._deepseek_config(),
+            budget=budget,
+        )
+
+        self.assertEqual(calls, [])
+        self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
+
+    def test_deepseek_failure_never_invokes_ollama(self) -> None:
+        with patch(
+            "backend.email_agent.analysis_model_routes.generate_analysis",
+            side_effect=LlmClientError("synthetic failure"),
+        ) as generate, patch(
+            "backend.email_agent.llm_client._generate_with_ollama"
+        ) as ollama:
+            result = analyze_current_email(
+                self._model_email(), config=self._deepseek_config()
+            )
+
+        generate.assert_called_once()
+        ollama.assert_not_called()
+        self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
+
+    def test_production_disabled_and_unsupported_providers_are_skipped(self) -> None:
+        base = load_config(dotenv_path=None)
+        for provider in ("disabled", "unsupported"):
+            with self.subTest(provider=provider), patch(
+                "backend.email_agent.analysis_model_routes.generate_analysis"
+            ) as generate:
+                result = analyze_current_email(
+                    self._model_email(), config=replace(base, llm_provider=provider)
+                )
+            generate.assert_not_called()
+            self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
+
+    def test_conservative_production_generator_gets_same_config_and_timeout(self) -> None:
+        config = replace(
+            load_config(dotenv_path=None),
+            llm_provider="ollama",
+            ollama_timeout_seconds=11,
+        )
+        budget = AnalysisBudget.start(clock=lambda: 100.0)
+        with patch(
+            "backend.email_agent.analysis_model_routes.generate_analysis",
+            return_value="not json",
+        ) as generate:
+            result = analyze_current_email(
+                self._model_email(), config=config, budget=budget
+            )
+
+        generate.assert_called_once()
+        self.assertIs(generate.call_args.kwargs["config"], config)
+        self.assertEqual(generate.call_args.kwargs["timeout_seconds"], 11.0)
+        self.assertEqual(generate.call_args.kwargs["system_prompt"], "")
+        self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
+
+    def test_model_led_requires_both_deepseek_provider_and_output_mode(self) -> None:
+        prompts: list[str] = []
+        base = load_config(dotenv_path=None)
+        configs = (
+            replace(base, llm_provider="deepseek", deepseek_output_mode="conservative"),
+            replace(base, llm_provider="ollama", deepseek_output_mode="model_led"),
+        )
+        for config in configs:
+            with self.subTest(provider=config.llm_provider):
+                prompts.clear()
+                result = analyze_current_email(
+                    self._model_email(),
+                    llm_generate=lambda prompt: prompts.append(prompt) or "not json",
+                    config=config,
+                )
+                self.assertEqual(len(prompts), 1)
+                self.assertIn("UNTRUSTED_EMAIL.subject", prompts[0])
+                self.assertNotIn('"context_type":"current_visible_email"', prompts[0])
+                self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
+
+    @staticmethod
+    def _model_email() -> dict[str, object]:
+        return {
+            "subject": "Synthetic request",
+            "from": "buyer@example.test",
+            "body_text": "Please review the current synthetic request.",
+        }
+
+    @staticmethod
+    def _deepseek_config(**changes):
+        base = load_config(dotenv_path=None)
+        return replace(
+            base,
+            llm_provider="deepseek",
+            deepseek_api_key="synthetic-test-key",
+            deepseek_model="deepseek-v4-flash",
+            deepseek_output_mode="model_led",
+            **changes,
+        )
 
     @staticmethod
     def _broken_pdf(directory: str) -> StoredAttachment:

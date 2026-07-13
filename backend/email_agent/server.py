@@ -12,6 +12,7 @@ from ipaddress import IPv4Address, ip_address
 from pathlib import Path
 from typing import Any
 
+from .analysis_budget import AnalysisBudget
 from .api import handle_analyze_current_email
 from .config import AppConfig, load_config
 from .database import connect, initialize_schema, save_analysis
@@ -68,8 +69,11 @@ class EmailAssistantHandler(BaseHTTPRequestHandler):
                 status,
             )
             return
+        budget = AnalysisBudget.start()
         payload = self._read_json()
-        response = handle_analyze_current_email(payload, config=self.server.attachment_config)
+        response = handle_analyze_current_email(
+            payload, config=self.server.attachment_config, budget=budget
+        )
         if response.get("ok"):
             response["saved_id"] = self._save_result(payload, response["analysis"])
         self._send_json(response)

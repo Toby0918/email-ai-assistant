@@ -8,11 +8,75 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
+from backend.email_agent.analysis_budget import AnalysisBudget
 from backend.email_agent.api import handle_analyze_current_email
 from backend.email_agent.config import load_config
 
 
 class ApiTests(unittest.TestCase):
+    def test_api_passes_same_config_and_budget_to_default_analyzer(self) -> None:
+        with TemporaryDirectory() as directory:
+            config = replace(load_config(dotenv_path=None), attachment_temp_dir=directory)
+            budget = AnalysisBudget.start(clock=lambda: 0.0)
+            with patch(
+                "backend.email_agent.api.analyze_current_email",
+                return_value={"summary": "ok"},
+            ) as analyze:
+                response = handle_analyze_current_email(
+                    {"user_confirmed": True}, config=config, budget=budget
+                )
+
+        self.assertTrue(response["ok"])
+        self.assertIs(analyze.call_args.kwargs["config"], config)
+        self.assertIs(analyze.call_args.kwargs["budget"], budget)
+        self.assertEqual(len(analyze.call_args.args), 1)
+
+    def test_injected_analyzer_remains_exactly_one_positional_argument(self) -> None:
+        calls: list[dict[str, object]] = []
+
+        def injected(payload: dict[str, object]) -> dict[str, str]:
+            calls.append(payload)
+            return {"summary": "ok"}
+
+        response = handle_analyze_current_email(
+            {"user_confirmed": True}, analyzer=injected,
+            config=load_config(dotenv_path=None),
+        )
+
+        self.assertTrue(response["ok"])
+        self.assertEqual(len(calls), 1)
+
+    def test_budget_exhaustion_after_cleanup_degrades_storage_and_continues(self) -> None:
+        now = [0.0]
+        budget = AnalysisBudget.start(clock=lambda: now[0])
+        received: dict[str, object] = {}
+
+        def cleanup(_config) -> None:
+            now[0] = 31.0
+
+        with patch(
+            "backend.email_agent.api.cleanup_expired_attachments", side_effect=cleanup
+        ), patch("backend.email_agent.api.store_attachment_files") as store:
+            response = handle_analyze_current_email(
+                {
+                    "user_confirmed": True,
+                    "subject": "Synthetic request",
+                    "from": "sender@example.test",
+                    "body_text": "Please review.",
+                    "attachment_files": [
+                        {"filename": "quote.pdf", "type": "pdf", "content_base64": "YQ=="}
+                    ],
+                },
+                analyzer=lambda payload: received.update(payload) or {"summary": "continued"},
+                config=load_config(dotenv_path=None),
+                budget=budget,
+            )
+
+        self.assertTrue(response["ok"])
+        store.assert_not_called()
+        self.assertEqual(received["stored_attachments"], [])
+        self.assertEqual(received["resource_limitations"][0]["code"], "operational_failure")
+
     def test_handle_analyze_current_email_requires_user_trigger(self) -> None:
         # API calls without the user's button click must stop at the boundary.
         response = handle_analyze_current_email({"subject": "x", "from": "a@example.com", "body_text": "hi"})
