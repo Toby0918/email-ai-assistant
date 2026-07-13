@@ -47,6 +47,8 @@ class DeepSeekDocumentationContractTests(unittest.TestCase):
             '"type": "json_object"',
             "one provider call",
             "field-level fallback",
+            "universal provider-text safety",
+            "passive consequential commitment",
         ):
             self.assertIn(marker, prompt)
         for marker in (
@@ -55,6 +57,8 @@ class DeepSeekDocumentationContractTests(unittest.TestCase):
             "never returned",
             "DeepSeek V4 Flash",
             "rule_fallback",
+            "production provider path",
+            "actual `analysis_engine.source`",
         ):
             self.assertIn(marker, schema)
 
@@ -78,6 +82,10 @@ class DeepSeekDocumentationContractTests(unittest.TestCase):
             "35-second POST wait",
             "20-second resource collection",
             "does not try Ollama",
+            "absolute wall-clock deadline",
+            "late-start quarantine",
+            "commit, rollback, and close",
+            "poisoned/detached",
         ):
             self.assertIn(marker, contract)
 
@@ -108,12 +116,15 @@ class DeepSeekDocumentationContractTests(unittest.TestCase):
             "Prompts or Inputs",
             "People's Republic of China",
             "no zero-retention guarantee",
+            "copula or whitespace-only separators",
+            "canonical complete analyzed scope",
+            "production-route offline replay",
         ):
             self.assertIn(marker, policy)
 
-    def test_adr_and_review_records_are_active_but_leave_task14_open(self) -> None:
+    def test_adr_and_review_records_close_the_final_review_fix_wave(self) -> None:
         adr = self._read("docs/decisions/0005-deepseek-led-analysis.md")
-        self.assertTrue(adr.startswith("---\nlast_update: 2026-07-12\nstatus: active\n"))
+        self.assertTrue(adr.startswith("---\nlast_update: 2026-07-13\nstatus: active\n"))
         for marker in (
             "https://api.deepseek.com",
             "deepseek-v4-flash",
@@ -124,6 +135,7 @@ class DeepSeekDocumentationContractTests(unittest.TestCase):
             "EMAIL_AGENT_LLM_PROVIDER=deepseek",
             "EMAIL_AGENT_DEEPSEEK_OUTPUT_MODE=model_led",
             "PERSISTENCE_FAILED",
+            "production-route offline replay",
         ):
             self.assertIn(marker, adr)
 
@@ -133,8 +145,9 @@ class DeepSeekDocumentationContractTests(unittest.TestCase):
         )
         self.assertRegex(brief, r"(?s)## 3\. Current Status\s+```text\s+active\s+```")
         self.assertIn("Written design review: complete", brief)
-        self.assertIn("Final release verification: pending Task 14", brief)
+        self.assertIn("Final review fix wave: complete", brief)
         self.assertIn("Written review: complete", design)
+        self.assertIn("Final review fix wave: complete", design)
 
     def test_dynamic_provider_claims_use_only_rechecked_official_sources(self) -> None:
         for relative in TARGET_DOCS:

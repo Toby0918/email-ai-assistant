@@ -55,7 +55,10 @@ def merge_deepseek_analysis_v1(
         _merge_extended(public, fallback, private, raw_analysis, sources, violations, kept)
         validate_analysis_result(public)
         validate_public_language(public)
-        used_model = any(public[field] != fallback[field] for field in _FIELDS)
+        used_model = any(
+            _has_model_value(field, public[field], fallback[field])
+            for field in _FIELDS
+        )
         fields = tuple(field for field in _FIELDS if field in kept)
         return SafeMergeResult(public, used_model, fields)
     except Exception:
@@ -235,3 +238,13 @@ def _safe_attachments(
 
 def _public_fallback(value: Mapping[str, Any]) -> dict[str, Any]:
     return {field: copy.deepcopy(value[field]) for field in _FIELDS}
+
+
+def _has_model_value(field: str, public: object, fallback: object) -> bool:
+    if field != "reply_draft" or not isinstance(public, dict):
+        return public != fallback
+    normalized = copy.deepcopy(public)
+    reasons = normalized.get("review_reasons")
+    if isinstance(reasons, list) and _DRAFT_REASON in reasons:
+        reasons.remove(_DRAFT_REASON)
+    return normalized != fallback

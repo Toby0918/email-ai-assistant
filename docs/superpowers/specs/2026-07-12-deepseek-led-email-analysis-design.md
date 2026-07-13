@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-12
+last_update: 2026-07-13
 status: active
 owner: "@tobyWang"
 review_cycle: weekly
@@ -18,7 +18,7 @@ The user also accepted that the approved remote context is processed by DeepSeek
 
 ## Review Record
 
-Written review: complete. The user approved this design on 2026-07-12, and implementation proceeded under the active task brief. Tasks 1-13 implement the design and its offline quality gate; Task 14 remains responsible for final project-status regeneration, complete release verification, and the final execution-record closeout.
+Written review: complete. The user approved this design on 2026-07-12, Tasks 1-14 implemented and verified it, and the bounded final review fix wave closed the eight Important findings on 2026-07-13. Final review fix wave: complete. Paid live API/key smoke, real-mailbox work, manual Chrome/Edge pixel/CSS review, deployment, and provider enablement remain explicitly deferred and separately authorized.
 
 ## Original Problem Diagnosis
 
@@ -279,6 +279,7 @@ The backend always owns:
 - `reply_draft.needs_human_review=true`.
 - The absence of automatic mailbox operations.
 - The absence of unconditional price, delivery, payment, contract, quality, or legal commitments.
+- One reusable policy over every provider-authored text family. URL/URI/HTML/Markdown links, command/tool instructions, automatic mailbox actions, and passive consequential claims such as price or delivery being guaranteed/confirmed/final/accepted/approved/agreed/scheduled are rejected. Requests, questions, negations, and review/check wording remain permitted.
 
 ### Grounding checks
 
@@ -289,7 +290,7 @@ The backend treats model JSON as untrusted and applies these checks before displ
 3. Critical identifiers, quantities, amounts, measurements, dates, completion claims, and commitment claims in every model-led text field must normalize to evidence present in the claimed source context. This includes summary, priority reason, timeline prose/open items, Decision Brief, risk evidence/recommendations, suggested actions, attachment augmentations, draft subject/body, and review reasons.
 4. A model cannot add, rename, or change the status of an attachment.
 5. Model-provided source strings are projected to an allowlist of current request sources.
-6. Model output cannot introduce HTML, executable links, scripts, or tool-call instructions into the displayed result.
+6. Model output cannot introduce HTML, URL/URI/Markdown links, scripts, command/tool instructions, automatic mailbox actions, or first-person/passive consequential commitments into any displayed text family.
 7. The final risk list is a union in which mandatory backend safety risks retain at least their backend severity and recommendation. A model cannot remove or downgrade them.
 8. The backend factual timeline skeleton is projected after model validation so model JSON cannot change its source membership or authoritative status/request/commitment fields.
 9. Open-item annotations are joined only by stable backend `open_item_id`. The mapper preserves every backend item and its order/source/owner/due fields, applies only grounded wording for matched IDs, rejects unknown IDs, and restores original wording for missing or invalid annotations.
@@ -316,8 +317,9 @@ The approved synchronous budgets are:
 - Browser extension and local debug page: wait up to 35 seconds for `POST /api/analyze-current-email`.
 - Backend analysis target: 32 seconds from `AnalysisBudget.start()`, which is called immediately before the request body is read and validated. The runtime order is `start -> read -> api`, so body-read time consumes the same monotonic target used across analysis, parsing, provider work, validation, and persistence. This is a cooperative target rather than a hard end-to-end guarantee because bounded request reading, local attachment writes, SQLite calls, and socket response writing are synchronous.
 - Fixed validation/response margin: 2 seconds reserved at the end of the backend deadline.
-- Attachment parse/OCR budget within the backend request: at most 8 seconds in total for model-context preparation. PDF, XLSX, DOCX, image decoding, and OCR run in spawn-based worker processes. At deadline, the backend terminates and joins the worker, discards partial private output, and emits a safe limitation for that attachment. Remaining attachments degrade without starting another worker.
+- Attachment parse/OCR budget within the backend request: at most 8 seconds in total for model-context preparation. PDF, XLSX, DOCX, image decoding, and OCR run in spawn-based worker processes. Worker start and terminate/kill/close controls are themselves bounded; a process whose blocked start completes after timeout enters late-start quarantine and is eventually terminated without holding the request open. Partial private output is discarded and remaining attachments degrade without another worker.
 - DeepSeek attempt: `min(25 seconds, remaining backend time minus the fixed 2-second validation/response margin)`.
+- Ollama request creation, connect, and complete response-body consumption share one absolute monotonic wall-clock deadline; trickled bytes cannot refresh that deadline.
 - If less than 5 seconds remains for DeepSeek, skip the model and immediately return rule fallback.
 - Bounded synchronous attachment storage receives monotonic before/after checks. SQLite persistence receives one cumulative 0.5-second stage for lock acquisition, INSERT, and commit, with a 0.25-second response floor. Its busy timeout is recomputed from the same stage deadline before blocking operations. These checks reduce overruns but are not described as cancellation of an in-progress operating-system write.
 
@@ -325,7 +327,7 @@ The 35-second frontend wait begins after browser resource collection. Current br
 
 The browser abort does not reliably cancel server work. The backend therefore enforces its own deadline and must not depend on the frontend timer for cancellation.
 
-A successful response is not emitted until SQLite commit succeeds. Lock, INSERT, commit, or persistence-deadline failure returns the generic `PERSISTENCE_FAILED` response without partial analysis or `saved_id`. Save exceptions trigger rollback; if rollback itself fails, the connection is closed and quarantined so a retained transaction cannot be reused or committed later.
+A successful response is not emitted until SQLite commit succeeds. Lock, INSERT, commit, or persistence-deadline failure returns the generic `PERSISTENCE_FAILED` response without partial analysis or `saved_id`. Save exceptions trigger rollback. If commit, rollback, and close all fail, the shared handle is atomically poisoned/detached under the server lock; later requests cannot reuse it and return only the generic persistence error.
 
 ## Failure Handling
 
@@ -350,13 +352,17 @@ DeepSeek is an external processor. Its current API documentation says disk conte
 
 The user accepted this condition for every Analyze click in this local installation while both `deepseek` and `model_led` are configured. Persistent pre-click disclosure states that the current visible thread and bounded attachment extraction will be sent to the configured remote provider. Operators must disable or switch the backend to conservative/rule-only mode before analyzing any message that is not authorized for external processing. The application does not silently choose DeepSeek when provider configuration is absent.
 
+Before serialization, one shared redactor processes email metadata, every visible thread source, and attachment text. It removes credential values joined by colon, equals, copula, whitespace-only separator, or quotes, alongside URLs, base64, authorization/cookie/token material, paths, and active content. Benign password-reset, key-rotation, token-expiry, cookie-policy, and session-ID-expiry statements remain when they carry no secret value.
+
+The browser extension uses one canonical complete analyzed scope for both initial fingerprinting and render/copy revalidation: base email, visible thread segments, attachment metadata, supported attachment content identity, and resource limitations. Revalidation returns only the recomputed hash. A change in any sub-scope produces the existing stale state without exposing raw content to popup or storage.
+
 ## Accuracy And Evaluation Gate
 
-No generative model can guarantee semantic correctness. The implemented offline gate uses exactly 50 synthetic-only cases spanning orders, RFQs, delivery, payment, contracts, complaints, quality issues, new-product development, internal messages, long threads, prompt injection, and supported attachments. Every case has a unique ID, unique provenance containing `synthetic`, complete recorded rule/model public results, structured evidence sources, explicit expected risks/facts/actions/forbidden commitments, and boolean review labels; no live key, network, mailbox, real name/domain, or customer content is required.
+No generative model can guarantee semantic correctness. The implemented gate uses exactly 50 compact synthetic-only replay descriptors spanning orders, RFQs, delivery, payment, contracts, complaints, quality issues, new-product development, internal messages, long threads, prompt injection, and attachment-related scenarios. It contains no prerecorded public result and no fixture-selected fallback label; no live key, network, mailbox, real name/domain, or customer content is required.
 
-Both recorded public results are checked with the production `validate_analysis_result` validator. Schema pass is derived and has no review-label override. The selected result is then checked deterministically for mandatory-risk presence, expected critical-fact presence in both the result and its cited synthetic source, required/forbidden action types, forbidden commitment terms, and rule/model engine selection. The evaluator also reuses production `model_grounding` critical signatures across every selected-public-result string and the synthetic evidence snippets: every amount, date/deadline, business identifier, quantity/measurement, outcome, or commitment signature emitted by the selected result must be supported by evidence, including signatures not listed as expected facts. Commitment/action safety additionally calls the production `has_unsafe_operation` and `has_unconditional_commitment` predicates on the selected result, so semantic safety does not depend only on exact fixture substrings. The four human review labels are cross-checks only; disagreement with a derived value rejects the case.
+For every case the harness independently generates the deterministic rule baseline, renders a raw private provider response, and injects it into `analyze_current_email` with a keyless DeepSeek model-led config. Long-thread, prompt-injection, and attachment labels materialize actual thread segments, untrusted injection text, and attachment/resource-limitation inputs rather than acting as labels alone. The production provider path therefore performs private JSON/envelope parsing, evidence/source validation, critical-fact grounding, safe merge, Chinese-analysis/English-draft language validation, public schema validation, and routing/fallback. Accepted results must differ from the rule baseline in substantive user-facing analytical content; engine metadata, tags alone, or review-reason-only changes do not qualify.
 
-Exactly ten cases select `rule_public_result`: the two instances each of provider timeout, malformed provider JSON, disabled provider, unsafe commitment, and automatic-action safety failure. All unrelated normal scenarios select `model_public_result`; fallback rate is therefore evidence-backed rather than an arbitrary sampling label.
+Exactly ten raw failures—two each for automatic action, passive commitment, unsupported fact, malformed JSON, and evidence failure—must return the exact rule baseline. The remaining forty must return valid `ai_model` results. Fallback rate is observed only from actual `analysis_engine.source`. Production `_critical_signatures`, `has_unsafe_operation`, and `has_unconditional_commitment` derive the grounding and safety metrics; fixture metadata cannot declare them passed.
 
 `scripts/evaluate_deepseek_analysis.py` validates the complete case shape and reports exactly these stable fields:
 
@@ -368,7 +374,7 @@ Exactly ten cases select `rule_public_result`: the two instances each of provide
 - `fallback_rate`
 - `latency_samples_ms`, containing present nonnegative samples in fixture order and `[]` when absent
 
-For zero cases the three rates are `null`, avoiding an ambiguous division-by-zero value; both violation counts remain zero. Latencies are finite, nonnegative, and retain fixture order. These metrics describe the recorded reviewed set, not a promise that unseen email will be error-free or that every local filesystem/database operation will complete within the cooperative backend target.
+For zero cases the three rates are `null`, avoiding an ambiguous division-by-zero value; both violation counts remain zero. Latencies are finite, nonnegative, and retain fixture order. These metrics describe the executed synthetic replay set, not a promise that unseen email will be error-free or that every local filesystem/database operation will complete within the cooperative backend target.
 
 ## Testing Strategy
 
@@ -410,7 +416,7 @@ No public request or response schema change is required. The existing `analysis_
 
 1. Implement provider and safety/context boundaries with the provider and model-led output disabled by default.
 2. Complete focused tests, full regression tests, architecture/static/mechanical guards, JavaScript syntax checks, maintenance scan, and status generation.
-3. Run the offline synthetic evaluation gate against the 50 recorded rule/model public-result cases. A live synthetic Flash/Pro comparison remains a separately approved optional step.
+3. Run the offline synthetic evaluation gate as 50 production-route raw-provider replays. A live synthetic Flash/Pro comparison remains a separately approved optional step.
 4. Enable `deepseek` and `model_led` only in the backend local environment after a key is configured and the operator accepts external processing.
 5. Perform a user-controlled Tencent Exmail smoke test only after separate authorization. It is not part of automated development verification.
 

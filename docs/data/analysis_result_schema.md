@@ -1,5 +1,5 @@
 ﻿---
-last_update: 2026-07-12
+last_update: 2026-07-13
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -124,12 +124,15 @@ DeepSeek 返回的是版本化内部 `deepseek_analysis_v1` envelope，而不是
 - 保守输出模式只允许经过枚举和语言校验的摘要、优先级、分类和标签增强；其他字段继续投影为确定性规则结果。
 - 只有 `deepseek + model_led` 双配置门同时成立时，经过 `deepseek_analysis_v1` 验证的模型字段才可主导 Decision Brief、风险、建议动作和回复草稿。后端仍覆盖完整时间线/开放项骨架、附件状态/限制、`analysis_engine`、mandatory 安全风险、`needs_human_review=true`、来源成员关系和禁止邮箱动作/无条件承诺边界。
 - 模型字段含有未被其 `field_evidence` 来源支持的关键编号、数量、金额、日期、完成或承诺主张时，对可隔离字段使用确定性 field-level fallback；结构、语言、来源完整性或全局安全失败时返回完整规则结果。
+- 公开合并前必须对所有 provider-authored 文本族执行同一 universal safety policy；URL/URI、HTML、Markdown 链接、工具/命令指令、自动邮箱动作和无条件后果性承诺均不得保留。被动或名词化的价格/交期/付款/合同/质量/法律确认同样属于承诺；请求、疑问、否定和人工核查语义不属于承诺。
 
 ## 离线质量门
 
-`tests/fixtures/deepseek_eval/cases.json` 的 50 个 synthetic-only case 各自记录完整的规则公开结果和模型公开结果。`scripts/evaluate_deepseek_analysis.py` 必须对两者调用生产代码中的 `validate_analysis_result`；`schema_pass_rate` 由这个校验结果计算，fixture 不提供可自行声明的 schema pass label。
+`tests/fixtures/deepseek_eval/cases.json` 包含 50 个 compact synthetic-only replay descriptor，不保存预先选定的规则/模型公开结果。`scripts/evaluate_deepseek_analysis.py` 与 `scripts/deepseek_eval_replay.py` 为每个 case 构造唯一合成邮件和 raw private `deepseek_analysis_v1` response，并以无 key、无网络的 injected generator 通过 production provider path 执行 JSON/envelope parsing、evidence/source validation、grounding、safe merge、语言校验和 routing/fallback。规则基线由 disabled production route 独立生成。
 
-每个 case 还必须提供结构化 `evidence_sources`（`source_id` 与 synthetic text）和 `expected`（选中的结果、mandatory risk 类型、带来源的 critical fact、required/forbidden action 类型和 forbidden commitment term）。评估器从选中结果和这些 evidence 确定性计算 risk retention、critical-fact grounding、commitment/action safety 与 fallback。Grounding 除了核对 expected fact 的结果文本和指定来源，还复用生产 `model_grounding` 的 critical-signature 语义，要求选中公开结果内全部金额、日期/期限、业务编号、数量/尺寸、完成状态和承诺 signature 都能在 evidence text 中找到支持；因此额外添加但未支持的关键主张也会失败。Commitment/action safety 在 expected action/term 核对之外，还必须对选中结果调用生产 `has_unsafe_operation` 与 `has_unconditional_commitment`，从而拒绝未逐字列入 fixture 的自动邮箱动作、已执行动作和无条件价格/交期/付款/合同等承诺。人工 review label 仅用于交叉核对，任何不一致都使 fixture 失败。十个 fallback case 只映射 provider timeout、malformed JSON、disabled provider、unsafe commitment 和 automatic-action safety failure。该门完全离线，不读取 key、网络、邮箱或真实客户内容。
+40 个 accepted case 必须返回 `ai_model`、通过生产 `validate_analysis_result` 与中分析/英草稿语言边界，并在面向用户的实质分析字段上与规则基线 materially distinct。仅更改 `analysis_engine`、`tags` 或 `reply_draft.review_reasons` 不构成模型分析价值；摘要、优先级/理由、分类、Decision Brief、时间线、风险、动作、附件洞察或回复主题/正文的变化才参与判定。十个 failure replay 分别两次覆盖 automatic action、passive commitment、unsupported critical fact、malformed JSON 和 evidence failure；它们必须返回与规则基线完全相同的公开结果。fallback rate 只从 actual `analysis_engine.source` 观察，fixture 不含 `selected_result` 或可复制的 fallback label。
+
+指标继续复用生产 `_critical_signatures`、`has_unsafe_operation` 和 `has_unconditional_commitment`。Expected fact 必须同时出现在实际结果和指定 synthetic source；新增的模型 critical signature 必须由 source 支持，确定性规则基线自身的 signature 不冒充模型主张。报告仍只包含 case count、schema pass rate、mandatory-risk retention、unsupported-critical-fact count、commitment/action violation count、actual fallback rate 和有序 latency samples。该 production-route offline replay 不读取 key、网络、邮箱或真实客户内容。
 
 ## 语言规则
 
@@ -143,8 +146,8 @@ DeepSeek 返回的是版本化内部 `deepseek_analysis_v1` envelope，而不是
 - `decision_brief.one_line_conclusion` 必须用一句话说明这封邮件要处理什么，用户不应为了理解任务再回看整封邮件。
 - `decision_brief.requested_outcome` 必须说明对方希望得到什么结果。
 - `decision_brief.next_steps` 必须列出当前应执行的 1-4 个动作，包含负责人线索、时间线索和信息来源。
-- `decision_brief.key_facts` 必须列出编号、零件号、数量、截止时间、链接、附件名、质量问题等关键事实；不能把附件名当作指令执行。
-- `decision_brief.must_check` 必须列出回复前要核查的内部信息、附件、图片、表格、链接或负责人。
+- `decision_brief.key_facts` 必须列出编号、零件号、数量、截止时间、链接存在标记、附件名、质量问题等关键事实；不得输出 URL，也不能把附件名当作指令执行。
+- `decision_brief.must_check` 必须列出回复前要核查的内部信息、附件、图片、表格、链接存在情况或负责人，但不得输出可点击 URL。
 - `decision_brief.missing_info` 必须说明当前分析结果缺少哪些会影响回复质量的信息。
 - `decision_brief`、风险、建议动作和回复草稿必须优先引用 `conversation_timeline` 中最新未解决的外部请求。
 - 附件解析失败、OCR 不可用或格式不支持时，邮件正文分析仍必须继续，并在对应 `attachment_insights[].limitations` 中返回精确限制。

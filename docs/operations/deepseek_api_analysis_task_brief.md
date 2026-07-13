@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-12
+last_update: 2026-07-13
 status: active
 owner: "@tobyWang"
 review_cycle: weekly
@@ -26,7 +26,7 @@ feature | security | prompt | test | api_contract
 active
 ```
 
-The user approved DeepSeek remote processing and documented default context caching for the current visible message/thread and bounded supported-attachment text. Tasks 1-14 implement and verify the provider, safety, timing, persistence, frontend disclosure, offline quality-gate, and release-record contracts. DeepSeek may lead the displayed analysis, while mailbox actions remain forbidden and backend hard safety invariants remain authoritative. This task brief remains active as the operating contract; provider enablement and deployment remain opt-in and were not performed by Task 14.
+The user approved DeepSeek remote processing and documented default context caching for the current visible message/thread and bounded supported-attachment text. Tasks 1-14 implement and verify the provider, safety, timing, persistence, frontend disclosure, offline quality-gate, and release-record contracts. The 2026-07-13 bounded final review fix wave closed the eight Important findings while preserving all activation and mailbox boundaries. DeepSeek may lead the displayed analysis, while mailbox actions remain forbidden and backend hard safety invariants remain authoritative. This task brief remains active as the operating contract; provider enablement and deployment remain opt-in and were not performed.
 
 ## 4. Goal
 
@@ -274,6 +274,22 @@ Task 14 final verification evidence:
 - Current frontend constants were verified as MAX_ANALYZE_TIMEOUT_MS = 35000, ANALYZE_TIMEOUT_MS = 35000, and MAX_OVERALL_RESOURCE_TIMEOUT_MS = 20000; the 35-second POST wait remains independent of the 20-second resource collection limit.
 - The post-edit Task 14 date/front-matter assertion passed. DeepSeek documentation, static, architecture, mechanical, and status-generator guards then ran 44 tests and passed.
 - git diff --check passed before this execution-record edit. Final post-edit diff and staged-snapshot evidence is recorded in .superpowers/sdd/task-14-report.md.
+
+Final review fix wave (2026-07-13):
+- Final review fix wave: complete.
+- Commit 9378107 (`fix: harden model safety and remote context`) applied universal provider-text safety, passive consequential-commitment grounding, and natural-language secret redaction across every remote-context channel.
+- Commit f13aef8 (`fix: fingerprint complete analyzed email scope`) made initial and revalidation fingerprints cover the same base-email/thread/attachment/resource-limitation scope without returning raw content.
+- Commit 9372ac4 (`fix: enforce hard backend deadlines`) added one absolute Ollama deadline, bounded attachment start/cleanup with late-start quarantine, and locked poison/detach handling for commit+rollback+close failure.
+- The final evaluator/contracts change replaced recorded-result selection with 50 injected raw private provider replays through production parsing, evidence/source validation, grounding, safe merge, language validation, and routing/fallback. Forty actual results are `ai_model`; ten raw failure cases return the exact rule baseline, so the reported fallback rate is observed from `analysis_engine.source`.
+- Long-thread, prompt-injection, and attachment cases now construct real scenario-specific untrusted inputs. The baseline-distinction gate requires a substantive user-facing analytical change; engine metadata, tags alone, and review-reason-only changes cannot pass it.
+- The exact evaluator report remains: case_count 50; schema_pass_rate 1.0; mandatory_risk_retention_rate 1.0; unsupported_critical_fact_count 0; commitment_action_violation_count 0; fallback_rate 0.2; latency_samples_ms [100.0, 101.0, 102.0, 103.0, 104.0].
+- Post-status focused release suite: 380 tests passed in 25.271 seconds.
+- Post-status full unittest discovery: 658 tests passed in 90.545 seconds.
+- Architecture/static/mechanical/documentation/status guard bundle: 99 tests passed in 16.248 seconds.
+- All seven JavaScript syntax checks and manifest JSON parsing passed.
+- Status generation exited 0 with active 66, draft 27, deprecated 0, and missing_front_matter 0; the generated/current date is 2026-07-13.
+- Offline evaluator CLI exited 0 with the exact report above. Maintenance scan exited 0 with no cleanup findings, and `git diff --check` exited 0.
+- Detailed RED/GREEN and final verification evidence is recorded in `.superpowers/sdd/final-review-fix-report.md`.
 
 Rollback flags and release state:
 - EMAIL_AGENT_LLM_PROVIDER=disabled restores rule-only behavior and remains the default.

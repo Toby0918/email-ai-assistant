@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-12
+last_update: 2026-07-13
 status: active
 owner: "@tobyWang"
 review_cycle: quarterly
@@ -10,7 +10,7 @@ source_type: decision_record
 
 ## Status
 
-Accepted and active. The written design review completed on 2026-07-12. Final release verification remains a separate Task 14 activity.
+Accepted and active. The written design review and Task 14 release verification completed on 2026-07-12. The bounded final review fix wave completed on 2026-07-13; live provider, real-mailbox, deployment, and provider-enable work remain separately authorized activities.
 
 ## Context
 
@@ -51,6 +51,7 @@ Operational rollback sets `EMAIL_AGENT_LLM_PROVIDER=disabled` and restarts the b
 - The public analysis request and response schema remains unchanged, and SQLite gains no new columns.
 - DeepSeek returns an internal `deepseek_analysis_v1` envelope with request-local sources and `field_evidence`. Provider-only fields never enter the public response or SQLite.
 - The backend may send the bounded current visible thread and ephemeral sanitized attachment text. Attachment bytes/base64, URLs, cookies, authorization values, tokens, local paths, active content, and unbounded source text are excluded.
+- Natural-language credential values are removed across metadata, thread, and attachment channels even when joined by colon, equals, copula, whitespace-only separator, or quotes. Benign reset/rotation/expiry/policy statements remain available when they contain no credential value.
 - Expanded model context remains request-local and is excluded from API responses, SQLite, logs, debug output, documentation, and repository fixtures.
 
 ### Model authority and safety
@@ -63,6 +64,7 @@ A valid model result may lead summary, priority, category, Decision Brief, timel
 - Timeline and open-item membership/order/source/owner/due skeletons.
 - Mandatory local prompt-injection, security, and commitment risks.
 - Critical-fact grounding, source membership, no mailbox actions, and no unconditional commercial/legal commitments.
+- One universal provider-text safety policy across every model-authored text family, including passive consequential claims that describe price, delivery, payment, contract, quality, or legal terms as settled. Requests, questions, negations, and review wording remain allowed.
 
 An isolated unsafe or unsupported field uses deterministic field fallback. A malformed envelope, language/source/global safety failure, empty/truncated response, timeout, provider error, or violation that cannot be isolated uses the complete rule fallback.
 
@@ -70,14 +72,18 @@ An isolated unsafe or unsupported field uses deterministic field fallback. A mal
 
 - Frontends wait 35 seconds for the POST after independent browser resource collection, which has its own 20-second maximum.
 - The backend calls `AnalysisBudget.start()` immediately before reading and validating the request body; the runtime order is `start -> read -> api`, so body-read time consumes the cooperative 32-second monotonic target. The same target has an 8-second hard parser/OCR process deadline, a provider maximum of 25 seconds, a provider minimum of 5 seconds, and a fixed 2-second validation/response reserve.
+- Ollama request creation, connect, and complete response-body consumption share one absolute wall-clock deadline; a trickling response cannot extend the routed timeout by making incremental progress.
+- Attachment worker start and cleanup controls share the request deadline. A blocked or late start enters late-start quarantine; terminate/kill/close cleanup cannot hold the request open, and a process that starts after timeout is eventually terminated.
 - SQLite uses one 0.5-second cumulative stage for lock/INSERT/commit with a 0.25-second response floor. Busy timeouts are recomputed from the same stage deadline.
-- Persistence must commit before success. Failure returns `PERSISTENCE_FAILED`. A rollback failure closes and quarantines the connection so a pending transaction cannot be reused.
+- Persistence must commit before success. Failure returns `PERSISTENCE_FAILED`. If commit, rollback, and close all fail, the shared handle is atomically marked poisoned/detached under the server lock and later requests cannot reuse it.
 
 ### Disclosure and evaluation
 
 The browser extension and local debug page retain a persistent pre-click disclosure that a configured remote provider receives the current visible thread and bounded attachment extraction. This disclosure does not expand collection or mailbox permissions.
 
-The deterministic release artifact contains exactly 50 synthetic cases with unique IDs, unique synthetic provenance, complete recorded rule/model public results, structured `source_id`/text evidence, explicit expected risks/facts/actions/forbidden commitments, and review labels. `scripts/evaluate_deepseek_analysis.py` runs offline without a key or network. It applies the production `validate_analysis_result` validator to both recorded public results, derives schema pass instead of accepting a schema label, and reuses the production critical-signature normalizer so every amount, date/deadline, business identifier, quantity/measurement, outcome, and commitment signature in the selected public result must also exist in the synthetic evidence. Commitment/action safety additionally reuses the production `has_unsafe_operation` and `has_unconditional_commitment` predicates over the selected result, rather than relying only on fixture substrings. It derives the remaining labels and rejects any human label that disagrees with those checks. Exactly ten fallback selections correspond to provider timeout, malformed JSON, disabled provider, unsafe commitment, or automatic-action safety failure; normal scenarios select the model result. The script reports only case count, schema pass rate, mandatory-risk retention, unsupported-critical-fact case count, commitment/action violation count, fallback rate, and ordered nonnegative latency samples when recorded.
+The deterministic release artifact contains exactly 50 compact synthetic descriptors and no prerecorded public result or fixture-selected fallback. Each case generates a raw private provider response and traverses the production-route offline replay: analyzer routing, private envelope parsing, evidence/source validation, production grounding, safe merge, language validation, public schema validation, and routing/fallback. A keyless injected generator prevents network access while preserving the production provider path.
+
+Forty accepted responses must return Chinese-analysis/English-draft `ai_model` output that is materially distinct from the independently generated rule baseline in substantive user-facing analytical fields; engine metadata, tags alone, and review-reason-only changes do not qualify. Long-thread, prompt-injection, and attachment scenarios construct real thread, injection, metadata, and resource-limitation inputs that traverse production handling. Ten raw failure responses—two each for automatic action, passive commitment, unsupported fact, malformed JSON, and evidence failure—must return that exact rule baseline. The evaluator derives fallback only from actual `analysis_engine.source`; it reuses production critical-signature and commitment/action predicates and reports the same seven stable metrics, including an observed fallback rate of 0.2.
 
 ## Consequences
 
