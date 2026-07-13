@@ -1,5 +1,5 @@
 ﻿---
-last_update: 2026-07-11
+last_update: 2026-07-12
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -94,10 +94,18 @@ AI 分析结果必须能解析为 JSON，并至少包含以下字段。
   },
   "analysis_engine": {
     "source": "ai_model | rule_fallback",
-    "label": "string"
+    "label": "DeepSeek V4 Flash | DeepSeek V4 Pro | Local Qwen | Local Gemma | OpenAI | Rule fallback"
   }
 }
 ```
+
+## 公开 Schema 与内部 Provider Envelope
+
+本页 JSON 是 unchanged public analysis schema。启用 DeepSeek-led 路线不会改变 `POST /api/analyze-current-email` 的公开请求或响应形状，也不会增加 SQLite 列。
+
+DeepSeek 返回的是版本化内部 `deepseek_analysis_v1` envelope，而不是本页对象。内部 envelope 包含 request-local source ID、`field_evidence`、`timeline_interpretation` 和 `attachment_augmentations`；这些 provider-only 字段在后端完成 JSON/schema/语言/来源/grounding/安全校验后才映射到本页对象，并且 are never returned to the frontend、never persisted to SQLite、never written to logs。扩展的附件模型上下文同样只存在于当前请求内存中。
+
+`analysis_engine.source` 的公开枚举保持 `ai_model | rule_fallback`。有效 DeepSeek 结果使用 `ai_model`，`label` 可显示 `DeepSeek V4 Flash` 或 `DeepSeek V4 Pro`；provider 被禁用、超时、失败或输出无效时返回完整规则结果并使用 `rule_fallback` / `Rule fallback`。
 
 ## 校验规则
 
@@ -113,7 +121,15 @@ AI 分析结果必须能解析为 JSON，并至少包含以下字段。
 - 只有 `status=parsed` 的附件 `summary` 和 `key_facts` 可以影响决策摘要、风险、建议动作或回复草稿；其他状态只能产生限制说明和人工核查项。
 - 不能包含自动发送指令。
 - `analysis_engine` 由后端在 JSON 校验后附加；AI 输出中同名字段不可信，后端必须忽略或覆盖。
-- 模型返回可解析 JSON 时，后端只保留经过枚举校验的摘要、优先级、分类和标签增强；`decision_brief`、风险、建议动作、回复草稿、时间线和附件洞察统一投影为确定性规则结果，再执行本页校验规则。
+- 保守输出模式只允许经过枚举和语言校验的摘要、优先级、分类和标签增强；其他字段继续投影为确定性规则结果。
+- 只有 `deepseek + model_led` 双配置门同时成立时，经过 `deepseek_analysis_v1` 验证的模型字段才可主导 Decision Brief、风险、建议动作和回复草稿。后端仍覆盖完整时间线/开放项骨架、附件状态/限制、`analysis_engine`、mandatory 安全风险、`needs_human_review=true`、来源成员关系和禁止邮箱动作/无条件承诺边界。
+- 模型字段含有未被其 `field_evidence` 来源支持的关键编号、数量、金额、日期、完成或承诺主张时，对可隔离字段使用确定性 field-level fallback；结构、语言、来源完整性或全局安全失败时返回完整规则结果。
+
+## 离线质量门
+
+`tests/fixtures/deepseek_eval/cases.json` 的 50 个 synthetic-only case 各自记录完整的规则公开结果和模型公开结果。`scripts/evaluate_deepseek_analysis.py` 必须对两者调用生产代码中的 `validate_analysis_result`；`schema_pass_rate` 由这个校验结果计算，fixture 不提供可自行声明的 schema pass label。
+
+每个 case 还必须提供结构化 `evidence_sources`（`source_id` 与 synthetic text）和 `expected`（选中的结果、mandatory risk 类型、带来源的 critical fact、required/forbidden action 类型和 forbidden commitment term）。评估器从选中结果和这些 evidence 确定性计算 risk retention、critical-fact grounding、commitment/action safety 与 fallback。Grounding 除了核对 expected fact 的结果文本和指定来源，还复用生产 `model_grounding` 的 critical-signature 语义，要求选中公开结果内全部金额、日期/期限、业务编号、数量/尺寸、完成状态和承诺 signature 都能在 evidence text 中找到支持；因此额外添加但未支持的关键主张也会失败。Commitment/action safety 在 expected action/term 核对之外，还必须对选中结果调用生产 `has_unsafe_operation` 与 `has_unconditional_commitment`，从而拒绝未逐字列入 fixture 的自动邮箱动作、已执行动作和无条件价格/交期/付款/合同等承诺。人工 review label 仅用于交叉核对，任何不一致都使 fixture 失败。十个 fallback case 只映射 provider timeout、malformed JSON、disabled provider、unsafe commitment 和 automatic-action safety failure。该门完全离线，不读取 key、网络、邮箱或真实客户内容。
 
 ## 语言规则
 

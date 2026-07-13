@@ -1,5 +1,5 @@
 ﻿---
-last_update: 2026-07-11
+last_update: 2026-07-12
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -11,6 +11,13 @@ source_type: api_contract
 ## POST /api/analyze-current-email
 
 分析当前邮件。第一阶段只允许由用户点击按钮触发。
+
+### Backend-only provider contract
+
+- 公开请求/响应 schema 不因 provider 改变。后端默认 `EMAIL_AGENT_LLM_PROVIDER=disabled`，`EMAIL_AGENT_DEEPSEEK_OUTPUT_MODE=conservative`；只有 `EMAIL_AGENT_LLM_PROVIDER=deepseek` 与 `EMAIL_AGENT_DEEPSEEK_OUTPUT_MODE=model_led` 同时显式配置时，DeepSeek 才能主导 consequential fields。
+- DeepSeek endpoint 固定为 `https://api.deepseek.com`，只允许 `deepseek-v4-flash` 和 `deepseek-v4-pro`。集成复用 `openai==2.45.0`，不安装第三方 DeepSeek package，也不接受 arbitrary remote base URL。
+- 每次分析最多发出 one provider call。SDK `max_retries=0`，请求为 non-streaming JSON object，并通过 `extra_body={"thinking":{"type":"disabled"}}` 使用 non-thinking mode。任何 provider 失败都回落规则结果，does not try Ollama。
+- DeepSeek 响应先解析为内部 `deepseek_analysis_v1`，再执行来源、grounding、mandatory-risk、commitment/action 和公开 schema 校验。公开响应仍只有本页列出的字段。
 
 ### 请求
 
@@ -141,7 +148,7 @@ source_type: api_contract
     },
     "analysis_engine": {
       "source": "ai_model | rule_fallback",
-      "label": "Local Qwen | Rule fallback"
+      "label": "DeepSeek V4 Flash | DeepSeek V4 Pro | Local Qwen | Rule fallback"
     }
   },
   "saved_id": 1
@@ -166,14 +173,47 @@ source_type: api_contract
 - 请求动作只保留固定动词和对象类别，质量问题只保留固定信号标签，截止时间只保留明确 cue 和日期/相对时间。每个构造事实必须再通过精确 schema 清洗后才能进入结果、prompt 和 SQLite。
 - 截止时间、请求动作和质量信号在构造前必须按逗号、分号和 `and/but/however/then` 等边界定位候选所在的有界 clause，并只检查候选前后的有限 tokens。请求动作按原文顺序在同一 clause 内配对动词和其后的对象；后置动词不得绑定前一 clause 的对象。只有 affirmative 动词尚未成功配对任何对象时，才可跨 `but/however` 传给紧随的纯对象 clause；一旦构造事实就必须清空该 pending 动词。反转 clause 也不得删除后续真实动作。`not/never/without/free from`、直引号或弯引号 modal contractions、`absent/repaired/removed/withdrawn/waived/cancelled/revoked` 等反转上下文不得生成正向事实；取消、忽略或跳过的 action request 同样拒绝。质量信号紧邻的 `0/zero/nil/non-` 或 `-free/ free` 表示缺失；解决态词只有在未被局部 `not/never/no longer` 反转时才表示问题已解决。截止时间的 `not required/does not apply/no longer applicable/optional` 表示不存在有效截止要求。其他 clause 的否定不得删除当前 clause 的真实事实。
 - 只有 `attachment_insights[].status=parsed` 的 `summary` 和 `key_facts` 可以影响决策摘要、风险、建议动作和回复草稿。其他状态必须返回精确 `limitations`，但不得阻断邮件正文和会话分析。
-- 未启用后端模型 provider，或模型返回不可解析 JSON 时，第一版使用本地规则分析器返回可验证结构。
-- 模型返回可解析 JSON 时，后端只保留经过校验的摘要、优先级、分类和标签增强；Decision Brief、风险、建议动作和回复草稿使用确定性规则投影，避免未解析附件事实或未经授权承诺进入最终结果。
+- 未启用后端模型 provider，provider 失败/超时/被跳过，或模型返回不可解析/不可校验的 JSON 时，使用本地规则分析器返回可验证结构。
+- 保守模式只保留经过校验的摘要、优先级、分类和标签增强。DeepSeek-led 模式允许安全且有来源证据的 Decision Brief、风险、建议动作和回复草稿主导公开字段；后端仍拥有 mandatory 风险、完整时间线/开放项骨架、附件状态/限制、枚举、`needs_human_review=true`、来源成员关系、禁止邮箱动作和禁止无条件承诺等不变量。孤立违规使用 field fallback，整体结构/语言/来源/安全失败使用完整规则 fallback。
 - `analysis.conversation_timeline` 和 `analysis.attachment_insights` 由后端确定性生成；模型返回的同名字段不得覆盖它们。
 - `analysis.analysis_engine` 由后端附加，用于显示本次结果来自模型路线还是规则回退；该字段不得由前端传入或由 AI 输出决定。
 - `analysis.decision_brief` 是面向用户的决策摘要，必须说明邮件目的、当前动作、关键事实、需核查项、缺失信息和回复建议。
 - `analysis` 中的用户反馈字段使用中文；`analysis.reply_draft.subject` 和 `analysis.reply_draft.body` 保持英文。
 - 枚举值仍按 schema 使用英文，前端负责映射为中文标签显示。
 - `analysis.attachment_insights` 最多 14 项：最多 5 个已接受附件事实、8 个前端限制（包括优先保留的聚合遗漏）和 1 个后端运行限制。Prompt 的 `UNTRUSTED_ATTACHMENT` 使用独立 14 项上限，确保最后的聚合遗漏和后端运行限制可见；其他 prompt 列表仍为 8 项，单字段与嵌套列表预算不变。SQLite 只能保存最终结构化分析结果的允许字段；`attachment_insights` 再次投影到六个文档字段，不得保存附件字节、临时文件路径、私有 URL、cookie、token、未知字段或原始完整附件文本。
+
+### Ephemeral model context
+
+DeepSeek-led 路线可使用当前可见线程和本地解析出的 ephemeral sanitized attachment context。该上下文有单附件/请求总量上限，移除 URL、密钥、authorization、cookie、token、本地路径、二进制/base64 和 active content。它只存在于当前 provider 请求内存，不能出现在公开响应、SQLite 或日志；公开 `attachment_insights` 仍是六字段安全投影。
+
+### Deadline contract
+
+- 浏览器扩展和本地调试页在独立资源收集完成后使用 35-second POST wait；浏览器收集本身有独立的 20-second resource collection 上限，因此 35 秒不是从点击开始计算的硬性总时限。
+- 后端在完成已校验的 request body 读取后调用 `AnalysisBudget.start()`，使用 one monotonic 32-second cooperative target，共享给分析、parser、provider、校验和 persistence。受限 body 读取、附件写入、SQLite 和 socket response write 是同步阶段，所以不能描述为严格 end-to-end cancellation guarantee。
+- 附件 parser/OCR worker 使用 hard 8-second 总截止并在超时时终止；DeepSeek 使用剩余预算，最多为 25-second，且必须保留 2-second validation/response reserve。剩余 provider 时间少于 5-second 时跳过模型并返回规则结果。
+- 前端 abort 不能保证取消服务器工作；后端截止独立执行。
+
+### Persistence contract
+
+成功分析只有在 SQLite commit 成功后才返回 `ok=true` 和 `saved_id`。服务器使用包含 lock acquisition、INSERT 和 commit 的 0.5-second cumulative persistence stage，并保留 0.25-second response floor；每次阻塞 SQLite 操作前都会根据同一 stage deadline 重新计算 `busy_timeout`。
+
+持久化超时、INSERT/commit 失败或锁获取失败返回通用响应，不返回部分 `analysis` 或 `saved_id`：
+
+```json
+{
+  "ok": false,
+  "error": {
+    "code": "PERSISTENCE_FAILED",
+    "message": "Analysis result could not be saved."
+  }
+}
+```
+
+保存异常必须 rollback。若 rollback failure，连接立即关闭并视为 quarantined，不能被后续保存复用或意外提交残留 transaction；错误响应不得暴露 SQLite/provider 细节。
+
+### Operational rollback flags
+
+将 `EMAIL_AGENT_LLM_PROVIDER=disabled` 后重启可恢复规则-only 路线。将 `EMAIL_AGENT_DEEPSEEK_OUTPUT_MODE=conservative` 可关闭 DeepSeek-led consequential fields；两者都不改变公开 API 或邮箱动作边界。
 
 ## GET /api/health
 

@@ -16,12 +16,16 @@ This expands analysis authority only. It does not grant mailbox or execution aut
 
 The user also accepted that the approved remote context is processed by DeepSeek and is subject to DeepSeek's documented default disk context caching. This approval is operator-wide for this local installation whenever both `EMAIL_AGENT_LLM_PROVIDER=deepseek` and `EMAIL_AGENT_DEEPSEEK_OUTPUT_MODE=model_led` are configured. Every Analyze click under that configuration may send the approved current-message scope to DeepSeek. Persistent text beside the Analyze control discloses this before the click. The provider remains disabled until a backend operator deliberately configures it.
 
-## Problem Diagnosis
+## Review Record
 
-The current plugin is not useful enough for three separate reasons:
+Written review: complete. The user approved this design on 2026-07-12, and implementation proceeded under the active task brief. Tasks 1-13 implement the design and its offline quality gate; Task 14 remains responsible for final project-status regeneration, complete release verification, and the final execution-record closeout.
 
-1. The browser and local debug page stop waiting for the backend after 15 seconds, while a model attempt can take longer.
-2. The current repair layer discards the model's Decision Brief, timeline, risks, actions, attachment interpretation, and reply draft. Only summary, priority, category, and tags can survive. Replacing local Qwen with a stronger API under that policy would leave most of the visible result rule-generated.
+## Original Problem Diagnosis
+
+Before this implementation, the plugin was not useful enough for three separate reasons:
+
+1. The browser and local debug page stopped waiting for the backend after 15 seconds, while a model attempt could take longer.
+2. The prior repair layer discarded the model's Decision Brief, timeline, risks, actions, attachment interpretation, and reply draft. Only summary, priority, category, and tags could survive. Replacing local Qwen with a stronger API under that policy would still have left most of the visible result rule-generated.
 3. The attachment display sanitizer intentionally removes links, email addresses, paths, and long digit sequences. That output is appropriate for storage and display but removes PO, RFQ, invoice, tracking, date, and other business context that a model needs to understand the attachment.
 
 The solution must address all three. A provider-only change is insufficient.
@@ -138,7 +142,7 @@ Expanded thread and attachment model context exists only in request memory. It i
 
 ## DeepSeek Provider Contract
 
-The implementation uses the existing pinned `openai==2.45.0` package with the official OpenAI-compatible DeepSeek endpoint.
+The implementation uses the existing pinned `openai==2.45.0` package with the official OpenAI-compatible DeepSeek endpoint. It does not add an unofficial or third-party DeepSeek package.
 
 Backend configuration:
 
@@ -158,9 +162,9 @@ Provider defaults and restrictions:
 - Allowed model names are `deepseek-v4-flash` and `deepseek-v4-pro`.
 - `deepseek-v4-flash` is the default because the user requires a bounded synchronous response.
 - `deepseek-v4-pro` is available only through backend configuration for synthetic quality/latency evaluation.
-- Thinking is explicitly disabled.
-- `temperature` is `0`, `stream` is `false`, JSON Output is enabled, and `max_tokens` is bounded at 2,400.
-- SDK retries are disabled. A failed request falls back to rules rather than silently spending a second full provider budget.
+- Thinking is explicitly disabled through `extra_body={"thinking":{"type":"disabled"}}`.
+- `temperature` is `0`, `stream` is `false`, JSON Output uses `response_format={"type":"json_object"}`, and `max_tokens` is bounded at 2,400.
+- SDK retries are disabled with `max_retries=0`, and the analyzer performs one provider call. A failed request falls back to rules rather than silently spending a second full provider budget.
 - The request omits `user_id`. The project does not claim per-user KV-cache isolation and documents that caching/isolation remains at the configured DeepSeek account boundary.
 - `store`, `json_schema`, `metadata`, `seed`, `service_tier`, and other undocumented compatibility parameters are not sent.
 
@@ -310,16 +314,18 @@ If JSON parsing, required schema, language boundaries, or overall source integri
 The approved synchronous budgets are:
 
 - Browser extension and local debug page: wait up to 35 seconds for `POST /api/analyze-current-email`.
-- Backend analysis target: 32 seconds from the start of local API handling, measured by one monotonic clock across storage, parsing, provider work, validation, persistence preparation, and response construction. This is a cooperative target rather than a hard end-to-end guarantee because bounded request reading, local attachment writes, and SQLite calls are synchronous.
+- Backend analysis target: 32 seconds from `AnalysisBudget.start()` immediately after the validated request body is read, measured by one monotonic clock across analysis, parsing, provider work, validation, and persistence. This is a cooperative target rather than a hard end-to-end guarantee because bounded request reading, local attachment writes, SQLite calls, and socket response writing are synchronous.
 - Fixed validation/response margin: 2 seconds reserved at the end of the backend deadline.
 - Attachment parse/OCR budget within the backend request: at most 8 seconds in total for model-context preparation. PDF, XLSX, DOCX, image decoding, and OCR run in spawn-based worker processes. At deadline, the backend terminates and joins the worker, discards partial private output, and emits a safe limitation for that attachment. Remaining attachments degrade without starting another worker.
 - DeepSeek attempt: `min(25 seconds, remaining backend time minus the fixed 2-second validation/response margin)`.
 - If less than 5 seconds remains for DeepSeek, skip the model and immediately return rule fallback.
-- Bounded synchronous attachment storage and SQLite persistence receive monotonic before/after checks. SQLite uses a busy timeout below the remaining 2-second response margin. These checks reduce overruns but are not described as cancellation of an in-progress operating-system write.
+- Bounded synchronous attachment storage receives monotonic before/after checks. SQLite persistence receives one cumulative 0.5-second stage for lock acquisition, INSERT, and commit, with a 0.25-second response floor. Its busy timeout is recomputed from the same stage deadline before blocking operations. These checks reduce overruns but are not described as cancellation of an in-progress operating-system write.
 
 The 35-second frontend wait begins after browser resource collection. Current browser resource collection has its own maximum 20-second budget, so this design does not claim a strict 35-second Analyze-click-to-result guarantee. That distinction is documented in the UI/API operations guidance.
 
 The browser abort does not reliably cancel server work. The backend therefore enforces its own deadline and must not depend on the frontend timer for cancellation.
+
+A successful response is not emitted until SQLite commit succeeds. Lock, INSERT, commit, or persistence-deadline failure returns the generic `PERSISTENCE_FAILED` response without partial analysis or `saved_id`. Save exceptions trigger rollback; if rollback itself fails, the connection is closed and quarantined so a retained transaction cannot be reused or committed later.
 
 ## Failure Handling
 
@@ -340,24 +346,29 @@ The frontend receives a successful analysis response with `analysis_engine.sourc
 
 ## Privacy And External Processing
 
-DeepSeek is an external processor. Its current API documentation says disk context caching is enabled by default and does not document a request option that disables it. Its current public privacy policy describes collection of prompts/inputs and processing/storage in the People's Republic of China. The project therefore does not describe this route as local-only or zero-retention.
+DeepSeek is an external processor. Its current API documentation says disk context caching is enabled by default, works on a best-effort basis, and is usually cleared after it is no longer used within a few hours to a few days. That is not a guaranteed deletion deadline. Its current public privacy policy describes collection of prompts/inputs and processing/storage in the People's Republic of China. The project therefore does not describe this route as local-only or zero-retention.
 
 The user accepted this condition for every Analyze click in this local installation while both `deepseek` and `model_led` are configured. Persistent pre-click disclosure states that the current visible thread and bounded attachment extraction will be sent to the configured remote provider. Operators must disable or switch the backend to conservative/rule-only mode before analyzing any message that is not authorized for external processing. The application does not silently choose DeepSeek when provider configuration is absent.
 
 ## Accuracy And Evaluation Gate
 
-No generative model can guarantee semantic correctness. Before recommending real-mail use, the implementation must support a synthetic evaluation run covering at least 50 representative business scenarios, including orders, RFQs, delivery, payment, contracts, complaints, quality issues, new-product development, internal messages, long threads, prompt injection, and supported attachments.
+No generative model can guarantee semantic correctness. The implemented offline gate uses exactly 50 synthetic-only cases spanning orders, RFQs, delivery, payment, contracts, complaints, quality issues, new-product development, internal messages, long threads, prompt injection, and supported attachments. Every case has a unique ID, unique provenance containing `synthetic`, complete recorded rule/model public results, structured evidence sources, explicit expected risks/facts/actions/forbidden commitments, and boolean review labels; no live key, network, mailbox, real name/domain, or customer content is required.
 
-Release evidence targets:
+Both recorded public results are checked with the production `validate_analysis_result` validator. Schema pass is derived and has no review-label override. The selected result is then checked deterministically for mandatory-risk presence, expected critical-fact presence in both the result and its cited synthetic source, required/forbidden action types, forbidden commitment terms, and rule/model engine selection. The evaluator also reuses production `model_grounding` critical signatures across every selected-public-result string and the synthetic evidence snippets: every amount, date/deadline, business identifier, quantity/measurement, outcome, or commitment signature emitted by the selected result must be supported by evidence, including signatures not listed as expected facts. Commitment/action safety additionally calls the production `has_unsafe_operation` and `has_unconditional_commitment` predicates on the selected result, so semantic safety does not depend only on exact fixture substrings. The four human review labels are cross-checks only; disagreement with a derived value rejects the case.
 
-- Valid model result or valid rule fallback: 100 percent.
-- Fabricated critical identifier/amount/date accepted into grounded key facts: 0.
-- Unsafe automatic action or unconditional commercial/legal commitment accepted: 0.
-- Category and priority agreement with the reviewed synthetic gold set: at least 90 percent.
-- Reply draft remains English and requires human review: 100 percent.
-- Provider attempt respects the backend deadline: 100 percent.
+Exactly ten cases select `rule_public_result`: the two instances each of provider timeout, malformed provider JSON, disabled provider, unsafe commitment, and automatic-action safety failure. All unrelated normal scenarios select `model_public_result`; fallback rate is therefore evidence-backed rather than an arbitrary sampling label.
 
-These are release gates for the evaluated set, not a promise that future unseen email will be error-free or that every local filesystem/database operation will complete within the cooperative backend target.
+`scripts/evaluate_deepseek_analysis.py` validates the complete case shape and reports exactly these stable fields:
+
+- `case_count`
+- `schema_pass_rate`
+- `mandatory_risk_retention_rate`
+- `unsupported_critical_fact_count`
+- `commitment_action_violation_count`
+- `fallback_rate`
+- `latency_samples_ms`, containing present nonnegative samples in fixture order and `[]` when absent
+
+For zero cases the three rates are `null`, avoiding an ambiguous division-by-zero value; both violation counts remain zero. Latencies are finite, nonnegative, and retain fixture order. These metrics describe the recorded reviewed set, not a promise that unseen email will be error-free or that every local filesystem/database operation will complete within the cooperative backend target.
 
 ## Testing Strategy
 
@@ -399,7 +410,7 @@ No public request or response schema change is required. The existing `analysis_
 
 1. Implement provider and safety/context boundaries with the provider and model-led output disabled by default.
 2. Complete focused tests, full regression tests, architecture/static/mechanical guards, JavaScript syntax checks, maintenance scan, and status generation.
-3. Run the synthetic evaluation gate with mocked provider responses. A live synthetic Flash/Pro comparison remains a separately approved optional step.
+3. Run the offline synthetic evaluation gate against the 50 recorded rule/model public-result cases. A live synthetic Flash/Pro comparison remains a separately approved optional step.
 4. Enable `deepseek` and `model_led` only in the backend local environment after a key is configured and the operator accepts external processing.
 5. Perform a user-controlled Tencent Exmail smoke test only after separate authorization. It is not part of automated development verification.
 
@@ -415,10 +426,8 @@ Restarting the backend then restores deterministic rule-only analysis. Setting t
 
 ## Official DeepSeek References
 
-- First API call and current models: `https://api-docs.deepseek.com/`
-- JSON Output: `https://api-docs.deepseek.com/guides/json_mode/`
-- Thinking mode: `https://api-docs.deepseek.com/guides/thinking_mode/`
-- Chat Completions reference: `https://api-docs.deepseek.com/api/create-chat-completion/`
-- Error codes: `https://api-docs.deepseek.com/quick_start/error_codes/`
+- Current models, endpoint, and deprecation: `https://api-docs.deepseek.com/quick_start/pricing/`
+- JSON output, models, and request/response parameters: `https://api-docs.deepseek.com/api/create-chat-completion`
+- Thinking mode and OpenAI SDK `extra_body`: `https://api-docs.deepseek.com/guides/thinking_mode`
 - Context caching: `https://api-docs.deepseek.com/guides/kv_cache/`
 - Current privacy policy: `https://cdn.deepseek.com/policies/en-US/deepseek-privacy-policy.html`

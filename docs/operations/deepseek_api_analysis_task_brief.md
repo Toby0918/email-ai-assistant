@@ -23,10 +23,10 @@ feature | security | prompt | test | api_contract
 ## 3. Current Status
 
 ```text
-approved
+active
 ```
 
-The user approved DeepSeek remote processing and default context caching for the current visible message/thread and bounded supported-attachment text. DeepSeek may lead the displayed analysis, while mailbox actions remain forbidden and backend hard safety invariants remain authoritative.
+The user approved DeepSeek remote processing and documented default context caching for the current visible message/thread and bounded supported-attachment text. Tasks 1-13 implement the provider, safety, timing, persistence, frontend disclosure, and offline quality-gate contracts. DeepSeek may lead the displayed analysis, while mailbox actions remain forbidden and backend hard safety invariants remain authoritative. Task 14 still owns final status regeneration and release verification.
 
 ## 4. Goal
 
@@ -34,7 +34,7 @@ Add an opt-in, backend-only DeepSeek API provider as the primary model path when
 
 Replace the current blanket deterministic projection with field-level hard safety enforcement: backend-owned attachment availability/status, schema, allowed enums, source membership, human-review flags, no-mailbox-action boundaries, and commitment safeguards remain authoritative. Return the deterministic rule result whenever the provider is disabled, unavailable, late, empty, truncated, filtered, or invalid.
 
-Remove the current fixed 15-second frontend backend-response cutoff that expires before the configured model path can complete, while keeping a bounded synchronous user flow.
+Replace the original fixed 15-second frontend backend-response cutoff with the implemented bounded synchronous user flow.
 
 ## 5. Non-Goals
 
@@ -52,7 +52,7 @@ Remove the current fixed 15-second frontend backend-response cutoff that expires
 
 ## 6. Background And References
 
-The current frontend aborts the backend request after 15 seconds, while the configured local Qwen route can take substantially longer. The user selected a backend DeepSeek API route with deterministic rule fallback and a synchronous timeout budget.
+Before implementation, the frontend aborted the backend request after 15 seconds while the configured local Qwen route could take substantially longer. The user selected a backend DeepSeek API route with deterministic rule fallback and a synchronous timeout budget.
 
 Current DeepSeek documentation changes the previously assumed model choice: `deepseek-chat` is scheduled to become inaccessible on 2026-07-24, so a new integration must use `deepseek-v4-flash` or `deepseek-v4-pro`. The latency-sensitive route will use `deepseek-v4-flash` with thinking explicitly disabled.
 
@@ -71,14 +71,13 @@ Relevant project documents:
 - `docs/api/frontend_backend_flow.md`
 - `docs/operations/deployment_notes.md`
 
-Relevant official DeepSeek documentation:
+Relevant official DeepSeek documentation, rechecked 2026-07-12:
 
-- `https://api-docs.deepseek.com/`
-- `https://api-docs.deepseek.com/guides/json_mode/`
-- `https://api-docs.deepseek.com/guides/thinking_mode/`
+- `https://api-docs.deepseek.com/quick_start/pricing/`
+- `https://api-docs.deepseek.com/api/create-chat-completion`
+- `https://api-docs.deepseek.com/guides/thinking_mode`
 - `https://api-docs.deepseek.com/guides/kv_cache/`
-- `https://api-docs.deepseek.com/api/create-chat-completion/`
-- `https://api-docs.deepseek.com/quick_start/error_codes/`
+- `https://cdn.deepseek.com/policies/en-US/deepseek-privacy-policy.html`
 
 ## 7. Scope
 
@@ -118,7 +117,7 @@ The approved frontend scope changes the backend POST wait to 35 seconds after br
 10. Ground critical identifiers, quantities, measurements, amounts, dates, completion claims, and commitment claims in every model-led text field, not only Decision Brief key facts.
 11. On any sanitized provider error, return the existing rule fallback in the same API response. Do not try Ollama after DeepSeek failure.
 12. Keep the provider default disabled. When explicitly configured as `deepseek`, DeepSeek is the primary attempt and rules are the only automatic fallback.
-13. Treat 35 seconds as the frontend wait for `POST /api/analyze-current-email` after browser resource collection. Use a 32-second cooperative backend target with a fixed 2-second response margin, hard 8-second parser/OCR process deadline, and hard remaining-time DeepSeek deadline. Synchronous bounded request reading, attachment storage, and SQLite persistence are not described as hard-cancellable; use monotonic checks around them and a SQLite busy timeout below the remaining response margin. Do not describe this as a strict Analyze-click total or hard end-to-end guarantee.
+13. Treat 35 seconds as the frontend wait for `POST /api/analyze-current-email` after independent 20-second browser resource collection. Start the 32-second cooperative backend budget after the validated request body read, with a fixed 2-second response margin, hard 8-second parser/OCR process deadline, 25-second maximum/5-second minimum provider attempt, and a 0.5-second cumulative SQLite stage with a 0.25-second response floor. Synchronous request reading, attachment storage, SQLite calls, and response writing are not described as hard-cancellable. Do not describe this as a strict Analyze-click total or hard end-to-end guarantee.
 
 ## 9. Data Structure Or Interface Changes
 
@@ -174,7 +173,7 @@ EMAIL_AGENT_DEEPSEEK_OUTPUT_MODE=model_led
 [x] Show persistent pre-click disclosure whenever the product may use the configured remote provider.
 ```
 
-DeepSeek's current official documentation states that disk context caching is enabled by default and documents no request field to disable it. Its current privacy policy also describes collection and processing of prompts/inputs and storage in the People's Republic of China. Therefore this provider cannot be described as zero-retention or local-only. Enabling it requires acceptance of those external-processing terms; rule fallback remains the route for content that must not leave the machine.
+DeepSeek's current official documentation states that disk context caching is enabled by default, works on a best-effort basis, and is usually cleared after it is no longer used within a few hours to a few days; that is not a guaranteed deletion deadline. Its current privacy policy describes collection of prompts/inputs and processing/storage in the People's Republic of China. Therefore this provider cannot be described as zero-retention or local-only. Enabling it requires acceptance of those external-processing terms; rule fallback remains the route for content that must not leave the machine.
 
 ## 11. Prompt Injection Protection
 
@@ -199,7 +198,7 @@ DeepSeek's current official documentation states that disk context caching is en
 10. Existing current-message click gating remains intact. No mailbox-wide or pre-click collection is introduced. Persistent UI text discloses remote processing before the click when the remote route may be used.
 11. The provider is disabled by default; `deepseek` is primary only when explicitly configured, and Ollama is not attempted after DeepSeek failure.
 12. The browser extension and local debug page no longer abort a normal provider attempt at 15 seconds. Documentation identifies 35 seconds as the POST wait after resource collection, not a strict click total.
-13. The 32-second backend target is explicitly cooperative. Parser/OCR and provider stages have hard cancellable deadlines; bounded synchronous storage/persistence uses before/after checks and a SQLite busy timeout below the remaining margin.
+13. The 32-second backend target is explicitly cooperative and starts after request-body read. Parser/OCR and provider stages have hard cancellable deadlines; bounded synchronous storage uses before/after checks. SQLite uses one 0.5-second cumulative lock/INSERT/commit stage, a 0.25-second response floor, recomputed busy timeouts, rollback on save error, and connection quarantine on rollback failure.
 14. Public API/schema and SQLite persistence remain backward compatible; ephemeral expanded model context is never persisted.
 15. Focused tests, full Python suite, frontend JavaScript syntax checks, architecture/static/mechanical guards, maintenance scan, status generation, and `git diff --check` pass.
 
@@ -249,15 +248,20 @@ Set `EMAIL_AGENT_LLM_PROVIDER=disabled` and restart the backend to immediately r
 
 ```text
 Actual modified files:
-- Not started.
+- Tasks 1-12: backend provider, model safety, timing/persistence, and frontend contracts implemented in their planned files.
+- Task 13: synthetic fixture/evaluator/tests and synchronized prompt/schema/API/security/design/ADR contracts.
 
 Test results:
-- Not started.
+- Task 13 RED and GREEN evidence is recorded in .superpowers/sdd/task-13-report.md. The offline evaluator canonically validates both complete public results, reuses production critical-signature and unsafe-operation/commitment predicates, derives every metric, and rejects evidence/review-label disagreement. Its ten fallback cases map only to explicit provider or safety failures.
+- Exact final release totals and status regeneration remain assigned to Task 14.
 
 Unfinished items:
-- Written design review.
-- Implementation plan.
-- TDD implementation and verification.
+- Task 14 full focused release suite, project status regeneration, final task record, and release commit.
+- Any live synthetic DeepSeek comparison or real Tencent Exmail validation requires separate authorization.
+
+Written design review: complete.
+Implementation plan: complete through Task 13.
+Final release verification: pending Task 14.
 
 Follow-up suggestions:
 - Perform any live API smoke test only with a locally configured key and a fully synthetic prompt after separate approval.
