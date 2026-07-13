@@ -4,12 +4,16 @@ from __future__ import annotations
 
 import json
 import os
+import sqlite3
 import threading
+import time
 import unittest
 import urllib.request
 from dataclasses import replace
 from email.message import Message
 from http.client import HTTPConnection
+from pathlib import Path
+from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
@@ -18,7 +22,48 @@ from backend.email_agent.config import load_config
 from backend.email_agent.server import EmailAssistantHandler, create_server
 
 
+# No existing API code names persistence failure, so pin one conservative,
+# persistence-specific generic object without returning partial analysis fields.
+PERSISTENCE_ERROR = {
+    "ok": False,
+    "error": {
+        "code": "PERSISTENCE_FAILED",
+        "message": "Analysis result could not be saved.",
+    },
+}
+
+
 class ServerTests(unittest.TestCase):
+    @staticmethod
+    def _post_analysis(server: object) -> dict[str, object]:
+        url = f"http://127.0.0.1:{server.server_port}/api/analyze-current-email"
+        body = json.dumps({
+            "user_confirmed": True,
+            "subject": r"C:\private\customer-subject",
+            "from": "private-sender@example.test",
+            "body_text": "PRIVATE_EMAIL_BODY",
+        }).encode("utf-8")
+        request = urllib.request.Request(
+            url,
+            data=body,
+            method="POST",
+            headers={"Content-Type": "application/json"},
+        )
+        with urllib.request.urlopen(request, timeout=5) as response:
+            return json.loads(response.read().decode("utf-8"))
+
+    @staticmethod
+    def _private_success() -> dict[str, object]:
+        return {
+            "ok": True,
+            "request_id": "PRIVATE_PROVIDER_REQUEST_ID",
+            "analysis": {
+                "summary": "Synthetic result.",
+                "field_evidence": {"/analysis/summary": ["PRIVATE_PROVIDER_DETAIL"]},
+                "provider_debug": "PRIVATE_PROVIDER_DETAIL",
+            },
+        }
+
     @staticmethod
     def _direct_handler(
         *,
@@ -106,6 +151,128 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(events, ["start", "read", "api"])
         start.assert_called_once_with()
         self.assertIs(analyze.call_args.kwargs["budget"], budget)
+
+    def test_same_budget_object_reaches_persistence(self) -> None:
+        handler = self._direct_handler()
+        budget = AnalysisBudget.start(clock=lambda: 0.0)
+        payload = {"user_confirmed": True, "subject": "Synthetic"}
+        analysis = {"summary": "Synthetic result."}
+        handler._read_json = Mock(return_value=payload)
+        handler._save_result.return_value = 17
+
+        with patch(
+            "backend.email_agent.server.AnalysisBudget.start", return_value=budget
+        ), patch(
+            "backend.email_agent.server.handle_analyze_current_email",
+            return_value={"ok": True, "request_id": "local-test", "analysis": analysis},
+        ):
+            handler.do_POST()
+
+        self.assertIn("budget", handler._save_result.call_args.kwargs)
+        self.assertIs(handler._save_result.call_args.kwargs["budget"], budget)
+        response = handler._send_json.call_args.args[0]
+        self.assertEqual(response["saved_id"], 17)
+
+    def test_python_database_lock_contention_returns_within_bounded_stage(self) -> None:
+        config = replace(load_config(dotenv_path=None), llm_provider="disabled")
+        server = create_server(
+            host="127.0.0.1", port=0, database_path=":memory:", config=config
+        )
+        service_thread = threading.Thread(target=server.serve_forever, daemon=True)
+        result: dict[str, object] = {}
+        server.database_lock.acquire()
+        service_thread.start()
+
+        def invoke() -> None:
+            try:
+                result["response"] = self._post_analysis(server)
+            except Exception as exc:
+                result["exception"] = exc
+
+        request_thread = threading.Thread(target=invoke, daemon=True)
+        try:
+            with patch(
+                "backend.email_agent.server.handle_analyze_current_email",
+                return_value=self._private_success(),
+            ):
+                started = time.monotonic()
+                request_thread.start()
+                request_thread.join(timeout=1.75)
+                returned_while_locked = not request_thread.is_alive()
+                elapsed = time.monotonic() - started
+                server.database_lock.release()
+                request_thread.join(timeout=5)
+
+            if "exception" in result:
+                raise result["exception"]
+            self.assertTrue(returned_while_locked)
+            self.assertLess(elapsed, 2.0)
+            self.assertEqual(result["response"], PERSISTENCE_ERROR)
+            stored_count = server.database.execute(
+                "SELECT COUNT(*) FROM email_analysis"
+            ).fetchone()[0]
+            self.assertEqual(stored_count, 0)
+        finally:
+            if server.database_lock.locked():
+                server.database_lock.release()
+            server.shutdown()
+            server.server_close()
+            service_thread.join(timeout=5)
+            server.database.close()
+
+    def test_sqlite_lock_contention_returns_generic_error_within_bounded_stage(self) -> None:
+        config = replace(load_config(dotenv_path=None), llm_provider="disabled")
+        with TemporaryDirectory() as directory:
+            database_path = Path(directory) / "analysis.sqlite3"
+            server = create_server(
+                host="127.0.0.1",
+                port=0,
+                database_path=str(database_path),
+                config=config,
+            )
+            service_thread = threading.Thread(target=server.serve_forever, daemon=True)
+            blocker = sqlite3.connect(database_path, check_same_thread=False)
+            blocker.execute("BEGIN EXCLUSIVE")
+            result: dict[str, object] = {}
+            service_thread.start()
+
+            def invoke() -> None:
+                try:
+                    result["response"] = self._post_analysis(server)
+                except Exception as exc:
+                    result["exception"] = exc
+
+            request_thread = threading.Thread(target=invoke, daemon=True)
+            try:
+                with patch(
+                    "backend.email_agent.server.handle_analyze_current_email",
+                    return_value=self._private_success(),
+                ):
+                    started = time.monotonic()
+                    request_thread.start()
+                    request_thread.join(timeout=1.75)
+                    returned_while_locked = not request_thread.is_alive()
+                    elapsed = time.monotonic() - started
+                    blocker.rollback()
+                    request_thread.join(timeout=5)
+
+                if "exception" in result:
+                    raise result["exception"]
+                self.assertTrue(returned_while_locked)
+                self.assertLess(elapsed, 2.0)
+                self.assertEqual(result["response"], PERSISTENCE_ERROR)
+                stored_count = server.database.execute(
+                    "SELECT COUNT(*) FROM email_analysis"
+                ).fetchone()[0]
+                self.assertEqual(stored_count, 0)
+                self.assertNotIn(str(database_path), json.dumps(result["response"]))
+            finally:
+                blocker.rollback()
+                blocker.close()
+                server.shutdown()
+                server.server_close()
+                service_thread.join(timeout=5)
+                server.database.close()
 
     def test_analyze_endpoint_rejects_untrusted_host_before_read_or_analysis(self) -> None:
         cases = (

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import mimetypes
 import re
+import sqlite3
 import threading
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -22,6 +23,10 @@ ROOT = Path(__file__).resolve().parents[2]
 FRONTEND_ROOT = ROOT / "frontend" / "local_debug_page"
 INVALID_HOST_MESSAGE = "Request Host is not allowed."
 UNSUPPORTED_MEDIA_TYPE_MESSAGE = "Content-Type must be application/json."
+PERSISTENCE_MAX_SECONDS = 0.5
+PERSISTENCE_RESPONSE_FLOOR_SECONDS = 0.25
+PERSISTENCE_ERROR_CODE = "PERSISTENCE_FAILED"
+PERSISTENCE_ERROR_MESSAGE = "Analysis result could not be saved."
 
 
 class EmailAssistantServer(ThreadingHTTPServer):
@@ -75,7 +80,13 @@ class EmailAssistantHandler(BaseHTTPRequestHandler):
             payload, config=self.server.attachment_config, budget=budget
         )
         if response.get("ok"):
-            response["saved_id"] = self._save_result(payload, response["analysis"])
+            saved_id = self._save_result(
+                payload, response["analysis"], budget=budget
+            )
+            if saved_id is None:
+                response = _persistence_error()
+            else:
+                response["saved_id"] = saved_id
         self._send_json(response)
 
     def log_message(self, format: str, *args: Any) -> None:
@@ -130,14 +141,37 @@ class EmailAssistantHandler(BaseHTTPRequestHandler):
         value = self.headers.get(name)
         return [] if value is None else [str(value)]
 
-    def _save_result(self, payload: dict[str, Any], analysis: dict[str, Any]) -> int:
-        with self.server.database_lock:
+    def _save_result(
+        self,
+        payload: dict[str, Any],
+        analysis: dict[str, Any],
+        *,
+        budget: AnalysisBudget,
+    ) -> int | None:
+        deadline = budget.stage_deadline(
+            PERSISTENCE_MAX_SECONDS,
+            reserve_seconds=PERSISTENCE_RESPONSE_FLOOR_SECONDS,
+        )
+        lock_timeout = budget.remaining_until(deadline)
+        if lock_timeout <= 0 or not self.server.database_lock.acquire(
+            timeout=lock_timeout
+        ):
+            return None
+        try:
+            busy_timeout_ms = int(budget.remaining_until(deadline) * 1000)
+            if busy_timeout_ms <= 0:
+                return None
             return save_analysis(
                 self.server.database,
                 subject=str(payload.get("subject") or ""),
                 sender=str(payload.get("from") or ""),
                 analysis=analysis,
+                busy_timeout_ms=busy_timeout_ms,
             )
+        except sqlite3.Error:
+            return None
+        finally:
+            self.server.database_lock.release()
 
     def _serve_frontend(self) -> None:
         path = FRONTEND_ROOT / ("index.html" if self.path in {"/", "/index.html"} else self.path.lstrip("/"))
@@ -169,6 +203,16 @@ def create_server(
 ) -> EmailAssistantServer:
     bind_host = validate_local_server_host(host)
     return EmailAssistantServer((bind_host, port), database_path=database_path, config=config)
+
+
+def _persistence_error() -> dict[str, Any]:
+    return {
+        "ok": False,
+        "error": {
+            "code": PERSISTENCE_ERROR_CODE,
+            "message": PERSISTENCE_ERROR_MESSAGE,
+        },
+    }
 
 
 def run_server(host: str = "127.0.0.1", port: int = 8765, database_path: str | None = None) -> None:

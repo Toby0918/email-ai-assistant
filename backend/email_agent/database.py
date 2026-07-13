@@ -23,12 +23,20 @@ CREATE TABLE IF NOT EXISTS email_analysis (
 """
 
 
-def connect(path: str | None = None) -> sqlite3.Connection:
+def connect(
+    path: str | None = None,
+    *,
+    busy_timeout_seconds: float = 0.5,
+) -> sqlite3.Connection:
     if path == ":memory:":
-        return sqlite3.connect(":memory:", check_same_thread=False)
+        return sqlite3.connect(
+            ":memory:", timeout=busy_timeout_seconds, check_same_thread=False
+        )
     database_path = Path(path or load_config().sqlite_path)
     database_path.parent.mkdir(parents=True, exist_ok=True)
-    return sqlite3.connect(database_path, check_same_thread=False)
+    return sqlite3.connect(
+        database_path, timeout=busy_timeout_seconds, check_same_thread=False
+    )
 
 
 def initialize_schema(connection: sqlite3.Connection) -> None:
@@ -41,7 +49,10 @@ def save_analysis(
     subject: str,
     sender: str,
     analysis: dict[str, Any],
+    *,
+    busy_timeout_ms: int = 500,
 ) -> int:
+    connection.execute(f"PRAGMA busy_timeout = {max(0, busy_timeout_ms)}")
     # Persist only the documented structured result and projected attachment insights.
     stored_analysis = project_analysis_for_storage(analysis)
     cursor = connection.execute(

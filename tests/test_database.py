@@ -2,14 +2,40 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 import sqlite3
 import unittest
 
-from backend.email_agent.database import initialize_schema, save_analysis
+from backend.email_agent.database import connect, initialize_schema, save_analysis
 
 
 class DatabaseTests(unittest.TestCase):
+    def test_connect_default_busy_timeout_is_below_two_seconds(self) -> None:
+        connection = connect(":memory:")
+        self.addCleanup(connection.close)
+
+        timeout = connection.execute("PRAGMA busy_timeout").fetchone()[0]
+
+        self.assertLessEqual(timeout, 500)
+
+    def test_save_analysis_applies_requested_busy_timeout(self) -> None:
+        connection = sqlite3.connect(":memory:")
+        self.addCleanup(connection.close)
+        initialize_schema(connection)
+        self.assertIn("busy_timeout_ms", inspect.signature(save_analysis).parameters)
+
+        save_analysis(
+            connection,
+            subject="Delivery",
+            sender="customer@example.test",
+            analysis={"summary": "Customer asks about delivery."},
+            busy_timeout_ms=37,
+        )
+
+        timeout = connection.execute("PRAGMA busy_timeout").fetchone()[0]
+        self.assertEqual(timeout, 37)
+
     def test_save_analysis_persists_structured_result(self) -> None:
         connection = sqlite3.connect(":memory:")
         initialize_schema(connection)
