@@ -17,6 +17,10 @@ _ACTIVE_TAG_BLOCK = re.compile(
     r"<(?P<tag>script|object|embed|iframe)\b[^>]*>.*?</(?P=tag)\s*>",
     re.IGNORECASE | re.DOTALL,
 )
+_UNCLOSED_ACTIVE_TAG = re.compile(
+    r"<\s*(?:script|object|embed|iframe)\b[^>]*>[^|\r\n]*",
+    re.IGNORECASE,
+)
 _ACTIVE_TAG = re.compile(r"<\s*/?\s*(?:script|object|embed|iframe)\b[^>]*>", re.IGNORECASE)
 _ACTIVE_CONTENT_FIELD = re.compile(
     r"(?i)(?:\b(?:vba|macro(?:s)?|auto_?open|document_?open|workbook_?open|"
@@ -47,6 +51,12 @@ _LABELED_SECRET = re.compile(
     r"token|session(?:[-_ ]?id)?|credentials?|secret|key)"
     r"\b\s*[:=]\s*[^|\r\n]*"
 )
+_SAFE_BUSINESS_SUFFIX = re.compile(
+    r"[.!?]\s+(?P<business>(?:(?:PO|RFQ|invoice|part|qty|quantity|due|deadline|"
+    r"currency|date|USD|EUR|CNY|RMB|GBP|JPY|CAD|AUD)\b|"
+    r"\d{4}-\d{2}-\d{2}\b|[$€£¥]\s*\d)[^|\r\n]*)$",
+    re.IGNORECASE,
+)
 _AUTH_SECRET = re.compile(
     r"(?i)\b(?:bearer|basic)\b[^|\r\n]*"
 )
@@ -58,7 +68,12 @@ _PREFIXED_SECRET = re.compile(
     r"(?i)(?<![\w-])(?:sk|pk|xox[baprs]|ghp|github_pat|akia)[-_][A-Z0-9_-]{12,}"
 )
 _BASE64_LIKE = re.compile(
-    r"(?<![A-Z0-9+/_=-])[A-Z0-9+/_-]{32,}={0,2}(?![A-Z0-9+/_=-])",
+    r"(?<![A-Z0-9+/_=-])(?:[A-Z0-9+/_-]{32,}={0,2}|[A-Z0-9+/]{16,}={1,2})"
+    r"(?![A-Z0-9+/_=-])",
+    re.IGNORECASE,
+)
+_BUSINESS_ID_TOKEN = re.compile(
+    r"(?:PO|RFQ|INV|PN|PART)[-_/]?[A-Z0-9][A-Z0-9._/-]*",
     re.IGNORECASE,
 )
 _WINDOWS_PATH = re.compile(r"(?<!\w)[A-Z]:[\\/][^\s|,;]+", re.IGNORECASE)
@@ -69,11 +84,16 @@ _ROOTED_OR_DOT_PATH = re.compile(
     re.IGNORECASE,
 )
 _RELATIVE_PATH = re.compile(
-    r"(?<![\w@.-])(?:(?:[A-Z0-9._~-]+[\\/])+[A-Z0-9._~-]+\.[A-Z0-9]{1,10}|"
-    r"(?:[A-Z0-9._~-]+[\\/]){2,}[A-Z0-9._~-]+)",
+    r"(?<![\w@.-])(?:[A-Z0-9._~-]+[\\/])+[A-Z0-9._~-]+(?![\w.-])",
     re.IGNORECASE,
 )
 _DATE_PATH_SHAPE = re.compile(r"\d{1,4}/\d{1,2}/\d{1,4}")
+_CURRENCY_PAIR = re.compile(
+    r"(?:USD|EUR|CNY|RMB|GBP|JPY|CAD|AUD)/(?:USD|EUR|CNY|RMB|GBP|JPY|CAD|AUD)",
+    re.IGNORECASE,
+)
+_PART_SLASH_ID = re.compile(r"(?:PN|PART)/[A-Z0-9][A-Z0-9._-]{1,63}", re.IGNORECASE)
+_LETTER_RELATION = re.compile(r"(?:[A-Z]/){1,4}[A-Z]", re.IGNORECASE)
 _BUSINESS_LABELS = {
     "amount", "deadline", "due", "invoice", "part", "po", "price", "qty",
     "quantity", "rfq", "size", "total", "usd", "eur", "cny", "rmb",
@@ -121,10 +141,11 @@ def sanitize_remote_text(
     cleaned = _CONTROL_CHARACTERS.sub("", str(value or "")).replace("\r\n", "\n").replace("\r", "\n")
     cleaned, link_was_present = _remove_links(cleaned, link_marker)
     cleaned = _ACTIVE_TAG_BLOCK.sub(" ", cleaned)
+    cleaned = _UNCLOSED_ACTIVE_TAG.sub(" ", cleaned)
     cleaned = _ACTIVE_TAG.sub(" ", cleaned)
     cleaned = _ACTIVE_CONTENT_FIELD.sub(" ", cleaned)
     cleaned, emails = _protect_emails(cleaned)
-    cleaned = _LABELED_SECRET.sub(" ", cleaned)
+    cleaned = _LABELED_SECRET.sub(_remove_labeled_secret, cleaned)
     cleaned = _AUTH_SECRET.sub(" ", cleaned)
     cleaned = _JWT_SECRET.sub(" ", cleaned)
     cleaned = _PREFIXED_SECRET.sub(" ", cleaned)
@@ -205,14 +226,12 @@ def _marker(link_marker: str | None) -> str:
 
 def _remove_base64_like(match: re.Match[str]) -> str:
     value = match.group(0)
-    has_mixed_classes = any(char.islower() for char in value) and any(char.isupper() for char in value)
-    looks_encoded = has_mixed_classes and (
-        len(value) >= 40
-        or any(char.isdigit() for char in value)
-        or value.endswith("=")
-        or any(char in "+/_-" for char in value)
-    )
-    return " " if looks_encoded else value
+    return value if _BUSINESS_ID_TOKEN.fullmatch(value) else " "
+
+
+def _remove_labeled_secret(match: re.Match[str]) -> str:
+    suffix = _SAFE_BUSINESS_SUFFIX.search(match.group(0))
+    return suffix.group("business") if suffix else " "
 
 
 def _remove_rooted_path(match: re.Match[str]) -> str:
@@ -222,7 +241,14 @@ def _remove_rooted_path(match: re.Match[str]) -> str:
 
 def _remove_relative_path(match: re.Match[str]) -> str:
     value = match.group(0)
-    if _DATE_PATH_SHAPE.fullmatch(value) or not any(char.isalpha() for char in value):
+    slash_value = value.replace("\\", "/")
+    if (
+        _DATE_PATH_SHAPE.fullmatch(slash_value)
+        or _CURRENCY_PAIR.fullmatch(slash_value)
+        or _PART_SLASH_ID.fullmatch(slash_value)
+        or _LETTER_RELATION.fullmatch(slash_value)
+        or not any(char.isalpha() for char in slash_value)
+    ):
         return value
     return " "
 

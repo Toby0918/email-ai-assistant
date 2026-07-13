@@ -316,6 +316,98 @@ class AttachmentModelContextTests(unittest.TestCase):
             with self.subTest(expected=expected):
                 self.assertIn(expected, sanitized.text)
 
+    def test_all_uppercase_base64_is_removed_without_losing_business_ids(self) -> None:
+        raw = (
+            "QUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFB | "
+            "PO 1013970520 | Part PN-ABCDEFGHIJKLMNOPQRSTUVWXYZ123456"
+        )
+
+        sanitized = sanitize_remote_text(raw, max_characters=6_000)
+
+        self.assertNotIn("QUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFBQUFB", sanitized.text)
+        self.assertIn("PO 1013970520", sanitized.text)
+        self.assertIn("Part PN-ABCDEFGHIJKLMNOPQRSTUVWXYZ123456", sanitized.text)
+
+    def test_simple_relative_paths_are_removed_with_narrow_slash_business_allowlists(self) -> None:
+        path_cases = (
+            "private/quote",
+            "private/folder",
+            "team/private/quote",
+            r"private\quote",
+        )
+        for path in path_cases:
+            with self.subTest(path=path):
+                sanitized = sanitize_remote_text(
+                    f"{path} | PO 1013970520",
+                    max_characters=6_000,
+                )
+                self.assertNotIn(path, sanitized.text)
+                self.assertIn("PO 1013970520", sanitized.text)
+
+        business_cases = (
+            "PN/ABC-42",
+            "USD/EUR",
+            "A/B/C relation",
+            "2026/07/20",
+            "24/48 units",
+        )
+        for value in business_cases:
+            with self.subTest(value=value):
+                sanitized = sanitize_remote_text(value, max_characters=6_000)
+                self.assertEqual(sanitized.text, value)
+
+    def test_unclosed_active_tags_remove_payload_to_strong_boundary(self) -> None:
+        for tag in ("script", "object", "iframe", "embed"):
+            with self.subTest(tag=tag, boundary="pipe"):
+                sanitized = sanitize_remote_text(
+                    f"<{tag}>PRIVATE-{tag.upper()} | PO 1013970520",
+                    max_characters=6_000,
+                )
+                self.assertEqual(sanitized.text, "| PO 1013970520")
+
+            with self.subTest(tag=tag, boundary="newline"):
+                sanitized = sanitize_remote_text(
+                    f"<{tag}>PRIVATE-{tag.upper()}\nPO 1013970520",
+                    max_characters=6_000,
+                )
+                self.assertEqual(sanitized.text, "PO 1013970520")
+
+            with self.subTest(tag=tag, boundary="end"):
+                sanitized = sanitize_remote_text(
+                    f"<{tag}>PRIVATE-{tag.upper()}",
+                    max_characters=6_000,
+                )
+                self.assertEqual(sanitized.text, "")
+
+    def test_labeled_secrets_preserve_only_explicit_business_suffixes_after_sentence_boundaries(self) -> None:
+        preserved_cases = (
+            (
+                "password: PRIVATE. PO 1013970520 due 2026-07-20",
+                "PO 1013970520 due 2026-07-20",
+            ),
+            ("password: PRIVATE! RFQ RFQ-2026-001", "RFQ RFQ-2026-001"),
+            ("token=PRIVATE? invoice INV-7000001", "invoice INV-7000001"),
+            ("client_secret=PRIVATE. Part PN-ABC-42", "Part PN-ABC-42"),
+            ("key=PRIVATE. qty 24 pcs", "qty 24 pcs"),
+            ("session=PRIVATE. deadline 2026-07-20", "deadline 2026-07-20"),
+            ("password: PRIVATE. USD 1,250", "USD 1,250"),
+            ("password: PRIVATE. 2026-07-20 delivery", "2026-07-20 delivery"),
+        )
+        for raw, expected in preserved_cases:
+            with self.subTest(raw=raw):
+                sanitized = sanitize_remote_text(raw, max_characters=6_000)
+                self.assertEqual(sanitized.text, expected)
+                self.assertNotIn("PRIVATE", sanitized.text)
+
+        consumed_cases = (
+            "password: PRIVATE ONE TWO. ordinary follow-up",
+            "Cookie: session=COOKIE_ONE; auth=COOKIE_TWO. ordinary follow-up",
+            "token=PRIVATE? ordinary words PO 1013970520",
+        )
+        for raw in consumed_cases:
+            with self.subTest(raw=raw):
+                self.assertEqual(sanitize_remote_text(raw, 6_000).text, "")
+
 
 if __name__ == "__main__":
     unittest.main()
