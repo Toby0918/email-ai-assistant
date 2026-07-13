@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import multiprocessing
+import pickle
 import time
 from collections.abc import Callable
-from multiprocessing.connection import Connection
+from multiprocessing.connection import BUFSIZE, Connection
 from multiprocessing.context import BaseContext
 from typing import Any
 
@@ -50,6 +51,7 @@ _TIMEOUT_LIMITATION = "Attachment parsing timed out; content was not parsed."
 _WORKER_FAILURE_LIMITATION = "Attachment content could not be parsed in the isolated worker."
 _POLL_INTERVAL_SECONDS = 0.05
 _JOIN_TIMEOUT_SECONDS = 0.2
+_MAX_WORKER_MESSAGE_BYTES = BUFSIZE // 2
 
 _ALLOWED_SUFFIXES = {
     "pdf": {".pdf"},
@@ -101,11 +103,19 @@ def _attachment_worker(
     send_connection: Connection,
 ) -> None:
     try:
-        send_connection.send(_parse_one_bundle(item, source_id, deadline=deadline))
+        bundle = _parse_one_bundle(item, source_id, deadline=deadline)
+        payload = pickle.dumps(bundle, protocol=pickle.HIGHEST_PROTOCOL)
+        if len(payload) > _MAX_WORKER_MESSAGE_BYTES:
+            payload = pickle.dumps(
+                _metadata_only(item, _WORKER_FAILURE_LIMITATION),
+                protocol=pickle.HIGHEST_PROTOCOL,
+            )
+        if len(payload) <= _MAX_WORKER_MESSAGE_BYTES:
+            send_connection.send_bytes(payload)
     except Exception:
         return
     finally:
-        send_connection.close()
+        _safe_call(send_connection.close)
 
 
 def _parse_in_worker(
@@ -121,16 +131,18 @@ def _parse_in_worker(
     except Exception:
         return _metadata_only(item, _WORKER_FAILURE_LIMITATION), False
     process = None
-    started = False
+    start_attempted = False
     try:
         try:
             process = context.Process(
                 target=_attachment_worker,
                 args=(item, source_id, deadline, send_connection),
             )
+            if clock() >= deadline:
+                return _metadata_only(item, _TIMEOUT_LIMITATION), True
+            start_attempted = True
             process.start()
-            started = True
-            send_connection.close()
+            _safe_call(send_connection.close)
         except Exception:
             return _metadata_only(item, _WORKER_FAILURE_LIMITATION), False
         message, timed_out = _receive_message(process, receive_connection, deadline, clock)
@@ -144,11 +156,12 @@ def _parse_in_worker(
             return message, False
         return _metadata_only(item, _WORKER_FAILURE_LIMITATION), False
     finally:
-        if not send_connection.closed:
-            send_connection.close()
-        if started and process is not None and process.is_alive():
+        _safe_call(send_connection.close)
+        if start_attempted and process is not None and _process_alive(process) is not False:
             _stop_process(process)
-        receive_connection.close()
+        _safe_call(receive_connection.close)
+        if process is not None:
+            _safe_call(process.close)
 
 
 def _receive_message(
@@ -161,45 +174,44 @@ def _receive_message(
         remaining = deadline - clock()
         if remaining <= 0:
             return None, True
-        try:
-            if receive_connection.poll(min(_POLL_INTERVAL_SECONDS, remaining)):
-                if clock() >= deadline:
-                    return None, True
-                return receive_connection.recv(), False
-        except Exception:
+        if _process_alive(process) is False:
+            break
+        _safe_call(process.join, min(_POLL_INTERVAL_SECONDS, remaining))
+    try:
+        if clock() >= deadline:
+            return None, True
+        if not receive_connection.poll(0):
             return None, False
-        if not process.is_alive():
-            return None, False
+        payload = receive_connection.recv_bytes(_MAX_WORKER_MESSAGE_BYTES)
+        return pickle.loads(payload), False
+    except Exception:
+        return None, False
 
 
 def _finish_process(process: Any) -> None:
-    process.join(_JOIN_TIMEOUT_SECONDS)
-    if process.is_alive():
+    _safe_call(process.join, _JOIN_TIMEOUT_SECONDS)
+    if _process_alive(process) is not False:
         _stop_process(process)
 
 
 def _stop_process(process: Any) -> None:
+    _safe_call(process.terminate)
+    _safe_call(process.join, _JOIN_TIMEOUT_SECONDS)
+    if _process_alive(process) is not False:
+        _safe_call(process.kill)
+        _safe_call(process.join, _JOIN_TIMEOUT_SECONDS)
+
+
+def _process_alive(process: Any) -> bool | None:
+    value = _safe_call(process.is_alive)
+    return value if isinstance(value, bool) else None
+
+
+def _safe_call(operation: Callable[..., object], *args: object) -> object | None:
     try:
-        process.terminate()
+        return operation(*args)
     except Exception:
-        pass
-    try:
-        process.join(_JOIN_TIMEOUT_SECONDS)
-    except Exception:
-        pass
-    try:
-        alive = process.is_alive()
-    except Exception:
-        alive = False
-    if alive:
-        try:
-            process.kill()
-        except Exception:
-            pass
-        try:
-            process.join(_JOIN_TIMEOUT_SECONDS)
-        except Exception:
-            pass
+        return None
 
 
 def _parse_one_bundle(

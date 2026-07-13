@@ -4,13 +4,15 @@ from __future__ import annotations
 
 import multiprocessing
 import os
+import pickle
 import time
 import unittest
 from datetime import UTC, datetime, timedelta
-from multiprocessing.connection import Connection
+from multiprocessing.connection import BUFSIZE, Connection
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any, Callable
+from unittest.mock import patch
 
 from backend.email_agent import attachment_parser
 from backend.email_agent.attachment_model_context import (
@@ -162,6 +164,9 @@ class _TrackedProcess:
         self.join_timeouts: list[float | None] = []
         self.terminate_calls = 0
         self.kill_calls = 0
+        self.close_calls = 0
+        self._closed_alive = False
+        self._closed_exitcode: int | None = None
 
     def start(self) -> None:
         self._process.start()
@@ -171,6 +176,8 @@ class _TrackedProcess:
         self._process.join(timeout)
 
     def is_alive(self) -> bool:
+        if self.close_calls:
+            return self._closed_alive
         return self._process.is_alive()
 
     def terminate(self) -> None:
@@ -182,12 +189,20 @@ class _TrackedProcess:
         self.kill_calls += 1
         self._process.kill()
 
+    def close(self) -> None:
+        self.close_calls += 1
+        self._closed_alive = self._process.is_alive()
+        self._closed_exitcode = self._process.exitcode
+        self._process.close()
+
     @property
     def pid(self) -> int | None:
         return self._process.pid
 
     @property
     def exitcode(self) -> int | None:
+        if self.close_calls:
+            return self._closed_exitcode
         return self._process.exitcode
 
 
@@ -224,6 +239,7 @@ class _SpawnContextWrapper:
 class _StartFailureProcess:
     def __init__(self) -> None:
         self.start_calls = 0
+        self.close_calls = 0
 
     def start(self) -> None:
         self.start_calls += 1
@@ -231,6 +247,9 @@ class _StartFailureProcess:
 
     def is_alive(self) -> bool:
         return False
+
+    def close(self) -> None:
+        self.close_calls += 1
 
 
 class _StartFailureContext:
@@ -274,7 +293,342 @@ class _ConstructionFailureContext:
             send_connection.close()
 
 
+class _ReadyConnection:
+    def __init__(self) -> None:
+        self.poll_calls = 0
+        self.recv_calls = 0
+
+    def poll(self, _timeout: float = 0.0) -> bool:
+        self.poll_calls += 1
+        return True
+
+    def recv(self) -> object:
+        self.recv_calls += 1
+        return object()
+
+    def recv_bytes(self, _maxlength: int | None = None) -> bytes:
+        self.recv_calls += 1
+        return b""
+
+
+class _AlwaysAliveProcess:
+    def __init__(self) -> None:
+        self.join_timeouts: list[float | None] = []
+
+    def is_alive(self) -> bool:
+        return True
+
+    def join(self, timeout: float | None = None) -> None:
+        self.join_timeouts.append(timeout)
+
+
+class _CaptureSendConnection:
+    def __init__(self) -> None:
+        self.sent_objects: list[object] = []
+        self.sent_bytes: list[bytes] = []
+        self.close_calls = 0
+
+    def send(self, value: object) -> None:
+        self.sent_objects.append(value)
+
+    def send_bytes(self, value: bytes) -> None:
+        self.sent_bytes.append(value)
+
+    def close(self) -> None:
+        self.close_calls += 1
+
+
+class _DeadlineBeforeStartProcess:
+    def __init__(self) -> None:
+        self.start_calls = 0
+        self.close_calls = 0
+
+    def start(self) -> None:
+        self.start_calls += 1
+
+    def is_alive(self) -> bool:
+        return False
+
+    def close(self) -> None:
+        self.close_calls += 1
+
+
+class _DeadlineBeforeStartContext:
+    def __init__(self) -> None:
+        self._context = multiprocessing.get_context("spawn")
+        self.processes: list[_DeadlineBeforeStartProcess] = []
+        self.pipes: list[tuple[Connection, Connection]] = []
+
+    def Pipe(self, duplex: bool = True) -> tuple[Connection, Connection]:
+        pipe = self._context.Pipe(duplex=duplex)
+        self.pipes.append(pipe)
+        return pipe
+
+    def Process(self, *, target: Callable[..., None], args: tuple[Any, ...]) -> _DeadlineBeforeStartProcess:
+        del target, args
+        process = _DeadlineBeforeStartProcess()
+        self.processes.append(process)
+        return process
+
+
+class _RaiseAfterStartProcess(_TrackedProcess):
+    def start(self) -> None:
+        self._process.start()
+        raise OSError(r"C:\private\post-start-secret")
+
+    def force_cleanup(self) -> None:
+        try:
+            alive = self._process.is_alive()
+        except ValueError:
+            return
+        if alive:
+            self._process.terminate()
+        self._process.join(1)
+        try:
+            self._process.close()
+        except ValueError:
+            pass
+
+
+class _RaiseAfterStartContext(_SpawnContextWrapper):
+    def Process(self, *, target: Callable[..., None], args: tuple[Any, ...]) -> _RaiseAfterStartProcess:
+        del target
+        self.worker_deadlines.append(args[2])
+        process = _RaiseAfterStartProcess(
+            self._context.Process(target=_hang_target, args=args),
+        )
+        self.processes.append(process)
+        return process
+
+
+class _CloseRaisingConnection:
+    def __init__(self, connection: Connection) -> None:
+        self._connection = connection
+        self.close_calls = 0
+
+    @property
+    def closed(self) -> bool:
+        return self._connection.closed
+
+    def close(self) -> None:
+        self.close_calls += 1
+        self._connection.close()
+        raise OSError(r"C:\private\close-secret")
+
+    def poll(self, timeout: float = 0.0) -> bool:
+        return self._connection.poll(timeout)
+
+    def recv_bytes(self, maxlength: int | None = None) -> bytes:
+        return self._connection.recv_bytes(maxlength)
+
+
+class _CleanupErrorProcess:
+    def __init__(self) -> None:
+        self.start_calls = 0
+        self.join_calls = 0
+        self.is_alive_calls = 0
+        self.terminate_calls = 0
+        self.kill_calls = 0
+        self.close_calls = 0
+
+    def start(self) -> None:
+        self.start_calls += 1
+
+    def join(self, _timeout: float | None = None) -> None:
+        self.join_calls += 1
+        raise OSError(r"C:\private\join-secret")
+
+    def is_alive(self) -> bool:
+        self.is_alive_calls += 1
+        raise AssertionError("private liveness state")
+
+    def terminate(self) -> None:
+        self.terminate_calls += 1
+        raise OSError(r"C:\private\terminate-secret")
+
+    def kill(self) -> None:
+        self.kill_calls += 1
+        raise AssertionError("private kill state")
+
+    def close(self) -> None:
+        self.close_calls += 1
+        raise OSError(r"C:\private\process-close-secret")
+
+
+class _CleanupErrorContext:
+    def __init__(self) -> None:
+        self._context = multiprocessing.get_context("spawn")
+        self.processes: list[_CleanupErrorProcess] = []
+        self.pipes: list[tuple[_CloseRaisingConnection, _CloseRaisingConnection]] = []
+
+    def Pipe(self, duplex: bool = True) -> tuple[_CloseRaisingConnection, _CloseRaisingConnection]:
+        receive_connection, send_connection = self._context.Pipe(duplex=duplex)
+        wrapped = (
+            _CloseRaisingConnection(receive_connection),
+            _CloseRaisingConnection(send_connection),
+        )
+        self.pipes.append(wrapped)
+        return wrapped
+
+    def Process(self, *, target: Callable[..., None], args: tuple[Any, ...]) -> _CleanupErrorProcess:
+        del target, args
+        process = _CleanupErrorProcess()
+        self.processes.append(process)
+        return process
+
+    def cleanup(self) -> None:
+        for receive_connection, send_connection in self.pipes:
+            for connection in (receive_connection, send_connection):
+                if not connection.closed:
+                    connection._connection.close()
+
+
 class AttachmentParserProcessTests(unittest.TestCase):
+    def test_receive_never_reads_a_ready_pipe_while_process_is_alive(self) -> None:
+        process = _AlwaysAliveProcess()
+        connection = _ReadyConnection()
+        clock_values = iter((99.0, 101.0))
+
+        message, timed_out = attachment_parser._receive_message(
+            process,
+            connection,
+            100.0,
+            lambda: next(clock_values),
+        )
+
+        self.assertTrue(timed_out)
+        self.assertIsNone(message)
+        self.assertEqual(connection.recv_calls, 0)
+        self.assertGreaterEqual(len(process.join_timeouts), 1)
+
+    def test_worker_message_limit_is_strictly_below_pipe_capacity(self) -> None:
+        limit = getattr(attachment_parser, "_MAX_WORKER_MESSAGE_BYTES", None)
+
+        self.assertIsInstance(limit, int)
+        self.assertGreater(limit, 0)
+        self.assertLess(limit, BUFSIZE)
+
+    def test_worker_sends_only_bounded_serialized_bytes(self) -> None:
+        with TemporaryDirectory() as directory:
+            item = self._item(directory, "oversized.pdf")
+            oversized = AttachmentAnalysisBundle(
+                _display(item),
+                AttachmentModelCandidate("attachment:0", "X" * (BUFSIZE * 2)),
+            )
+            connection = _CaptureSendConnection()
+
+            with patch.object(attachment_parser, "_parse_one_bundle", return_value=oversized):
+                attachment_parser._attachment_worker(
+                    item,
+                    "attachment:0",
+                    time.monotonic() + 3,
+                    connection,
+                )
+
+        self.assertEqual(connection.sent_objects, [])
+        self.assertEqual(len(connection.sent_bytes), 1)
+        self.assertLessEqual(
+            len(connection.sent_bytes[0]),
+            attachment_parser._MAX_WORKER_MESSAGE_BYTES,
+        )
+        transferred = pickle.loads(connection.sent_bytes[0])
+        self.assertEqual(transferred.display_insight["status"], "metadata_only")
+        self.assertIsNone(transferred.model_candidate)
+        self.assertEqual(connection.close_calls, 1)
+
+    def test_deadline_expiring_during_construction_prevents_start(self) -> None:
+        with TemporaryDirectory() as directory:
+            items = [
+                self._item(directory, f"construction-deadline-{index}.pdf")
+                for index in range(3)
+            ]
+            context = _DeadlineBeforeStartContext()
+            clock_values = [99.0, 101.0]
+
+            result = self._parse_bundles(
+                items,
+                deadline=100.0,
+                mp_context=context,
+                clock=lambda: clock_values.pop(0) if clock_values else 101.0,
+            )
+
+        self.assertEqual(len(result), 3)
+        self.assertTrue(all(
+            bundle.display_insight["limitations"] == [TIMEOUT_LIMITATION]
+            for bundle in result
+        ))
+        self.assertEqual(len(context.processes), 1)
+        self.assertEqual(context.processes[0].start_calls, 0)
+        self.assertEqual(context.processes[0].close_calls, 1)
+        self._assert_all_pipes_closed(context.pipes)
+
+    def test_live_child_is_cleaned_when_start_raises_after_spawning(self) -> None:
+        with TemporaryDirectory() as directory:
+            item = self._item(directory, "post-start-failure.pdf")
+            context = _RaiseAfterStartContext(_hang_target)
+            try:
+                result = self._parse_bundles(
+                    [item],
+                    deadline=time.monotonic() + 3,
+                    mp_context=context,
+                )
+
+                process = context.processes[0]
+                self.assertEqual(
+                    result[0].display_insight["limitations"],
+                    [WORKER_FAILURE_LIMITATION],
+                )
+                self.assertFalse(process.is_alive())
+                self.assertGreaterEqual(process.terminate_calls, 1)
+                self.assertEqual(process.close_calls, 1)
+                self._assert_all_pipes_closed(context.pipes)
+            finally:
+                for process in context.processes:
+                    process.force_cleanup()
+
+    def test_cleanup_errors_never_escape_or_replace_safe_timeout(self) -> None:
+        with TemporaryDirectory() as directory:
+            item = self._item(directory, "cleanup-errors.pdf")
+            context = _CleanupErrorContext()
+            clock_values = [99.0, 99.0, 99.0, 101.0]
+            try:
+                try:
+                    result = self._parse_bundles(
+                        [item],
+                        deadline=100.0,
+                        mp_context=context,
+                        clock=lambda: clock_values.pop(0) if clock_values else 101.0,
+                    )
+                except (OSError, AssertionError) as exc:
+                    self.fail(f"cleanup error escaped: {type(exc).__name__}")
+
+                process = context.processes[0]
+                self.assertEqual(result[0].display_insight["limitations"], [TIMEOUT_LIMITATION])
+                self.assertGreaterEqual(process.join_calls, 1)
+                self.assertGreaterEqual(process.is_alive_calls, 1)
+                self.assertGreaterEqual(process.terminate_calls, 1)
+                self.assertGreaterEqual(process.kill_calls, 1)
+                self.assertEqual(process.close_calls, 1)
+                self._assert_all_pipes_closed(context.pipes)
+            finally:
+                context.cleanup()
+
+    def test_default_spawn_uses_production_worker_and_returns_validated_bundle(self) -> None:
+        with TemporaryDirectory() as directory:
+            item = self._item(directory, "wrong.txt")
+            baseline_pids = {child.pid for child in multiprocessing.active_children()}
+
+            result = attachment_parser.parse_attachment_bundles(
+                [item],
+                deadline=time.monotonic() + 5,
+            )
+
+        self.assertEqual(result[0].display_insight["status"], "metadata_only")
+        self.assertIn("Only .pdf files", result[0].display_insight["limitations"][0])
+        self.assertIsNone(result[0].model_candidate)
+        active_pids = {child.pid for child in multiprocessing.active_children()}
+        self.assertFalse(active_pids - baseline_pids)
+
     def test_spawned_hanging_worker_is_terminated_killed_joined_and_closed(self) -> None:
         with TemporaryDirectory() as directory:
             item = self._item(directory, "hanging.pdf")
@@ -297,6 +651,7 @@ class AttachmentParserProcessTests(unittest.TestCase):
             self.assertEqual(process.terminate_calls, 1)
             self.assertEqual(process.kill_calls, 1)
             self.assertGreaterEqual(len(process.join_timeouts), 2)
+            self.assertEqual(process.close_calls, 1)
             self.assertFalse(process.is_alive())
             self.assertIsNotNone(process.exitcode)
             self._assert_all_pipes_closed(context.pipes)
@@ -329,6 +684,7 @@ class AttachmentParserProcessTests(unittest.TestCase):
             self.assertEqual(len(context.processes), 2)
             self.assertEqual(context.worker_deadlines, [deadline, deadline])
             self.assertTrue(all(not process.is_alive() for process in context.processes))
+            self.assertTrue(all(process.close_calls == 1 for process in context.processes))
             self._assert_all_pipes_closed(context.pipes)
 
     def test_expired_before_start_returns_safe_result_without_creating_process(self) -> None:
@@ -379,6 +735,7 @@ class AttachmentParserProcessTests(unittest.TestCase):
                 self.assertIsNone(result[0].model_candidate)
                 self.assertNotIn("private", repr(result).lower())
                 self.assertTrue(all(not process.is_alive() for process in context.processes))
+                self.assertEqual(context.processes[0].close_calls, 1)
                 self._assert_all_pipes_closed(context.pipes)
 
     def test_start_failure_is_fixed_safe_failure_and_closes_endpoints(self) -> None:
@@ -399,6 +756,7 @@ class AttachmentParserProcessTests(unittest.TestCase):
             self.assertIsNone(result[0].model_candidate)
             self.assertNotIn("spawn-secret", repr(result))
             self.assertEqual(context.processes[0].start_calls, 1)
+            self.assertEqual(context.processes[0].close_calls, 1)
             self._assert_all_pipes_closed(context.pipes)
 
     def test_pipe_and_process_creation_failures_are_fixed_safe_failures(self) -> None:
