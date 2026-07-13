@@ -160,6 +160,50 @@ class DeepSeekDocumentationContractTests(unittest.TestCase):
             with self.subTest(path=relative):
                 self.assertTrue(urls.issubset(ALLOWED_DEEPSEEK_SOURCES), urls)
 
+    def test_active_provider_constraints_include_backend_only_deepseek(self) -> None:
+        expected_markers = {
+            "AGENTS.md": (
+                "AI 调用可以是后端 DeepSeek 专用 provider",
+                "不允许直接调用 DeepSeek API",
+                "OpenAI/DeepSeek API key",
+                "EMAIL_AGENT_LLM_PROVIDER=disabled",
+                "EMAIL_AGENT_DEEPSEEK_OUTPUT_MODE=conservative",
+                "persistent pre-click disclosure",
+            ),
+            "docs/constraints/architecture_constraints.md": (
+                "后端 DeepSeek 专用 provider",
+                "frontend -> DeepSeek",
+                "前端禁止直接调用 DeepSeek API",
+                "允许的 provider 是规则兜底、DeepSeek 专用 provider",
+                "DeepSeek API key",
+            ),
+            "docs/constraints/linter_constraints.md": (
+                "前端禁止云端/本地模型 provider 直接调用",
+                "DEEPSEEK_API_KEY",
+                "api.deepseek.com",
+                "DeepSeek SDK",
+                "DeepSeek API key",
+            ),
+            "docs/security/api_key_rules.md": (
+                "DeepSeek API key 只能存放在 Python 后端",
+                "DEEPSEEK_API_KEY",
+                "api.deepseek.com",
+                "固定后端端点",
+                "前端不得直接调用 DeepSeek API",
+            ),
+            "docs/security/privacy_rules.md": (
+                "DeepSeek 外部处理",
+                "persistent pre-click disclosure",
+                "no zero-retention guarantee",
+                "email_data_handling.md",
+            ),
+        }
+        for relative, markers in expected_markers.items():
+            text = self._read(relative)
+            for marker in markers:
+                with self.subTest(path=relative, marker=marker):
+                    self.assertIn(marker, text)
+
 
 if __name__ == "__main__":
     unittest.main()

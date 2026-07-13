@@ -42,7 +42,7 @@ source_type: security_policy
 - DeepSeek 路线最多进行一次 provider call，SDK retry 为 0；失败后不尝试 Ollama。立即 operational rollback 可设置 `EMAIL_AGENT_LLM_PROVIDER=disabled`，字段权限 rollback 可设置 `EMAIL_AGENT_DEEPSEEK_OUTPUT_MODE=conservative`，两者都需重启后端配置生效。
 - 后端只发送 current visible thread 以及当前可见受支持附件的有界、清洗后文本；不发送附件二进制/base64、任何 URL、cookie、authorization、token、本地路径、active content 或无界原文。
 - 所有 provider-authored 文本族在公开合并前使用同一安全策略；链接/markup、命令/工具、自动邮箱动作，以及第一人称或被动/名词化的价格、交期、付款、合同、质量、法律承诺都必须回落。请求、疑问、否定和人工复核措辞不应误报。
-- 前端不得直接调用 OpenAI、Ollama、Qwen 或其他模型端点。
+- 前端不得直接调用 DeepSeek、OpenAI、Ollama、Qwen 或其他模型端点。
 - 前端不得在用户点击前收集或传输资源；受支持资源的校验、解析和 OCR 仅可在后端执行。
 
 ## 远程处理告知与外部保留风险

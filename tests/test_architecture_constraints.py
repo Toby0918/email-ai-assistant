@@ -26,12 +26,15 @@ ROOT = Path(__file__).resolve().parents[1]
 
 FRONTEND_FORBIDDEN_PATTERNS = {
     "openai_api_key": r"OPENAI_API_KEY",
+    "deepseek_api_key": r"\bDEEPSEEK_API_KEY\b",
     "openai_secret_key": r"\bsk-[A-Za-z0-9_-]{10,}",
     "openai_base_url": r"api\.openai\.com",
+    "deepseek_base_url": r"api\.deepseek\.com",
     "openai_responses_api": r"/v1/responses",
     "openai_chat_api": r"/v1/chat/completions",
     "new_openai_client": r"new\s+OpenAI\s*\(",
     "openai_import": r"from\s+['\"]openai['\"]|require\(['\"]openai['\"]\)",
+    "deepseek_import": r"from\s+['\"]deepseek['\"]|require\(['\"]deepseek['\"]\)",
     "ollama_host": r"127\.0\.0\.1:11434|localhost:11434",
     "ollama_generate_api": r"/api/generate",
     "ollama_chat_api": r"/api/chat",
@@ -76,6 +79,22 @@ def parse_import_roots(path: Path) -> set[str]:
 
 
 class ArchitectureConstraintTests(unittest.TestCase):
+    def test_frontend_provider_guard_covers_deepseek_direct_access(self) -> None:
+        samples = {
+            "DeepSeek API key": "const key = DEEPSEEK_API_KEY;",
+            "DeepSeek API host": "https://api.deepseek.com/chat/completions",
+            "DeepSeek SDK import": 'import client from "deepseek";',
+        }
+        for label, sample in samples.items():
+            with self.subTest(label=label):
+                self.assertTrue(
+                    any(
+                        re.search(pattern, sample, re.IGNORECASE)
+                        for pattern in FRONTEND_FORBIDDEN_PATTERNS.values()
+                    ),
+                    f"Architecture guard does not reject {label}.",
+                )
+
     def test_forbidden_repository_files_are_not_unignored(self) -> None:
         for path in iter_project_files(ROOT):
             name = path.name.lower()

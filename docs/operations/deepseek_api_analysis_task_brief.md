@@ -291,6 +291,12 @@ Final review fix wave (2026-07-13):
 - Offline evaluator CLI exited 0 with the exact report above. Maintenance scan exited 0 with no cleanup findings, and `git diff --check` exited 0.
 - Detailed RED/GREEN and final verification evidence is recorded in `.superpowers/sdd/final-review-fix-report.md`.
 
+Independent full-branch review constraint follow-up (2026-07-13):
+- One Important documentation/guard inconsistency was confirmed after the eight runtime fixes: DeepSeek existed in the backend route and ADR, but `AGENTS.md`, active architecture/linter constraints, and adjacent key/privacy rules still described only OpenAI/local providers.
+- `AGENTS.md`, architecture/linter constraints, API-key/privacy/email-data policies, and both generic frontend provider scanners now explicitly enforce backend-only DeepSeek key, fixed endpoint, no frontend SDK/direct call, disabled/conservative defaults, persistent pre-click disclosure, and no zero-retention claim.
+- No third-party DeepSeek SDK or configurable remote base URL was added; the pinned `openai==2.45.0` OpenAI-compatible client and code-fixed backend endpoint remain the only DeepSeek transport.
+- The first documentation/static TDD probe failed with 16 missing assertions; the adjacent security/architecture probe failed with 15 assertions. After the bounded sync, both probes passed, and the combined documentation/static/architecture/browser/mechanical guard passed 65 tests in 9.099 seconds.
+
 Rollback flags and release state:
 - EMAIL_AGENT_LLM_PROVIDER=disabled restores rule-only behavior and remains the default.
 - EMAIL_AGENT_DEEPSEEK_OUTPUT_MODE=conservative disables model-led consequential fields independently and remains the default.

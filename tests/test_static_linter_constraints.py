@@ -32,12 +32,15 @@ ALLOWED_PRINT_FILES: set[str] = set()
 
 FORBIDDEN_FRONTEND_PATTERNS = {
     "OpenAI API key in frontend": r"OPENAI_API_KEY",
+    "DeepSeek API key in frontend": r"\bDEEPSEEK_API_KEY\b",
     "OpenAI secret key literal in frontend": r"\bsk-[A-Za-z0-9_-]{10,}",
     "OpenAI API host in frontend": r"api\.openai\.com",
+    "DeepSeek API host in frontend": r"api\.deepseek\.com",
     "OpenAI responses endpoint in frontend": r"/v1/responses",
     "OpenAI chat endpoint in frontend": r"/v1/chat/completions",
     "OpenAI JS client in frontend": r"new\s+OpenAI\s*\(",
     "OpenAI package import in frontend": r"from\s+['\"]openai['\"]|require\(['\"]openai['\"]\)",
+    "DeepSeek package import in frontend": r"from\s+['\"]deepseek['\"]|require\(['\"]deepseek['\"]\)",
     "Ollama host in frontend": r"127\.0\.0\.1:11434|localhost:11434",
     "Ollama generate endpoint in frontend": r"/api/generate",
     "Ollama chat endpoint in frontend": r"/api/chat",
@@ -94,6 +97,22 @@ class PrintCallVisitor(ast.NodeVisitor):
 
 
 class StaticLinterConstraintTests(unittest.TestCase):
+    def test_frontend_provider_guard_covers_deepseek_direct_access(self) -> None:
+        samples = {
+            "DeepSeek API key": "const key = DEEPSEEK_API_KEY;",
+            "DeepSeek API host": "https://api.deepseek.com/chat/completions",
+            "DeepSeek SDK import": 'import client from "deepseek";',
+        }
+        for label, sample in samples.items():
+            with self.subTest(label=label):
+                self.assertTrue(
+                    any(
+                        re.search(pattern, sample, re.IGNORECASE)
+                        for pattern in FORBIDDEN_FRONTEND_PATTERNS.values()
+                    ),
+                    f"Frontend guard does not reject {label}.",
+                )
+
     def test_deepseek_reuses_pinned_openai_sdk_without_remote_base_url_configuration(self) -> None:
         requirements = read_text(ROOT / "requirements.txt")
         tooling = read_text(ROOT / "docs" / "constraints" / "tooling_constraints.md")

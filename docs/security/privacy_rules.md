@@ -1,5 +1,5 @@
 ﻿---
-last_update: 2026-06-29
+last_update: 2026-07-13
 status: draft
 owner: "@tobyWang"
 review_cycle: monthly
@@ -22,6 +22,7 @@ source_type: security_policy
 - 不读取未授权邮件。
 - 不采集与分析无关的个人信息。
 - 可选本地 Ollama/Qwen 只允许在后端处理当前邮件内容；不得把模型端点暴露给前端。
+- DeepSeek 外部处理只允许在用户点击后由后端发送当前可见线程和有界、清洗后的受支持附件文本；必须保留 persistent pre-click disclosure，并明确 no zero-retention guarantee。完整边界见 `docs/security/email_data_handling.md`。
 
 ## 展示规则
 

@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-11
+last_update: 2026-07-13
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -20,7 +20,7 @@ source_type: operation_guide
 - 后端业务代码使用裸 `print()`。
 - 后端业务代码使用 `traceback.print_exc()`。
 - 出现裸 `except:`。
-- 前端出现 OpenAI API key、OpenAI 直接调用、Ollama/Qwen/Gemma 直接调用、本地模型端点或 `.env` 访问。
+- 前端出现 OpenAI/DeepSeek API key、DeepSeek/OpenAI 直接调用、Ollama/Qwen/Gemma 直接调用、本地模型端点或 `.env` 访问。
 - 前端出现自动发送、删除、归档、移动、转发或回复邮件的高风险调用。
 - 项目中出现疑似真实密钥、token 或数据库文件。
 - `docs/` 下 Markdown 文件缺少 YAML front matter。
@@ -122,19 +122,23 @@ except ValueError as exc:
     raise
 ```
 
-## 6. 前端禁止 OpenAI 直接调用
+## 6. 前端禁止云端/本地模型 provider 直接调用
 
 前端不得出现以下内容：
 
 ```text
 OPENAI_API_KEY
+DEEPSEEK_API_KEY
 sk-
 api.openai.com
+api.deepseek.com
 /v1/responses
 /v1/chat/completions
 new OpenAI(...)
 require("openai")
 from "openai"
+require("deepseek")
+from "deepseek"
 127.0.0.1:11434
 localhost:11434
 /api/generate
@@ -146,7 +150,7 @@ process.env
 .env
 ```
 
-OpenAI API key 和本地 Ollama/Qwen/Gemma 配置只能存在后端环境变量中，由后端 `llm_client.py` 使用。
+OpenAI/DeepSeek API key 和本地 Ollama/Qwen/Gemma 配置只能存在后端环境变量中，由后端 `llm_client.py` 使用。前端禁止引入 OpenAI 或 third-party DeepSeek SDK，也禁止配置或调用任何远程模型端点。
 
 ## 7. 前端禁止高风险邮箱动作
 
@@ -204,6 +208,7 @@ password = "..."
 
 ```text
 OPENAI_API_KEY=your_api_key_here
+DEEPSEEK_API_KEY=your_deepseek_api_key_here
 ```
 
 ## 9. 依赖精确版本冲突检查
