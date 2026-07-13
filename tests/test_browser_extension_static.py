@@ -7,10 +7,45 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-EXTENSION = ROOT / "frontend" / "browser_extension"
+FRONTEND = ROOT / "frontend"
+EXTENSION = FRONTEND / "browser_extension"
+REMOTE_PROCESSING_NOTICE = (
+    "After you click Analyze, a configured remote AI provider receives only the current visible "
+    "message/thread within configured limits and text extracted from supported visible attachments."
+)
+
+
+def all_frontend_source() -> str:
+    return "\n".join(
+        path.read_text(encoding="utf-8")
+        for path in FRONTEND.rglob("*")
+        if path.is_file()
+    )
 
 
 class BrowserExtensionStaticTests(unittest.TestCase):
+    def test_popup_shows_remote_processing_notice_before_analyze_click(self) -> None:
+        page = (EXTENSION / "popup.html").read_text(encoding="utf-8")
+        script = (EXTENSION / "popup.js").read_text(encoding="utf-8")
+
+        self.assertIn('id="remote-processing-notice"', page)
+        self.assertIn(REMOTE_PROCESSING_NOTICE, page)
+        self.assertLess(
+            page.index('id="remote-processing-notice"'),
+            page.index('id="analyze-button"'),
+        )
+        notice_start = page.index('<p id="remote-processing-notice"')
+        notice_tag = page[notice_start : page.index(">", notice_start)]
+        self.assertNotIn("hidden", notice_tag)
+        self.assertNotIn("aria-hidden", notice_tag)
+        self.assertNotIn("remote-processing-notice", script)
+
+    def test_frontend_never_contains_deepseek_key_or_direct_endpoint(self) -> None:
+        source = all_frontend_source()
+
+        self.assertNotIn("DEEPSEEK_API_KEY", source)
+        self.assertNotIn("api.deepseek.com", source)
+
     def test_tencent_exmail_route_decision_is_documented(self) -> None:
         adr = (ROOT / "docs" / "decisions" / "adr_0002_frontend_route.md").read_text(encoding="utf-8")
         roadmap = (ROOT / "docs" / "product" / "roadmap.md").read_text(encoding="utf-8")

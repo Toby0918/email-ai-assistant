@@ -12,9 +12,76 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 EXTENSION = ROOT / "frontend" / "browser_extension"
+API_CLIENT = EXTENSION / "shared" / "api_client.js"
+RESOURCE_COLLECTOR = EXTENSION / "content" / "current_message_collector.js"
 
 
 class BrowserExtensionTask6ContractTests(unittest.TestCase):
+    def test_analysis_post_wait_is_35_seconds_and_resource_collection_stays_20_seconds(self) -> None:
+        api_source = API_CLIENT.read_text(encoding="utf-8")
+        collector_source = RESOURCE_COLLECTOR.read_text(encoding="utf-8")
+
+        self.assertIn("MAX_ANALYZE_TIMEOUT_MS = 35000", api_source)
+        self.assertIn("MAX_OVERALL_RESOURCE_TIMEOUT_MS = 20000", collector_source)
+        self.assertNotIn("RESOURCE_COLLECTION_TIMEOUT_MS", api_source)
+
+    def test_analysis_timeout_overrides_keep_small_values_and_cap_large_values(self) -> None:
+        if shutil.which("node") is None:
+            self.skipTest("Node.js is required for browser extension behavior tests")
+
+        script = textwrap.dedent(
+            r"""
+            const fs = require("fs");
+            const vm = require("vm");
+            const source = fs.readFileSync(__API_CLIENT_PATH__, "utf8");
+            const requestedDelays = [];
+            const context = {
+              AbortController,
+              setTimeout: (_callback, delay) => {
+                requestedDelays.push(delay);
+                return requestedDelays.length;
+              },
+              clearTimeout: () => {},
+              fetch: async () => ({
+                ok: true,
+                status: 200,
+                json: async () => ({ ok: true }),
+              }),
+            };
+            context.window = context;
+            vm.runInNewContext(source, context, { filename: "api_client.js" });
+
+            (async () => {
+              const email = {
+                subject: "Synthetic",
+                from: "sender@example.test",
+                body_text: "Synthetic body",
+              };
+              await context.EmailAssistantApi.analyzeCurrentEmail(email);
+              await context.EmailAssistantApi.analyzeCurrentEmail(email, { timeoutMs: 40000 });
+              await context.EmailAssistantApi.analyzeCurrentEmail(email, { timeoutMs: 17 });
+              const expected = [35000, 35000, 17];
+              if (JSON.stringify(requestedDelays) !== JSON.stringify(expected)) {
+                throw new Error(`unexpected analysis waits: ${JSON.stringify(requestedDelays)}`);
+              }
+            })().catch((error) => {
+              console.error(error && error.stack ? error.stack : error);
+              process.exitCode = 1;
+            });
+            """
+        ).replace("__API_CLIENT_PATH__", json.dumps(str(API_CLIENT)))
+
+        result = subprocess.run(
+            ["node", "-e", script],
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=10,
+        )
+        if result.returncode != 0:
+            self.fail(result.stderr or result.stdout)
+
     def test_manifest_loads_collector_before_adapter_with_bounded_permissions(self) -> None:
         manifest = json.loads((EXTENSION / "manifest.json").read_text(encoding="utf-8"))
         script = manifest["content_scripts"][0]
@@ -34,7 +101,6 @@ class BrowserExtensionTask6ContractTests(unittest.TestCase):
         if shutil.which("node") is None:
             self.skipTest("Node.js is required for browser extension behavior tests")
 
-        api_client = EXTENSION / "shared" / "api_client.js"
         script = textwrap.dedent(
             r"""
             const fs = require("fs");
@@ -137,7 +203,7 @@ class BrowserExtensionTask6ContractTests(unittest.TestCase):
               process.exitCode = 1;
             });
             """
-        ).replace("__API_CLIENT_PATH__", json.dumps(str(api_client)))
+        ).replace("__API_CLIENT_PATH__", json.dumps(str(API_CLIENT)))
 
         result = subprocess.run(
             ["node", "-e", script],
@@ -154,7 +220,6 @@ class BrowserExtensionTask6ContractTests(unittest.TestCase):
         if shutil.which("node") is None:
             self.skipTest("Node.js is required for browser extension behavior tests")
 
-        api_client = EXTENSION / "shared" / "api_client.js"
         script = textwrap.dedent(
             r"""
             const fs = require("fs");
@@ -204,7 +269,7 @@ class BrowserExtensionTask6ContractTests(unittest.TestCase):
               process.exitCode = 1;
             });
             """
-        ).replace("__API_CLIENT_PATH__", json.dumps(str(api_client)))
+        ).replace("__API_CLIENT_PATH__", json.dumps(str(API_CLIENT)))
         result = subprocess.run(
             ["node", "-e", script],
             cwd=ROOT,

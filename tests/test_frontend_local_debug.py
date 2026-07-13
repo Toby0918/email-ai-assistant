@@ -11,9 +11,34 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = ROOT / "frontend" / "local_debug_page"
+REMOTE_PROCESSING_NOTICE = (
+    "After you click Analyze, a configured remote AI provider receives only the current visible "
+    "message/thread within configured limits and text extracted from supported visible attachments."
+)
 
 
 class FrontendLocalDebugTests(unittest.TestCase):
+    def test_local_debug_analysis_wait_is_35_seconds(self) -> None:
+        script = (FRONTEND / "app.js").read_text(encoding="utf-8")
+
+        self.assertIn("const ANALYZE_TIMEOUT_MS = 35000;", script)
+
+    def test_local_debug_shows_remote_processing_notice_before_analyze_click(self) -> None:
+        page = (FRONTEND / "index.html").read_text(encoding="utf-8")
+        script = (FRONTEND / "app.js").read_text(encoding="utf-8")
+
+        self.assertIn('id="remote-processing-notice"', page)
+        self.assertIn(REMOTE_PROCESSING_NOTICE, page)
+        self.assertLess(
+            page.index('id="remote-processing-notice"'),
+            page.index('id="analyze-button"'),
+        )
+        notice_start = page.index('<p id="remote-processing-notice"')
+        notice_tag = page[notice_start : page.index(">", notice_start)]
+        self.assertNotIn("hidden", notice_tag)
+        self.assertNotIn("aria-hidden", notice_tag)
+        self.assertNotIn("remote-processing-notice", script)
+
     def test_local_debug_page_has_thread_and_attachment_insight_sections(self) -> None:
         page = (FRONTEND / "index.html").read_text(encoding="utf-8")
         script = (FRONTEND / "app.js").read_text(encoding="utf-8")
@@ -184,7 +209,7 @@ class FrontendLocalDebugTests(unittest.TestCase):
             const fs = require("fs");
             const vm = require("vm");
             const source = fs.readFileSync(__APP__, "utf8")
-              .replace("const ANALYZE_TIMEOUT_MS = 15000;", "const ANALYZE_TIMEOUT_MS = 20;");
+              .replace("const ANALYZE_TIMEOUT_MS = 35000;", "const ANALYZE_TIMEOUT_MS = 20;");
             const listeners = new Map();
             const elements = new Map();
             function element(selector) {

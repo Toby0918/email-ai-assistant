@@ -21,7 +21,7 @@ const fields = {
   copyButton: document.querySelector("#copy-draft-button"),
 };
 
-const ANALYZE_TIMEOUT_MS = 15000;
+const ANALYZE_TIMEOUT_MS = 35000;
 let analysisGeneration = 0;
 
 const PRIORITY_LABELS = {
