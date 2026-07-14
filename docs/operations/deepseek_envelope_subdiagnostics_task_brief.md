@@ -212,8 +212,9 @@ Implementation state:
 - Task 5 offline verification is implemented with
   `EMAIL_AGENT_LLM_PROVIDER=disabled`; no API call, service restart, mailbox
   access, or live verification occurred.
-- Task 6 synthetic live verification remains pending, so this record does not
-  mark the change live-verified.
+- Task 6 synthetic live verification is verified from exactly one authorized
+  synthetic request. The isolated service was stopped after the result, and no
+  provider output, response body, secret, prompt, or raw exception was recorded.
 
 ```text
 Actual modified files:
@@ -239,6 +240,7 @@ Actual modified files:
 
 Local-only verification artifacts:
 - .superpowers/sdd/task-5-report.md
+- .superpowers/sdd/task-6-report.md
 - outputs/cleanup_report.md
 
 Test results:
@@ -255,12 +257,25 @@ Test results:
 - Final git diff check: passed with no output.
 - Final pre-commit status: only this task brief, the generated project status
   log, and the implementation plan are modified; local reports remain ignored.
-- Offline status: passed. Live verification was not run and is not claimed.
+- Task 6 release, service-health, and non-sensitive route preflight: passed.
+- API call count: exactly 1; no retry was made.
+- The log baseline was 0 lines and exactly 1 new canonical fallback event was
+  isolated; the dedicated service was stopped afterward.
+- Synthetic live verification: engine=Rule fallback; code=envelope_invalid; stage=envelope; detail=analysis_shape; elapsed_ms=9859.
+- Live status: verified.
+- Final post-live project status generation: passed; regeneration produced no
+  additional project-status diff.
+- Final post-live full discovery: 704/704 passed in 41.722s with the provider
+  explicitly disabled.
+- Final post-live maintenance scan: passed with no cleanup findings detected.
+- Final post-live git diff check: passed with no output; only the intended task
+  brief, design, and implementation plan remain modified.
 
 Unfinished items:
-- One authorized synthetic live diagnostic.
-- A separate root-cause correction scoped by the observed fixed detail, if any.
+- A separate root-cause correction scoped to the observed `analysis_shape`
+  boundary.
 
 Follow-up recommendation:
-- Use the observed fixed detail to scope a separate root-cause correction.
+- Scope a new task to the `analysis_shape` boundary. Do not change the prompt,
+  provider route, runtime, or tests as part of this verification record.
 ```

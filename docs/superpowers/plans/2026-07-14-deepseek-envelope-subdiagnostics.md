@@ -20,9 +20,13 @@ source_type: operation_guide
 
 The written design is approved. Runtime Tasks 1-3 and the Task 4
 operator/API/design/task/plan contract synchronization are implemented. Task 5
-offline verification is implemented with the provider disabled. Task 6
-synthetic live verification remains pending; this plan does not claim a live
-test/API result.
+offline verification is implemented with the provider disabled. Task 6 is
+verified from exactly one authorized synthetic request on the isolated service:
+Rule fallback emitted one canonical `envelope_invalid` / `envelope` /
+`analysis_shape` event. The service was stopped, no retry was made, and the
+separate `analysis_shape` root-cause correction remains follow-up work. The
+final post-live full suite and maintenance scan passed with the provider
+explicitly disabled.
 
 ## Global Constraints
 
@@ -703,11 +707,17 @@ git commit -m "docs: record envelope diagnostic verification"
 - Runtime-only: `outputs/local_debug_service.log`
 - No production or test file may be edited to influence the result.
 
-- [ ] **Step 1: Confirm the release gate**
+> Execution note (2026-07-14): the authorized run used the isolated
+> `127.0.0.1:8878` service and
+> `outputs/local_debug_service_live.pid` instead of the runbook's default
+> `8765` service, so the user's existing service was not disturbed. The
+> synthetic payload was unchanged; only its local URI port was `8878`.
+
+- [x] **Step 1: Confirm the release gate**
 
 Do not continue unless Task 5 has fresh passing evidence, the worktree contains no unexpected file, and backend provider configuration remains server-side. Never print or inspect the API key.
 
-- [ ] **Step 2: Restart and health-check the managed service**
+- [x] **Step 2: Restart and health-check the managed service**
 
 ```powershell
 $py = 'C:\Users\33506\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe'
@@ -718,7 +728,7 @@ $py = 'C:\Users\33506\.cache\codex-runtimes\codex-primary-runtime\dependencies\p
 
 Expected: service status is `running` and health is `True`. If startup or health fails, stop without an API analysis call.
 
-- [ ] **Step 3: Verify non-sensitive provider routing without exposing the key**
+- [x] **Step 3: Verify non-sensitive provider routing without exposing the key**
 
 ```powershell
 $configJson = & $py -B -c "import json; from backend.email_agent.config import load_config; c=load_config(); print(json.dumps({'provider': c.llm_provider, 'model': c.deepseek_model, 'output_mode': c.deepseek_output_mode}))"
@@ -732,7 +742,7 @@ if ($safeConfig.provider -ne 'deepseek' -or $safeConfig.output_mode -ne 'model_l
 
 Expected: only provider, model, and output mode are printed; provider is `deepseek` and output mode is `model_led`. The command never reads, tests, or prints the API key. A mismatch stops before the one allowed request.
 
-- [ ] **Step 4: Make exactly one synthetic analysis request and isolate new log lines**
+- [x] **Step 4: Make exactly one synthetic analysis request and isolate new log lines**
 
 ```powershell
 $logPath = 'outputs\local_debug_service.log'
@@ -773,7 +783,7 @@ Expected outcomes are intentionally both acceptable:
 
 Only those two outcomes pass live verification. A timeout, request error, Rule fallback with zero or multiple new events, an unknown code/stage/detail, an envelope event with `not_applicable`, or a non-envelope event with a specific envelope detail fails verification. Record the fixed failure state, do not retry, and do not mark the task verified. Do not display provider output or any secret. Record only engine, reason code, stage, fixed detail, and elapsed time.
 
-- [ ] **Step 5: Record the result and decide the separate follow-up**
+- [x] **Step 5: Record the result and decide the separate follow-up**
 
 If the result is one of the six envelope details, add exactly one content-free line to the task brief execution record using this form, and list the next correction under unfinished follow-up work instead of changing the prompt or provider route:
 

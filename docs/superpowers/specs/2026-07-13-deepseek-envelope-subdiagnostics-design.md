@@ -23,10 +23,13 @@ API key, URL, path, or customer information.
 
 ## Approval And Implementation Status
 
-The user approved this design on 2026-07-14. Runtime Tasks 1-3 and the Task 4
-operator documentation contract are implemented. Task 5 final offline
-verification and Task 6 synthetic live verification remain pending, so this
-document does not record the change as verified.
+The user approved this design on 2026-07-14. Runtime Tasks 1-3, the Task 4
+operator documentation contract, and Task 5 offline verification are
+implemented. Task 6 is verified from exactly one authorized synthetic request:
+the result used Rule fallback with `code=envelope_invalid`, `stage=envelope`,
+and `detail=analysis_shape`. The separate root-cause correction remains
+unfinished and is not part of this verification task. The final post-live full
+suite and maintenance scan also passed with the provider explicitly disabled.
 
 ## Evidence And Root-Cause Boundary
 
