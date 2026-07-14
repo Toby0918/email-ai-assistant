@@ -5,20 +5,19 @@ from __future__ import annotations
 import re
 from datetime import datetime
 
+from .bodystructure_syntax import BodyStructureError, parse_sexpression
 from .folder_policy import RawFolder
 from .imap_errors import ImapReadOnlyError
+from .imap_utf7 import MailboxDecodeError, decode_modified_utf7
 
 
 _LIST_RESPONSE = re.compile(rb'^\(([^)]*)\) "([^"]*)" ("(?:[^"\\]|\\.)*"|[^ ]+)$')
-_SIZE_RESPONSE = re.compile(
-    rb'^([1-9][0-9]*) \(RFC822\.SIZE ([0-9]+) INTERNALDATE "([^"]+)"\)$'
-)
-_BODYSTRUCTURE_RESPONSE = re.compile(
-    rb'^([1-9][0-9]*) \(BODYSTRUCTURE (.*)\)$', re.DOTALL
-)
+_FETCH_RESPONSE = re.compile(rb'^([1-9][0-9]*) (\(.*\))$', re.DOTALL)
 _LITERAL_HEADER = re.compile(
-    rb'^([1-9][0-9]*) \(BODY\[([^]]+)\](?:<([0-9]+)>)? \{([0-9]+)\}$'
+    rb'^([1-9][0-9]*) \(UID ([1-9][0-9]*) BODY\[([^]]+)\]'
+    rb'(?:<([0-9]+)>)? \{([0-9]+)\}$'
 )
+_MAX_UID = 4_294_967_295
 
 
 def parse_list_response(data: object) -> tuple[RawFolder, ...]:
@@ -66,28 +65,28 @@ def parse_search_response(data: object) -> tuple[int, ...]:
 def parse_size_response(data: object, uid: int) -> tuple[int, datetime]:
     if not isinstance(data, list) or len(data) != 1 or not isinstance(data[0], bytes):
         raise ImapReadOnlyError()
-    match = _SIZE_RESPONSE.fullmatch(data[0])
-    if match is None or int(match.group(1)) != uid:
+    items = _requested_fetch_items(
+        data[0], uid, {"UID", "RFC822.SIZE", "INTERNALDATE"}
+    )
+    size = items["RFC822.SIZE"]
+    raw_date = items["INTERNALDATE"]
+    if type(size) is not int or size < 0 or not isinstance(raw_date, str):
         raise ImapReadOnlyError()
     try:
-        internal_date = datetime.strptime(
-            match.group(3).decode("ascii"), "%d-%b-%Y %H:%M:%S %z"
-        )
-    except (UnicodeError, ValueError):
+        internal_date = datetime.strptime(raw_date, "%d-%b-%Y %H:%M:%S %z")
+    except ValueError:
         raise ImapReadOnlyError() from None
-    return int(match.group(2)), internal_date
+    return size, internal_date
 
 
 def parse_bodystructure_response(data: object, uid: int) -> str:
     if not isinstance(data, list) or len(data) != 1 or not isinstance(data[0], bytes):
         raise ImapReadOnlyError()
-    match = _BODYSTRUCTURE_RESPONSE.fullmatch(data[0])
-    if match is None or int(match.group(1)) != uid:
+    items = _requested_fetch_items(data[0], uid, {"UID", "BODYSTRUCTURE"})
+    bodystructure = items["BODYSTRUCTURE"]
+    if not isinstance(bodystructure, list):
         raise ImapReadOnlyError()
-    try:
-        return match.group(2).decode("ascii", errors="strict")
-    except UnicodeError:
-        raise ImapReadOnlyError() from None
+    return _serialize_sexpression(bodystructure)
 
 
 def parse_literal_response(
@@ -107,21 +106,71 @@ def parse_literal_response(
         raise ImapReadOnlyError()
     header, literal = first
     match = _LITERAL_HEADER.fullmatch(header)
-    if match is None or int(match.group(1)) != uid:
+    if (
+        match is None
+        or not _valid_sequence_number(match.group(1))
+        or int(match.group(2)) != uid
+    ):
         raise ImapReadOnlyError()
     try:
-        response_section = match.group(2).decode("ascii", errors="strict")
+        response_section = match.group(3).decode("ascii", errors="strict")
     except UnicodeError:
         raise ImapReadOnlyError() from None
     expected_offset = None if offset is None else str(offset).encode("ascii")
     if (
         response_section != section
-        or match.group(3) != expected_offset
-        or int(match.group(4)) != len(literal)
+        or match.group(4) != expected_offset
+        or int(match.group(5)) != len(literal)
         or count is not None and len(literal) > count
     ):
         raise ImapReadOnlyError()
     return literal
+
+
+def _requested_fetch_items(
+    line: bytes,
+    uid: int,
+    expected: set[str],
+) -> dict[str, object]:
+    match = _FETCH_RESPONSE.fullmatch(line)
+    if match is None or not _valid_sequence_number(match.group(1)):
+        raise ImapReadOnlyError()
+    try:
+        parsed = parse_sexpression(match.group(2).decode("ascii", errors="strict"))
+    except (BodyStructureError, UnicodeError):
+        raise ImapReadOnlyError() from None
+    if not isinstance(parsed, list) or len(parsed) % 2:
+        raise ImapReadOnlyError()
+    items: dict[str, object] = {}
+    for offset in range(0, len(parsed), 2):
+        key = parsed[offset]
+        if not isinstance(key, str):
+            raise ImapReadOnlyError()
+        normalized = key.upper()
+        if normalized in items:
+            raise ImapReadOnlyError()
+        items[normalized] = parsed[offset + 1]
+    if set(items) != expected or items.get("UID") != uid:
+        raise ImapReadOnlyError()
+    return items
+
+
+def _valid_sequence_number(value: bytes) -> bool:
+    number = int(value)
+    return 1 <= number <= _MAX_UID
+
+
+def _serialize_sexpression(value: object) -> str:
+    if isinstance(value, list):
+        return "(" + " ".join(_serialize_sexpression(item) for item in value) + ")"
+    if value is None:
+        return "NIL"
+    if type(value) is int and value >= 0:
+        return str(value)
+    if isinstance(value, str):
+        escaped = value.replace("\\", "\\\\").replace('"', '\\"')
+        return f'"{escaped}"'
+    raise ImapReadOnlyError()
 
 
 def _parse_list_item(item: object) -> RawFolder:
@@ -135,8 +184,8 @@ def _parse_list_item(item: object) -> RawFolder:
         raw_mailbox = match.group(3)
         if raw_mailbox.startswith(b'"'):
             raw_mailbox = raw_mailbox[1:-1].replace(b'\\"', b'"').replace(b"\\\\", b"\\")
-        mailbox = raw_mailbox.decode("utf-8", errors="strict")
-    except UnicodeError:
+        mailbox = decode_modified_utf7(raw_mailbox)
+    except (MailboxDecodeError, UnicodeError):
         raise ImapReadOnlyError() from None
     return RawFolder(flags, mailbox)
 

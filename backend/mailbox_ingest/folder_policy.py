@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import unicodedata
 from dataclasses import dataclass, field
+
+from .imap_utf7 import MailboxDecodeError, decode_modified_utf7
 
 
 class FolderPolicyError(ValueError):
@@ -91,12 +94,12 @@ def select_mail_folders(
 def _decode_mailbox(value: str | bytes) -> str:
     if isinstance(value, bytes):
         try:
-            value = value.decode("utf-8", errors="strict")
-        except UnicodeError:
+            value = decode_modified_utf7(value)
+        except MailboxDecodeError:
             raise FolderPolicyError("folder_decode_failed") from None
     if not isinstance(value, str) or not value or any(ord(char) < 32 for char in value):
         raise FolderPolicyError("folder_decode_failed")
-    return value
+    return unicodedata.normalize("NFC", value)
 
 
 def _normalize_flag(value: object) -> str:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import unittest
 import json
 from datetime import datetime, timezone
@@ -10,11 +11,16 @@ from backend.mailbox_ingest.authorization import AuthorizationScope, freeze_wind
 from backend.mailbox_ingest.folder_policy import RawFolder, select_mail_folders
 from backend.mailbox_ingest.inventory import build_inventory
 from backend.mailbox_ingest.models import PutRecordResult
-from backend.mailbox_ingest.scan import ScanError, scan_mailbox
+from backend.mailbox_ingest.bodystructure import TextBodySection
+from backend.mailbox_ingest.scan import ScanError, classify_message, scan_mailbox
+from backend.mailbox_ingest.text_body_decoder import (
+    TextBodyDecodeError,
+    decode_text_body,
+)
 
 
 BODYSTRUCTURE = (
-    '(("TEXT" "PLAIN" NIL NIL NIL "7BIT" 12 1) '
+    '(("TEXT" "PLAIN" NIL NIL NIL "7BIT" 13 1) '
     '("APPLICATION" "PDF" ("NAME" "synthetic.pdf") NIL NIL "BASE64" 100 '
     'NIL ("ATTACHMENT" ("FILENAME" "synthetic.pdf"))) "MIXED")'
 )
@@ -24,6 +30,8 @@ class FakeScanSession:
     def __init__(self) -> None:
         self.calls: list[tuple[object, ...]] = []
         self.uidvalidity = 77
+        self.bodystructure = BODYSTRUCTURE
+        self.body_content = None
         self.messages = {
             2: (100, datetime(2023, 6, 1, 8, 0, tzinfo=timezone.utc)),
             3: (200, datetime(2023, 7, 1, 8, 0, tzinfo=timezone.utc)),
@@ -43,14 +51,18 @@ class FakeScanSession:
 
     def uid_fetch_bodystructure(self, uid: int) -> str:
         self.calls.append(("bodystructure", uid))
-        return BODYSTRUCTURE
+        return self.bodystructure
 
     def uid_fetch_peek(self, uid: int, section: str, **_kwargs) -> bytes:
         self.calls.append(("peek", uid, section))
         if section == "HEADER":
             return f"Subject: SYNTHETIC-{uid}\r\n\r\n".encode("ascii")
         if section == "1":
-            return f"BODY-CANARY-{uid}".encode("ascii")
+            return (
+                f"BODY-CANARY-{uid}".encode("ascii")
+                if self.body_content is None
+                else self.body_content
+            )
         raise AssertionError("attachment body fetched during first pass")
 
 
@@ -213,6 +225,63 @@ class MailboxScanTests(unittest.TestCase):
         report, _arguments = self._run(vault=vault)
         self.assertEqual(report.duplicate_count, 2)
         self.assertEqual(report.created_count, 0)
+
+    def test_transfer_decoding_exposes_sensitive_text_to_classifier(self) -> None:
+        encoded = base64.b64encode(b"password credential")
+        self.session.bodystructure = (
+            '("TEXT" "PLAIN" ("CHARSET" "UTF-8") NIL NIL '
+            f'"BASE64" {len(encoded)} 1)'
+        )
+        self.session.body_content = encoded
+        vault = FakeVault()
+
+        report, _arguments = self._run(
+            vault=vault,
+            classifier=classify_message,
+        )
+
+        self.assertEqual(report.sensitive_count, 2)
+        self.assertEqual(vault.records, [])
+
+    def test_transfer_decode_failure_is_ambiguous_and_not_persisted(self) -> None:
+        self.session.bodystructure = (
+            '("TEXT" "PLAIN" ("CHARSET" "UTF-8") NIL NIL "BASE64" 3 1)'
+        )
+        self.session.body_content = b"%%%"
+        vault = FakeVault()
+
+        report, _arguments = self._run(
+            vault=vault,
+            classifier=classify_message,
+        )
+
+        self.assertEqual(report.ambiguous_count, 2)
+        self.assertEqual(vault.records, [])
+
+
+class TextBodyDecoderTests(unittest.TestCase):
+    def test_supported_transfer_encodings_decode_strictly_to_utf8(self) -> None:
+        cases = (
+            ("BASE64", "utf-8", base64.b64encode("\u654f\u611f".encode()), "\u654f\u611f"),
+            ("QUOTED-PRINTABLE", "utf-8", b"safe=20text", "safe text"),
+            ("7BIT", "us-ascii", b"safe text", "safe text"),
+            ("8BIT", "utf-8", "\u654f\u611f".encode(), "\u654f\u611f"),
+        )
+        for encoding, charset, payload, expected in cases:
+            part = TextBodySection("1", encoding, charset, len(payload))
+            with self.subTest(encoding=encoding):
+                self.assertEqual(decode_text_body(part, payload), expected.encode())
+
+    def test_unsupported_or_malformed_transfer_data_fails_closed(self) -> None:
+        cases = (
+            (TextBodySection("1", "BINARY", "utf-8", 3), b"abc"),
+            (TextBodySection("1", "BASE64", "utf-8", 3), b"%%%"),
+            (TextBodySection("1", "QUOTED-PRINTABLE", "utf-8", 4), b"a=ZZ"),
+            (TextBodySection("1", "8BIT", "x-unknown", 3), b"abc"),
+        )
+        for part, payload in cases:
+            with self.subTest(part=part), self.assertRaises(TextBodyDecodeError):
+                decode_text_body(part, payload)
 
 
 if __name__ == "__main__":

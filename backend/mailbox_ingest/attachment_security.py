@@ -15,6 +15,7 @@ from .attachment_types import (
     TIFF,
     XLSX,
 )
+from .pdf_security import PdfSafetyError, validate_safe_pdf
 
 
 def validate_attachment_content(content: bytes, mime_type: str) -> None:
@@ -33,12 +34,10 @@ def validate_attachment_content(content: bytes, mime_type: str) -> None:
 
 
 def _validate_pdf(content: bytes) -> None:
-    if not content.startswith(b"%PDF-"):
-        raise AttachmentScanError("attachment_magic_mismatch")
-    normalized = content.lower()
-    forbidden = (b"/javascript", b"/js", b"/launch", b"/embeddedfiles")
-    if any(marker in normalized for marker in forbidden):
-        raise AttachmentScanError("attachment_active_content")
+    try:
+        validate_safe_pdf(content)
+    except PdfSafetyError as error:
+        raise AttachmentScanError(error.code) from None
 
 
 def _validate_ooxml(content: bytes, mime_type: str) -> None:

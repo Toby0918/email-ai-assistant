@@ -11,6 +11,7 @@ from .bodystructure import BodyStructureError, parse_bodystructure
 from .control_store import ControlStoreError
 from .inventory import InventoryBundle
 from .scan_record import ScanRecordError, encode_scan_record
+from .text_body_decoder import decode_text_body
 
 
 class ScanError(ValueError):
@@ -145,8 +146,11 @@ def _process_one(
     try:
         header = session.uid_fetch_peek(message.uid, "HEADER")
         bodies = tuple(
-            session.uid_fetch_peek(message.uid, section)
-            for section in plan.body_sections
+            decode_text_body(
+                part,
+                session.uid_fetch_peek(message.uid, part.section),
+            )
+            for part in plan.body_sections
         )
         classification = classifier(header, bodies)
     except Exception:

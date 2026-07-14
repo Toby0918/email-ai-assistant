@@ -22,7 +22,13 @@ class BodyStructureTests(unittest.TestCase):
 
         plan = parse_bodystructure(source)
 
-        self.assertEqual(plan.body_sections, ("1.1",))
+        self.assertEqual(
+            [
+                (item.section, item.transfer_encoding, item.charset)
+                for item in plan.body_sections
+            ],
+            [("1.1", "7BIT", "utf-8")],
+        )
         self.assertEqual(len(plan.attachments), 1)
         attachment = plan.attachments[0]
         self.assertEqual((attachment.section, attachment.mime_type, attachment.size), (
@@ -41,7 +47,9 @@ class BodyStructureTests(unittest.TestCase):
 
         plan = parse_bodystructure(source)
 
-        self.assertEqual(plan.body_sections, ("1",))
+        self.assertEqual(plan.body_sections[0].section, "1")
+        self.assertEqual(plan.body_sections[0].transfer_encoding, "7BIT")
+        self.assertEqual(plan.body_sections[0].charset, "utf-8")
         self.assertEqual(plan.attachments[0].filename, "测试.txt")
         self.assertEqual(plan.attachments[0].section, "2")
 

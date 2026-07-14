@@ -15,6 +15,17 @@ from .bodystructure_syntax import (
 
 MAX_PARTS = 256
 _ENCODINGS = {"7BIT", "8BIT", "BINARY", "BASE64", "QUOTED-PRINTABLE"}
+_CHARSETS = {
+    "ascii": "us-ascii",
+    "us-ascii": "us-ascii",
+    "utf-8": "utf-8",
+    "utf8": "utf-8",
+    "gb18030": "gb18030",
+    "gbk": "gbk",
+    "big5": "big5",
+    "iso-8859-1": "iso-8859-1",
+    "windows-1252": "windows-1252",
+}
 
 
 @dataclass(frozen=True)
@@ -26,8 +37,16 @@ class AttachmentMetadata:
 
 
 @dataclass(frozen=True)
+class TextBodySection:
+    section: str
+    transfer_encoding: str
+    charset: str
+    size: int
+
+
+@dataclass(frozen=True)
 class BodyPlan:
-    body_sections: tuple[str, ...]
+    body_sections: tuple[TextBodySection, ...]
     attachments: tuple[AttachmentMetadata, ...]
 
 
@@ -46,7 +65,7 @@ def _walk(
     node: list[object],
     prefix: str,
     attachments: list[AttachmentMetadata],
-) -> tuple[list[str], int]:
+) -> tuple[list[TextBodySection], int]:
     if node and isinstance(node[0], list):
         parts: list[list[object]] = []
         offset = 0
@@ -56,7 +75,7 @@ def _walk(
         if not parts or offset >= len(node) or not isinstance(node[offset], str):
             raise BodyStructureError()
         subtype = node[offset].upper()
-        candidates: list[tuple[str, list[str]]] = []
+        candidates: list[tuple[str, list[TextBodySection]]] = []
         count = 0
         for index, part in enumerate(parts, start=1):
             section = f"{prefix}.{index}" if prefix else str(index)
@@ -78,7 +97,7 @@ def _single_part(
     node: list[object],
     section: str,
     attachments: list[AttachmentMetadata],
-) -> list[str]:
+) -> list[TextBodySection]:
     if len(node) < 7 or not isinstance(node[0], str) or not isinstance(node[1], str):
         raise BodyStructureError()
     media_type = node[0].upper()
@@ -102,7 +121,20 @@ def _single_part(
     if is_attachment:
         attachments.append(AttachmentMetadata(section, mime_type, size, filename))
         return []
-    return [section] if mime_type in {"text/plain", "text/html"} else []
+    if mime_type not in {"text/plain", "text/html"}:
+        return []
+    charset = _text_charset(parameters)
+    return [TextBodySection(section, encoding.upper(), charset, size)]
+
+
+def _text_charset(parameters: dict[str, str]) -> str:
+    raw = parameters.get("CHARSET", "us-ascii")
+    if not isinstance(raw, str) or not raw or len(raw) > 64:
+        raise BodyStructureError()
+    normalized = raw.casefold()
+    if normalized not in _CHARSETS:
+        raise BodyStructureError()
+    return _CHARSETS[normalized]
 
 
 def _body_kind(node: list[object]) -> str:
@@ -244,5 +276,6 @@ __all__ = [
     "AttachmentMetadata",
     "BodyPlan",
     "BodyStructureError",
+    "TextBodySection",
     "parse_bodystructure",
 ]

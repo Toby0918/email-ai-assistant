@@ -80,7 +80,6 @@ SINGLE_UID_LITERAL = re.compile(r"^[1-9][0-9]*$")
 
 FIXED_FETCH_SELECTORS = {
     "(BODYSTRUCTURE)",
-    "(RFC822.SIZE)",
     "(RFC822.SIZE INTERNALDATE)",
 }
 
@@ -412,6 +411,19 @@ def _is_direct_validator_call(
 def _fetch_validator_binding_violations(tree: ast.AST) -> list[str]:
     parents = _parent_map(tree)
     violations: list[str] = []
+
+    def contains_reference(value: ast.AST | None) -> bool:
+        if value is None:
+            return False
+        for child in ast.walk(value):
+            if not isinstance(child, ast.Name) or child.id not in _FETCH_VALIDATORS:
+                continue
+            parent = parents.get(child)
+            if isinstance(parent, ast.Call) and parent.func is child:
+                continue
+            return True
+        return False
+
     for node in ast.walk(tree):
         if isinstance(node, (ast.Import, ast.ImportFrom)):
             aliases = node.names
@@ -434,8 +446,16 @@ def _fetch_validator_binding_violations(tree: ast.AST) -> list[str]:
                     violations.append(
                         f"line {node.lineno}: FETCH validator reassignment escape"
                     )
-            if isinstance(value, ast.Name) and value.id in _FETCH_VALIDATORS:
+            if contains_reference(value):
                 violations.append(f"line {node.lineno}: FETCH validator alias escape")
+        if isinstance(node, (ast.Return, ast.Yield, ast.YieldFrom)) and contains_reference(
+            node.value
+        ):
+            violations.append(f"line {node.lineno}: FETCH validator return escape")
+        if isinstance(node, ast.Call):
+            arguments = [*node.args, *(keyword.value for keyword in node.keywords)]
+            if any(contains_reference(argument) for argument in arguments):
+                violations.append(f"line {node.lineno}: FETCH validator argument escape")
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
             arguments = {
                 argument.arg
@@ -451,6 +471,9 @@ def _fetch_validator_binding_violations(tree: ast.AST) -> list[str]:
                 arguments.add(node.args.kwarg.arg)
             if arguments & _FETCH_VALIDATORS:
                 violations.append(f"line {node.lineno}: FETCH validator shadow escape")
+            defaults = [*node.args.defaults, *node.args.kw_defaults]
+            if any(contains_reference(default) for default in defaults):
+                violations.append(f"line {node.lineno}: FETCH validator default escape")
             if (
                 isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
                 and node.name in _FETCH_VALIDATORS
@@ -477,6 +500,21 @@ def _is_literal_readonly_select(node: ast.Call) -> bool:
         return False
     readonly = readonly_keywords[0].value
     return isinstance(readonly, ast.Constant) and readonly.value is True
+
+
+def _is_exact_uid_search(node: ast.Call) -> bool:
+    return (
+        len(node.args) == 4
+        and not node.keywords
+        and isinstance(node.args[0], ast.Constant)
+        and node.args[0].value == "SEARCH"
+        and isinstance(node.args[1], ast.Constant)
+        and node.args[1].value is None
+        and isinstance(node.args[2], ast.Constant)
+        and node.args[2].value == "SINCE"
+        and isinstance(node.args[3], ast.Name)
+        and node.args[3].id == "date"
+    )
 
 
 def _imap_call_violations(
@@ -551,6 +589,10 @@ def _imap_call_violations(
         command = node.args[0].value
         if command.upper() not in {"SEARCH", "FETCH"}:
             violations.append(f"line {node.lineno}: forbidden UID command")
+            continue
+        if command.upper() == "SEARCH":
+            if not _is_exact_uid_search(node):
+                violations.append(f"line {node.lineno}: invalid UID SEARCH call shape")
             continue
         if command.upper() != "FETCH":
             continue
@@ -844,7 +886,7 @@ class MailboxTransportConstraintTests(unittest.TestCase):
         for target in rejected_targets:
             sample = (
                 "self._imap_client.uid('FETCH', "
-                f"{target}, '(RFC822.SIZE)')"
+                f"{target}, '(BODYSTRUCTURE)')"
             )
             with self.subTest(target=target):
                 self.assertTrue(_imap_call_violations(ast.parse(sample)))
@@ -852,7 +894,7 @@ class MailboxTransportConstraintTests(unittest.TestCase):
         for target in ("'1'", "'4294967295'"):
             sample = (
                 "self._imap_client.uid('FETCH', "
-                f"{target}, '(RFC822.SIZE)')"
+                f"{target}, '(BODYSTRUCTURE)')"
             )
             with self.subTest(target=target):
                 self.assertFalse(_imap_call_violations(ast.parse(sample)))
@@ -918,6 +960,44 @@ class MailboxTransportConstraintTests(unittest.TestCase):
             with self.subTest(label=label):
                 self.assertTrue(_imap_call_violations(ast.parse(sample)))
 
+    def test_validator_references_cannot_escape_recursive_expression_shapes(self) -> None:
+        samples = {
+            "list storage": "box = [validate_fetch_selector]",
+            "tuple storage": "box = (validate_single_uid_fetch_target,)",
+            "dict storage": "box = {'v': validate_fetch_selector}",
+            "set storage": "box = {validate_fetch_selector}",
+            "subscript alias": "box = [validate_fetch_selector][0]",
+            "return": "def expose():\n    return validate_single_uid_fetch_target",
+            "yield": "def expose():\n    yield validate_fetch_selector",
+            "argument": "consume(validate_fetch_selector)",
+            "lambda": "callback = lambda: validate_fetch_selector",
+            "comprehension": (
+                "box = [validate_fetch_selector for _ in values]"
+            ),
+            "nested alias": (
+                "box = {'v': [validate_fetch_selector]}\n"
+                "alias = box['v'][0]"
+            ),
+        }
+        for label, sample in samples.items():
+            with self.subTest(label=label):
+                self.assertTrue(_imap_call_violations(ast.parse(sample)))
+
+    def test_uid_search_and_obsolete_size_selector_shapes_are_exact(self) -> None:
+        rejected = (
+            "self._imap_client.uid('SEARCH', None, 'ALL')",
+            "self._imap_client.uid('search', None, 'SINCE', date)",
+            "self._imap_client.uid('SEARCH', None, 'SINCE', date, 'UNSEEN')",
+            "self._imap_client.uid('SEARCH', charset, 'SINCE', date)",
+            "self._imap_client.uid('SEARCH', None, criterion, date)",
+            "self._imap_client.uid('SEARCH', None, 'SINCE', other_date)",
+            "self._imap_client.uid('SEARCH', None, 'SINCE', date, extra=True)",
+            "self._imap_client.uid('FETCH', '1', '(RFC822.SIZE)')",
+        )
+        for sample in rejected:
+            with self.subTest(sample=sample):
+                self.assertTrue(_imap_call_violations(ast.parse(sample)))
+
     def test_raw_client_escape_guard_closes_container_and_expression_shapes(self) -> None:
         samples = {
             "walrus": "if (raw := self._imap_client):\n    pass",
@@ -955,8 +1035,8 @@ class MailboxTransportConstraintTests(unittest.TestCase):
             "self._imap_client.list()",
             "self._imap_client.select('INBOX', readonly=True)",
             "self._imap_client.select(mailbox='INBOX', readonly=True)",
-            "self._imap_client.uid('SEARCH', None, 'ALL')",
-            "self._imap_client.uid('FETCH', '1', '(RFC822.SIZE)')",
+            "self._imap_client.uid('SEARCH', None, 'SINCE', date)",
+            "self._imap_client.uid('FETCH', '1', '(RFC822.SIZE INTERNALDATE)')",
             "self._imap_client.uid('FETCH', '1', '(BODYSTRUCTURE)')",
             "self._imap_client.uid('FETCH', '1', '(BODY.PEEK[HEADER])')",
         )

@@ -16,6 +16,7 @@ from backend.mailbox_ingest.folder_policy import (
     RawFolder,
     select_mail_folders,
 )
+from backend.mailbox_ingest.imap_response import parse_list_response
 
 
 class AuthorizationTests(unittest.TestCase):
@@ -119,6 +120,19 @@ class FolderPolicyTests(unittest.TestCase):
             with self.subTest(folders=folders):
                 with self.assertRaises(FolderPolicyError):
                     select_mail_folders(folders, hmac_key=b"F" * 32)
+
+    def test_modified_utf7_sensitive_folder_is_decoded_then_excluded(self) -> None:
+        folders = parse_list_response(
+            [
+                b'(\\HasNoChildren \\Inbox) "/" "INBOX"',
+                b'(\\HasNoChildren) "/" "&haqNRA-"',
+            ]
+        )
+
+        selected = select_mail_folders(folders, hmac_key=b"F" * 32)
+
+        self.assertEqual(len(selected), 1)
+        self.assertEqual(selected[0].role, "inbox")
 
 
 if __name__ == "__main__":

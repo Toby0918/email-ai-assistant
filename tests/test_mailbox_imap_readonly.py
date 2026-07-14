@@ -14,6 +14,7 @@ from backend.mailbox_ingest.imap_readonly import (
     validate_fetch_selector,
     validate_single_uid_fetch_target,
 )
+from backend.mailbox_ingest.imap_response import parse_list_response
 
 
 class FakeRawImap:
@@ -23,13 +24,15 @@ class FakeRawImap:
         self.uidvalidity = b"42"
         self.fetch_responses = {
             "(RFC822.SIZE INTERNALDATE)": [
-                b'7 (RFC822.SIZE 123 INTERNALDATE "01-Jan-2024 01:02:03 +0000")'
+                b'1 (UID 7 RFC822.SIZE 123 '
+                b'INTERNALDATE "01-Jan-2024 01:02:03 +0000")'
             ],
             "(BODYSTRUCTURE)": [
-                b'7 (BODYSTRUCTURE ("TEXT" "PLAIN" NIL NIL NIL "7BIT" 3 1))'
+                b'1 (UID 7 BODYSTRUCTURE '
+                b'("TEXT" "PLAIN" NIL NIL NIL "7BIT" 3 1))'
             ],
             "(BODY.PEEK[HEADER])": [
-                (b"7 (BODY[HEADER] {3}", b"abc"),
+                (b"1 (UID 7 BODY[HEADER] {3}", b"abc"),
                 b")",
             ],
         }
@@ -169,12 +172,16 @@ class ImapReadOnlyTests(unittest.TestCase):
             "extra record": (
                 "OK",
                 [
-                    (b"7 (BODY[HEADER] {3}", b"abc"), b")",
-                    (b"8 (BODY[HEADER] {3}", b"def"), b")",
+                    (b"1 (UID 7 BODY[HEADER] {3}", b"abc"), b")",
+                    (b"2 (UID 8 BODY[HEADER] {3}", b"def"), b")",
                 ],
             ),
-            "wrong uid": ("OK", [(b"8 (BODY[HEADER] {3}", b"abc"), b")"]),
-            "wrong literal": ("OK", [(b"7 (BODY[HEADER] {4}", b"abc"), b")"]),
+            "wrong uid": (
+                "OK", [(b"1 (UID 8 BODY[HEADER] {3}", b"abc"), b")"]
+            ),
+            "wrong literal": (
+                "OK", [(b"1 (UID 7 BODY[HEADER] {4}", b"abc"), b")"]
+            ),
         }
         for label, response in cases.items():
             raw = FakeRawImap()
@@ -192,6 +199,66 @@ class ImapReadOnlyTests(unittest.TestCase):
                 with self.assertRaises(ImapReadOnlyError) as caught:
                     session.uid_fetch_peek(7, "HEADER")
                 self.assertNotIn("SERVER-CANARY", repr(caught.exception))
+
+    def test_fetch_rejects_missing_duplicate_or_extra_requested_data_items(self) -> None:
+        cases = {
+            "missing UID": [
+                b'1 (RFC822.SIZE 123 '
+                b'INTERNALDATE "01-Jan-2024 01:02:03 +0000")'
+            ],
+            "duplicate UID": [
+                b'1 (UID 7 UID 7 RFC822.SIZE 123 '
+                b'INTERNALDATE "01-Jan-2024 01:02:03 +0000")'
+            ],
+            "extra FLAGS": [
+                b'1 (UID 7 RFC822.SIZE 123 '
+                b'INTERNALDATE "01-Jan-2024 01:02:03 +0000" FLAGS (\\Seen))'
+            ],
+            "wrong UID": [
+                b'1 (UID 8 RFC822.SIZE 123 '
+                b'INTERNALDATE "01-Jan-2024 01:02:03 +0000")'
+            ],
+        }
+        for label, response in cases.items():
+            raw = FakeRawImap()
+            raw.fetch_responses["(RFC822.SIZE INTERNALDATE)"] = response
+            session, _raw, _factory = self._session(raw)
+            with self.subTest(label=label), self.assertRaises(ImapReadOnlyError):
+                session.uid_fetch_size(7)
+
+        raw = FakeRawImap()
+        raw.fetch_responses["(BODYSTRUCTURE)"] = [
+            b'1 (UID 7 BODYSTRUCTURE '
+            b'("TEXT" "PLAIN" NIL NIL NIL "7BIT" 3 1) RFC822.SIZE 3)'
+        ]
+        session, _raw, _factory = self._session(raw)
+        with self.assertRaises(ImapReadOnlyError):
+            session.uid_fetch_bodystructure(7)
+
+    def test_list_strictly_decodes_modified_utf7_and_literal_ampersand(self) -> None:
+        folders = parse_list_response(
+            [
+                b'(\\HasNoChildren) "/" "&haqNRA-"',
+                b'(\\HasNoChildren) "/" "Sales&-Ops"',
+            ]
+        )
+
+        self.assertEqual([item.mailbox for item in folders], ["\u85aa\u8d44", "Sales&Ops"])
+
+    def test_list_rejects_invalid_or_canonically_duplicate_modified_utf7(self) -> None:
+        invalid = (b"&broken", b"&A-", b"&AGE-")
+        for mailbox in invalid:
+            response = b'(\\HasNoChildren) "/" "' + mailbox + b'"'
+            with self.subTest(mailbox=mailbox), self.assertRaises(ImapReadOnlyError):
+                parse_list_response([response])
+
+        with self.assertRaises(ImapReadOnlyError):
+            parse_list_response(
+                [
+                    b'(\\HasNoChildren) "/" "&AOk-"',
+                    b'(\\HasNoChildren) "/" "e&AwE-"',
+                ]
+            )
 
 
 if __name__ == "__main__":

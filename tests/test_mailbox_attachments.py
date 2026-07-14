@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import io
 import json
 import tempfile
 import unittest
@@ -16,6 +17,8 @@ from backend.mailbox_ingest.attachment_scan import (
     prepare_attachments,
 )
 from backend.mailbox_ingest.models import PutRecordResult, SecretBuffer
+from backend.mailbox_ingest.attachment_security import validate_attachment_content
+from pypdf import PdfWriter
 
 
 SCOPE = "a" * 64
@@ -189,6 +192,37 @@ class AttachmentManifestTests(unittest.TestCase):
         self.assertEqual(len(prepared.items), 1)
         self.assertNotIn("SYNTHETIC-INBOX", repr(prepared))
         self.assertNotIn("SYNTHETIC-NAME", repr(prepared))
+
+
+class PdfSecurityTests(unittest.TestCase):
+    def _pdf(self, *, encrypted: bool = False) -> bytes:
+        output = io.BytesIO()
+        writer = PdfWriter()
+        writer.add_blank_page(width=72, height=72)
+        if encrypted:
+            writer.encrypt("synthetic-password")
+        writer.write(output)
+        return output.getvalue()
+
+    def test_parsed_safe_pdf_is_accepted(self) -> None:
+        validate_attachment_content(self._pdf(), "application/pdf")
+
+    def test_pdf_name_escapes_actions_embeds_and_object_streams_are_rejected(self) -> None:
+        names = (
+            b"/Java#53cript", b"/J#53", b"/Launch", b"/EmbeddedFile",
+            b"/Filespec", b"/OpenAction", b"/AA", b"/ObjStm",
+        )
+        for name in names:
+            with self.subTest(name=name), self.assertRaises(AttachmentScanError):
+                validate_attachment_content(
+                    b"%PDF-1.7\n1 0 obj << " + name + b" true >> endobj\n%%EOF",
+                    "application/pdf",
+                )
+
+    def test_encrypted_or_malformed_pdf_is_rejected(self) -> None:
+        for content in (self._pdf(encrypted=True), b"%PDF-1.7\n%%EOF"):
+            with self.subTest(size=len(content)), self.assertRaises(AttachmentScanError):
+                validate_attachment_content(content, "application/pdf")
 
 
 class AttachmentFetchTests(unittest.TestCase):
