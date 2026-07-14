@@ -328,6 +328,7 @@ git commit -m "fix: classify DeepSeek client failures"
 ### Task 3: Emit one terminal reason from the analysis route
 
 **Files:**
+- Create: `backend/email_agent/legacy_model_analysis.py`
 - Modify: `backend/email_agent/analysis_model_routes.py:82-203`
 - Modify: `tests/test_analyzer.py:810-1085`
 - Modify: `tests/test_static_linter_constraints.py:99-270`
@@ -618,6 +619,15 @@ In `_run_model_led`, wrap envelope parsing, evidence validation, safety merge, f
 
 In `_run_conservative`, convert parse/schema failures to `public_schema_invalid` and no surviving augmentation to `safety_rejected_all`. Keep successful output and engine labels unchanged.
 
+Keep the route module below 300 physical lines by extracting the pre-existing
+conservative prompt/parser responsibility into
+`backend/email_agent/legacy_model_analysis.py`: move
+`LEGACY_PROMPT_INSTRUCTIONS`, `AnalysisError`, `build_analysis_prompt`, the
+legacy result parser, and its language helpers together. Import/re-export
+`AnalysisError` and `build_analysis_prompt` from `analysis_model_routes.py` so
+existing analyzer/test imports and patch targets remain compatible. Keep the
+single `log_analysis_fallback(...)` call in `analysis_model_routes.py`.
+
 - [ ] **Step 4: Run route, client, diagnostic, and static tests and verify GREEN**
 
 Run:
@@ -631,7 +641,7 @@ Expected: all tests pass, each fallback test captures one event, accepted model 
 - [ ] **Step 5: Commit Task 3**
 
 ```powershell
-git add backend/email_agent/analysis_model_routes.py tests/test_analyzer.py tests/test_static_linter_constraints.py
+git add backend/email_agent/legacy_model_analysis.py backend/email_agent/analysis_model_routes.py tests/test_analyzer.py tests/test_static_linter_constraints.py
 git commit -m "fix: diagnose model fallback stages"
 ```
 
