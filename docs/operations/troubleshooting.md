@@ -40,6 +40,8 @@ source_type: operation_guide
 
 界面显示 `Rule fallback` 且分析响应 `ok=true` 时，公开分析仍然成功；不要把规则兜底误报为 API 失败。provider/account 诊断不会进入 `public API`、`SQLite` 或 `frontend`，只写入 operator-only 的 `outputs/local_debug_service.log`。
 
+该文件由 `backend.email_agent.analysis_diagnostics` 的专用 diagnostic sink 写入，不挂到 root logger。diagnostic logger 使用 `propagate=False` 和独立的固定 `WARNING` 门槛；所以一般服务 level 是 DEBUG、INFO、WARNING、ERROR、CRITICAL 或无效 level 时，canonical fallback 都不会被抑制。handler 只接受精确固定模板和 built-in allowlisted 参数，并拒绝 OpenAI、HTTPX、HTTP core、任意 backend logger 以及 direct free-form diagnostic records。
+
 每个结束于规则兜底的模型尝试会产生恰好一条终态 allowlisted `event=analysis_fallback`。只读取最新事件行:
 
 ```powershell

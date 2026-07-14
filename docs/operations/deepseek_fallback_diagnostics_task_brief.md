@@ -81,7 +81,7 @@ No frontend, prompt, schema, database, attachment parser, or mailbox integration
 
 1. Add allowlisted internal reason codes to sanitized client and route failures.
 2. Emit one terminal safe event per model fallback without passing sensitive payload objects to the logger.
-3. Configure a standard-library rotating file handler before the local service starts.
+3. Configure a standard-library rotating file handler only on the dedicated diagnostic logger before the local service starts; never attach it to root.
 4. Keep the public response and deterministic fallback byte-for-byte compatible with current behavior.
 5. Document the operator command for reading only the newest diagnostic event.
 

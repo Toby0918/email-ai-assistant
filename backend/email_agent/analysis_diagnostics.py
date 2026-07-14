@@ -22,8 +22,14 @@ FALLBACK_STAGES = frozenset({
 SAFE_PROVIDERS = frozenset({"deepseek", "ollama", "openai", "disabled"})
 SAFE_MODELS = frozenset({"deepseek-v4-flash", "deepseek-v4-pro", "local-model", "none"})
 SAFE_OUTPUT_MODES = frozenset({"model_led", "conservative"})
+FALLBACK_EVENT_TEMPLATE = (
+    "event=analysis_fallback code=%s stage=%s provider=%s model=%s "
+    "output_mode=%s elapsed_ms=%d"
+)
 
 logger = logging.getLogger(__name__)
+logger.setLevel(logging.WARNING)
+logger.propagate = False
 logger.addHandler(logging.NullHandler())
 
 
@@ -50,7 +56,6 @@ def log_analysis_fallback(
     safe_mode = _allowlisted_value(output_mode, SAFE_OUTPUT_MODES, "unknown")
     safe_elapsed = elapsed_ms if type(elapsed_ms) is int and elapsed_ms >= 0 else 0
     logger.warning(
-        "event=analysis_fallback code=%s stage=%s provider=%s model=%s "
-        "output_mode=%s elapsed_ms=%d",
+        FALLBACK_EVENT_TEMPLATE,
         safe_code, safe_stage, safe_provider, safe_model, safe_mode, safe_elapsed,
     )

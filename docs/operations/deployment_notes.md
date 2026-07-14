@@ -34,7 +34,7 @@ source_type: operation_guide
 
 - `python scripts/manage_local_service.py start` 在启动服务进程前运行一次过期附件清理。
 - `python scripts/manage_local_service.py restart` 在 stop/start 序列前运行一次清理，并绕过 start 路径的第二次清理。
-- `scripts/run_local_debug.py` 在启动 HTTP server 前初始化 UTF-8 rotating file logging。活动文件为 `outputs/local_debug_service.log`，达到 `1 MB` 后轮转并保留 `two backups`；该文件及备份都属于本地忽略输出。
+- `scripts/run_local_debug.py` 在启动 HTTP server 前初始化仅属于 `backend.email_agent.analysis_diagnostics` 的 UTF-8 rotating diagnostic sink。file handler 不挂 root、diagnostic logger 不传播，活动文件为 `outputs/local_debug_service.log`，达到 `1 MB` 后轮转并保留 `two backups`；该文件及备份都属于本地忽略输出。
 - 请求分析路径继续执行既有过期清理。没有后台邮箱 poller、任务队列或常驻清理 scheduler。
 - 成功只报告删除数量和服务状态。失败返回通用错误并中止 start/restart；不报告附件名、内容、私有 URL、cookie、token、OCR 文本或异常中的私有路径。
 - `python scripts/manage_local_service.py status` 与 `GET http://127.0.0.1:8765/api/health` 只提供本地服务健康信息，不读取附件内容。

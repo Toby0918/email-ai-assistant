@@ -12,7 +12,7 @@ source_type: operation_guide
 
 **Goal:** Make every DeepSeek-to-rule fallback diagnosable through one sanitized local reason code while preserving the existing public response, deterministic fallback, privacy boundaries, and single-call behavior.
 
-**Architecture:** A new focused diagnostic module owns allowlisted event fields and emits no untrusted content. The DeepSeek client attaches sanitized reason codes to existing fixed-message errors, the analysis router classifies validation stages and emits one terminal fallback event, and the local entrypoint configures a bounded rotating file handler that works under the Windows WMI launcher.
+**Architecture:** A new focused diagnostic module owns allowlisted event fields and emits no untrusted content. The DeepSeek client attaches sanitized reason codes to existing fixed-message errors, the analysis router classifies validation stages and emits one terminal fallback event, and the local entrypoint configures a bounded dedicated diagnostic sink that works under the Windows WMI launcher without accepting application or library records.
 
 **Tech Stack:** Python 3.12.13, standard-library `logging`, `logging.handlers.RotatingFileHandler`, `unittest`, existing pinned `openai==2.45.0`, existing loopback HTTP service and PowerShell lifecycle manager.
 
@@ -26,7 +26,7 @@ source_type: operation_guide
 - Emit exactly one terminal fallback event per failed model analysis. Do not emit a second event inside lower layers.
 - Keep every production function focused and below the project's recommended 50-line limit; keep every Python module below 300 lines.
 - Use only synthetic values in tests. No automated, subagent, or Codex-run test may call the live DeepSeek API.
-- When `log_file` is configured, install only the rotating file handler so one event produces one file entry on every platform. Use a stream handler only when no file is configured.
+- When `log_file` is configured, install one filtered rotating file handler only on `backend.email_agent.analysis_diagnostics`; never attach it to root. Use one filtered diagnostic stream handler only when no file is configured.
 - Keep runtime smoke verification isolated on `127.0.0.1:8878` with a dedicated PID file and provider disabled. Restart the normal 8765 service from the main checkout only after branch integration.
 - Use `apply_patch` for file edits. Each task follows RED -> GREEN -> focused verification -> commit.
 
@@ -647,10 +647,11 @@ git commit -m "fix: diagnose model fallback stages"
 
 ---
 
-### Task 4: Configure bounded Windows-compatible service logging
+### Task 4: Configure an isolated Windows-compatible fallback diagnostic sink
 
 **Files:**
-- Modify: `backend/email_agent/logging_config.py:1-16`
+- Modify: `backend/email_agent/analysis_diagnostics.py`
+- Modify: `backend/email_agent/logging_config.py`
 - Modify: `scripts/run_local_debug.py:1-35`
 - Create: `tests/test_logging_config.py`
 - Modify: `tests/test_run_local_debug.py:1-48`
@@ -658,53 +659,36 @@ git commit -m "fix: diagnose model fallback stages"
 **Interfaces:**
 - Changes: `configure_logging(level: str = "INFO", *, log_file: str | Path | None = None) -> None`
 - `scripts/run_local_debug.py` uses `ROOT / "outputs" / "local_debug_service.log"`.
-- The Windows service manager remains unchanged because the application writes the file directly.
+- The Windows service manager remains unchanged because the dedicated diagnostic sink writes the file directly.
+- The rotating handler is never attached to the root logger; the diagnostic logger uses `propagate=False` and a fixed `WARNING` threshold independent of general service verbosity.
+- Its filter accepts only the exact fallback-event template and exact built-in allowlisted arguments.
 
-- [ ] **Step 1: Add failing real-file and entrypoint-order tests**
+- [ ] **Step 1: Add failing privacy, level, lifecycle, and entrypoint tests**
 
-Create `tests/test_logging_config.py` with an isolated subprocess test:
+Use isolated offline subprocesses. The DEBUG privacy case must emit synthetic records through `openai._base_client`, `httpx`, `httpcore`, an arbitrary backend logger, and direct diagnostic logger calls, including the marker `PRIVATE_OPENAI_BODY`. Only this helper-produced event may reach the file:
 
 ```python
-from __future__ import annotations
-
-import subprocess
-import sys
-import unittest
-from pathlib import Path
-from tempfile import TemporaryDirectory
-
-
-ROOT = Path(__file__).resolve().parents[1]
-
-
-class LoggingConfigTests(unittest.TestCase):
-    def test_configured_file_handler_writes_utf8_event(self) -> None:
-        with TemporaryDirectory() as directory:
-            path = Path(directory) / "service.log"
-            code = (
-                "import logging; "
-                "from backend.email_agent.logging_config import configure_logging; "
-                f"configure_logging('INFO', log_file={str(path)!r}); "
-                "logging.getLogger('synthetic').warning("
-                "'event=analysis_fallback code=provider_timeout')"
-            )
-            result = subprocess.run(
-                [sys.executable, "-B", "-c", code], cwd=ROOT,
-                check=False, capture_output=True, text=True, timeout=10,
-            )
-
-            self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn(
-                "event=analysis_fallback code=provider_timeout",
-                path.read_text(encoding="utf-8"),
-            )
-
-
-if __name__ == "__main__":
-    unittest.main()
+configure_logging("DEBUG", log_file=path)
+logging.getLogger("openai._base_client").debug(
+    "Request options: %s", {"messages": ["PRIVATE_OPENAI_BODY"]}
+)
+logging.getLogger("httpx").info("PRIVATE_HTTPX_URL")
+logging.getLogger("httpcore").warning("PRIVATE_HTTPCORE")
+logging.getLogger("backend.email_agent.synthetic").error("PRIVATE_BACKEND")
+logging.getLogger("backend.email_agent.analysis_diagnostics").warning(
+    "PRIVATE_DIRECT_DIAGNOSTIC"
+)
+log_analysis_fallback(
+    code="provider_timeout", stage="provider", provider="deepseek",
+    model="deepseek-v4-flash", output_mode="model_led", elapsed_ms=123,
+)
 ```
 
-In `tests/test_run_local_debug.py`, import `SimpleNamespace`, `MagicMock`, `call`, `patch`, `load_config`, and `scripts.run_local_debug`. Add a test that patches `parse_args`, `load_config`, `configure_logging`, and `run_server`; attach the latter two to one manager and assert:
+Assert that none of the private markers enters the file and that the canonical event occurs exactly once. Add spoof probes for a near-miss template, non-allowlisted values, a `str` subclass, `bool` elapsed time, an ERROR record, exception data, and stack information.
+
+Loop over DEBUG, INFO, WARNING, ERROR, CRITICAL, and an invalid level; each configuration must write exactly one canonical WARNING fallback. Add a repeated-configuration case that proves the first handler is closed and only one new diagnostic handler remains. Assert file mode uses one UTF-8 `RotatingFileHandler` with `maxBytes=1_000_000` and `backupCount=2`, no root file handler exists, and no-file mode uses one filtered diagnostic stream. Preserve the accepted-model `assertNoLogs` regression and the existing `assertLogs` tests.
+
+In `tests/test_run_local_debug.py`, keep the entrypoint-order assertion:
 
 ```python
 self.assertEqual(
@@ -719,7 +703,7 @@ self.assertEqual(
 )
 ```
 
-- [ ] **Step 2: Run logging and entrypoint tests and verify RED**
+- [ ] **Step 2: Run diagnostic logging tests and verify RED**
 
 Run:
 
@@ -729,41 +713,67 @@ Run:
 
 Expected: FAIL because `configure_logging` has no `log_file` argument and the entrypoint does not configure logging.
 
-- [ ] **Step 3: Implement rotating file logging and startup wiring**
+- [ ] **Step 3: Implement the dedicated, strictly filtered sink**
 
-Update `logging_config.py`:
+Expose one fixed message template from `analysis_diagnostics.py`, set its module logger to WARNING, and disable propagation. In `logging_config.py`, implement a handler filter with this exact decision boundary:
 
 ```python
-import logging
-from logging.handlers import RotatingFileHandler
-from pathlib import Path
-
-
-LOG_MAX_BYTES = 1_000_000
-LOG_BACKUP_COUNT = 2
-LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s %(message)s"
-
-
-def configure_logging(
-    level: str = "INFO", *, log_file: str | Path | None = None
-) -> None:
-    numeric_level = getattr(logging, level.upper(), logging.INFO)
-    handlers: list[logging.Handler]
-    if log_file is None:
-        handlers = [logging.StreamHandler()]
-    else:
-        path = Path(log_file)
-        path.parent.mkdir(parents=True, exist_ok=True)
-        handlers = [RotatingFileHandler(
-            path, maxBytes=LOG_MAX_BYTES, backupCount=LOG_BACKUP_COUNT,
-            encoding="utf-8",
-        )]
-    logging.basicConfig(
-        level=numeric_level, format=LOG_FORMAT, handlers=handlers, force=True,
-    )
+class _FallbackEventFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        if (
+            record.name != DIAGNOSTIC_LOGGER_NAME
+            or record.levelno != logging.WARNING
+            or type(record.msg) is not str
+            or record.msg != FALLBACK_EVENT_TEMPLATE
+            or type(record.args) is not tuple
+            or len(record.args) != 6
+            or record.exc_info is not None
+            or record.stack_info is not None
+        ):
+            return False
+        code, stage, provider, model, output_mode, elapsed_ms = record.args
+        return (
+            type(code) is str and code in FALLBACK_REASON_CODES
+            and type(stage) is str and stage in FALLBACK_STAGES
+            and type(provider) is str and provider in _CANONICAL_PROVIDERS
+            and type(model) is str and model in _CANONICAL_MODELS
+            and type(output_mode) is str
+            and output_mode in _CANONICAL_OUTPUT_MODES
+            and type(elapsed_ms) is int and elapsed_ms >= 0
+        )
 ```
 
-Update `run_local_debug.py` to import `load_config` and `configure_logging`, then call:
+`configure_logging(...)` must remove and close prior root and diagnostic handlers, leave root with no writer, then install exactly one filtered writer on the diagnostic logger:
+
+```python
+handler.setLevel(logging.WARNING)
+handler.setFormatter(logging.Formatter(LOG_FORMAT))
+handler.addFilter(_FallbackEventFilter())
+root.setLevel(numeric_level)
+diagnostic.setLevel(logging.WARNING)
+diagnostic.disabled = False
+diagnostic.propagate = False
+diagnostic.addHandler(handler)
+```
+
+File mode constructs:
+
+```python
+handler = RotatingFileHandler(
+    path,
+    maxBytes=1_000_000,
+    backupCount=2,
+    encoding="utf-8",
+)
+```
+
+No-file mode constructs only:
+
+```python
+handler = logging.StreamHandler()
+```
+
+Keep the existing entrypoint sequence:
 
 ```python
 config = load_config()
@@ -774,23 +784,23 @@ configure_logging(
 run_server(host=host, port=args.port, database_path=args.database)
 ```
 
-Do not print configuration, key presence, provider errors, or request content.
+Do not print configuration, key presence, provider errors, or request content. Do not add a root stream or file writer.
 
-- [ ] **Step 4: Run logging, entrypoint, manager, and linter tests and verify GREEN**
+- [ ] **Step 4: Run logging, diagnostics, entrypoint, manager, and linter tests and verify GREEN**
 
 Run:
 
 ```powershell
-& 'C:\Users\33506\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -B -m unittest tests.test_logging_config tests.test_run_local_debug tests.test_manage_local_service tests.test_static_linter_constraints -v
+& 'C:\Users\33506\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -B -m unittest tests.test_logging_config tests.test_analysis_diagnostics tests.test_run_local_debug tests.test_manage_local_service tests.test_static_linter_constraints -v
 ```
 
-Expected: all tests pass and the isolated file contains the synthetic event.
+Expected: all tests pass; SDK/HTTP/backend/direct private probes are absent, one canonical fallback survives every configured level, accepted model output produces zero fallback events, the prior handler is closed, and root owns no diagnostic writer.
 
-- [ ] **Step 5: Commit Task 4**
+- [ ] **Step 5: Commit the remediation**
 
 ```powershell
-git add backend/email_agent/logging_config.py scripts/run_local_debug.py tests/test_logging_config.py tests/test_run_local_debug.py
-git commit -m "fix: persist sanitized service diagnostics"
+git add backend/email_agent/analysis_diagnostics.py backend/email_agent/logging_config.py tests/test_logging_config.py tests/test_deepseek_documentation_contracts.py docs/conventions/logging.md docs/operations/troubleshooting.md docs/superpowers/specs/2026-07-13-deepseek-fallback-diagnostics-design.md docs/superpowers/plans/2026-07-13-deepseek-fallback-diagnostics.md
+git commit -m "fix: isolate fallback diagnostic logging"
 ```
 
 ---

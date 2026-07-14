@@ -53,6 +53,7 @@ FALLBACK_DIAGNOSTIC_CONTRACTS = {
         "Logs must not contain API keys, prompts, email or thread content, "
         "attachment names or content, provider output, raw exception text, "
         "tracebacks, URLs, paths, or customer identifiers.",
+        "dedicated diagnostic sink", "never attached to the root logger", "`propagate=False`", "fixed `WARNING` threshold", "exact fallback-event template", "exact built-in allowlisted arguments", "OpenAI, HTTPX, HTTP core", "DEBUG, INFO, WARNING, ERROR, CRITICAL, or an invalid level",
     ),
     "docs/operations/troubleshooting.md": (
         "analysis_fallback",
@@ -68,6 +69,7 @@ FALLBACK_DIAGNOSTIC_CONTRACTS = {
         "frontend",
         "恰好一条终态 allowlisted `event=analysis_fallback`",
         "Get-Content outputs\\local_debug_service.log -Tail 30 | Select-String 'event=analysis_'",
+        "专用 diagnostic sink", "不挂到 root logger", "`propagate=False`", "固定 `WARNING` 门槛", "OpenAI、HTTPX、HTTP core", "DEBUG、INFO、WARNING、ERROR、CRITICAL 或无效 level",
     ),
     "docs/operations/deployment_notes.md": (
         "analysis_fallback",
@@ -97,6 +99,8 @@ FALLBACK_DIAGNOSTIC_CONTRACTS = {
         "SQLite",
         "frontend",
     ),
+    "docs/superpowers/specs/2026-07-13-deepseek-fallback-diagnostics-design.md": ("dedicated diagnostic sink", "never attached to the root logger", "`propagate=False`", "fixed `WARNING` threshold", "exact fallback-event template", "exact built-in allowlisted arguments", "DEBUG, INFO, WARNING, ERROR, CRITICAL, or an invalid level"),
+    "docs/superpowers/plans/2026-07-13-deepseek-fallback-diagnostics.md": ("dedicated diagnostic sink", "never attached to the root logger", "`propagate=False`", "fixed `WARNING` threshold", "exact fallback-event template", "exact built-in allowlisted arguments", "PRIVATE_OPENAI_BODY", "DEBUG, INFO, WARNING, ERROR, CRITICAL, and an invalid level"),
 }
 
 
@@ -286,6 +290,10 @@ class DeepSeekDocumentationContractTests(unittest.TestCase):
         ):
             with self.subTest(path="docs/operations/troubleshooting.md", weakened=weakened):
                 self.assertNotIn(weakened, troubleshooting)
+
+        plan = self._read("docs/superpowers/plans/2026-07-13-deepseek-fallback-diagnostics.md")
+        for insecure_recipe in ("logging.getLogger('synthetic').warning", "logging.basicConfig(", "handlers=handlers"):
+            self.assertNotIn(insecure_recipe, plan)
 
 
 if __name__ == "__main__":

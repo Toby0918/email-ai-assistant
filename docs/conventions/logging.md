@@ -135,7 +135,9 @@ token
 
 ## 7. Model fallback diagnostic contract
 
-`scripts/run_local_debug.py` 在启动本地服务前配置 operator-only 文件日志。活动文件固定为 `outputs/local_debug_service.log`；标准库 rotating handler 在 `1 MB`（`1_000_000` bytes）时轮转，并最多保留 `two backups`。不得把活动日志或备份提交到版本库。
+`scripts/run_local_debug.py` 在启动本地服务前为 `backend.email_agent.analysis_diagnostics` 配置 operator-only dedicated diagnostic sink。活动文件固定为 `outputs/local_debug_service.log`；标准库 rotating handler 在 `1 MB`（`1_000_000` bytes）时轮转，并最多保留 `two backups`。不得把活动日志或备份提交到版本库。
+
+该 file handler is never attached to the root logger。diagnostic logger 使用 `propagate=False`，logger 和 handler 都有独立于一般服务 level 的 fixed `WARNING` threshold。重复配置会移除并关闭旧 diagnostic handler，最终只保留一个 writer；file mode 只使用一个 UTF-8 rotating handler，no-file mode 只使用一个受同样过滤的 diagnostic stream handler。
 
 Rule fallback remains a successful public analysis response. 每个结束于规则兜底的模型尝试只写 `exactly one terminal allowlisted event`：
 
@@ -169,6 +171,8 @@ unexpected_analysis_error
 ```
 
 诊断是本地运行信息，不得进入 `public API`、`SQLite` 或 `frontend`。日志函数只接收上面的固定枚举和非负耗时，不能接收请求、邮件、线程、附件、Prompt、provider response、异常对象、URL、路径或客户字段。
+
+Writing handler 只接受 exact fallback-event template 和 exact built-in allowlisted arguments；它拒绝 OpenAI, HTTPX, HTTP core、任意 backend/application logger、child logger、direct free-form diagnostic record、非 WARNING record、字符串子类、`bool`、exception 和 stack information。因此一般服务 level 配置为 DEBUG, INFO, WARNING, ERROR, CRITICAL, or an invalid level 时，每个真实 fallback 仍恰好写一条 canonical event；accepted model output 写零条 fallback event。
 
 Logs must not contain API keys, prompts, email or thread content, attachment names or content, provider output, raw exception text, tracebacks, URLs, paths, or customer identifiers.
 

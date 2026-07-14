@@ -34,8 +34,8 @@ This evidence identifies an observability defect, not the final external provide
 - The backend defines fixed reason/stage/provider/model/output-mode allowlists and canonicalizes caller-owned values before logging.
 - Client failures map only from SDK exception classes and coarse HTTP status, without retaining or formatting the original exception.
 - The analysis route has one terminal fallback helper and one production `log_analysis_fallback(...)` call site; every failure still returns the same complete rule fallback.
-- The local entrypoint loads configuration, initializes logging, and then starts the loopback server.
-- The active UTF-8 log is `outputs/local_debug_service.log`; it rotates at `1 MB` (`1_000_000` bytes) and keeps `two backups`.
+- The local entrypoint loads configuration, initializes a dedicated diagnostic sink, and then starts the loopback server.
+- The diagnostic logger owns the active UTF-8 log at `outputs/local_debug_service.log`; it rotates at `1 MB` (`1_000_000` bytes) and keeps `two backups`.
 - The public API, SQLite, frontend, prompt, provider context, and deterministic fallback remain unchanged.
 - Automated tests use synthetic provider doubles and do not call DeepSeek.
 
@@ -47,7 +47,7 @@ This is the approved approach.
 
 - Classify failures at the provider, response, envelope, evidence, safety, schema, language, and budget boundaries.
 - Log only allowlisted codes and non-sensitive runtime metadata.
-- Configure the application to write its own rotating file log so the behavior is reliable under the Windows WMI launcher.
+- Configure the diagnostic logger to write its own rotating file so the behavior is reliable under the Windows WMI launcher without becoming an application or library log sink.
 - Keep rule fallback behavior and the public API unchanged.
 
 This provides enough evidence to select the next fix without weakening privacy or fail-closed behavior.
@@ -129,9 +129,11 @@ It emits the terminal sanitized event and then returns the same complete determi
 
 ### Logging configuration
 
-`logging_config.py` configures standard-library logging with a rotating UTF-8 file handler under `outputs/local_debug_service.log`. Rotation uses `maxBytes=1_000_000` (`1 MB`) and `backupCount=2` (`two backups`). No dependency is added.
+`logging_config.py` configures `backend.email_agent.analysis_diagnostics` as a dedicated diagnostic sink. Its rotating UTF-8 file handler is never attached to the root logger. The diagnostic logger uses `propagate=False`, and both logger and handler use a fixed `WARNING` threshold independent of the configured general service level. Rotation under `outputs/local_debug_service.log` uses `maxBytes=1_000_000` (`1 MB`) and `backupCount=2` (`two backups`). No dependency is added.
 
-`run_local_debug.py` loads backend configuration, initializes logging before starting the HTTP server, and then starts the same loopback-only service. Because the application owns the file handler, Windows WMI startup no longer depends on inherited stdout or stderr redirection.
+The handler accepts only the exact fallback-event template with exact built-in allowlisted arguments and a non-negative built-in integer. It rejects records from OpenAI, HTTPX, HTTP core, arbitrary application loggers, child loggers, direct free-form diagnostic messages, non-WARNING records, string subclasses, booleans, exceptions, and stack information. Reconfiguration replaces and closes the prior diagnostic handler, leaving exactly one writer. File mode installs one rotating handler; no-file mode installs one filtered diagnostic stream handler. A canonical fallback is therefore written exactly once whether the configured general level is DEBUG, INFO, WARNING, ERROR, CRITICAL, or an invalid level.
+
+`run_local_debug.py` loads backend configuration, initializes the diagnostic sink before starting the HTTP server, and then starts the same loopback-only service. Because the diagnostic logger owns the file handler, Windows WMI startup no longer depends on inherited stdout or stderr redirection.
 
 The existing service manager remains responsible only for lifecycle, PID, health, and attachment cleanup. It must not read or print `.env` values.
 
@@ -160,7 +162,7 @@ Use test-driven development with synthetic values only:
 
 1. Client tests prove each safe provider failure category and prove raw exception text is absent.
 2. Route tests prove budget, envelope, evidence, safety, schema, language, and unexpected failures produce the intended code while returning the exact rule fallback.
-3. Logging tests prove the rotating file handler writes safe events and never receives prohibited payload fields.
+3. Logging tests prove the dedicated rotating handler writes safe events, rejects SDK/HTTP/application/private direct records, remains independent of every configured general level, and never sits on the root logger.
 4. Entrypoint tests prove logging is configured before the server starts and uses the configured level.
 5. Regression tests prove accepted model output still reports `ai_model`, failed output still reports `rule_fallback`, and no second provider attempt occurs.
 6. Static/mechanical tests scan the diagnostic implementation for raw exception interpolation and sensitive-field logging.
@@ -187,6 +189,7 @@ No automated or Codex-run live DeepSeek call is permitted. After the patch and s
 5. The public API, SQLite schema, frontend, prompt, and deterministic fallback remain unchanged.
 6. Automated tests use only synthetic inputs and perform no live provider call.
 7. Focused tests, full `unittest` discovery, static/architecture/mechanical guards, documentation checks, maintenance scan, project-status generation, and `git diff --check` pass before completion.
+8. The dedicated diagnostic sink has one filtered writer, does not propagate to root, and emits exactly one canonical event for DEBUG through CRITICAL and invalid general levels.
 
 Implementation and offline release verification do not perform the user-visible synthetic Analyze action. That single user-triggered live diagnostic remains deferred because it can consume provider usage.
 
