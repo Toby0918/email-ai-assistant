@@ -88,6 +88,32 @@ commands are `init`, `inventory`, `scan`, `attachments`, `verify`,
 `purge-expired`, `revoke`, and `rewrap-recovery`. There is no scheduled job,
 automatic trigger, browser command, or normal-runtime hook.
 
+These remain the eight core vault commands. `stage-knowledge` is a later Task 4
+handoff command implemented only in that administrator-only CLI. It accepts
+only a reviewed manifest of approved random record IDs, decrypts one record at
+a time, runs the local private-knowledge deidentifier and residual scanner in
+memory, releases raw plaintext and the ephemeral mapping before the next
+record, and writes only an encrypted deidentified candidate batch under a
+separate knowledge namespace. Its result and all output, logs, receipts, and
+errors contain only candidate IDs, counts, and fixed codes,
+never raw record IDs, text, mapping, paths, locators, or identifying values.
+`scripts/manage_private_knowledge.py`, Codex, DeepSeek, normal runtime, and
+automated tests never import or read the raw vault.
+
+Task 4 creates `tests/test_manage_mailbox_vault_stage_knowledge.py` and tests the
+exact synthetic injected interface:
+
+```python
+stage_knowledge(
+    selection,
+    *,
+    read_one_record,
+    deidentify,
+    scan_residuals,
+    write_encrypted_candidate_batch,
+) -> StageKnowledgeResult
+```
+
 ## 7. Expected Scope
 
 The approved implementation plan may later add these isolated packages and
@@ -111,6 +137,11 @@ and scheduled workflows may not import or invoke it.
 The IMAP wrapper has no arbitrary command passthrough. It exposes only folder
 listing, read-only `EXAMINE`, `UID SEARCH`, and bounded `UID FETCH` operations
 using `BODY.PEEK`. It must never issue `BODY[]` without `PEEK`.
+Until Task 3 adds runtime validator tests, every target is a finite single-UID
+decimal literal. Task 3 may add only the direct bare local, non-imported,
+non-reassigned expression `validate_single_uid_fetch_target(uid)` in the same
+change as its runtime tests; wildcard, range, sequence, dynamic, and qualified
+targets remain forbidden.
 
 Mechanically forbidden operations are `STORE`, `APPEND`, `COPY`, `MOVE`,
 `EXPUNGE`, `CREATE`, `DELETE`, `RENAME`, `SUBSCRIBE`, `UNSUBSCRIBE`, SMTP, and

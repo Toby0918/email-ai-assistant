@@ -98,6 +98,91 @@ class PrintCallVisitor(ast.NodeVisitor):
 
 
 class StaticLinterConstraintTests(unittest.TestCase):
+    def test_raw_vault_to_knowledge_handoff_is_narrowly_documented(self) -> None:
+        governance_paths = (
+            ROOT
+            / "docs"
+            / "superpowers"
+            / "plans"
+            / "2026-07-14-authorized-mailbox-ingest-knowledge-deepseek.md",
+            ROOT
+            / "docs"
+            / "superpowers"
+            / "plans"
+            / "2026-07-14-mailbox-vault.md",
+            ROOT
+            / "docs"
+            / "superpowers"
+            / "plans"
+            / "2026-07-14-private-knowledge.md",
+            ROOT / "docs" / "constraints" / "architecture_constraints.md",
+            ROOT
+            / "docs"
+            / "operations"
+            / "authorized_mailbox_ingest_task_brief.md",
+        )
+        common_markers = (
+            "`stage-knowledge`",
+            "approved random record IDs",
+            "one record at a time",
+            "local private-knowledge deidentifier and residual scanner in memory",
+            "encrypted deidentified candidate batch",
+            "separate knowledge namespace",
+            "contain only candidate IDs, counts, and fixed codes",
+            "`scripts/manage_private_knowledge.py`",
+            "never import or read the raw vault",
+            "eight core vault commands",
+            "later Task 4 handoff command",
+            "`tests/test_manage_mailbox_vault_stage_knowledge.py`",
+            "stage_knowledge(",
+            "read_one_record",
+            "write_encrypted_candidate_batch",
+            "synthetic",
+        )
+
+        for path in governance_paths:
+            text = " ".join(read_text(path).split())
+            for marker in common_markers:
+                with self.subTest(path=path, marker=marker):
+                    self.assertIn(marker, text)
+
+        master_plan = read_text(governance_paths[0])
+        master_markers = (
+            "- Modify: `scripts/manage_mailbox_vault.py`",
+            "- Create: `tests/test_manage_mailbox_vault_stage_knowledge.py`",
+            "stage_knowledge(",
+            "read_one_record",
+            "write_encrypted_candidate_batch",
+            "- Create: `docs/superpowers/plans/2026-07-14-deepseek-analysis-contract-alignment.md`",
+        )
+        for marker in master_markers:
+            with self.subTest(path=governance_paths[0], marker=marker):
+                self.assertIn(marker, master_plan)
+        self.assertNotIn(
+            "- Modify: `docs/superpowers/plans/2026-07-14-deepseek-analysis-contract-alignment.md`",
+            master_plan,
+        )
+        architecture = " ".join(read_text(governance_paths[3]).split())
+        self.assertIn(
+            "scripts/manage_mailbox_vault.py -> backend.private_knowledge",
+            architecture,
+        )
+        self.assertIn(
+            "raw-plaintext and ephemeral-mapping release before the next record",
+            " ".join(master_plan.split()),
+        )
+        private_plan = " ".join(read_text(governance_paths[2]).split())
+        self.assertIn(
+            "Add RED staging tests in "
+            "`tests/test_manage_mailbox_vault_stage_knowledge.py`",
+            private_plan,
+        )
+        self.assertIn(
+            "then add the administrator-only `stage-knowledge` handoff to "
+            "`scripts/manage_mailbox_vault.py`",
+            private_plan,
+        )
+
     def test_authorized_mailbox_exception_is_narrowly_documented(self) -> None:
         governance_markers = {
             ROOT / "AGENTS.md": (

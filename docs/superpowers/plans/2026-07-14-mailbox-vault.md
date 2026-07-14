@@ -59,6 +59,11 @@ uid_fetch_peek
 
 The command allowlist is `LIST`, read-only `EXAMINE`, `UID SEARCH`, and bounded
 `UID FETCH` with `BODY.PEEK`. There is no arbitrary IMAP command passthrough.
+Until Task 3 adds runtime validator tests, every target is a finite single-UID
+decimal literal. Task 3 may add only the direct bare local, non-imported,
+non-reassigned expression `validate_single_uid_fetch_target(uid)` in the same
+change as its runtime tests; wildcard, range, sequence, dynamic, and qualified
+targets remain forbidden.
 The following are forbidden: `STORE`, `APPEND`, `COPY`, `MOVE`, `EXPUNGE`,
 `CREATE`, `DELETE`, `RENAME`, `SUBSCRIBE`, `UNSUBSCRIBE`, `BODY[]` without
 `PEEK`, `SMTP`, and every operation that can change flags or mailbox state.
@@ -123,6 +128,34 @@ verify
 purge-expired
 revoke
 rewrap-recovery
+```
+
+These remain the eight core vault commands. `stage-knowledge` is a later Task 4
+handoff command implemented only in the administrator-only
+`scripts/manage_mailbox_vault.py`; it does not widen Task 2 or Task 3 transport,
+runtime, browser, or scheduling boundaries. It accepts only a reviewed manifest
+of approved random record IDs, decrypts one record at a time, runs the local
+private-knowledge deidentifier and residual scanner in memory, releases raw
+plaintext and the ephemeral mapping before the next record, and writes only an
+encrypted deidentified candidate batch under a separate knowledge namespace.
+Its result and all output, logs, receipts, and errors contain only candidate
+IDs, counts, and fixed codes, never raw record IDs, text, mapping,
+paths, locators, or identifying values. `scripts/manage_private_knowledge.py`,
+Codex, DeepSeek, normal runtime, and automated tests never import or read the raw
+vault.
+
+Task 4 creates `tests/test_manage_mailbox_vault_stage_knowledge.py` and uses the
+exact injected interface below with synthetic readers and writers only:
+
+```python
+stage_knowledge(
+    selection,
+    *,
+    read_one_record,
+    deidentify,
+    scan_residuals,
+    write_encrypted_candidate_batch,
+) -> StageKnowledgeResult
 ```
 
 Operational commands require `--vault`, `--authorization-id`, and one account

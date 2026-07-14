@@ -18,6 +18,21 @@ POLICY_DOCS = (
     ROOT / "docs" / "constraints" / "linter_constraints.md",
 )
 
+UID_BOUNDARY_DOCS = (
+    ROOT / "docs" / "constraints" / "architecture_constraints.md",
+    ROOT / "docs" / "operations" / "authorized_mailbox_ingest_task_brief.md",
+    ROOT
+    / "docs"
+    / "superpowers"
+    / "plans"
+    / "2026-07-14-authorized-mailbox-ingest-knowledge-deepseek.md",
+    ROOT
+    / "docs"
+    / "superpowers"
+    / "plans"
+    / "2026-07-14-mailbox-vault.md",
+)
+
 ALLOWED_IMAP_OPERATIONS = (
     "`LIST`",
     "`EXAMINE`",
@@ -50,21 +65,7 @@ READ_ONLY_SESSION_METHODS = {
     "uid_fetch_peek",
 }
 
-FORBIDDEN_IMAP_METHODS = {
-    "append",
-    "close",
-    "copy",
-    "create",
-    "delete",
-    "expunge",
-    "move",
-    "rename",
-    "store",
-    "subscribe",
-    "unsubscribe",
-}
-
-WRAPPER_ONLY_IMAP_METHODS = {
+RAW_IMAP_METHOD_ALLOWLIST = {
     "list",
     "login",
     "logout",
@@ -72,18 +73,9 @@ WRAPPER_ONLY_IMAP_METHODS = {
     "uid",
 }
 
-DIRECT_NON_UID_METHODS = {
-    "fetch",
-    "search",
-}
-
-RAW_CLIENT_ATTRIBUTES_OUTSIDE_WRAPPER = {
-    "_client",
-    "_imap_client",
-    "client",
-}
-
 WRAPPER_RAW_CLIENT_ATTRIBUTE = "_imap_client"
+MAX_IMAP_UID = 4_294_967_295
+SINGLE_UID_LITERAL = re.compile(r"^[1-9][0-9]*$")
 
 FIXED_FETCH_SELECTORS = {
     "(BODYSTRUCTURE)",
@@ -142,6 +134,14 @@ def _is_canonical_wrapper_client(value: ast.expr) -> bool:
     )
 
 
+def _is_single_uid_literal(value: ast.expr) -> bool:
+    if not isinstance(value, ast.Constant) or not isinstance(value.value, str):
+        return False
+    if not SINGLE_UID_LITERAL.fullmatch(value.value):
+        return False
+    return int(value.value) <= MAX_IMAP_UID
+
+
 def _parent_map(tree: ast.AST) -> dict[ast.AST, ast.AST]:
     return {
         child: parent
@@ -186,34 +186,183 @@ def _is_constructor_field_assignment(
     )
 
 
-def _is_direct_allowlisted_client_call(
-    node: ast.Attribute,
-    parents: dict[ast.AST, ast.AST],
+def _imap_constructor_sources(tree: ast.AST) -> tuple[set[str], set[str]]:
+    constructor_names: set[str] = set()
+    module_names: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "imaplib":
+                    module_names.add(alias.asname or alias.name)
+        elif isinstance(node, ast.ImportFrom) and _module_root(node.module) == "imaplib":
+            for alias in node.names:
+                if alias.name in IMAP_CONSTRUCTORS:
+                    constructor_names.add(alias.asname or alias.name)
+
+    changed = True
+    while changed:
+        changed = False
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.Assign, ast.AnnAssign)):
+                continue
+            value = node.value
+            targets = node.targets if isinstance(node, ast.Assign) else [node.target]
+            if value is None or not _is_imap_constructor_source(
+                value,
+                constructor_names=constructor_names,
+                module_names=module_names,
+            ):
+                continue
+            for target in targets:
+                if isinstance(target, ast.Name) and target.id not in constructor_names:
+                    constructor_names.add(target.id)
+                    changed = True
+    return constructor_names, module_names
+
+
+def _is_imap_constructor_source(
+    value: ast.expr,
+    *,
+    constructor_names: set[str],
+    module_names: set[str],
 ) -> bool:
-    method_access = parents.get(node)
-    if (
-        not isinstance(method_access, ast.Attribute)
-        or method_access.value is not node
-        or method_access.attr.lower() not in WRAPPER_ONLY_IMAP_METHODS
-    ):
+    if isinstance(value, ast.Name):
+        return value.id in constructor_names
+    return (
+        isinstance(value, ast.Attribute)
+        and isinstance(value.value, ast.Name)
+        and value.value.id in module_names
+        and value.attr in IMAP_CONSTRUCTORS
+    )
+
+
+def _is_raw_imap_expression(
+    value: ast.expr | None,
+    *,
+    tainted_names: set[str],
+    constructor_names: set[str],
+    module_names: set[str],
+) -> bool:
+    if value is None:
         return False
-    call = parents.get(method_access)
-    return isinstance(call, ast.Call) and call.func is method_access
+    if isinstance(value, ast.Name):
+        return value.id in tainted_names
+    if isinstance(value, ast.Attribute):
+        return (
+            isinstance(value.ctx, ast.Load)
+            and (
+                value.attr == WRAPPER_RAW_CLIENT_ATTRIBUTE
+                or _is_raw_imap_expression(
+                    value.value,
+                    tainted_names=tainted_names,
+                    constructor_names=constructor_names,
+                    module_names=module_names,
+                )
+            )
+        )
+    if not isinstance(value, ast.Call):
+        return False
+    if _is_imap_constructor_source(
+        value.func,
+        constructor_names=constructor_names,
+        module_names=module_names,
+    ):
+        return True
+    return (
+        isinstance(value.func, ast.Name)
+        and value.func.id == "getattr"
+        and len(value.args) >= 2
+        and isinstance(value.args[1], ast.Constant)
+        and value.args[1].value == WRAPPER_RAW_CLIENT_ATTRIBUTE
+    )
 
 
-def _canonical_client_access_violations(tree: ast.AST) -> list[str]:
+def _raw_imap_alias_names(
+    tree: ast.AST,
+    *,
+    constructor_names: set[str],
+    module_names: set[str],
+) -> set[str]:
+    tainted_names: set[str] = set()
+    changed = True
+    while changed:
+        changed = False
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Assign):
+                value = node.value
+                targets = node.targets
+            elif isinstance(node, ast.AnnAssign):
+                value = node.value
+                targets = [node.target]
+            else:
+                continue
+            if not _is_raw_imap_expression(
+                value,
+                tainted_names=tainted_names,
+                constructor_names=constructor_names,
+                module_names=module_names,
+            ):
+                continue
+            for target in targets:
+                if isinstance(target, ast.Name) and target.id not in tainted_names:
+                    tainted_names.add(target.id)
+                    changed = True
+    return tainted_names
+
+
+def _raw_imap_escape_violations(
+    tree: ast.AST,
+    *,
+    tainted_names: set[str],
+    constructor_names: set[str],
+    module_names: set[str],
+) -> list[str]:
     parents = _parent_map(tree)
     violations: list[str] = []
-    for node in ast.walk(tree):
-        if not isinstance(node, ast.Attribute) or not _is_canonical_wrapper_client(node):
-            continue
-        if _is_constructor_field_assignment(node, parents):
-            continue
-        if _is_direct_allowlisted_client_call(node, parents):
-            continue
-        violations.append(
-            f"line {node.lineno}: raw IMAP client escapes its allowlisted call boundary"
+
+    def is_raw(value: ast.expr | None) -> bool:
+        return _is_raw_imap_expression(
+            value,
+            tainted_names=tainted_names,
+            constructor_names=constructor_names,
+            module_names=module_names,
         )
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign):
+            value = node.value
+            targets = node.targets
+        elif isinstance(node, ast.AnnAssign):
+            value = node.value
+            targets = [node.target]
+        else:
+            value = None
+            targets = []
+        if targets:
+            for target in targets:
+                allowed_constructor_field = (
+                    isinstance(target, ast.Attribute)
+                    and _is_canonical_wrapper_client(target)
+                    and _is_constructor_field_assignment(target, parents)
+                )
+                stores_raw_field = (
+                    isinstance(target, ast.Attribute)
+                    and target.attr == WRAPPER_RAW_CLIENT_ATTRIBUTE
+                )
+                if (stores_raw_field or is_raw(value)) and not allowed_constructor_field:
+                    violations.append(
+                        f"line {node.lineno}: raw IMAP client assignment escape"
+                    )
+
+        if isinstance(node, (ast.Return, ast.Yield, ast.YieldFrom)) and is_raw(
+            node.value
+        ):
+            violations.append(f"line {node.lineno}: raw IMAP client return escape")
+        if not isinstance(node, ast.Call):
+            continue
+        arguments = [*node.args, *(keyword.value for keyword in node.keywords)]
+        if any(is_raw(argument) for argument in arguments):
+            violations.append(f"line {node.lineno}: raw IMAP client argument escape")
     return violations
 
 
@@ -241,51 +390,47 @@ def _imap_call_violations(
     *,
     is_wrapper: bool = True,
 ) -> list[str]:
-    violations = _canonical_client_access_violations(tree) if is_wrapper else []
-    if not is_wrapper:
-        for node in ast.walk(tree):
-            if (
-                isinstance(node, ast.Attribute)
-                and node.attr in RAW_CLIENT_ATTRIBUTES_OUTSIDE_WRAPPER
-            ):
-                violations.append(
-                    f"line {node.lineno}: raw IMAP client attribute outside wrapper"
-                )
+    constructor_names, module_names = _imap_constructor_sources(tree)
+    tainted_names = _raw_imap_alias_names(
+        tree,
+        constructor_names=constructor_names,
+        module_names=module_names,
+    )
+    violations = _raw_imap_escape_violations(
+        tree,
+        tainted_names=tainted_names,
+        constructor_names=constructor_names,
+        module_names=module_names,
+    )
+
+    def is_raw(value: ast.expr | None) -> bool:
+        return _is_raw_imap_expression(
+            value,
+            tainted_names=tainted_names,
+            constructor_names=constructor_names,
+            module_names=module_names,
+        )
 
     for node in ast.walk(tree):
         if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
             continue
+        if not is_raw(node.func.value):
+            continue
         method = node.func.attr.lower()
-        if is_wrapper and _is_canonical_wrapper_client(node.func.value):
-            if method not in WRAPPER_ONLY_IMAP_METHODS:
-                violations.append(
-                    f"line {node.lineno}: raw IMAP method {method} is not allowlisted"
-                )
-                continue
-        if is_wrapper and method in FORBIDDEN_IMAP_METHODS:
-            violations.append(f"line {node.lineno}: forbidden IMAP method {method}")
-            continue
-        if method == "_simple_command":
-            violations.append(f"line {node.lineno}: raw IMAP command passthrough")
-            continue
-        if is_wrapper and method in DIRECT_NON_UID_METHODS:
-            violations.append(f"line {node.lineno}: non-UID IMAP method {method}")
-            continue
-        if is_wrapper and method in WRAPPER_ONLY_IMAP_METHODS:
-            if not _is_canonical_wrapper_client(node.func.value):
-                violations.append(
-                    f"line {node.lineno}: raw IMAP method {method} must use "
-                    f"self.{WRAPPER_RAW_CLIENT_ATTRIBUTE}"
-                )
-                continue
-            if method == "select" and not _is_literal_readonly_select(node):
-                violations.append(
-                    f"line {node.lineno}: select must use one literal readonly=True"
-                )
-                continue
-        if not is_wrapper and method in WRAPPER_ONLY_IMAP_METHODS:
+        canonical_receiver = _is_canonical_wrapper_client(node.func.value)
+        if not is_wrapper or not canonical_receiver:
             violations.append(
-                f"line {node.lineno}: raw IMAP method {method} outside wrapper"
+                f"line {node.lineno}: raw IMAP method {method} must use "
+                f"self.{WRAPPER_RAW_CLIENT_ATTRIBUTE} inside the wrapper"
+            )
+        if method not in RAW_IMAP_METHOD_ALLOWLIST:
+            violations.append(
+                f"line {node.lineno}: raw IMAP method {method} is not allowlisted"
+            )
+            continue
+        if method == "select" and not _is_literal_readonly_select(node):
+            violations.append(
+                f"line {node.lineno}: select must use one literal readonly=True"
             )
             continue
         if method != "uid":
@@ -305,6 +450,11 @@ def _imap_call_violations(
             continue
         if len(node.args) != 3 or node.keywords:
             violations.append(f"line {node.lineno}: invalid UID FETCH call shape")
+            continue
+        if not _is_single_uid_literal(node.args[1]):
+            violations.append(
+                f"line {node.lineno}: UID FETCH target must be one finite literal UID"
+            )
             continue
         if not _is_allowed_fetch_selector(node.args[2]):
             violations.append(
@@ -411,23 +561,9 @@ class MailboxTransportConstraintTests(unittest.TestCase):
                 "self._imap_client.store('1', '+FLAGS', '(Seen)')",
                 True,
             ),
-            "raw LIST outside wrapper": ("client.list()", False),
-            "UID outside wrapper": ("client.uid('SEARCH', 'ALL')", False),
-            "private raw client outside wrapper": (
-                "session._client.store('1', '+FLAGS', '(Seen)')",
-                False,
-            ),
             "canonical raw client outside wrapper": (
                 "session._imap_client.store('1', '+FLAGS', '(Seen)')",
                 False,
-            ),
-            "public raw client outside wrapper": (
-                "session.client.store('1', '+FLAGS', '(Seen)')",
-                False,
-            ),
-            "noncanonical raw client inside wrapper": (
-                "self._client.uid('SEARCH', None, 'ALL')",
-                True,
             ),
             "SELECT defaults to writable": (
                 "self._imap_client.select('INBOX')",
@@ -485,6 +621,39 @@ class MailboxTransportConstraintTests(unittest.TestCase):
                 "consume(self._imap_client)",
                 True,
             ),
+            "getattr raw client alias": (
+                "raw = getattr(self, '_imap_client')\n"
+                "raw.send(b'NOOP\\r\\n')",
+                True,
+            ),
+            "constructor raw client alias": (
+                "import imaplib\n"
+                "raw = imaplib.IMAP4_SSL()\n"
+                "raw.send(b'NOOP\\r\\n')",
+                True,
+            ),
+            "aliased constructor raw client": (
+                "import imaplib\n"
+                "constructor = imaplib.IMAP4_SSL\n"
+                "raw = constructor()\n"
+                "raw.send(b'NOOP\\r\\n')",
+                True,
+            ),
+            "constructor raw client return": (
+                "import imaplib\n"
+                "def expose():\n"
+                "    return imaplib.IMAP4_SSL()",
+                True,
+            ),
+            "constructor raw client argument": (
+                "import imaplib\n"
+                "consume(imaplib.IMAP4_SSL())",
+                True,
+            ),
+            "raw socket chain": (
+                "self._imap_client.sock.send(b'NOOP\\r\\n')",
+                True,
+            ),
             "dynamic FETCH selector": (
                 "self._imap_client.uid('FETCH', '1', selector)",
                 True,
@@ -513,6 +682,60 @@ class MailboxTransportConstraintTests(unittest.TestCase):
                         is_wrapper=is_wrapper,
                     )
                 )
+
+    def test_transport_guard_applies_imap_method_names_only_to_raw_receivers(
+        self,
+    ) -> None:
+        samples = (
+            "repository.list()",
+            "vault_index.select()",
+            "protector.client.protect(data)",
+            "folders.append(folder)",
+            "metadata.copy()",
+            "temp.close()",
+            "client.uid('SEARCH', None, 'ALL')",
+            "self._client.store('1', '+FLAGS', '(Seen)')",
+            "factory.IMAP4_SSL().list()",
+        )
+
+        for sample in samples:
+            with self.subTest(sample=sample):
+                self.assertFalse(
+                    _source_transport_violations(
+                        ast.parse(sample),
+                        is_wrapper=True,
+                    )
+                )
+
+    def test_uid_fetch_requires_one_finite_literal_uid(self) -> None:
+        rejected_targets = (
+            "uid",
+            "f'{uid}'",
+            "'*'",
+            "'1:*'",
+            "'1:4'",
+            "'1,4'",
+            "'0'",
+            "'-1'",
+            "'4294967296'",
+            "validate_single_uid_fetch_target(uid)",
+        )
+
+        for target in rejected_targets:
+            sample = (
+                "self._imap_client.uid('FETCH', "
+                f"{target}, '(RFC822.SIZE)')"
+            )
+            with self.subTest(target=target):
+                self.assertTrue(_imap_call_violations(ast.parse(sample)))
+
+        for target in ("'1'", "'4294967295'"):
+            sample = (
+                "self._imap_client.uid('FETCH', "
+                f"{target}, '(RFC822.SIZE)')"
+            )
+            with self.subTest(target=target):
+                self.assertFalse(_imap_call_violations(ast.parse(sample)))
 
     def test_transport_guard_allows_fixed_read_only_selectors(
         self,
@@ -630,6 +853,18 @@ class MailboxTransportConstraintTests(unittest.TestCase):
             for operation in FORBIDDEN_TRANSPORT_OPERATIONS:
                 with self.subTest(path=path, forbidden=operation):
                     self.assertIn(operation, text)
+
+    def test_task_three_docs_keep_uid_fetch_literal_until_validator_tests_exist(
+        self,
+    ) -> None:
+        for path in UID_BOUNDARY_DOCS:
+            text = " ".join(read_text(path).split())
+            with self.subTest(path=path, marker="single UID literal"):
+                self.assertIn("finite single-UID decimal literal", text)
+            with self.subTest(path=path, marker="future validator expression"):
+                self.assertIn("validate_single_uid_fetch_target(uid)", text)
+            with self.subTest(path=path, marker="same-change runtime tests"):
+                self.assertIn("same change as its runtime tests", text)
 
     def test_importer_sources_expose_only_read_only_imap_and_no_smtp(self) -> None:
         source_paths: list[Path] = []

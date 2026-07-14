@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import ast
 import re
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -101,6 +102,17 @@ def parse_called_names(path: Path) -> set[str]:
     return names
 
 
+def _mailbox_import_boundary_script_paths(
+    root: Path,
+    allowed_importer: Path,
+) -> list[Path]:
+    return [
+        path
+        for path in (root / "scripts").rglob("*.py")
+        if path.resolve() != allowed_importer.resolve()
+    ]
+
+
 class ArchitectureConstraintTests(unittest.TestCase):
     def test_mailbox_ingest_import_boundary_is_administrator_cli_only(self) -> None:
         architecture = read_text(
@@ -127,9 +139,7 @@ class ArchitectureConstraintTests(unittest.TestCase):
             if mailbox_package not in path.parents
         ]
         runtime_paths.extend(
-            path
-            for path in (ROOT / "scripts").glob("*.py")
-            if path != allowed_importer
+            _mailbox_import_boundary_script_paths(ROOT, allowed_importer)
         )
         frontend = ROOT / "frontend"
         runtime_paths.extend(
@@ -155,6 +165,20 @@ class ArchitectureConstraintTests(unittest.TestCase):
                     importer_reference.search(read_text(path)),
                     f"{path} must not reference the isolated mailbox importer",
                 )
+
+    def test_mailbox_import_boundary_recurses_through_nested_scripts(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            allowed_importer = root / "scripts" / "manage_mailbox_vault.py"
+            nested_script = root / "scripts" / "nested" / "tool.py"
+            nested_script.parent.mkdir(parents=True)
+            allowed_importer.write_text("", encoding="utf-8")
+            nested_script.write_text("", encoding="utf-8")
+
+            paths = _mailbox_import_boundary_script_paths(root, allowed_importer)
+
+        self.assertIn(nested_script, paths)
+        self.assertNotIn(allowed_importer, paths)
 
     def test_mail_transport_imports_and_constructors_are_wrapper_owned(self) -> None:
         wrapper = ROOT / "backend" / "mailbox_ingest" / "imap_readonly.py"

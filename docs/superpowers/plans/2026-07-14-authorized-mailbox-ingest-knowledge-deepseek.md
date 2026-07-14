@@ -244,6 +244,11 @@ browser extension; `unittest`.
   after all local policy checks pass.
 - `ReadOnlyImapSession` exposes only `list_folders`, `examine`, `uid_search`,
   `uid_fetch_size`, `uid_fetch_bodystructure`, and `uid_fetch_peek`.
+- Until Task 3 adds runtime validator tests, every `UID FETCH` target is a
+  finite single-UID decimal literal. Task 3 may add only the direct bare local,
+  non-imported, non-reassigned expression
+  `validate_single_uid_fetch_target(uid)` in the same change as its runtime tests;
+  wildcard, range, sequence, dynamic, and qualified targets remain forbidden.
 
 - [ ] **Step 1: Write synthetic IMAP and CLI tests before code.** Assert fixed
   host/port/TLS context, no password flag/env access, two-phase fingerprint,
@@ -283,6 +288,8 @@ browser extension; `unittest`.
 ### Task 4: Implement deidentification, KnowledgeCardV1, review, and snapshot
 
 **Files:**
+- Modify: `scripts/manage_mailbox_vault.py`
+- Modify: `tests/test_architecture_constraints.py`
 - Create: `backend/private_knowledge/__init__.py`
 - Create: `backend/private_knowledge/schema.py`
 - Create: `backend/private_knowledge/deidentifier.py`
@@ -299,6 +306,7 @@ browser extension; `unittest`.
 - Create: `tests/test_private_knowledge_review.py`
 - Create: `tests/test_private_knowledge_snapshot.py`
 - Create: `tests/test_manage_private_knowledge.py`
+- Create: `tests/test_manage_mailbox_vault_stage_knowledge.py`
 
 **Interfaces:**
 - `KnowledgeCardV1.from_mapping(value) -> KnowledgeCardV1` strictly rejects
@@ -312,6 +320,33 @@ browser extension; `unittest`.
   deprecate, and publish snapshot.
 - Runtime loader verifies signature, decrypts outside-project snapshot, filters
   approved/not-expired cards, and otherwise returns an empty immutable set.
+- The exact raw-vault handoff interface is:
+
+  ```python
+  stage_knowledge(
+      selection,
+      *,
+      read_one_record,
+      deidentify,
+      scan_residuals,
+      write_encrypted_candidate_batch,
+  ) -> StageKnowledgeResult
+  ```
+
+`stage-knowledge` is a later Task 4 handoff command implemented only in the
+administrator-only `scripts/manage_mailbox_vault.py`; it does not change the
+eight core vault commands. It accepts only a reviewed manifest of approved
+random record IDs, decrypts one record at a time, runs the local
+private-knowledge deidentifier and residual scanner in memory, releases raw
+plaintext and the ephemeral mapping before the next record, and writes only an
+encrypted deidentified candidate batch under a separate knowledge namespace.
+Its result and all output, logs, receipts, and errors contain only candidate
+IDs, counts, and fixed codes, never raw record IDs, text, mapping,
+paths, locators, or identifying values. `scripts/manage_private_knowledge.py`,
+Codex, DeepSeek, normal runtime, and automated tests never import or read the raw
+vault. `tests/test_manage_mailbox_vault_stage_knowledge.py` uses only synthetic
+records and injected `read_one_record` and
+`write_encrypted_candidate_batch` collaborators.
 
 - [ ] **Step 1: Write schema/deidentifier/review/snapshot tests first.** Cover
   names, companies, domains, addresses, email, phone, URL, filenames, local/UNC
@@ -320,6 +355,12 @@ browser extension; `unittest`.
   3-conversation/2-counterparty threshold, dual approval, extra approval,
   candidate expiry, rejection deletion, quarterly review, separate key
   namespace, signature tamper, read-only runtime view, and no-snapshot fallback.
+- [ ] **Step 1a: Write the staging boundary test.** In
+  `tests/test_manage_mailbox_vault_stage_knowledge.py`, prove approved random
+  record IDs only, one-at-a-time decryption, in-memory deidentification and
+  residual scanning, raw-plaintext and ephemeral-mapping release before the
+  next record, encrypted candidate-only writes, content-free results, and
+  synthetic injected I/O.
 - [ ] **Step 2: Run focused tests and record RED.**
 - [ ] **Step 3: Implement strict schema and local deidentification.** Residual
   findings contain only stable codes and counts. Mapping lifetime is confined to
@@ -352,7 +393,7 @@ browser extension; `unittest`.
 - Modify: `docs/data/analysis_result_schema.md`
 - Modify: `docs/security/email_data_handling.md`
 - Modify: `docs/operations/deepseek_analysis_contract_alignment_task_brief.md`
-- Modify: `docs/superpowers/plans/2026-07-14-deepseek-analysis-contract-alignment.md`
+- Create: `docs/superpowers/plans/2026-07-14-deepseek-analysis-contract-alignment.md`
 - Modify: `tests/test_prompt_context.py`
 - Modify: `tests/test_deepseek_analysis_schema.py`
 - Modify: `tests/test_analyzer.py`

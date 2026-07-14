@@ -25,6 +25,33 @@ exposing raw or identifying source material.
   separate from the raw mailbox vault.
 - No knowledge operation is scheduled or reachable from the browser extension.
 
+`stage-knowledge` is a later Task 4 handoff command implemented only in the
+administrator-only `scripts/manage_mailbox_vault.py`; the eight core vault
+commands remain unchanged. It accepts only a reviewed manifest of approved
+random record IDs, decrypts one record at a time, runs the local
+private-knowledge deidentifier and residual scanner in memory, releases raw
+plaintext and the ephemeral mapping before the next record, and writes only an
+encrypted deidentified candidate batch under a separate knowledge namespace.
+Its result and all output, logs, receipts, and errors contain only candidate
+IDs, counts, and fixed codes, never raw record IDs, text, mapping,
+paths, locators, or identifying values. `scripts/manage_private_knowledge.py`,
+Codex, DeepSeek, normal runtime, and automated tests never import or read the raw
+vault.
+
+Task 4 creates `tests/test_manage_mailbox_vault_stage_knowledge.py`; that suite
+uses only synthetic records and injected collaborators for the exact interface:
+
+```python
+stage_knowledge(
+    selection,
+    *,
+    read_one_record,
+    deidentify,
+    scan_residuals,
+    write_encrypted_candidate_batch,
+) -> StageKnowledgeResult
+```
+
 ## Deidentification Contract
 
 `deidentify_private_text()` returns placeholder text plus an ephemeral mapping
@@ -97,20 +124,27 @@ raw mailbox content on a command line.
 
 ## Implementation Sequence
 
-1. Add RED schema tests for exact keys, enum domains, unknown-key rejection,
+1. Add RED staging tests in
+   `tests/test_manage_mailbox_vault_stage_knowledge.py` for the exact injected
+   interface, approved random IDs, one-record-at-a-time decryption, raw
+   plaintext and mapping release, encrypted candidate-only writes, and
+   content-free outputs.
+2. Add RED schema tests for exact keys, enum domains, unknown-key rejection,
    forbidden content, and log-safe errors.
-2. Add RED deidentification/residual tests across every identifier class and
+3. Add RED deidentification/residual tests across every identifier class and
    prompt-injection case.
-3. Add RED lifecycle tests for evidence thresholds, dual approval, extra
+4. Add RED lifecycle tests for evidence thresholds, dual approval, extra
    accountable approval, candidate expiry, rejection deletion, quarterly
    review, deprecation, and revocation.
-4. Add RED repository/snapshot tests for separate key namespace, encryption,
+5. Add RED repository/snapshot tests for separate key namespace, encryption,
    signature tamper, external path, atomic publication, immutable runtime view,
    and empty-set fallback.
-5. Implement strict schema and local deidentification, then the encrypted
-   authority repository and lifecycle.
-6. Implement signed encrypted snapshot publication, read-only loader, and CLI.
-7. Update the eventual schema/security/operator docs and run focused GREEN.
+6. Implement strict schema and local deidentification, then add the
+   administrator-only `stage-knowledge` handoff to
+   `scripts/manage_mailbox_vault.py` without changing the eight core commands.
+7. Implement the encrypted authority repository and lifecycle, signed encrypted
+   snapshot publication, read-only loader, and private-knowledge CLI.
+8. Update the eventual schema/security/operator docs and run focused GREEN.
 
 ## Verification Gates
 
