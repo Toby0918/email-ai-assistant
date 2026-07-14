@@ -127,6 +127,21 @@ class VaultIndex:
         )
         return None if not rows else _row_to_record(rows[0])
 
+    def find_by_dedup_hmac(self, dedup_hmac: bytes) -> VaultRecord | None:
+        if type(dedup_hmac) is not bytes or len(dedup_hmac) != 32:
+            raise VaultError("invalid_record_metadata")
+        rows = self._read(
+            "SELECT * FROM records WHERE dedup_hmac=? "
+            "AND lifecycle_state='active' ORDER BY record_id LIMIT 2",
+            (dedup_hmac,),
+        )
+        if len(rows) > 1:
+            raise VaultError("index_schema_invalid")
+        return None if not rows else _row_to_record(rows[0])
+
+    def validate(self) -> None:
+        self._validate_schema()
+
     def list_records(self) -> list[VaultRecord]:
         return [
             _row_to_record(row)

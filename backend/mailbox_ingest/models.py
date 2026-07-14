@@ -49,6 +49,15 @@ class VolumeEvidence:
 
 
 @dataclass(frozen=True)
+class VaultVolumeEvidence:
+    vault_volume_id: str = field(repr=False)
+    verified: bool = True
+
+    def __repr__(self) -> str:
+        return f"VaultVolumeEvidence(verified={self.verified!r})"
+
+
+@dataclass(frozen=True)
 class VaultRecord:
     record_id: str = field(repr=False)
     encrypted_relpath: str = field(repr=False)
@@ -92,3 +101,12 @@ class PurgeReport:
 class RevokeResult:
     state: str
     secure_erase_claimed: bool = False
+
+
+@dataclass(frozen=True)
+class PutRecordResult:
+    record_id: str = field(repr=False)
+    created: bool
+
+    def __repr__(self) -> str:
+        return f"PutRecordResult(created={self.created!r})"

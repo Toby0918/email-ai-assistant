@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import uuid
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
@@ -41,6 +42,21 @@ _STATE_FIELDS = {
     "staged_generation", "prior_generation", "active_recovery_key_id",
     "prepared_recovery_key_id",
 }
+
+
+@dataclass(frozen=True)
+class VaultKeyIdentity:
+    vault_id: str
+    key_version: int
+
+
+def load_vault_identity(vault_root: Path) -> VaultKeyIdentity:
+    """Read only the public identity needed to construct vault primitives."""
+
+    state = _load_state(Path(vault_root) / KEYS_DIRECTORY)
+    if state["state"] not in {"stable", "staged", "prepared"}:
+        raise VaultError("rewrap_state_invalid")
+    return VaultKeyIdentity(str(state["vault_id"]), _KEY_VERSION)
 
 
 def initialize_key_envelopes(

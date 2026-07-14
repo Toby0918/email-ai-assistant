@@ -69,6 +69,7 @@ RAW_IMAP_METHOD_ALLOWLIST = {
     "list",
     "login",
     "logout",
+    "response",
     "select",
     "uid",
 }
@@ -97,7 +98,7 @@ SMTP_CONSTRUCTORS = {
 }
 
 STATIC_BODY_PEEK_SELECTOR = re.compile(
-    r"^\(BODY\.PEEK\[(?:HEADER|[1-9][0-9]*(?:\.[1-9][0-9]*)*(?:\.MIME|\.TEXT)?)\]\)$",
+    r"^\(BODY\.PEEK\[(?:HEADER|[1-9][0-9]*(?:\.[1-9][0-9]*)*)\](?:<[0-9]+\.[1-9][0-9]*>)?\)$",
     re.IGNORECASE,
 )
 
@@ -328,6 +329,20 @@ def _raw_imap_escape_violations(
             module_names=module_names,
         )
 
+    def contains_raw(value: ast.AST | None) -> bool:
+        if value is None:
+            return False
+        if isinstance(value, ast.Call) and isinstance(value.func, ast.Attribute):
+            if is_raw(value.func.value):
+                arguments = [
+                    *value.args,
+                    *(keyword.value for keyword in value.keywords),
+                ]
+                return any(contains_raw(argument) for argument in arguments)
+        if isinstance(value, ast.expr) and is_raw(value):
+            return True
+        return any(contains_raw(child) for child in ast.iter_child_nodes(value))
+
     for node in ast.walk(tree):
         if isinstance(node, ast.Assign):
             value = node.value
@@ -349,20 +364,99 @@ def _raw_imap_escape_violations(
                     isinstance(target, ast.Attribute)
                     and target.attr == WRAPPER_RAW_CLIENT_ATTRIBUTE
                 )
-                if (stores_raw_field or is_raw(value)) and not allowed_constructor_field:
+                if (stores_raw_field or contains_raw(value)) and not allowed_constructor_field:
                     violations.append(
                         f"line {node.lineno}: raw IMAP client assignment escape"
                     )
 
-        if isinstance(node, (ast.Return, ast.Yield, ast.YieldFrom)) and is_raw(
+        if isinstance(node, ast.NamedExpr) and (
+            contains_raw(node.value) or contains_raw(node.target)
+        ):
+            violations.append(f"line {node.lineno}: raw IMAP client walrus escape")
+
+        if isinstance(node, (ast.Return, ast.Yield, ast.YieldFrom)) and contains_raw(
             node.value
         ):
             violations.append(f"line {node.lineno}: raw IMAP client return escape")
         if not isinstance(node, ast.Call):
             continue
         arguments = [*node.args, *(keyword.value for keyword in node.keywords)]
-        if any(is_raw(argument) for argument in arguments):
+        if any(contains_raw(argument) for argument in arguments):
             violations.append(f"line {node.lineno}: raw IMAP client argument escape")
+    return violations
+
+
+_FETCH_VALIDATORS = {
+    "validate_single_uid_fetch_target",
+    "validate_fetch_selector",
+}
+
+
+def _is_direct_validator_call(
+    value: ast.expr,
+    *,
+    function_name: str,
+    argument_name: str,
+) -> bool:
+    return (
+        isinstance(value, ast.Call)
+        and isinstance(value.func, ast.Name)
+        and value.func.id == function_name
+        and len(value.args) == 1
+        and not value.keywords
+        and isinstance(value.args[0], ast.Name)
+        and value.args[0].id == argument_name
+    )
+
+
+def _fetch_validator_binding_violations(tree: ast.AST) -> list[str]:
+    parents = _parent_map(tree)
+    violations: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Import, ast.ImportFrom)):
+            aliases = node.names
+            if any((alias.asname or alias.name) in _FETCH_VALIDATORS for alias in aliases):
+                violations.append(f"line {node.lineno}: FETCH validator import escape")
+        if isinstance(node, (ast.Assign, ast.AnnAssign, ast.NamedExpr)):
+            targets = (
+                node.targets
+                if isinstance(node, ast.Assign)
+                else [node.target]
+            )
+            value = node.value
+            for target in targets:
+                names = {
+                    child.id
+                    for child in ast.walk(target)
+                    if isinstance(child, ast.Name)
+                }
+                if names & _FETCH_VALIDATORS:
+                    violations.append(
+                        f"line {node.lineno}: FETCH validator reassignment escape"
+                    )
+            if isinstance(value, ast.Name) and value.id in _FETCH_VALIDATORS:
+                violations.append(f"line {node.lineno}: FETCH validator alias escape")
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
+            arguments = {
+                argument.arg
+                for argument in (
+                    *node.args.posonlyargs,
+                    *node.args.args,
+                    *node.args.kwonlyargs,
+                )
+            }
+            if node.args.vararg:
+                arguments.add(node.args.vararg.arg)
+            if node.args.kwarg:
+                arguments.add(node.args.kwarg.arg)
+            if arguments & _FETCH_VALIDATORS:
+                violations.append(f"line {node.lineno}: FETCH validator shadow escape")
+            if (
+                isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and node.name in _FETCH_VALIDATORS
+                and not isinstance(parents.get(node), ast.Module)
+            ):
+                violations.append(f"line {node.lineno}: nested FETCH validator")
     return violations
 
 
@@ -402,6 +496,7 @@ def _imap_call_violations(
         constructor_names=constructor_names,
         module_names=module_names,
     )
+    violations.extend(_fetch_validator_binding_violations(tree))
 
     def is_raw(value: ast.expr | None) -> bool:
         return _is_raw_imap_expression(
@@ -433,6 +528,17 @@ def _imap_call_violations(
                 f"line {node.lineno}: select must use one literal readonly=True"
             )
             continue
+        if method == "response":
+            if (
+                len(node.args) != 1
+                or node.keywords
+                or not isinstance(node.args[0], ast.Constant)
+                or node.args[0].value != "UIDVALIDITY"
+            ):
+                violations.append(
+                    f"line {node.lineno}: response cache access must be UIDVALIDITY"
+                )
+            continue
         if method != "uid":
             continue
         if (
@@ -451,12 +557,27 @@ def _imap_call_violations(
         if len(node.args) != 3 or node.keywords:
             violations.append(f"line {node.lineno}: invalid UID FETCH call shape")
             continue
-        if not _is_single_uid_literal(node.args[1]):
+        dynamic_uid = _is_direct_validator_call(
+            node.args[1],
+            function_name="validate_single_uid_fetch_target",
+            argument_name="uid",
+        )
+        dynamic_selector = _is_direct_validator_call(
+            node.args[2],
+            function_name="validate_fetch_selector",
+            argument_name="selector",
+        )
+        if dynamic_uid != dynamic_selector:
+            violations.append(
+                f"line {node.lineno}: UID and selector validators must be paired"
+            )
+            continue
+        if not dynamic_uid and not _is_single_uid_literal(node.args[1]):
             violations.append(
                 f"line {node.lineno}: UID FETCH target must be one finite literal UID"
             )
             continue
-        if not _is_allowed_fetch_selector(node.args[2]):
+        if not dynamic_selector and not _is_allowed_fetch_selector(node.args[2]):
             violations.append(
                 f"line {node.lineno}: dynamic or non-allowlisted FETCH selector"
             )
@@ -718,7 +839,6 @@ class MailboxTransportConstraintTests(unittest.TestCase):
             "'0'",
             "'-1'",
             "'4294967296'",
-            "validate_single_uid_fetch_target(uid)",
         )
 
         for target in rejected_targets:
@@ -736,6 +856,97 @@ class MailboxTransportConstraintTests(unittest.TestCase):
             )
             with self.subTest(target=target):
                 self.assertFalse(_imap_call_violations(ast.parse(sample)))
+
+        canonical_dynamic = (
+            "self._imap_client.uid('FETCH', "
+            "validate_single_uid_fetch_target(uid), "
+            "validate_fetch_selector(selector))"
+        )
+        self.assertFalse(_imap_call_violations(ast.parse(canonical_dynamic)))
+
+    def test_dynamic_fetch_validators_cannot_be_aliased_or_escaped(self) -> None:
+        samples = {
+            "qualified UID validator": (
+                "self._imap_client.uid('FETCH', validators."
+                "validate_single_uid_fetch_target(uid), "
+                "validate_fetch_selector(selector))"
+            ),
+            "qualified selector validator": (
+                "self._imap_client.uid('FETCH', "
+                "validate_single_uid_fetch_target(uid), validators."
+                "validate_fetch_selector(selector))"
+            ),
+            "UID validator alias": (
+                "target = validate_single_uid_fetch_target\n"
+                "self._imap_client.uid('FETCH', target(uid), "
+                "validate_fetch_selector(selector))"
+            ),
+            "selector validator alias": (
+                "builder = validate_fetch_selector\n"
+                "self._imap_client.uid('FETCH', "
+                "validate_single_uid_fetch_target(uid), builder(selector))"
+            ),
+            "validator reassignment": (
+                "validate_fetch_selector = unsafe\n"
+                "self._imap_client.uid('FETCH', "
+                "validate_single_uid_fetch_target(uid), "
+                "validate_fetch_selector(selector))"
+            ),
+            "validator import": (
+                "from unsafe import validate_fetch_selector\n"
+                "self._imap_client.uid('FETCH', "
+                "validate_single_uid_fetch_target(uid), "
+                "validate_fetch_selector(selector))"
+            ),
+            "validator parameter shadow": (
+                "def run(validate_fetch_selector):\n"
+                "    self._imap_client.uid('FETCH', "
+                "validate_single_uid_fetch_target(uid), "
+                "validate_fetch_selector(selector))"
+            ),
+            "validator nested definition": (
+                "def run():\n"
+                "    def validate_fetch_selector(value):\n"
+                "        return value\n"
+                "    self._imap_client.uid('FETCH', "
+                "validate_single_uid_fetch_target(uid), "
+                "validate_fetch_selector(selector))"
+            ),
+        }
+
+        for label, sample in samples.items():
+            with self.subTest(label=label):
+                self.assertTrue(_imap_call_violations(ast.parse(sample)))
+
+    def test_raw_client_escape_guard_closes_container_and_expression_shapes(self) -> None:
+        samples = {
+            "walrus": "if (raw := self._imap_client):\n    pass",
+            "destructuring": "raw, other = self._imap_client, None",
+            "tuple": "value = (self._imap_client,)",
+            "list": "value = [self._imap_client]",
+            "dict": "value = {'raw': self._imap_client}",
+            "set": "value = {self._imap_client}",
+            "subscript": "value = [self._imap_client][0]",
+            "lambda": "value = lambda: self._imap_client",
+            "closure": (
+                "def outer():\n"
+                "    raw = self._imap_client\n"
+                "    def inner():\n"
+                "        return raw"
+            ),
+            "comprehension": "value = [self._imap_client for _ in items]",
+            "attribute chain": "value = self._imap_client.sock",
+            "yield": "def expose():\n    yield self._imap_client",
+            "constructor in container": (
+                "import imaplib\nvalue = [imaplib.IMAP4_SSL()]"
+            ),
+        }
+
+        for label, sample in samples.items():
+            with self.subTest(label=label):
+                self.assertTrue(
+                    _source_transport_violations(ast.parse(sample), is_wrapper=True)
+                )
 
     def test_transport_guard_allows_fixed_read_only_selectors(
         self,

@@ -2,40 +2,26 @@
 
 from __future__ import annotations
 
-import calendar
 import hmac
 import secrets
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
 from .errors import VaultError
 from .key_envelopes import revoke_key_envelopes
+from .retention import max_expiry_utc, validate_batch_limit, validate_expiry
 from .models import (
     PurgeReport,
+    PutRecordResult,
     RevokeResult,
     SecretBuffer,
     VaultRecord,
     VerifyReport,
 )
-from .vault_crypto import FRAME_VERSION, VaultCrypto
+from .vault_crypto import VaultCrypto
 from .vault_files import AtomicCiphertextStore
-from .vault_index import MAX_BATCH_LIMIT, VaultIndex, VaultMutationLock
-
-
-def max_expiry_utc(now_utc: int, *, months: int = 24) -> int:
-    if type(now_utc) is not int or type(months) is not int or months <= 0:
-        raise VaultError("invalid_expiry")
-    try:
-        current = datetime.fromtimestamp(now_utc, timezone.utc)
-        month_index = current.month - 1 + months
-        year = current.year + month_index // 12
-        month = month_index % 12 + 1
-        day = min(current.day, calendar.monthrange(year, month)[1])
-        return int(current.replace(year=year, month=month, day=day).timestamp())
-    except (OverflowError, OSError, ValueError):
-        raise VaultError("invalid_expiry") from None
-
+from .vault_index import VaultIndex, VaultMutationLock
+from .vault_record_writer import write_vault_record
 
 class MailboxVault:
     def __init__(
@@ -95,30 +81,50 @@ class MailboxVault:
         self, plaintext: bytes | bytearray, *, expires_at_utc: int
     ) -> str:
         now = self._now()
-        _validate_expiry(expires_at_utc, now)
+        validate_expiry(expires_at_utc, now)
         local = SecretBuffer(plaintext) if isinstance(plaintext, (bytes, bytearray)) else None
         if local is None:
             raise VaultError("record_too_large")
         try:
             with self.mutation_lock:
                 self._ensure_active()
-                record_id, path_token = self._new_identifiers()
-                relative_path = f"records/{path_token[:2]}/{path_token}.mvlt"
-                ciphertext = self._crypto.encrypt(record_id, local)
-                metadata = VaultRecord(
-                    record_id=record_id,
-                    encrypted_relpath=relative_path,
-                    dedup_hmac=self._crypto.dedup_hmac(local),
-                    created_at_utc=now,
+                return write_vault_record(
+                    local,
+                    now=now,
                     expires_at_utc=expires_at_utc,
-                    ciphertext_size=len(ciphertext),
-                    format_version=FRAME_VERSION,
-                    key_version=self._crypto.key_version,
-                    lifecycle_state="active",
+                    identifiers=self._new_identifiers(),
+                    crypto=self._crypto,
+                    index=self._index,
+                    store=self._store,
+                ).record_id
+        finally:
+            local.wipe()
+
+    def put_record_if_absent(
+        self, plaintext: bytes | bytearray, *, expires_at_utc: int
+    ) -> PutRecordResult:
+        now = self._now()
+        validate_expiry(expires_at_utc, now)
+        local = SecretBuffer(plaintext) if isinstance(plaintext, (bytes, bytearray)) else None
+        if local is None:
+            raise VaultError("record_too_large")
+        try:
+            with self.mutation_lock:
+                self._ensure_active()
+                digest = self._crypto.dedup_hmac(local)
+                existing = self._index.find_by_dedup_hmac(digest)
+                if existing is not None:
+                    return PutRecordResult(existing.record_id, False)
+                return write_vault_record(
+                    local,
+                    now=now,
+                    expires_at_utc=expires_at_utc,
+                    identifiers=self._new_identifiers(),
+                    crypto=self._crypto,
+                    index=self._index,
+                    store=self._store,
+                    digest=digest,
                 )
-                self._store.write(relative_path, ciphertext)
-                self._index.add_record(metadata)
-                return record_id
         finally:
             local.wipe()
 
@@ -151,7 +157,7 @@ class MailboxVault:
         self._index.delete_record(record.record_id)
 
     def reconcile_delete_pending(self, *, limit: int = 100) -> int:
-        _validate_limit(limit)
+        validate_batch_limit(limit)
         with self.mutation_lock:
             return self._reconcile_locked(limit)
 
@@ -164,7 +170,7 @@ class MailboxVault:
         return reconciled
 
     def purge_expired(self, *, limit: int = 100) -> PurgeReport:
-        _validate_limit(limit)
+        validate_batch_limit(limit)
         now = self._now()
         with self.mutation_lock:
             self._ensure_active()
@@ -269,24 +275,15 @@ class MailboxVault:
     def __repr__(self) -> str:
         return "MailboxVault(<redacted>)"
 
+    def close(self) -> None:
+        self._crypto.close()
+
 
 def _validate_identifier(value: object) -> None:
     if not isinstance(value, str) or len(value) != 32:
         raise VaultError("invalid_record_id")
     if value != value.lower() or any(character not in "0123456789abcdef" for character in value):
         raise VaultError("invalid_record_id")
-
-
-def _validate_expiry(expires_at_utc: object, now_utc: int) -> None:
-    if type(expires_at_utc) is not int:
-        raise VaultError("invalid_expiry")
-    if expires_at_utc > max_expiry_utc(now_utc, months=24):
-        raise VaultError("expiry_exceeds_retention")
-
-
-def _validate_limit(limit: int) -> None:
-    if type(limit) is not int or not 1 <= limit <= MAX_BATCH_LIMIT:
-        raise VaultError("invalid_limit")
 
 
 __all__ = ["AtomicCiphertextStore", "MailboxVault", "max_expiry_utc"]

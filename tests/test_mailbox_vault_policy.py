@@ -14,6 +14,9 @@ from backend.mailbox_ingest.drive_policy import (
     FixedWindowsVolumeProbe,
     validate_vault_location,
 )
+from backend.mailbox_ingest.existing_vault_policy import (
+    validate_existing_vault_location,
+)
 from backend.mailbox_ingest.errors import VaultError
 from backend.mailbox_ingest.models import VolumeInfo
 
@@ -117,6 +120,19 @@ class VaultLocationPolicyTests(unittest.TestCase):
         self.assertTrue(evidence.verified)
         self.assertNotIn(str(self.vault), repr(evidence))
         self.assertNotIn(str(self.recovery), repr(evidence))
+
+    def test_existing_vault_rechecks_external_volume_without_recovery_path(self) -> None:
+        probe = self._probe()
+        evidence = validate_existing_vault_location(
+            self.vault,
+            self.project,
+            probe=probe,
+            system_temp=self.system_temp,
+        )
+
+        self.assertTrue(evidence.verified)
+        self.assertNotIn("vault-volume", repr(evidence))
+        self.assertEqual(probe.paths, [self.vault.resolve()])
 
     def test_rejects_relative_missing_and_forbidden_ancestry(self) -> None:
         cases = {

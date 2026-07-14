@@ -1,0 +1,219 @@
+"""Synthetic first-pass scan, checkpoint, and deduplication tests."""
+
+from __future__ import annotations
+
+import unittest
+import json
+from datetime import datetime, timezone
+
+from backend.mailbox_ingest.authorization import AuthorizationScope, freeze_window
+from backend.mailbox_ingest.folder_policy import RawFolder, select_mail_folders
+from backend.mailbox_ingest.inventory import build_inventory
+from backend.mailbox_ingest.models import PutRecordResult
+from backend.mailbox_ingest.scan import ScanError, scan_mailbox
+
+
+BODYSTRUCTURE = (
+    '(("TEXT" "PLAIN" NIL NIL NIL "7BIT" 12 1) '
+    '("APPLICATION" "PDF" ("NAME" "synthetic.pdf") NIL NIL "BASE64" 100 '
+    'NIL ("ATTACHMENT" ("FILENAME" "synthetic.pdf"))) "MIXED")'
+)
+
+
+class FakeScanSession:
+    def __init__(self) -> None:
+        self.calls: list[tuple[object, ...]] = []
+        self.uidvalidity = 77
+        self.messages = {
+            2: (100, datetime(2023, 6, 1, 8, 0, tzinfo=timezone.utc)),
+            3: (200, datetime(2023, 7, 1, 8, 0, tzinfo=timezone.utc)),
+        }
+
+    def examine(self, mailbox: str) -> int:
+        self.calls.append(("examine", mailbox))
+        return self.uidvalidity
+
+    def uid_search(self, _since):
+        self.calls.append(("search",))
+        return tuple(self.messages)
+
+    def uid_fetch_size(self, uid: int):
+        size, date = self.messages[uid]
+        return type("Size", (), {"uid": uid, "size": size, "internal_date": date})()
+
+    def uid_fetch_bodystructure(self, uid: int) -> str:
+        self.calls.append(("bodystructure", uid))
+        return BODYSTRUCTURE
+
+    def uid_fetch_peek(self, uid: int, section: str, **_kwargs) -> bytes:
+        self.calls.append(("peek", uid, section))
+        if section == "HEADER":
+            return f"Subject: SYNTHETIC-{uid}\r\n\r\n".encode("ascii")
+        if section == "1":
+            return f"BODY-CANARY-{uid}".encode("ascii")
+        raise AssertionError("attachment body fetched during first pass")
+
+
+class FakeControl:
+    def __init__(self) -> None:
+        self.payload = None
+        self.writes: list[dict[str, object]] = []
+
+    def read(self, _name: str):
+        if self.payload is None:
+            from backend.mailbox_ingest.control_store import ControlStoreError
+            raise ControlStoreError("control_store_missing")
+        return self.payload
+
+    def write(self, _name: str, payload: dict[str, object]) -> None:
+        self.payload = payload.copy()
+        self.writes.append(payload.copy())
+
+
+class FakeVault:
+    def __init__(self) -> None:
+        self.records: list[tuple[bytes, int]] = []
+        self.duplicate_after = 999
+        self.fail_after = 999
+
+    def put_record_if_absent(self, plaintext: bytes, *, expires_at_utc: int):
+        if len(self.records) >= self.fail_after:
+            raise RuntimeError("synthetic interruption")
+        self.records.append((plaintext, expires_at_utc))
+        created = len(self.records) <= self.duplicate_after
+        return PutRecordResult(f"{len(self.records):032x}", created)
+
+
+class MailboxScanTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.scope = AuthorizationScope.create(
+            "AUTH-SCAN-1", "one@example.test", hmac_key=b"S" * 32
+        )
+        self.folders = select_mail_folders(
+            (RawFolder(("\\Inbox",), "INBOX-CANARY"),), hmac_key=b"F" * 32
+        )
+        self.window = freeze_window(
+            datetime(2024, 2, 29, 12, 30, tzinfo=timezone.utc)
+        )
+        self.session = FakeScanSession()
+        self.bundle = build_inventory(
+            self.session,
+            scope=self.scope,
+            folders=self.folders,
+            window=self.window,
+            fingerprint_key=b"I" * 32,
+        )
+        self.session.calls.clear()
+
+    def _run(self, **overrides):
+        arguments = {
+            "session": self.session,
+            "inventory_bundle": self.bundle,
+            "confirmed_fingerprint": self.bundle.inventory.fingerprint,
+            "vault": FakeVault(),
+            "control_store": FakeControl(),
+            "rebuild_inventory": lambda: self.bundle,
+            "classifier": lambda _header, _bodies: "eligible",
+        }
+        arguments.update(overrides)
+        return scan_mailbox(**arguments), arguments
+
+    def test_fingerprint_is_checked_before_recompute_or_content_fetch(self) -> None:
+        calls: list[str] = []
+        with self.assertRaisesRegex(ScanError, "inventory_fingerprint_mismatch"):
+            self._run(
+                confirmed_fingerprint="0" * 64,
+                rebuild_inventory=lambda: calls.append("rebuild"),
+            )
+        self.assertEqual(calls, [])
+        self.assertEqual(self.session.calls, [])
+
+    def test_recomputed_inventory_must_match_before_header_or_body_fetch(self) -> None:
+        changed = type("Bundle", (), {
+            "inventory": type("Inventory", (), {"fingerprint": "1" * 64})()
+        })()
+        with self.assertRaisesRegex(ScanError, "inventory_changed"):
+            self._run(rebuild_inventory=lambda: changed)
+        self.assertFalse(any(call[0] in {"bodystructure", "peek"} for call in self.session.calls))
+
+    def test_first_pass_fetches_only_header_and_selected_text_then_encrypts(self) -> None:
+        vault = FakeVault()
+        control = FakeControl()
+
+        report, _arguments = self._run(vault=vault, control_store=control)
+
+        self.assertEqual((report.processed_count, report.created_count), (2, 2))
+        self.assertEqual(report.duplicate_count, 0)
+        self.assertEqual(
+            [call for call in self.session.calls if call[0] == "peek"],
+            [("peek", 2, "HEADER"), ("peek", 2, "1"),
+             ("peek", 3, "HEADER"), ("peek", 3, "1")],
+        )
+        expected_expiry = int(datetime(2025, 6, 1, 8, 0, tzinfo=timezone.utc).timestamp())
+        self.assertEqual(vault.records[0][1], expected_expiry)
+        stored = json.loads(vault.records[0][0])
+        self.assertEqual(stored["scope"], self.scope.opaque_scope_id)
+        self.assertEqual(stored["fingerprint"], self.bundle.inventory.fingerprint)
+        self.assertEqual(stored["opaque_folder_id"], self.folders[0].opaque_folder_id)
+        self.assertEqual(stored["uidvalidity"], 77)
+        self.assertEqual(stored["expires_at_utc"], expected_expiry)
+        self.assertNotIn("BODY-CANARY", repr(report))
+        self.assertNotIn("BODY-CANARY", repr(control.payload))
+
+    def test_resume_advances_only_after_atomic_put_and_skips_completed_uids(self) -> None:
+        control = FakeControl()
+        first_vault = FakeVault()
+        first_vault.fail_after = 1
+
+        with self.assertRaisesRegex(ScanError, "scan_persist_failed"):
+            self._run(vault=first_vault, control_store=control)
+
+        self.assertEqual(control.payload["folders"][self.folders[0].opaque_folder_id]["cursor"], 2)
+        self.session.calls.clear()
+        second_vault = FakeVault()
+        report, _arguments = self._run(vault=second_vault, control_store=control)
+        self.assertEqual(report.processed_count, 1)
+        self.assertFalse(any(call == ("bodystructure", 2) for call in self.session.calls))
+
+    def test_uidvalidity_change_stops_without_resetting_cursor(self) -> None:
+        control = FakeControl()
+        control.payload = {
+            "schema_version": 1,
+            "scope": self.scope.opaque_scope_id,
+            "fingerprint": self.bundle.inventory.fingerprint,
+            "window_start": self.bundle.inventory.window_start.isoformat(),
+            "window_end": self.bundle.inventory.window_end.isoformat(),
+            "folders": {
+                self.folders[0].opaque_folder_id: {
+                    "uidvalidity": 77,
+                    "cursor": 2,
+                    "processed_count": 1,
+                }
+            },
+        }
+        self.session.uidvalidity = 78
+
+        with self.assertRaisesRegex(ScanError, "uidvalidity_changed"):
+            self._run(control_store=control)
+
+        self.assertEqual(control.payload["folders"][self.folders[0].opaque_folder_id]["cursor"], 2)
+        self.assertFalse(any(call[0] == "peek" for call in self.session.calls))
+
+    def test_sensitive_ambiguous_and_duplicate_results_are_counted_without_content(self) -> None:
+        outcomes = iter(("sensitive", "ambiguous"))
+        report, _arguments = self._run(
+            classifier=lambda _header, _body: next(outcomes)
+        )
+        self.assertEqual((report.sensitive_count, report.ambiguous_count), (1, 1))
+        self.assertEqual(report.created_count, 0)
+
+        self.session.calls.clear()
+        vault = FakeVault()
+        vault.duplicate_after = 0
+        report, _arguments = self._run(vault=vault)
+        self.assertEqual(report.duplicate_count, 2)
+        self.assertEqual(report.created_count, 0)
+
+
+if __name__ == "__main__":
+    unittest.main()
