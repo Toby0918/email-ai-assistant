@@ -44,6 +44,10 @@ source_type: operation_guide
 
 每个结束于规则兜底的模型尝试会产生恰好一条终态 allowlisted `event=analysis_fallback`，并包含固定 `detail=<allowlisted detail>`。只读取最新事件行:
 
+```text
+event=analysis_fallback code=<allowlisted code> stage=<allowlisted stage> provider=<allowlisted provider> model=<allowlisted model> output_mode=<allowlisted mode> detail=<allowlisted detail> elapsed_ms=<non-negative integer>
+```
+
 ```powershell
 Get-Content outputs\local_debug_service.log -Tail 30 | Select-String 'event=analysis_'
 ```

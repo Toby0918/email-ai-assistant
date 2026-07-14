@@ -354,10 +354,7 @@ class DeepSeekDocumentationContractTests(unittest.TestCase):
             "model=<allowlisted model> output_mode=<allowlisted mode> "
             "detail=<allowlisted detail> elapsed_ms=<non-negative integer>"
         )
-        for relative in (
-            "docs/conventions/logging.md",
-            "docs/api/backend_api_contract.md",
-        ):
+        for relative in ENVELOPE_SUBDIAGNOSTIC_DOCS:
             with self.subTest(path=relative, contract="canonical event"):
                 self.assertIn(canonical_event, self._read(relative))
 
