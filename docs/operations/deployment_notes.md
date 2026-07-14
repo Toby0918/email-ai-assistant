@@ -34,9 +34,23 @@ source_type: operation_guide
 
 - `python scripts/manage_local_service.py start` 在启动服务进程前运行一次过期附件清理。
 - `python scripts/manage_local_service.py restart` 在 stop/start 序列前运行一次清理，并绕过 start 路径的第二次清理。
+- `scripts/run_local_debug.py` 在启动 HTTP server 前初始化 UTF-8 rotating file logging。活动文件为 `outputs/local_debug_service.log`，达到 `1 MB` 后轮转并保留 `two backups`；该文件及备份都属于本地忽略输出。
 - 请求分析路径继续执行既有过期清理。没有后台邮箱 poller、任务队列或常驻清理 scheduler。
 - 成功只报告删除数量和服务状态。失败返回通用错误并中止 start/restart；不报告附件名、内容、私有 URL、cookie、token、OCR 文本或异常中的私有路径。
 - `python scripts/manage_local_service.py status` 与 `GET http://127.0.0.1:8765/api/health` 只提供本地服务健康信息，不读取附件内容。
+
+## Backend-only fallback diagnostics
+
+- 模型尝试结束于规则兜底时，后端在本地日志写入 `exactly one terminal allowlisted event`，事件名为 `analysis_fallback`。它只包含固定 reason/stage/provider/model/output-mode 值和非负 `elapsed_ms`。
+- 规则兜底继续返回成功的公开分析，不增加错误响应；provider/account reason code 不得进入 `public API`、`SQLite` 或 `frontend`。
+- operator 只使用以下命令查看最新事件，不读取或复制完整日志:
+
+```powershell
+Get-Content outputs\local_debug_service.log -Tail 30 | Select-String 'event=analysis_'
+```
+
+- 日志不得包含 key、prompt、邮件或线程内容、附件名或内容、provider output、`raw exception`、traceback、URL、路径或 customer identifier。预期 fallback 路径不得记录 exception object 或 traceback。
+- 自动 release verification 只使用 synthetic mocks/fixtures，并保持 provider disabled；Automated verification does not call DeepSeek.
 
 ## 前端配置
 
@@ -61,6 +75,7 @@ source_type: operation_guide
 3. 确认 staged scope 不含 `.env`、数据库、日志、附件源文件、真实邮件、凭据或 token。
 4. 自动化和合成验证通过后，可交付 unpacked extension `0.2.2` 供用户测试。
 5. 真实 Tencent Exmail 邮件 smoke test 未由本任务执行，仍是需要用户单独授权并运行的外部 release validation；在它完成前不得声称真实邮箱验证完成。
+6. 用户触发的 synthetic live DeepSeek diagnostic 是本次诊断补丁唯一 deferred item；自动测试、维护扫描和 health smoke 都不得发起分析 POST 或 provider request。
 
 ## 上线前必须确认
 

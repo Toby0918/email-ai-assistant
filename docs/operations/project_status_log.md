@@ -17,7 +17,7 @@ source_type: operation_guide
 |---|---|
 | Generated on | 2026-07-13 |
 | Current stage | local_eval_mvp |
-| Git branch | codex/phase-two-completion |
+| Git branch | codex/deepseek-fallback-diagnostics |
 | Git HEAD reference | Run `git rev-parse --short HEAD` in this workspace |
 | Working tree status | Run `git status --short --ignored` in this workspace |
 
@@ -140,7 +140,7 @@ source_type: operation_guide
 
 | Status | Count |
 |---|---:|
-| active | 66 |
+| active | 69 |
 | draft | 27 |
 | deprecated | 0 |
 | missing_front_matter | 0 |

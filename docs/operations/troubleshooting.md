@@ -1,5 +1,5 @@
 ﻿---
-last_update: 2026-07-03
+last_update: 2026-07-13
 status: draft
 owner: "@tobyWang"
 review_cycle: monthly
@@ -35,6 +35,27 @@ source_type: operation_guide
 - 如果 `Local Qwen` 调用接近超时时长后才 fallback，检查 `ollama ps`；必要时运行 `ollama stop qwen3.6:latest` 卸载卡住的模型会话，再重启本地后端。
 - 检查是否触发安全规则。
 - 查看后端日志，但不要输出密钥或真实邮件内容。
+
+## DeepSeek 规则兜底诊断
+
+界面显示 `Rule fallback` 且分析响应 `ok=true` 时，公开分析仍然成功；不要把规则兜底误报为 API 失败。provider/account 诊断不会进入 `public API`、`SQLite` 或 `frontend`，只写入 operator-only 的 `outputs/local_debug_service.log`。
+
+每次模型尝试最多产生一个终态 `event=analysis_fallback`。只读取最新事件行:
+
+```powershell
+Get-Content outputs\local_debug_service.log -Tail 30 | Select-String 'event=analysis_'
+```
+
+常见 reason code 的处理边界:
+
+- `provider_auth`: 检查后端受控环境中的认证配置和服务重启；不要打印、复制或记录 key。
+- `provider_permission_or_balance`: 在 provider 管理面核对权限或余额；浏览器和公共响应不提供账户细节。
+- `provider_timeout`: 检查既定 provider deadline 和网络状态；不要通过增加重试绕过 one-call contract。
+- `envelope_invalid`: provider 返回未通过内部 envelope 解析；不要记录 provider output。
+- `evidence_invalid`: provider 字段缺少允许来源或 grounding；保持规则结果。
+- `safety_rejected_all`: 所有模型字段在安全合并中被拒绝；保持规则结果和人工审核边界。
+
+其他 reason code 及完整 allowlist 见 `docs/conventions/logging.md`。日志只允许固定事件字段；不得粘贴或扩展为原始 provider 错误、响应、邮件、线程、附件、URL、路径或客户信息。自动测试不会调用 DeepSeek；需要 provider 用量的合成 Analyze 操作只能由用户在完成部署后单独触发。
 
 ## 回复草稿不合适
 

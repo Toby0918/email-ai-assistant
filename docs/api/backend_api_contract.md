@@ -19,6 +19,44 @@ source_type: api_contract
 - 每次分析最多发出 one provider call。SDK `max_retries=0`，请求为 non-streaming JSON object，并通过 `extra_body={"thinking":{"type":"disabled"}}` 使用 non-thinking mode。任何 provider 失败都回落规则结果，does not try Ollama。
 - DeepSeek 响应先解析为内部 `deepseek_analysis_v1`，再执行来源、grounding、mandatory-risk、commitment/action 和公开 schema 校验。所有 provider-authored 文本族共享 universal policy：URL/markup、工具/命令、自动邮箱动作和第一人称或被动后果性承诺均按字段回落；安全的请求、疑问、否定和人工核查措辞允许保留。公开响应仍只有本页列出的字段。
 
+### Backend-only diagnostic boundary
+
+Rule fallback remains a successful public analysis response. 公开结果继续使用既有 `ok=true`、完整 `analysis`、`saved_id` 和 `analysis_engine.source=rule_fallback`；本地诊断不会把它改成错误响应。
+
+每个结束于规则兜底的模型尝试只在本地写 `exactly one terminal allowlisted event`，事件名为 `analysis_fallback`。reason code allowlist 为:
+
+```text
+provider_not_enabled
+budget_exhausted
+missing_key
+unsupported_model
+provider_timeout
+provider_auth
+provider_permission_or_balance
+provider_rate_limit
+provider_connection_error
+provider_server_error
+provider_http_error
+provider_request_failed
+response_incomplete
+response_empty
+envelope_invalid
+evidence_invalid
+safety_rejected_all
+public_schema_invalid
+public_language_invalid
+unexpected_analysis_error
+```
+
+这些 reason code、stage、provider/account detail 和本地日志元数据是 backend-only operations data:
+
+- 不新增或改变 `public API` 请求、成功响应或错误响应字段。
+- 不进入 `SQLite` schema 或保存的 analysis JSON。
+- 不返回 `frontend`，浏览器不能读取 provider/account 诊断。
+- 不记录 `raw exception`、traceback、provider output、key、prompt、邮件、线程、附件、URL、路径或 customer identifier。
+
+operator-only 日志位置、轮转上限和读取命令见 `docs/conventions/logging.md` 与 `docs/operations/troubleshooting.md`。自动化测试只使用 synthetic provider doubles，不发起 live DeepSeek request。
+
 ### 请求
 
 - 本地 HTTP 服务只允许绑定 `localhost` 或字面 IPv4 loopback（`127.0.0.0/8`）；当前不承诺 IPv6 bind。通配、LAN、公网和 DNS alias 必须在 socket bind 前拒绝，错误不得回显输入 host。

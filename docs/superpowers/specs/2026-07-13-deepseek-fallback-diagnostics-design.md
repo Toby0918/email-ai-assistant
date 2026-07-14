@@ -1,6 +1,6 @@
 ---
 last_update: 2026-07-13
-status: draft
+status: active
 owner: "@tobyWang"
 review_cycle: weekly
 source_type: product_spec
@@ -14,9 +14,9 @@ Add backend-only, sanitized diagnostics for DeepSeek attempts that end in the de
 
 The public analysis API remains unchanged. Users continue to see `analysis_engine.source=rule_fallback`; an operator diagnoses the cause from the local rotating service log. This preserves the existing fail-closed behavior while making the provider path supportable.
 
-The user approved this direction on 2026-07-13 by instructing Codex to execute the diagnostic patch. A written-spec review remains the final gate before implementation.
+The user approved this direction on 2026-07-13 by instructing Codex to execute the diagnostic patch. Written-spec review and implementation are complete; the only deferred item is the user-triggered synthetic live diagnostic after integration and restart.
 
-## Current Evidence
+## Pre-implementation Evidence
 
 - The service is healthy and returns successful rule results.
 - The effective local configuration is `provider=deepseek`, `model=deepseek-v4-flash`, `output_mode=model_led`, and a 25-second provider timeout.
@@ -28,6 +28,16 @@ The user approved this direction on 2026-07-13 by instructing Codex to execute t
 - The Windows WMI service-launch path does not redirect process output, and the current service log is empty.
 
 This evidence identifies an observability defect, not the final external provider failure. The patch must expose the sanitized failing stage before any provider-specific correction is attempted.
+
+## Implementation Status
+
+- The backend defines fixed reason/stage/provider/model/output-mode allowlists and canonicalizes caller-owned values before logging.
+- Client failures map only from SDK exception classes and coarse HTTP status, without retaining or formatting the original exception.
+- The analysis route has one terminal fallback helper and one production `log_analysis_fallback(...)` call site; every failure still returns the same complete rule fallback.
+- The local entrypoint loads configuration, initializes logging, and then starts the loopback server.
+- The active UTF-8 log is `outputs/local_debug_service.log`; it rotates at `1 MB` (`1_000_000` bytes) and keeps `two backups`.
+- The public API, SQLite, frontend, prompt, provider context, and deterministic fallback remain unchanged.
+- Automated tests use synthetic provider doubles and do not call DeepSeek.
 
 ## Considered Approaches
 
@@ -119,7 +129,7 @@ It emits the terminal sanitized event and then returns the same complete determi
 
 ### Logging configuration
 
-`logging_config.py` configures standard-library logging with a rotating UTF-8 file handler under `outputs/local_debug_service.log`. Rotation uses a bounded file size and a small fixed backup count. No dependency is added.
+`logging_config.py` configures standard-library logging with a rotating UTF-8 file handler under `outputs/local_debug_service.log`. Rotation uses `maxBytes=1_000_000` (`1 MB`) and `backupCount=2` (`two backups`). No dependency is added.
 
 `run_local_debug.py` loads backend configuration, initializes logging before starting the HTTP server, and then starts the same loopback-only service. Because the application owns the file handler, Windows WMI startup no longer depends on inherited stdout or stderr redirection.
 
@@ -177,6 +187,8 @@ No automated or Codex-run live DeepSeek call is permitted. After the patch and s
 5. The public API, SQLite schema, frontend, prompt, and deterministic fallback remain unchanged.
 6. Automated tests use only synthetic inputs and perform no live provider call.
 7. Focused tests, full `unittest` discovery, static/architecture/mechanical guards, documentation checks, maintenance scan, project-status generation, and `git diff --check` pass before completion.
+
+Implementation and offline release verification do not perform the user-visible synthetic Analyze action. That single user-triggered live diagnostic remains deferred because it can consume provider usage.
 
 ## Rollback
 

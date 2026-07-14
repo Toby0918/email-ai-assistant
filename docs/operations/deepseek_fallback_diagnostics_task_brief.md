@@ -23,10 +23,10 @@ fix | security | test | docs
 ## 3. Current Status
 
 ```text
-approved
+active
 ```
 
-The user approved the recommended diagnostic patch on 2026-07-13. Implementation waits only for review of the written design specification.
+The user approved the recommended diagnostic patch on 2026-07-13. Written-design review and implementation are complete; offline release verification is recorded below, and only the user-triggered synthetic live diagnostic remains deferred.
 
 ## 4. Goal
 
@@ -66,7 +66,10 @@ References:
 Expected additions or modifications:
 
 - `backend/email_agent/llm_client.py`
+- `backend/email_agent/llm_errors.py`
+- `backend/email_agent/analysis_diagnostics.py`
 - `backend/email_agent/analysis_model_routes.py`
+- `backend/email_agent/legacy_model_analysis.py`
 - `backend/email_agent/logging_config.py`
 - `scripts/run_local_debug.py`
 - focused tests for client, routing, logging, and entrypoint behavior
@@ -158,7 +161,7 @@ Revert the diagnostic and logging changes. If provider operation must be stopped
 ## 15. Human Confirmation Needed
 
 - The user already approved implementing the sanitized diagnostics direction.
-- The user must review the written design before the implementation plan begins.
+- The user completed the written-design review before implementation began.
 - The user, not automated tests or Codex, will trigger the post-patch synthetic live DeepSeek request.
 
 ## 16. Pre-Execution Checklist
@@ -169,23 +172,63 @@ Revert the diagnostic and logging changes. If provider operation must be stopped
 [x] Goal, non-goals, security boundaries, and acceptance criteria are explicit.
 [x] No real mailbox, real message, API key, or customer data will be read or logged.
 [x] Expected file scope is identified.
-[ ] Written design has been reviewed by the user.
+[x] Written design has been reviewed by the user.
 ```
 
 ## 17. Execution Record
 
 ```text
 Actual modified files:
-- Pending implementation.
+- backend/email_agent/__init__.py
+- backend/email_agent/analysis_diagnostics.py
+- backend/email_agent/analysis_model_routes.py
+- backend/email_agent/legacy_model_analysis.py
+- backend/email_agent/llm_client.py
+- backend/email_agent/llm_errors.py
+- backend/email_agent/logging_config.py
+- scripts/run_local_debug.py
+- tests/test_analysis_diagnostics.py
+- tests/test_analyzer.py
+- tests/test_llm_client.py
+- tests/test_logging_config.py
+- tests/test_run_local_debug.py
+- tests/test_static_linter_constraints.py
+- tests/test_deepseek_documentation_contracts.py
+- docs/conventions/logging.md
+- docs/operations/troubleshooting.md
+- docs/operations/deployment_notes.md
+- docs/api/backend_api_contract.md
+- docs/operations/deepseek_fallback_diagnostics_task_brief.md
+- docs/superpowers/specs/2026-07-13-deepseek-fallback-diagnostics-design.md
+- docs/operations/project_status_log.md (generator only)
+
+Actual commits before the Task 5 documentation commit:
+- 0fc6f56cc3c1f9dac8af8160389356f0085cebfc docs: correct diagnostics execution plan
+- 5cc34e29dd0ec9e2b5b4617eac0c9d9c40c98c09 feat: add sanitized fallback diagnostics
+- 0369a36c75d038900ebb70c0a2d013310ec58bab fix: canonicalize diagnostic fields
+- d05ac33805051ba2eabdd023daad3ea4f505ad50 fix: classify DeepSeek client failures
+- 02e5a81736243717c956e35fc3015cdb81669d20 docs: amend client classification scope
+- 2c8a140fc1c42ab56a62d15fc87b135eb952961e refactor: extract client failure classification
+- d4d758b4ad9ac11a7e49fb4610528c2e55ed2ad2 docs: expand route diagnostics scope
+- deb4949d66d0ad6aa0f434bac03222566b0c1de2 fix: diagnose model fallback stages
+- c4117d9a5b7d30f18bd96ceebab63d2e5e989b61 fix: close terminal route error boundary
+- 3363a40e2d81403def10beca723c3caa154f53ec fix: persist sanitized service diagnostics
+- Task 5 uses subject: docs: document fallback diagnostics. Its SHA is recorded in the ignored Task 5 report because a commit cannot embed its own stable hash.
 
 Test results:
-- Pending implementation.
+- Task-level RED/GREEN evidence is recorded in `.superpowers/sdd/task-1-report.md` through `task-4-report.md`.
+- Task 5 documentation RED: 8 tests ran; the new contract produced 17 expected missing-marker failures while the other 7 tests passed.
+- Task 5 documentation GREEN: 8 tests ran, all passed.
+- Focused documentation and mechanical verification: 49 tests ran, all passed.
+- Full suite: the first 683-test run had the known shared 8-second XLSX boundary downgrade on the fifth synthetic file; the unchanged test then passed alone in 7.653 seconds, and a fresh complete run passed all 683 tests.
+- Maintenance scan: `No cleanup findings detected.`
+- JavaScript syntax: all 7 files under `frontend/` passed `node --check`.
+- Isolated service smoke: provider `disabled`, `127.0.0.1:8878`, and `outputs/local_debug_service_verify.pid`; start/status succeeded, only `GET /api/health` was called and returned `ok=true`, `finally` stop succeeded, the PID file was removed, and no 8878 listener remained.
+- No automated analysis POST, live DeepSeek request, real mailbox operation, or main-checkout `.env` access occurred.
 
 Unfinished items:
-- Written design review.
-- Test-driven implementation and verification.
-- User-triggered synthetic live diagnostic after restart.
+- User-triggered synthetic live diagnostic after branch integration and normal-service restart.
 
 Follow-up recommendation:
-- Use the first emitted reason code to select one root-cause correction rather than changing multiple provider settings at once.
+- After the user performs one synthetic Analyze action, read only the newest event with `Get-Content outputs\local_debug_service.log -Tail 30 | Select-String 'event=analysis_'` and use the first emitted reason code to select one root-cause correction.
 ```
