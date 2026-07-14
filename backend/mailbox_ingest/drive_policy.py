@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import json
+import stat
 import subprocess
 import sys
 import tempfile
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Protocol
 
@@ -33,6 +35,39 @@ $bitlocker = Get-BitLockerVolume -MountPoint $root
 
 class VolumeProbe(Protocol):
     def inspect(self, path: Path) -> VolumeInfo: ...
+
+
+class PathComponentProbe(Protocol):
+    def inspect(self, path: Path) -> object: ...
+
+
+@dataclass(frozen=True)
+class PathComponentEvidence:
+    exists: bool
+    is_symlink: bool
+    is_junction: bool
+    is_reparse_point: bool
+
+
+class LocalPathComponentProbe:
+    """Inspect path components without querying BitLocker or other host security."""
+
+    def inspect(self, path: Path) -> PathComponentEvidence:
+        try:
+            metadata = path.lstat()
+            junction = path.is_junction() if hasattr(path, "is_junction") else False
+        except FileNotFoundError:
+            return PathComponentEvidence(False, False, False, False)
+        except OSError:
+            raise VaultError("invalid_path") from None
+        attributes = int(getattr(metadata, "st_file_attributes", 0))
+        reparse_mask = int(getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400))
+        return PathComponentEvidence(
+            True,
+            stat.S_ISLNK(metadata.st_mode),
+            junction,
+            bool(attributes & reparse_mask),
+        )
 
 
 class FixedWindowsVolumeProbe:
@@ -123,14 +158,22 @@ def _inside(path: Path, ancestor: Path) -> bool:
     return path == ancestor or ancestor in path.parents
 
 
-def _validated_path(path: Path, *, must_exist: bool) -> Path:
+def _validated_path(
+    path: Path,
+    *,
+    must_exist: bool,
+    component_probe: PathComponentProbe | None = None,
+) -> Path:
     if not path.is_absolute():
         raise VaultError("path_not_absolute")
     try:
-        if path.is_symlink() or (
-            hasattr(path, "is_junction") and path.is_junction()
-        ):
-            raise VaultError("reparse_point_forbidden")
+        selected_probe = (
+            LocalPathComponentProbe()
+            if component_probe is None
+            else component_probe
+        )
+        for component in (*reversed(path.parents), path):
+            _reject_reparse_component(selected_probe.inspect(component))
         if must_exist and not path.exists():
             raise VaultError("path_missing")
         return path.resolve(strict=must_exist)
@@ -138,6 +181,22 @@ def _validated_path(path: Path, *, must_exist: bool) -> Path:
         raise
     except OSError:
         raise VaultError("invalid_path") from None
+
+
+def _reject_reparse_component(evidence: object) -> None:
+    fields = (
+        getattr(evidence, "exists", None),
+        getattr(evidence, "is_symlink", None),
+        getattr(evidence, "is_junction", None),
+        getattr(evidence, "is_reparse_point", None),
+    )
+    if any(type(value) is not bool for value in fields):
+        raise VaultError("invalid_path")
+    exists, *reparse_flags = fields
+    if any(reparse_flags) and not exists:
+        raise VaultError("invalid_path")
+    if exists and any(reparse_flags):
+        raise VaultError("reparse_point_forbidden")
 
 
 def _reject_forbidden_locations(
@@ -180,19 +239,27 @@ def validate_vault_location(
     recovery_key_path: Path,
     *,
     probe: VolumeProbe | None = None,
+    component_probe: PathComponentProbe | None = None,
     system_temp: Path | None = None,
 ) -> VolumeEvidence:
     """Validate external-vault and distinct recovery-volume evidence."""
 
-    vault = _validated_path(Path(vault_root), must_exist=True)
-    project = _validated_path(Path(project_root), must_exist=True)
+    vault = _validated_path(
+        Path(vault_root), must_exist=True, component_probe=component_probe
+    )
+    project = _validated_path(
+        Path(project_root), must_exist=True, component_probe=component_probe
+    )
     recovery_path = Path(recovery_key_path)
     if not recovery_path.is_absolute():
         raise VaultError("path_not_absolute")
-    recovery_parent = _validated_path(recovery_path.parent, must_exist=True)
+    recovery_parent = _validated_path(
+        recovery_path.parent, must_exist=True, component_probe=component_probe
+    )
     temp = _validated_path(
         Path(tempfile.gettempdir()) if system_temp is None else Path(system_temp),
         must_exist=True,
+        component_probe=component_probe,
     )
     _reject_forbidden_locations(vault, recovery_parent, project, temp)
     selected_probe = FixedWindowsVolumeProbe() if probe is None else probe

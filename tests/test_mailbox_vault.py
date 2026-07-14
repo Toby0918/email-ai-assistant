@@ -295,6 +295,53 @@ class MailboxVaultTests(unittest.TestCase):
         finally:
             offline_recovery.unlink(missing_ok=True)
 
+    def test_revoke_wipes_crypto_when_final_revoked_state_write_fails(self) -> None:
+        original_set_state = self.index.set_vault_state
+
+        def fail_revoked(state: str) -> None:
+            if state == "revoked":
+                raise VaultError("index_write_failed")
+            original_set_state(state)
+
+        self.index.set_vault_state = fail_revoked  # type: ignore[method-assign]
+        try:
+            with self.assertRaisesRegex(VaultError, "index_write_failed"):
+                self.vault.revoke(
+                    f"REVOKE:{self.vault_id}", envelope_revoker=lambda: None
+                )
+        finally:
+            self.index.set_vault_state = original_set_state  # type: ignore[method-assign]
+
+        self.assertEqual(self.index.get_vault_state(), "revoke_incomplete")
+        self.assertEqual(bytes(self.crypto._record_encryption_key), bytes(32))
+        with self.assertRaisesRegex(VaultError, "crypto_closed"):
+            self.crypto.encrypt("0" * 32, b"synthetic")
+
+    def test_revoke_keeps_primary_error_when_incomplete_state_write_fails(self) -> None:
+        original_set_state = self.index.set_vault_state
+
+        def fail_incomplete(state: str) -> None:
+            if state == "revoke_incomplete":
+                raise VaultError("index_write_failed")
+            original_set_state(state)
+
+        def fail_revoke() -> None:
+            raise RuntimeError("synthetic envelope failure")
+
+        self.index.set_vault_state = fail_incomplete  # type: ignore[method-assign]
+        try:
+            with self.assertRaisesRegex(VaultError, "revoke_incomplete"):
+                self.vault.revoke(
+                    f"REVOKE:{self.vault_id}", envelope_revoker=fail_revoke
+                )
+        finally:
+            self.index.set_vault_state = original_set_state  # type: ignore[method-assign]
+
+        self.assertEqual(self.index.get_vault_state(), "revoking")
+        self.assertEqual(bytes(self.crypto._dedup_hmac_key), bytes(32))
+        with self.assertRaisesRegex(VaultError, "crypto_closed"):
+            self.crypto.encrypt("0" * 32, b"synthetic")
+
 
 if __name__ == "__main__":
     unittest.main()

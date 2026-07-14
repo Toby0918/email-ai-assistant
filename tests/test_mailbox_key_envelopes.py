@@ -372,6 +372,79 @@ class KeyEnvelopeTests(unittest.TestCase):
         self.assertEqual(bytes(reopened), self.master)
         reopened.wipe()
 
+    def test_rewrap_recovers_key_created_before_envelope_idempotently(self) -> None:
+        from backend.mailbox_ingest import recovery_rewrap as implementation
+
+        self._initialize()
+        original_write_key = implementation._write_recovery_key
+
+        def write_after_prepared(path: Path, key: SecretBuffer) -> str:
+            state = json.loads(
+                (self.vault / "keys" / "recovery-state.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(state["state"], "prepared")
+            self.assertEqual(state["active_generation"], 1)
+            self.assertEqual(state["staged_generation"], 2)
+            expected_key_id = state["prepared_recovery_key_id"]
+            written_key_id = original_write_key(path, key)
+            self.assertEqual(written_key_id, expected_key_id)
+            return written_key_id
+
+        def crash_after_key(state: str) -> None:
+            if state == "recovery_key_created":
+                raise RuntimeError("simulated crash")
+
+        with mock.patch.object(
+            implementation, "_write_recovery_key", side_effect=write_after_prepared
+        ):
+            with self.assertRaisesRegex(RuntimeError, "simulated crash"):
+                rewrap_recovery_key(
+                    self.vault,
+                    self.old_recovery,
+                    self.new_recovery,
+                    rng=SequenceRng([b"C" * 32]),
+                    distinct_volume_check=self._distinct,
+                    crash_hook=crash_after_key,
+                )
+
+        self.assertTrue(self.new_recovery.exists())
+        self.assertFalse((self.vault / "keys" / "recovery.2.json").exists())
+        still_active = open_master_key_with_recovery(
+            self.vault, self.old_recovery
+        )
+        self.assertEqual(bytes(still_active), self.master)
+        still_active.wipe()
+
+        reconcile_recovery_rewrap(
+            self.vault,
+            self.old_recovery,
+            self.new_recovery,
+            rng=SequenceRng([b"D" * 12]),
+            distinct_volume_check=self._distinct,
+        )
+        reconcile_recovery_rewrap(
+            self.vault,
+            self.old_recovery,
+            self.new_recovery,
+            rng=SequenceRng([]),
+            distinct_volume_check=self._distinct,
+        )
+
+        reopened = open_master_key_with_recovery(self.vault, self.new_recovery)
+        self.assertEqual(bytes(reopened), self.master)
+        reopened.wipe()
+        state = json.loads(
+            (self.vault / "keys" / "recovery-state.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        self.assertEqual(state["state"], "stable")
+        self.assertEqual(state["active_generation"], 2)
+        self.assertIsNone(state["prepared_recovery_key_id"])
+        self.assertTrue(self.old_recovery.exists())
+
 
 if __name__ == "__main__":
     unittest.main()

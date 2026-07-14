@@ -38,6 +38,7 @@ _DPAPI_FIELDS = {
 _STATE_FIELDS = {
     "format_version", "vault_id", "state", "active_generation",
     "staged_generation", "prior_generation", "active_recovery_key_id",
+    "prepared_recovery_key_id",
 }
 
 
@@ -164,6 +165,7 @@ def _stable_state(vault_id: str, generation: int, key_id: str) -> dict[str, obje
         "staged_generation": None,
         "prior_generation": None,
         "active_recovery_key_id": key_id,
+        "prepared_recovery_key_id": None,
     }
 
 

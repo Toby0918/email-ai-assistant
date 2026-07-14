@@ -241,14 +241,28 @@ class MailboxVault:
                 return RevokeResult("revoked")
             self._index.set_vault_state("revoking")
             try:
-                revoker()
-            except Exception:
-                self._index.set_vault_state("revoke_incomplete")
+                try:
+                    revoker()
+                except Exception:
+                    self._mark_revoke_incomplete()
+                    raise VaultError("revoke_incomplete") from None
+                try:
+                    self._index.set_vault_state("revoked")
+                except VaultError:
+                    self._mark_revoke_incomplete()
+                    raise
+                except Exception:
+                    self._mark_revoke_incomplete()
+                    raise VaultError("index_write_failed") from None
+                return RevokeResult("revoked")
+            finally:
                 self._crypto.close()
-                raise VaultError("revoke_incomplete") from None
-            self._index.set_vault_state("revoked")
-            self._crypto.close()
-            return RevokeResult("revoked")
+
+    def _mark_revoke_incomplete(self) -> None:
+        try:
+            self._index.set_vault_state("revoke_incomplete")
+        except Exception:
+            pass
 
     def __repr__(self) -> str:
         return "MailboxVault(<redacted>)"

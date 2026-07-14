@@ -32,9 +32,16 @@ _RECOVERY_FIELDS = {
 
 
 def write_recovery_key(path: Path, key: bytes | bytearray) -> str:
-    key_id = hashlib.sha256(b"mailbox-vault-recovery-id" + bytes(key)).digest()[:16]
-    write_bytes_exclusive(path, _RECOVERY_KEY_MAGIC + key_id + bytes(key))
-    return key_id.hex()
+    key_id = recovery_key_id(key)
+    write_bytes_exclusive(
+        path, _RECOVERY_KEY_MAGIC + bytes.fromhex(key_id) + bytes(key)
+    )
+    return key_id
+
+
+def recovery_key_id(key: bytes | bytearray) -> str:
+    digest = hashlib.sha256(b"mailbox-vault-recovery-id" + bytes(key)).digest()
+    return digest[:16].hex()
 
 
 def read_recovery_key(path: Path) -> tuple[str, SecretBuffer]:

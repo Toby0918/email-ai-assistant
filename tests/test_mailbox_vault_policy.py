@@ -6,6 +6,7 @@ import importlib
 import sys
 import tempfile
 import unittest
+from dataclasses import dataclass
 from pathlib import Path
 from unittest import mock
 
@@ -26,6 +27,27 @@ class FakeVolumeProbe:
         resolved = path.resolve()
         self.paths.append(resolved)
         return self.evidence[str(resolved)]
+
+
+@dataclass(frozen=True)
+class FakePathEvidence:
+    exists: bool = True
+    is_symlink: bool = False
+    is_junction: bool = False
+    is_reparse_point: bool = False
+
+
+class FakePathComponentProbe:
+    def __init__(self, marked_path: Path, evidence: FakePathEvidence) -> None:
+        self.marked_path = marked_path
+        self.evidence = evidence
+        self.paths: list[Path] = []
+
+    def inspect(self, path: Path) -> FakePathEvidence:
+        self.paths.append(path)
+        if path == self.marked_path:
+            return self.evidence
+        return FakePathEvidence()
 
 
 def _volume(
@@ -138,6 +160,35 @@ class VaultLocationPolicyTests(unittest.TestCase):
                     self._validate(self._probe(**overrides))
                 self.assertRegex(caught.exception.code, r"^[a-z0-9_]+$")
                 self.assertNotIn("vault-volume", repr(caught.exception))
+
+    def test_rejects_ancestor_symlink_junction_and_reparse_evidence(self) -> None:
+        ancestor = self.vault.parent
+        cases = {
+            "symlink": FakePathEvidence(is_symlink=True),
+            "junction": FakePathEvidence(is_junction=True),
+            "reparse": FakePathEvidence(is_reparse_point=True),
+        }
+
+        expected_walk = [*reversed(self.vault.parents), self.vault]
+        expected_prefix = expected_walk[: expected_walk.index(ancestor) + 1]
+        for label, evidence in cases.items():
+            with self.subTest(label=label):
+                path_probe = FakePathComponentProbe(ancestor, evidence)
+                volume_probe = self._probe()
+                with self.assertRaisesRegex(
+                    VaultError, "reparse_point_forbidden"
+                ):
+                    validate_vault_location(
+                        self.vault,
+                        self.project,
+                        self.recovery,
+                        probe=volume_probe,
+                        component_probe=path_probe,
+                        system_temp=self.system_temp,
+                    )
+
+                self.assertEqual(path_probe.paths, expected_prefix)
+                self.assertEqual(volume_probe.paths, [])
 
     def test_rejects_recovery_material_on_same_volume(self) -> None:
         probe = FakeVolumeProbe(
