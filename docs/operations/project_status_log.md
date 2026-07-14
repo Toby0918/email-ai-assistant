@@ -17,7 +17,7 @@ source_type: operation_guide
 |---|---|
 | Generated on | 2026-07-14 |
 | Current stage | local_eval_mvp |
-| Git branch | codex/deepseek-envelope-subdiagnostics |
+| Git branch | master |
 | Git HEAD reference | Run `git rev-parse --short HEAD` in this workspace |
 | Working tree status | Run `git status --short --ignored` in this workspace |
 
