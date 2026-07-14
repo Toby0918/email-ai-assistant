@@ -6,6 +6,11 @@ import subprocess
 import sys
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import MagicMock, call, patch
+
+from backend.email_agent.config import load_config
+from scripts import run_local_debug
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -13,6 +18,42 @@ SCRIPT = ROOT / "scripts" / "run_local_debug.py"
 
 
 class RunLocalDebugTests(unittest.TestCase):
+    def test_main_configures_file_logging_before_server_start(self) -> None:
+        args = SimpleNamespace(host="127.0.0.1", port=8765, database=None)
+        config = load_config(dotenv_path=None)
+        manager = MagicMock()
+
+        with (
+            patch.object(run_local_debug, "parse_args", return_value=args),
+            patch.object(
+                run_local_debug, "load_config", return_value=config, create=True
+            ) as config_loader,
+            patch.object(run_local_debug, "configure_logging", create=True) as configure,
+            patch.object(run_local_debug, "run_server") as run_server,
+        ):
+            manager.attach_mock(configure, "configure")
+            manager.attach_mock(run_server, "run_server")
+            result = run_local_debug.main()
+
+        self.assertEqual(result, 0)
+        config_loader.assert_called_once_with()
+        self.assertEqual(
+            manager.mock_calls,
+            [
+                call.configure(
+                    config.log_level,
+                    log_file=(
+                        run_local_debug.ROOT
+                        / "outputs"
+                        / "local_debug_service.log"
+                    ),
+                ),
+                call.run_server(
+                    host="127.0.0.1", port=8765, database_path=None
+                ),
+            ],
+        )
+
     def test_script_help_runs_from_project_root(self) -> None:
         # The documented command is `python scripts/run_local_debug.py`.
         result = subprocess.run(
