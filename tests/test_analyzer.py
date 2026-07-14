@@ -966,6 +966,8 @@ class AnalyzerTests(unittest.TestCase):
         ), patch(
             "backend.email_agent.analysis_model_routes.merge_deepseek_analysis_v1",
             side_effect=merge,
+        ), self.assertNoLogs(
+            "backend.email_agent.analysis_diagnostics", level="WARNING"
         ):
             result = analyze_current_email(
                 self._model_email(),
@@ -977,6 +979,158 @@ class AnalyzerTests(unittest.TestCase):
         self.assertEqual(result["analysis_engine"], {
             "source": "ai_model", "label": "DeepSeek V4 Flash"
         })
+
+    def test_model_led_provider_reason_is_logged_once(self) -> None:
+        with self._capture_analysis_fallback_logs() as captured, patch(
+            "backend.email_agent.analysis_model_routes.generate_analysis",
+            side_effect=LlmClientError("PRIVATE", reason_code="provider_auth"),
+        ):
+            result = analyze_current_email(
+                self._model_email(), config=self._deepseek_config()
+            )
+
+        self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
+        self.assertEqual(len(captured.output), 1)
+        self.assertIn("code=provider_auth stage=provider", captured.output[0])
+        self.assertNotIn("PRIVATE", captured.output[0])
+
+    def test_model_led_malformed_envelope_has_specific_diagnostic(self) -> None:
+        with self._capture_analysis_fallback_logs() as captured:
+            result = analyze_current_email(
+                self._model_email(),
+                llm_generate=lambda _prompt: "not json",
+                config=self._deepseek_config(),
+            )
+
+        self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
+        self.assertEqual(len(captured.output), 1)
+        self.assertIn("code=envelope_invalid stage=envelope", captured.output[0])
+
+    def test_model_led_budget_exhaustion_has_specific_diagnostic(self) -> None:
+        budget = AnalysisBudget(deadline=4.9, _clock=lambda: 0.0)
+        with self._capture_analysis_fallback_logs() as captured:
+            result = analyze_current_email(
+                self._model_email(), config=self._deepseek_config(), budget=budget
+            )
+
+        self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
+        self.assertEqual(len(captured.output), 1)
+        self.assertIn("code=budget_exhausted stage=budget", captured.output[0])
+
+    def test_model_led_evidence_failure_has_specific_diagnostic(self) -> None:
+        with patch(
+            "backend.email_agent.analysis_model_routes.parse_deepseek_analysis_v1",
+            return_value={},
+        ), patch(
+            "backend.email_agent.analysis_model_routes.validate_envelope_evidence",
+            side_effect=ValueError("PRIVATE_EVIDENCE"),
+        ), self._capture_analysis_fallback_logs() as captured:
+            result = analyze_current_email(
+                self._model_email(), llm_generate=lambda _prompt: "{}",
+                config=self._deepseek_config(),
+            )
+
+        self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
+        self.assertEqual(len(captured.output), 1)
+        self.assertIn("code=evidence_invalid stage=evidence", captured.output[0])
+        self.assertNotIn("PRIVATE_EVIDENCE", captured.output[0])
+
+    def test_model_led_all_rejected_has_specific_diagnostic(self) -> None:
+        def rejected(_envelope, *, fallback, **_kwargs):
+            return SafeMergeResult(copy.deepcopy(fallback), False, ("all",))
+
+        with patch(
+            "backend.email_agent.analysis_model_routes.parse_deepseek_analysis_v1",
+            return_value={},
+        ), patch(
+            "backend.email_agent.analysis_model_routes.validate_envelope_evidence",
+            return_value={},
+        ), patch(
+            "backend.email_agent.analysis_model_routes.merge_deepseek_analysis_v1",
+            side_effect=rejected,
+        ), self._capture_analysis_fallback_logs() as captured:
+            result = analyze_current_email(
+                self._model_email(), llm_generate=lambda _prompt: "{}",
+                config=self._deepseek_config(),
+            )
+
+        self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
+        self.assertEqual(len(captured.output), 1)
+        self.assertIn("code=safety_rejected_all stage=safety", captured.output[0])
+
+    def test_model_led_public_schema_failure_has_specific_diagnostic(self) -> None:
+        def merged(_envelope, *, fallback, **_kwargs):
+            analysis = copy.deepcopy(fallback)
+            analysis["summary"] = "Synthetic model augmentation."
+            return SafeMergeResult(analysis, True, ())
+
+        with patch(
+            "backend.email_agent.analysis_model_routes.parse_deepseek_analysis_v1",
+            return_value={},
+        ), patch(
+            "backend.email_agent.analysis_model_routes.validate_envelope_evidence",
+            return_value={},
+        ), patch(
+            "backend.email_agent.analysis_model_routes.merge_deepseek_analysis_v1",
+            side_effect=merged,
+        ), patch(
+            "backend.email_agent.analysis_model_routes.validate_analysis_result",
+            side_effect=ValueError("PRIVATE_SCHEMA"),
+        ), self._capture_analysis_fallback_logs() as captured:
+            result = analyze_current_email(
+                self._model_email(), llm_generate=lambda _prompt: "{}",
+                config=self._deepseek_config(),
+            )
+
+        self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
+        self.assertEqual(len(captured.output), 1)
+        self.assertIn("code=public_schema_invalid stage=schema", captured.output[0])
+        self.assertNotIn("PRIVATE_SCHEMA", captured.output[0])
+
+    def test_model_led_public_language_failure_has_specific_diagnostic(self) -> None:
+        def merged(_envelope, *, fallback, **_kwargs):
+            analysis = copy.deepcopy(fallback)
+            analysis["summary"] = "Synthetic model augmentation."
+            return SafeMergeResult(analysis, True, ())
+
+        with patch(
+            "backend.email_agent.analysis_model_routes.parse_deepseek_analysis_v1",
+            return_value={},
+        ), patch(
+            "backend.email_agent.analysis_model_routes.validate_envelope_evidence",
+            return_value={},
+        ), patch(
+            "backend.email_agent.analysis_model_routes.merge_deepseek_analysis_v1",
+            side_effect=merged,
+        ), patch(
+            "backend.email_agent.analysis_model_routes.validate_public_language",
+            side_effect=ValueError("PRIVATE_LANGUAGE"),
+        ), self._capture_analysis_fallback_logs() as captured:
+            result = analyze_current_email(
+                self._model_email(), llm_generate=lambda _prompt: "{}",
+                config=self._deepseek_config(),
+            )
+
+        self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
+        self.assertEqual(len(captured.output), 1)
+        self.assertIn("code=public_language_invalid stage=language", captured.output[0])
+        self.assertNotIn("PRIVATE_LANGUAGE", captured.output[0])
+
+    def test_unexpected_analysis_failure_has_specific_diagnostic(self) -> None:
+        with patch(
+            "backend.email_agent.analysis_model_routes.build_deepseek_untrusted_context",
+            side_effect=RuntimeError("PRIVATE_ANALYSIS"),
+        ), self._capture_analysis_fallback_logs() as captured:
+            result = analyze_current_email(
+                self._model_email(), config=self._deepseek_config()
+            )
+
+        self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
+        self.assertEqual(len(captured.output), 1)
+        self.assertIn(
+            "code=unexpected_analysis_error stage=analysis", captured.output[0]
+        )
+        self.assertNotIn("PRIVATE_ANALYSIS", captured.output[0])
 
     def test_merge_with_no_surviving_model_field_returns_exact_rule_result(self) -> None:
         def no_model(_envelope, *, fallback, **_kwargs):
@@ -1190,6 +1344,11 @@ class AnalyzerTests(unittest.TestCase):
             deepseek_model="deepseek-v4-flash",
             deepseek_output_mode="model_led",
             **changes,
+        )
+
+    def _capture_analysis_fallback_logs(self):
+        return self.assertLogs(
+            "backend.email_agent.analysis_diagnostics", level="WARNING"
         )
 
     @staticmethod

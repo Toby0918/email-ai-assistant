@@ -97,6 +97,21 @@ class PrintCallVisitor(ast.NodeVisitor):
 
 
 class StaticLinterConstraintTests(unittest.TestCase):
+    def test_analysis_diagnostic_calls_use_only_safe_keywords(self) -> None:
+        path = ROOT / "backend" / "email_agent" / "analysis_model_routes.py"
+        tree = ast.parse(read_text(path))
+        calls = [
+            node for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "log_analysis_fallback"
+        ]
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(
+            {item.arg for item in calls[0].keywords},
+            {"code", "stage", "provider", "model", "output_mode", "elapsed_ms"},
+        )
+
     def test_frontend_provider_guard_covers_deepseek_direct_access(self) -> None:
         samples = {
             "DeepSeek API key": "const key = DEEPSEEK_API_KEY;",
