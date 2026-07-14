@@ -300,6 +300,7 @@ class StaticLinterConstraintTests(unittest.TestCase):
 
     def test_pinned_dependency_versions_are_consistent_across_active_guidance(self) -> None:
         expected_versions = {
+            "cryptography": "49.0.0",
             "openai": "2.45.0",
             "pypdf": "6.14.2",
             "python-docx": "1.2.0",
@@ -320,7 +321,14 @@ class StaticLinterConstraintTests(unittest.TestCase):
             pin = f"{package}=={version}"
             with self.subTest(package=package, path="requirements.txt"):
                 self.assertIn(pin, requirements)
-            for path in guidance_files:
+            package_guidance_files = guidance_files
+            if package == "cryptography":
+                package_guidance_files = [
+                    ROOT / "AGENTS.md",
+                    ROOT / "docs" / "constraints" / "tooling_constraints.md",
+                    ROOT / "docs" / "superpowers" / "plans" / "2026-07-14-mailbox-vault.md",
+                ]
+            for path in package_guidance_files:
                 with self.subTest(package=package, path=path):
                     marker = (
                         rf"{re.escape(package)}"

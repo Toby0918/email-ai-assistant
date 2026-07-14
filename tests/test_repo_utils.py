@@ -21,6 +21,15 @@ from scripts.repo_utils import (
 
 
 class RepoUtilsTests(unittest.TestCase):
+    def test_mailbox_vault_cryptography_pin_is_exact(self) -> None:
+        requirements = (Path(__file__).resolve().parents[1] / "requirements.txt").read_text(
+            encoding="utf-8"
+        )
+
+        versions = repo_utils.parse_pinned_dependency_versions(requirements)
+
+        self.assertEqual(versions.get("cryptography"), "49.0.0")
+
     def test_dependency_pin_parser_rejects_conflicting_duplicates(self) -> None:
         requirements = "openai==2.45.0\nOpenAI==2.46.0\nPillow==12.3.0\n"
 
