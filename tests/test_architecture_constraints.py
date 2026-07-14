@@ -55,6 +55,10 @@ FRONTEND_DANGEROUS_ACTIONS = {
     "forward_action": r"forwardMessage|forward\(",
 }
 
+IMAP_CONSTRUCTORS = {"IMAP4", "IMAP4_SSL", "IMAP4_stream"}
+WRAPPER_IMAP_CONSTRUCTOR = "IMAP4_SSL"
+SMTP_CONSTRUCTORS = {"SMTP", "SMTP_SSL"}
+
 
 GITIGNORE_PATTERNS = load_gitignore_patterns(ROOT)
 
@@ -76,6 +80,25 @@ def parse_import_roots(path: Path) -> set[str]:
         elif isinstance(node, ast.ImportFrom) and node.module:
             imports.add(node.module.split(".")[0])
     return imports
+
+
+def parse_called_names(path: Path) -> set[str]:
+    if not path.exists():
+        return set()
+    try:
+        tree = ast.parse(read_text(path))
+    except SyntaxError:
+        return set()
+
+    names: set[str] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+        if isinstance(node.func, ast.Name):
+            names.add(node.func.id)
+        elif isinstance(node.func, ast.Attribute):
+            names.add(node.func.attr)
+    return names
 
 
 class ArchitectureConstraintTests(unittest.TestCase):
@@ -131,6 +154,36 @@ class ArchitectureConstraintTests(unittest.TestCase):
                 self.assertIsNone(
                     importer_reference.search(read_text(path)),
                     f"{path} must not reference the isolated mailbox importer",
+                )
+
+    def test_mail_transport_imports_and_constructors_are_wrapper_owned(self) -> None:
+        wrapper = ROOT / "backend" / "mailbox_ingest" / "imap_readonly.py"
+        runtime_paths = list((ROOT / "backend").rglob("*.py"))
+        runtime_paths.extend((ROOT / "scripts").rglob("*.py"))
+
+        for path in runtime_paths:
+            imports = parse_import_roots(path)
+            calls = parse_called_names(path)
+            with self.subTest(path=path, rule="no SMTP"):
+                self.assertNotIn("smtplib", imports)
+                self.assertTrue(
+                    calls.isdisjoint(SMTP_CONSTRUCTORS),
+                    f"{path} must not construct an SMTP client",
+                )
+            if path.resolve() == wrapper.resolve():
+                with self.subTest(path=path, rule="TLS IMAP only"):
+                    self.assertTrue(
+                        calls.isdisjoint(
+                            IMAP_CONSTRUCTORS - {WRAPPER_IMAP_CONSTRUCTOR}
+                        ),
+                        f"{path} must construct only an IMAP4_SSL client",
+                    )
+                continue
+            with self.subTest(path=path, rule="wrapper owns IMAP"):
+                self.assertNotIn("imaplib", imports)
+                self.assertTrue(
+                    calls.isdisjoint(IMAP_CONSTRUCTORS),
+                    f"{path} must not construct an IMAP client",
                 )
 
     def test_frontend_provider_guard_covers_deepseek_direct_access(self) -> None:
