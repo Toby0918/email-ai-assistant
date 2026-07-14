@@ -28,6 +28,19 @@ PRIVATE_MARKERS = (
     "PRIVATE_DIRECT_DIAGNOSTIC",
     "PRIVATE_SPOOFED_ARGUMENT",
     "PRIVATE_EXCEPTION",
+    "PRIVATE_CACHED_EXCEPTION",
+)
+CACHED_EXCEPTION_RECORD_SCRIPT = dedent(
+    """
+    cached_record = logging.LogRecord(
+        "backend.email_agent.analysis_diagnostics", logging.WARNING,
+        "synthetic.py", 1, __TEMPLATE__,
+        ("provider_timeout", "provider", "deepseek", "deepseek-v4-flash", "model_led", 123),
+        None,
+    )
+    cached_record.exc_text = "PRIVATE_CACHED_EXCEPTION"
+    diagnostic.handle(cached_record)
+    """
 )
 DEBUG_PRIVACY_SCRIPT = dedent(
     """
@@ -124,6 +137,7 @@ class LoggingConfigTests(unittest.TestCase):
             path = Path(directory) / "nested" / "service.log"
             code = DEBUG_PRIVACY_SCRIPT.replace("__PATH__", repr(str(path)))
             code = code.replace("__TEMPLATE__", repr(EVENT_TEMPLATE))
+            code += CACHED_EXCEPTION_RECORD_SCRIPT.replace("__TEMPLATE__", repr(EVENT_TEMPLATE))
             result = self._run(code)
 
             self.assertEqual(result.returncode, 0, result.stderr)
@@ -257,12 +271,14 @@ class LoggingConfigTests(unittest.TestCase):
             handler.flush()
             """
         )
+        code += CACHED_EXCEPTION_RECORD_SCRIPT.replace("__TEMPLATE__", repr(EVENT_TEMPLATE))
         result = self._run(code)
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(result.stderr.count(CANONICAL_EVENT), 1, result.stderr)
         self.assertEqual(result.stderr.count("event=analysis_fallback"), 1)
         self.assertNotIn("PRIVATE_DIRECT_DIAGNOSTIC", result.stderr)
+        self.assertNotIn("PRIVATE_CACHED_EXCEPTION", result.stderr)
         self.assertNotIn(CANONICAL_EVENT, result.stdout)
 
     @staticmethod

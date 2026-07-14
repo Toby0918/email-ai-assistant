@@ -35,6 +35,7 @@ class _FallbackEventFilter(logging.Filter):
             or type(record.args) is not tuple
             or len(record.args) != 6
             or record.exc_info is not None
+            or record.exc_text is not None
             or record.stack_info is not None
         ):
             return False
