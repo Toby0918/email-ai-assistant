@@ -109,7 +109,15 @@ class StaticLinterConstraintTests(unittest.TestCase):
         self.assertEqual(len(calls), 1)
         self.assertEqual(
             {item.arg for item in calls[0].keywords},
-            {"code", "stage", "provider", "model", "output_mode", "elapsed_ms"},
+            {
+                "code",
+                "stage",
+                "provider",
+                "model",
+                "output_mode",
+                "detail",
+                "elapsed_ms",
+            },
         )
 
     def test_frontend_provider_guard_covers_deepseek_direct_access(self) -> None:

@@ -23,6 +23,7 @@ from backend.email_agent.attachment_model_context import (
 )
 from backend.email_agent.attachment_storage import StoredAttachment
 from backend.email_agent.config import load_config
+from backend.email_agent.deepseek_analysis_schema import DeepSeekEnvelopeError
 from backend.email_agent.email_cleaner import clean_email_body
 from backend.email_agent.llm_client import LlmClientError
 from backend.email_agent.model_result_safety import SafeMergeResult
@@ -996,6 +997,7 @@ class AnalyzerTests(unittest.TestCase):
         self.assertEqual(result, expected)
         self.assertEqual(len(captured.output), 1)
         self.assertIn("code=provider_auth stage=provider", captured.output[0])
+        self.assertIn("detail=not_applicable", captured.output[0])
         self.assertNotIn("PRIVATE", captured.output[0])
 
     def test_response_incomplete_is_logged_once_at_response_stage(self) -> None:
@@ -1015,6 +1017,7 @@ class AnalyzerTests(unittest.TestCase):
         self.assertIn(
             "code=response_incomplete stage=response", captured.output[0]
         )
+        self.assertIn("detail=not_applicable", captured.output[0])
         self.assertNotIn("PRIVATE_INCOMPLETE_RESPONSE", captured.output[0])
 
     def test_response_empty_is_logged_once_at_response_stage(self) -> None:
@@ -1032,9 +1035,11 @@ class AnalyzerTests(unittest.TestCase):
         self.assertEqual(result, expected)
         self.assertEqual(len(captured.output), 1)
         self.assertIn("code=response_empty stage=response", captured.output[0])
+        self.assertIn("detail=not_applicable", captured.output[0])
         self.assertNotIn("PRIVATE_EMPTY_RESPONSE", captured.output[0])
 
     def test_model_led_malformed_envelope_has_specific_diagnostic(self) -> None:
+        expected = self._expected_model_email_rule_fallback()
         with self._capture_analysis_fallback_logs() as captured:
             result = analyze_current_email(
                 self._model_email(),
@@ -1042,9 +1047,34 @@ class AnalyzerTests(unittest.TestCase):
                 config=self._deepseek_config(),
             )
 
-        self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
+        self.assertEqual(result, expected)
         self.assertEqual(len(captured.output), 1)
-        self.assertIn("code=envelope_invalid stage=envelope", captured.output[0])
+        self.assertIn(
+            "code=envelope_invalid stage=envelope provider=deepseek "
+            "model=deepseek-v4-flash output_mode=model_led "
+            "detail=json_syntax",
+            captured.output[0],
+        )
+
+    def test_model_led_envelope_error_detail_is_propagated(self) -> None:
+        expected = self._expected_model_email_rule_fallback()
+        with patch(
+            "backend.email_agent.analysis_model_routes.parse_deepseek_analysis_v1",
+            side_effect=DeepSeekEnvelopeError("schema_version"),
+        ), self._capture_analysis_fallback_logs() as captured:
+            result = analyze_current_email(
+                self._model_email(), llm_generate=lambda _prompt: "{}",
+                config=self._deepseek_config(),
+            )
+
+        self.assertEqual(result, expected)
+        self.assertEqual(len(captured.output), 1)
+        self.assertIn(
+            "code=envelope_invalid stage=envelope provider=deepseek "
+            "model=deepseek-v4-flash output_mode=model_led "
+            "detail=schema_version",
+            captured.output[0],
+        )
 
     def test_model_led_budget_exhaustion_has_specific_diagnostic(self) -> None:
         budget = AnalysisBudget(deadline=4.9, _clock=lambda: 0.0)
@@ -1056,6 +1086,7 @@ class AnalyzerTests(unittest.TestCase):
         self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
         self.assertEqual(len(captured.output), 1)
         self.assertIn("code=budget_exhausted stage=budget", captured.output[0])
+        self.assertIn("detail=not_applicable", captured.output[0])
 
     def test_model_led_evidence_failure_has_specific_diagnostic(self) -> None:
         with patch(
@@ -1073,6 +1104,7 @@ class AnalyzerTests(unittest.TestCase):
         self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
         self.assertEqual(len(captured.output), 1)
         self.assertIn("code=evidence_invalid stage=evidence", captured.output[0])
+        self.assertIn("detail=not_applicable", captured.output[0])
         self.assertNotIn("PRIVATE_EVIDENCE", captured.output[0])
 
     def test_model_led_all_rejected_has_specific_diagnostic(self) -> None:
@@ -1097,6 +1129,7 @@ class AnalyzerTests(unittest.TestCase):
         self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
         self.assertEqual(len(captured.output), 1)
         self.assertIn("code=safety_rejected_all stage=safety", captured.output[0])
+        self.assertIn("detail=not_applicable", captured.output[0])
 
     def test_model_led_public_schema_failure_has_specific_diagnostic(self) -> None:
         def merged(_envelope, *, fallback, **_kwargs):
@@ -1125,6 +1158,7 @@ class AnalyzerTests(unittest.TestCase):
         self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
         self.assertEqual(len(captured.output), 1)
         self.assertIn("code=public_schema_invalid stage=schema", captured.output[0])
+        self.assertIn("detail=not_applicable", captured.output[0])
         self.assertNotIn("PRIVATE_SCHEMA", captured.output[0])
 
     def test_model_led_public_language_failure_has_specific_diagnostic(self) -> None:
@@ -1154,6 +1188,7 @@ class AnalyzerTests(unittest.TestCase):
         self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
         self.assertEqual(len(captured.output), 1)
         self.assertIn("code=public_language_invalid stage=language", captured.output[0])
+        self.assertIn("detail=not_applicable", captured.output[0])
         self.assertNotIn("PRIVATE_LANGUAGE", captured.output[0])
 
     def test_conservative_schema_failure_has_specific_diagnostic(self) -> None:
@@ -1171,6 +1206,7 @@ class AnalyzerTests(unittest.TestCase):
         self.assertEqual(result, expected)
         self.assertEqual(len(captured.output), 1)
         self.assertIn("code=public_schema_invalid stage=schema", captured.output[0])
+        self.assertIn("detail=not_applicable", captured.output[0])
         self.assertNotIn("PRIVATE_SCHEMA_RESPONSE", captured.output[0])
 
     def test_conservative_language_failure_has_specific_diagnostic(self) -> None:
@@ -1189,6 +1225,7 @@ class AnalyzerTests(unittest.TestCase):
         self.assertIn(
             "code=public_language_invalid stage=language", captured.output[0]
         )
+        self.assertIn("detail=not_applicable", captured.output[0])
         self.assertNotIn("PRIVATE_LANGUAGE_RESPONSE", captured.output[0])
 
     def test_conservative_success_still_emits_no_fallback_event(self) -> None:
@@ -1230,6 +1267,7 @@ class AnalyzerTests(unittest.TestCase):
         self.assertIn(
             "code=unexpected_analysis_error stage=analysis", captured.output[0]
         )
+        self.assertIn("detail=not_applicable", captured.output[0])
         self.assertNotIn("PRIVATE_ANALYSIS", captured.output[0])
 
     def test_engine_label_failure_has_terminal_diagnostic(self) -> None:
@@ -1278,6 +1316,7 @@ class AnalyzerTests(unittest.TestCase):
         self.assertIn(
             "code=unexpected_analysis_error stage=analysis", captured.output[0]
         )
+        self.assertIn("detail=not_applicable", captured.output[0])
         self.assertNotIn("PRIVATE_ENGINE_LABEL", captured.output[0])
         self.assertNotIn("PRIVATE_ENGINE_LABEL", json.dumps(result))
 

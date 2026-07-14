@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, TypeVar
 
 from .analysis_budget import AnalysisBudget
 from .analysis_diagnostics import log_analysis_fallback
@@ -16,6 +16,7 @@ from .attachment_model_context import (
 )
 from .config import AppConfig
 from .deepseek_analysis_schema import (
+    DeepSeekEnvelopeError,
     parse_deepseek_analysis_v1,
     validate_envelope_evidence,
 )
@@ -42,13 +43,20 @@ from .thread_timeline import TimelineBuild
 MODEL_AUGMENTATION_FIELDS = ("summary", "priority", "priority_reason", "category", "tags")
 SUPPORTED_PRODUCTION_PROVIDERS = frozenset({"deepseek", "ollama", "openai"})
 _RESPONSE_FAILURE_REASONS = frozenset({"response_incomplete", "response_empty"})
+_T = TypeVar("_T")
 
 
 class _AnalysisFallback(RuntimeError):
-    def __init__(self, code: str, stage: str) -> None:
+    def __init__(
+        self,
+        code: str,
+        stage: str,
+        detail: str = "not_applicable",
+    ) -> None:
         super().__init__(code)
         self.code = code
         self.stage = stage
+        self.detail = detail
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,6 +112,7 @@ def route_analysis(
         return result
     return _diagnosed_fallback(
         context, started_at, code=failure.code, stage=failure.stage,
+        detail=failure.detail,
     )
 
 
@@ -127,9 +136,7 @@ def _run_model_led(
     if timeout is None:
         raise _AnalysisFallback("budget_exhausted", "budget")
     raw = _generate(prompt, context, llm_generate, timeout, DEEPSEEK_SYSTEM_PROMPT)
-    envelope = _run_stage(
-        "envelope_invalid", "envelope", lambda: parse_deepseek_analysis_v1(raw)
-    )
+    envelope = _run_envelope_stage(lambda: parse_deepseek_analysis_v1(raw))
     evidence = _run_stage(
         "evidence_invalid", "evidence",
         lambda: validate_envelope_evidence(envelope, sources),
@@ -188,6 +195,22 @@ def _run_stage(code: str, stage: str, action: Callable[[], Any]) -> Any:
         raise _AnalysisFallback(code, stage) from exc
 
 
+def _run_envelope_stage(action: Callable[[], _T]) -> _T:
+    try:
+        return action()
+    except DeepSeekEnvelopeError as exc:
+        raise _AnalysisFallback(
+            "envelope_invalid",
+            "envelope",
+            exc.detail,
+        ) from exc
+    except Exception as exc:
+        raise _AnalysisFallback(
+            "envelope_invalid",
+            "envelope",
+        ) from exc
+
+
 def _generate(
     prompt: str,
     context: AnalysisRouteContext,
@@ -241,6 +264,7 @@ def _rule_fallback(fallback: dict[str, Any]) -> dict[str, Any]:
 
 def _diagnosed_fallback(
     context: AnalysisRouteContext, started_at: float, *, code: str, stage: str,
+    detail: str = "not_applicable",
 ) -> dict[str, Any]:
     provider = context.config.llm_provider
     model = (
@@ -250,6 +274,7 @@ def _diagnosed_fallback(
     log_analysis_fallback(
         code=code, stage=stage, provider=provider, model=model,
         output_mode=context.config.deepseek_output_mode,
+        detail=detail,
         elapsed_ms=max(0, int((time.monotonic() - started_at) * 1000)),
     )
     return _rule_fallback(context.fallback)
