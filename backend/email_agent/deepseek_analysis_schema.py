@@ -1,17 +1,20 @@
 """Private versioned schema for DeepSeek analysis and evidence pointers."""
 from __future__ import annotations
 
-import json
 from collections.abc import Collection, Mapping
-from typing import Any, NoReturn
+from typing import Any
 
 from .analysis_schema import (
     ACTION_TYPES, CATEGORIES, CONFIDENCE_LEVELS, DECISION_REPLY_TYPES, PRIORITIES,
     RISK_LEVELS, RISK_TYPES,
 )
+from .deepseek_envelope_errors import (
+    ERROR_TEXT, DeepSeekEnvelopeError, decode_provider_json as _decode_json,
+    raise_invalid_envelope as _invalid,
+    validate_at_boundary as _validate_boundary,
+)
 
 SCHEMA_VERSION = "deepseek_analysis_v1"
-ERROR_TEXT = "DeepSeek analysis envelope is invalid."
 MAX_POINTER_INDEX_DIGITS = 10
 ENVELOPE_FIELDS = {"schema_version", "analysis", "attachment_augmentations", "field_evidence"}
 ANALYSIS_FIELDS = {
@@ -49,25 +52,25 @@ APPROVED_EVIDENCE_PATTERNS = {
     ("attachment_augmentations", "*", "key_facts", "*"),
 }
 
-class DeepSeekEnvelopeError(ValueError):
-    """Raised when the private provider envelope fails closed."""
-
 def parse_deepseek_analysis_v1(raw: str | bytes | bytearray) -> dict[str, Any]:
-    try:
-        if not isinstance(raw, (str, bytes, bytearray)):
-            _invalid()
-        value = json.loads(raw, object_pairs_hook=_object_without_duplicate_keys)
-        return validate_deepseek_analysis_v1(value)
-    except (ValueError, RecursionError, TypeError, UnicodeDecodeError):
-        _invalid()
+    value = _decode_json(raw, _object_without_duplicate_keys)
+    return validate_deepseek_analysis_v1(value)
 
 def validate_deepseek_analysis_v1(value: object) -> dict[str, Any]:
-    envelope = _object(value, ENVELOPE_FIELDS)
+    envelope = _validate_boundary("top_level_shape", _object, value, ENVELOPE_FIELDS)
     if envelope["schema_version"] != SCHEMA_VERSION:
-        _invalid()
-    _validate_analysis(envelope["analysis"])
-    _validate_attachments(envelope["attachment_augmentations"])
-    _validate_field_evidence_shape(envelope["field_evidence"])
+        _invalid("schema_version")
+    _validate_boundary("analysis_shape", _validate_analysis, envelope["analysis"])
+    _validate_boundary(
+        "attachment_shape",
+        _validate_attachments,
+        envelope["attachment_augmentations"],
+    )
+    _validate_boundary(
+        "field_evidence_shape",
+        _validate_field_evidence_shape,
+        envelope["field_evidence"],
+    )
     return envelope
 
 def canonical_json_pointer(pointer: str) -> tuple[str, ...]:
@@ -284,9 +287,6 @@ def _object_without_duplicate_keys(pairs: list[tuple[str, Any]]) -> dict[str, An
     value: dict[str, Any] = {}
     for key, item in pairs:
         if key in value:
-            _invalid()
+            _invalid("json_syntax")
         value[key] = item
     return value
-
-def _invalid() -> NoReturn:
-    raise DeepSeekEnvelopeError(ERROR_TEXT) from None

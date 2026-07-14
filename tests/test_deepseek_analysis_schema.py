@@ -7,6 +7,7 @@ import json
 import sys
 import unittest
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from backend.email_agent.deepseek_analysis_schema import (
@@ -116,11 +117,106 @@ class DeepSeekAnalysisSchemaTests(unittest.TestCase):
     def setUp(self) -> None:
         self.sources = {"thread:0": object(), "attachment:0": object()}
 
-    def assert_invalid(self, operation: Callable[[], object]) -> None:
+    def assert_invalid(
+        self,
+        operation: Callable[[], object],
+        *,
+        detail: str | None = None,
+    ) -> None:
         with self.assertRaises(DeepSeekEnvelopeError) as caught:
             operation()
         self.assertEqual(str(caught.exception), ERROR_TEXT)
         self.assertIsNone(caught.exception.__cause__)
+        if detail is not None:
+            self.assertEqual(getattr(caught.exception, "detail", None), detail)
+
+    def test_exception_detail_is_allowlisted_and_public_message_remains_generic(
+        self,
+    ) -> None:
+        class StringSubclass(str):
+            pass
+
+        private_marker = "PRIVATE_FREE_FORM_DETAIL"
+        cases: tuple[tuple[object, str], ...] = (
+            ("json_syntax", "json_syntax"),
+            (private_marker, "not_applicable"),
+            (StringSubclass("json_syntax"), "not_applicable"),
+        )
+
+        for detail, expected in cases:
+            with self.subTest(detail=detail, expected=expected):
+                error = DeepSeekEnvelopeError(detail)
+                self.assertEqual(getattr(error, "detail", None), expected)
+                self.assertEqual(str(error), ERROR_TEXT)
+                self.assertNotIn(private_marker, str(error))
+                self.assertNotIn("json_syntax", str(error))
+
+    def test_parse_reports_json_syntax_detail(self) -> None:
+        self.assert_invalid(
+            lambda: parse_deepseek_analysis_v1("{not-json"),
+            detail="json_syntax",
+        )
+
+    def test_parse_reports_top_level_shape_detail(self) -> None:
+        candidate = valid_envelope()
+        candidate["unexpected"] = True
+
+        self.assert_invalid(
+            lambda: parse_deepseek_analysis_v1(json.dumps(candidate)),
+            detail="top_level_shape",
+        )
+
+    def test_parse_reports_schema_version_detail(self) -> None:
+        candidate = valid_envelope()
+        candidate["schema_version"] = "other"
+
+        self.assert_invalid(
+            lambda: parse_deepseek_analysis_v1(json.dumps(candidate)),
+            detail="schema_version",
+        )
+
+    def test_parse_reports_analysis_shape_detail(self) -> None:
+        candidate = valid_envelope()
+        candidate["analysis"]["priority"] = "PRIVATE_INVALID"
+
+        self.assert_invalid(
+            lambda: parse_deepseek_analysis_v1(json.dumps(candidate)),
+            detail="analysis_shape",
+        )
+
+    def test_parse_reports_attachment_shape_detail(self) -> None:
+        candidate = valid_envelope()
+        candidate["attachment_augmentations"][0]["source_id"] = 7
+
+        self.assert_invalid(
+            lambda: parse_deepseek_analysis_v1(json.dumps(candidate)),
+            detail="attachment_shape",
+        )
+
+    def test_parse_reports_field_evidence_shape_detail(self) -> None:
+        candidate = valid_envelope()
+        candidate["field_evidence"]["summary"] = "not-a-list"
+
+        self.assert_invalid(
+            lambda: parse_deepseek_analysis_v1(json.dumps(candidate)),
+            detail="field_evidence_shape",
+        )
+
+    def test_private_envelope_modules_stay_within_line_limit(self) -> None:
+        project_root = Path(__file__).resolve().parents[1]
+        relative_paths = (
+            Path("backend/email_agent/deepseek_envelope_errors.py"),
+            Path("backend/email_agent/deepseek_analysis_schema.py"),
+        )
+
+        for relative_path in relative_paths:
+            with self.subTest(path=str(relative_path)):
+                module_path = project_root / relative_path
+                self.assertTrue(module_path.is_file(), f"missing {relative_path}")
+                self.assertLessEqual(
+                    len(module_path.read_text(encoding="utf-8").splitlines()),
+                    300,
+                )
 
     def test_parse_accepts_complete_versioned_envelope(self) -> None:
         raw = json.dumps(valid_envelope())
