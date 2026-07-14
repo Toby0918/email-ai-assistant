@@ -86,6 +86,10 @@ def route_analysis(
             if _model_led(context.config)
             else _run_conservative(context, llm_generate)
         )
+        engine_label = (
+            analysis_engine_label or configured_analysis_engine_label(context.config)
+        )
+        result = _with_engine(result, "ai_model", engine_label)
     except LlmClientError as exc:
         failure = _AnalysisFallback(exc.reason_code, "provider")
     except _AnalysisFallback as exc:
@@ -93,10 +97,7 @@ def route_analysis(
     except Exception:
         failure = _AnalysisFallback("unexpected_analysis_error", "analysis")
     else:
-        return _with_engine(
-            result, "ai_model",
-            analysis_engine_label or configured_analysis_engine_label(context.config),
-        )
+        return result
     return _diagnosed_fallback(
         context, started_at, code=failure.code, stage=failure.stage,
     )

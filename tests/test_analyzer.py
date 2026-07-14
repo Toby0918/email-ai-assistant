@@ -1132,6 +1132,55 @@ class AnalyzerTests(unittest.TestCase):
         )
         self.assertNotIn("PRIVATE_ANALYSIS", captured.output[0])
 
+    def test_engine_label_failure_has_terminal_diagnostic(self) -> None:
+        def merged(_envelope, *, fallback, **_kwargs):
+            analysis = copy.deepcopy(fallback)
+            analysis["summary"] = "客户请求人工审核当前事项。"
+            return SafeMergeResult(analysis, True, ())
+
+        with self._capture_analysis_fallback_logs() as baseline_logs:
+            expected = analyze_current_email(
+                self._model_email(), llm_generate=lambda _prompt: "not json",
+                config=self._deepseek_config(),
+            )
+        self.assertEqual(len(baseline_logs.output), 1)
+
+        patches = (
+            patch(
+                "backend.email_agent.analysis_model_routes.parse_deepseek_analysis_v1",
+                return_value={},
+            ),
+            patch(
+                "backend.email_agent.analysis_model_routes.validate_envelope_evidence",
+                return_value={},
+            ),
+            patch(
+                "backend.email_agent.analysis_model_routes.merge_deepseek_analysis_v1",
+                side_effect=merged,
+            ),
+            patch(
+                "backend.email_agent.analysis_model_routes.configured_analysis_engine_label",
+                side_effect=RuntimeError("PRIVATE_ENGINE_LABEL"),
+            ),
+        )
+        try:
+            with patches[0], patches[1], patches[2], patches[3], \
+                    self._capture_analysis_fallback_logs() as captured:
+                result = analyze_current_email(
+                    self._model_email(), llm_generate=lambda _prompt: "{}",
+                    config=self._deepseek_config(),
+                )
+        except RuntimeError:
+            self.fail("Engine-label failure escaped the analysis route.")
+
+        self.assertEqual(result, expected)
+        self.assertEqual(len(captured.output), 1)
+        self.assertIn(
+            "code=unexpected_analysis_error stage=analysis", captured.output[0]
+        )
+        self.assertNotIn("PRIVATE_ENGINE_LABEL", captured.output[0])
+        self.assertNotIn("PRIVATE_ENGINE_LABEL", json.dumps(result))
+
     def test_merge_with_no_surviving_model_field_returns_exact_rule_result(self) -> None:
         def no_model(_envelope, *, fallback, **_kwargs):
             mutated = copy.deepcopy(fallback)
