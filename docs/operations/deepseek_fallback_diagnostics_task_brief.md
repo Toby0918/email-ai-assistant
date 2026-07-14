@@ -199,10 +199,11 @@ Actual modified files:
 - docs/operations/deployment_notes.md
 - docs/api/backend_api_contract.md
 - docs/operations/deepseek_fallback_diagnostics_task_brief.md
+- docs/superpowers/plans/2026-07-13-deepseek-fallback-diagnostics.md
 - docs/superpowers/specs/2026-07-13-deepseek-fallback-diagnostics-design.md
 - docs/operations/project_status_log.md (generator only)
 
-Actual commits before the Task 5 documentation commit:
+Actual commits:
 - 0fc6f56cc3c1f9dac8af8160389356f0085cebfc docs: correct diagnostics execution plan
 - 5cc34e29dd0ec9e2b5b4617eac0c9d9c40c98c09 feat: add sanitized fallback diagnostics
 - 0369a36c75d038900ebb70c0a2d013310ec58bab fix: canonicalize diagnostic fields
@@ -213,7 +214,18 @@ Actual commits before the Task 5 documentation commit:
 - deb4949d66d0ad6aa0f434bac03222566b0c1de2 fix: diagnose model fallback stages
 - c4117d9a5b7d30f18bd96ceebab63d2e5e989b61 fix: close terminal route error boundary
 - 3363a40e2d81403def10beca723c3caa154f53ec fix: persist sanitized service diagnostics
-- Task 5 uses subject: docs: document fallback diagnostics. Its SHA is recorded in the ignored Task 5 report because a commit cannot embed its own stable hash.
+- d921bb6534ba3f87cf32ab75be38cd0c78876c96 docs: document fallback diagnostics
+- 001e3441fcc39ccf42d5800842bde8d90930886a docs: strengthen fallback event contract
+- f4a75ddfc58377ccf214d78d57ebf54aab69310f fix: isolate fallback diagnostic logging
+- 9378c8d2903d77afbc310ad361d257f43c10c163 fix: reject cached diagnostic exceptions
+- 7d832dffc3d9efc3b47ae646f44e770d641e0576 docs: require cached exception filtering
+- e10c480fd440a48f64ed8598e92e2959a5ff0678 fix: distinguish fallback response and language stages
+
+Final review closure:
+- C1 is closed by the dedicated non-root diagnostic sink in `f4a75dd`; OpenAI, HTTPX, HTTP core, arbitrary backend, and non-canonical direct records cannot write the bounded diagnostic log.
+- I1 is closed by the fixed `WARNING` diagnostic logger and handler threshold in `f4a75dd`, independent of the general DEBUG/INFO/WARNING/ERROR/CRITICAL/invalid level. The later cached-`exc_text` review gap is closed in production and tests by `9378c8d`, and its active-plan contract is closed by `7d832df`.
+- I2 and I3 are closed by `e10c480`: incomplete/empty responses now use `stage=response`, and conservative language failures now use `public_language_invalid/language` separately from schema failures.
+- The final logging review found no remaining Critical or Important issue after those remediations; its sole report-only line-count correction is reflected in `.superpowers/sdd/final-logging-fix-report.md`. The final route independent review passed spec compliance and code quality with no findings. Therefore C1, I1, I2, and I3 from `.superpowers/sdd/final-branch-review.md` are all closed.
 
 Test results:
 - Task-level RED/GREEN evidence is recorded in `.superpowers/sdd/task-1-report.md` through `task-4-report.md`.
@@ -221,13 +233,17 @@ Test results:
 - Task 5 documentation GREEN: 8 tests ran, all passed.
 - Focused documentation and mechanical verification: 49 tests ran, all passed.
 - Full suite: the first 683-test run had the known shared 8-second XLSX boundary downgrade on the fifth synthetic file; the unchanged test then passed alone in 7.653 seconds, and a fresh complete run passed all 683 tests.
-- Maintenance scan: `No cleanup findings detected.`
+- Logging remediation release verification: the latest complete logging-remediation suite passed all 685 tests; the focused privacy, lifecycle, cached-exception, entrypoint, static, analyzer, and documentation checks also passed as recorded in `.superpowers/sdd/final-logging-fix-report.md`.
+- Route remediation release verification: 98 focused tests passed and the complete suite passed all 691 tests.
+- Maintenance scans for the Task 5, logging-remediation, and route-remediation release gates reported `No cleanup findings detected.`
+- The corresponding `git diff --check` commands exited `0`; the route status generator also exited `0` and left `docs/operations/project_status_log.md` unchanged.
 - JavaScript syntax: all 7 files under `frontend/` passed `node --check`.
 - Isolated service smoke: provider `disabled`, `127.0.0.1:8878`, and `outputs/local_debug_service_verify.pid`; start/status succeeded, only `GET /api/health` was called and returned `ok=true`, `finally` stop succeeded, the PID file was removed, and no 8878 listener remained.
-- No automated analysis POST, live DeepSeek request, real mailbox operation, or main-checkout `.env` access occurred.
+- Automated verification never called DeepSeek. No automated analysis POST, live provider request, real mailbox operation, or main-checkout `.env` access occurred.
+- This branch has not been integrated, and this work did not start or restart the normal service on port 8765.
 
 Unfinished items:
-- User-triggered synthetic live diagnostic after branch integration and normal-service restart.
+- The only unfinished item within this diagnostic task is the user-triggered synthetic live diagnostic. Branch integration and any normal-service restart on port 8765 are external user-controlled prerequisites and were not performed or claimed here.
 
 Follow-up recommendation:
 - After the user performs one synthetic Analyze action, read only the newest event with `Get-Content outputs\local_debug_service.log -Tail 30 | Select-String 'event=analysis_'` and use the first emitted reason code to select one root-cause correction.
