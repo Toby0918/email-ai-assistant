@@ -23,12 +23,15 @@ from backend.email_agent.attachment_model_context import (
 )
 from backend.email_agent.attachment_storage import StoredAttachment
 from backend.email_agent.config import load_config
+from backend.email_agent.email_cleaner import clean_email_body
 from backend.email_agent.llm_client import LlmClientError
 from backend.email_agent.model_result_safety import SafeMergeResult
 from backend.email_agent.prompt_context import (
     DEEPSEEK_SYSTEM_PROMPT,
     build_deepseek_untrusted_context,
 )
+from backend.email_agent.rule_analyzer import build_rule_based_analysis
+from backend.email_agent.thread_timeline import build_timeline_skeleton
 
 
 def _contains_chinese(text: str) -> bool:
@@ -981,6 +984,7 @@ class AnalyzerTests(unittest.TestCase):
         })
 
     def test_model_led_provider_reason_is_logged_once(self) -> None:
+        expected = self._expected_model_email_rule_fallback()
         with self._capture_analysis_fallback_logs() as captured, patch(
             "backend.email_agent.analysis_model_routes.generate_analysis",
             side_effect=LlmClientError("PRIVATE", reason_code="provider_auth"),
@@ -989,10 +993,46 @@ class AnalyzerTests(unittest.TestCase):
                 self._model_email(), config=self._deepseek_config()
             )
 
-        self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
+        self.assertEqual(result, expected)
         self.assertEqual(len(captured.output), 1)
         self.assertIn("code=provider_auth stage=provider", captured.output[0])
         self.assertNotIn("PRIVATE", captured.output[0])
+
+    def test_response_incomplete_is_logged_once_at_response_stage(self) -> None:
+        expected = self._expected_model_email_rule_fallback()
+        with self._capture_analysis_fallback_logs() as captured, patch(
+            "backend.email_agent.analysis_model_routes.generate_analysis",
+            side_effect=LlmClientError(
+                "PRIVATE_INCOMPLETE_RESPONSE", reason_code="response_incomplete"
+            ),
+        ):
+            result = analyze_current_email(
+                self._model_email(), config=self._deepseek_config()
+            )
+
+        self.assertEqual(result, expected)
+        self.assertEqual(len(captured.output), 1)
+        self.assertIn(
+            "code=response_incomplete stage=response", captured.output[0]
+        )
+        self.assertNotIn("PRIVATE_INCOMPLETE_RESPONSE", captured.output[0])
+
+    def test_response_empty_is_logged_once_at_response_stage(self) -> None:
+        expected = self._expected_model_email_rule_fallback()
+        with self._capture_analysis_fallback_logs() as captured, patch(
+            "backend.email_agent.analysis_model_routes.generate_analysis",
+            side_effect=LlmClientError(
+                "PRIVATE_EMPTY_RESPONSE", reason_code="response_empty"
+            ),
+        ):
+            result = analyze_current_email(
+                self._model_email(), config=self._deepseek_config()
+            )
+
+        self.assertEqual(result, expected)
+        self.assertEqual(len(captured.output), 1)
+        self.assertIn("code=response_empty stage=response", captured.output[0])
+        self.assertNotIn("PRIVATE_EMPTY_RESPONSE", captured.output[0])
 
     def test_model_led_malformed_envelope_has_specific_diagnostic(self) -> None:
         with self._capture_analysis_fallback_logs() as captured:
@@ -1115,6 +1155,66 @@ class AnalyzerTests(unittest.TestCase):
         self.assertEqual(len(captured.output), 1)
         self.assertIn("code=public_language_invalid stage=language", captured.output[0])
         self.assertNotIn("PRIVATE_LANGUAGE", captured.output[0])
+
+    def test_conservative_schema_failure_has_specific_diagnostic(self) -> None:
+        expected = self._expected_model_email_rule_fallback()
+        config = replace(
+            self._deepseek_config(), deepseek_output_mode="conservative"
+        )
+        with self._capture_analysis_fallback_logs() as captured:
+            result = analyze_current_email(
+                self._model_email(),
+                llm_generate=lambda _prompt: "PRIVATE_SCHEMA_RESPONSE not json",
+                config=config,
+            )
+
+        self.assertEqual(result, expected)
+        self.assertEqual(len(captured.output), 1)
+        self.assertIn("code=public_schema_invalid stage=schema", captured.output[0])
+        self.assertNotIn("PRIVATE_SCHEMA_RESPONSE", captured.output[0])
+
+    def test_conservative_language_failure_has_specific_diagnostic(self) -> None:
+        expected = self._expected_model_email_rule_fallback()
+        config = replace(
+            self._deepseek_config(), deepseek_output_mode="conservative"
+        )
+        raw = json.dumps({"summary": "PRIVATE_LANGUAGE_RESPONSE"})
+        with self._capture_analysis_fallback_logs() as captured:
+            result = analyze_current_email(
+                self._model_email(), llm_generate=lambda _prompt: raw, config=config
+            )
+
+        self.assertEqual(result, expected)
+        self.assertEqual(len(captured.output), 1)
+        self.assertIn(
+            "code=public_language_invalid stage=language", captured.output[0]
+        )
+        self.assertNotIn("PRIVATE_LANGUAGE_RESPONSE", captured.output[0])
+
+    def test_conservative_success_still_emits_no_fallback_event(self) -> None:
+        raw_result = self._expected_model_email_rule_fallback()
+        raw_result.pop("analysis_engine")
+        raw_result["summary"] = "合成模型增量仅用于路由成功测试。"
+        config = replace(
+            self._deepseek_config(), deepseek_output_mode="conservative"
+        )
+
+        with self.assertNoLogs(
+            "backend.email_agent.analysis_diagnostics", level="WARNING"
+        ):
+            result = analyze_current_email(
+                self._model_email(),
+                llm_generate=lambda _prompt: json.dumps(
+                    raw_result, ensure_ascii=False
+                ),
+                config=config,
+            )
+
+        self.assertEqual(result["summary"], "合成模型增量仅用于路由成功测试。")
+        self.assertEqual(
+            result["analysis_engine"],
+            {"source": "ai_model", "label": "DeepSeek V4 Flash"},
+        )
 
     def test_unexpected_analysis_failure_has_specific_diagnostic(self) -> None:
         with patch(
@@ -1399,6 +1499,25 @@ class AnalyzerTests(unittest.TestCase):
         return self.assertLogs(
             "backend.email_agent.analysis_diagnostics", level="WARNING"
         )
+
+    def _expected_model_email_rule_fallback(self) -> dict[str, object]:
+        email = self._model_email()
+        config = self._deepseek_config()
+        timeline = build_timeline_skeleton([], config.internal_email_domains)
+        fallback = build_rule_based_analysis(
+            str(email["subject"]),
+            str(email["from"]),
+            clean_email_body(email.get("body_text"), email.get("body_html")),
+            attachment_insights=[],
+            conversation_timeline=timeline.public_timeline,
+        )
+        return {
+            **fallback,
+            "analysis_engine": {
+                "source": "rule_fallback",
+                "label": "Rule fallback",
+            },
+        }
 
     @staticmethod
     def _broken_pdf(directory: str) -> StoredAttachment:

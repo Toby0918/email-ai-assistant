@@ -23,6 +23,7 @@ from .legacy_model_analysis import (
     AnalysisError,
     build_analysis_prompt,
     parse_legacy_result,
+    validate_conservative_language,
 )
 from .llm_client import (
     LlmClientError,
@@ -40,6 +41,7 @@ from .thread_timeline import TimelineBuild
 
 MODEL_AUGMENTATION_FIELDS = ("summary", "priority", "priority_reason", "category", "tags")
 SUPPORTED_PRODUCTION_PROVIDERS = frozenset({"deepseek", "ollama", "openai"})
+_RESPONSE_FAILURE_REASONS = frozenset({"response_incomplete", "response_empty"})
 
 
 class _AnalysisFallback(RuntimeError):
@@ -91,7 +93,9 @@ def route_analysis(
         )
         result = _with_engine(result, "ai_model", engine_label)
     except LlmClientError as exc:
-        failure = _AnalysisFallback(exc.reason_code, "provider")
+        failure = _AnalysisFallback(
+            exc.reason_code, _llm_client_failure_stage(exc.reason_code)
+        )
     except _AnalysisFallback as exc:
         failure = exc
     except Exception:
@@ -168,6 +172,10 @@ def _run_conservative(
         "public_schema_invalid", "schema",
         lambda: parse_legacy_result(raw, fallback=context.fallback),
     )
+    _run_stage(
+        "public_language_invalid", "language",
+        lambda: validate_conservative_language(result),
+    )
     if not _has_model_augmentation(result, context.fallback):
         raise _AnalysisFallback("safety_rejected_all", "safety")
     return result
@@ -219,6 +227,12 @@ def _provider_timeout(context: AnalysisRouteContext) -> float | None:
 
 def _model_led(config: AppConfig) -> bool:
     return config.llm_provider == "deepseek" and config.deepseek_output_mode == "model_led"
+
+
+def _llm_client_failure_stage(reason_code: object) -> str:
+    if type(reason_code) is str and reason_code in _RESPONSE_FAILURE_REASONS:
+        return "response"
+    return "provider"
 
 
 def _rule_fallback(fallback: dict[str, Any]) -> dict[str, Any]:

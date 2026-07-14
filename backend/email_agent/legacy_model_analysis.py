@@ -72,9 +72,15 @@ def parse_legacy_result(
         if missing:
             raise AnalysisError(f"LLM output missing fields: {', '.join(missing)}")
     try:
-        result = validate_analysis_result(data)
-        _validate_language_boundary(result)
-        return result
+        return validate_analysis_result(data)
+    except ValueError as exc:
+        raise AnalysisError(str(exc)) from exc
+
+
+def validate_conservative_language(data: dict[str, Any]) -> None:
+    """Validate the legacy public-language boundary after schema parsing."""
+    try:
+        _validate_language_boundary(data)
     except ValueError as exc:
         raise AnalysisError(str(exc)) from exc
 

@@ -341,6 +341,17 @@ git commit -m "fix: classify DeepSeek client failures"
 
 - [ ] **Step 1: Add failing stage and single-event tests**
 
+Add end-to-end synthetic route cases for `response_incomplete`,
+`response_empty`, another provider reason, conservative schema failure, and
+conservative language failure. Each fallback case must compare the complete
+returned result with the deterministic rule fallback, capture exactly one
+terminal event, and prove its private marker is absent. Keep accepted model-led
+and conservative results at zero fallback events.
+
+Only the fixed `response_incomplete` and `response_empty` reasons map to
+`stage=response`; every other `LlmClientError` reason maps to `stage=provider`.
+In conservative mode, `parse_legacy_result` performs JSON parsing, repair, and public schema validation only. The exported internal `validate_conservative_language` validator runs in a separate route `_run_stage`, so failures map to `public_schema_invalid` / `schema` and `public_language_invalid` / `language`, respectively.
+
 Add a helper to `tests/test_analyzer.py` that captures the diagnostic logger, then add synthetic cases for:
 
 ```python
@@ -577,22 +588,35 @@ class _AnalysisFallback(RuntimeError):
         self.stage = stage
 ```
 
-At `route_analysis` entry, record `started_at = time.monotonic()`. Replace every fallback return with `_diagnosed_fallback(...)`. Catch in this order:
+At `route_analysis` entry, record `started_at = time.monotonic()`. Use a fixed
+response-reason set and stage helper:
+
+```python
+_RESPONSE_FAILURE_REASONS = frozenset({"response_incomplete", "response_empty"})
+
+
+def _llm_client_failure_stage(reason_code: object) -> str:
+    if type(reason_code) is str and reason_code in _RESPONSE_FAILURE_REASONS:
+        return "response"
+    return "provider"
+```
+
+Replace every fallback return with `_diagnosed_fallback(...)` and catch in this
+order:
 
 ```python
 except LlmClientError as exc:
-    return _diagnosed_fallback(
-        context, started_at, code=exc.reason_code, stage="provider"
+    failure = _AnalysisFallback(
+        exc.reason_code, _llm_client_failure_stage(exc.reason_code)
     )
 except _AnalysisFallback as exc:
-    return _diagnosed_fallback(
-        context, started_at, code=exc.code, stage=exc.stage
-    )
+    failure = exc
 except Exception:
-    return _diagnosed_fallback(
-        context, started_at,
-        code="unexpected_analysis_error", stage="analysis",
-    )
+    failure = _AnalysisFallback("unexpected_analysis_error", "analysis")
+
+return _diagnosed_fallback(
+    context, started_at, code=failure.code, stage=failure.stage,
+)
 ```
 
 Implement the only logging call site:
@@ -617,16 +641,23 @@ def _diagnosed_fallback(
 
 In `_run_model_led`, wrap envelope parsing, evidence validation, safety merge, final schema validation, and public-language validation separately. Convert their exceptions to `_AnalysisFallback` with the codes/stages from the design. Raise `safety_rejected_all` when `merged.used_model` is false. Raise `budget_exhausted` when the post-prompt provider budget is unavailable.
 
-In `_run_conservative`, convert parse/schema failures to `public_schema_invalid` and no surviving augmentation to `safety_rejected_all`. Keep successful output and engine labels unchanged.
+In `_run_conservative`, keep JSON parsing, repair, and public schema validation
+inside `parse_legacy_result` and wrap that call as
+`public_schema_invalid` / `schema`. Then call the exported internal
+`validate_conservative_language` validator in a separate route `_run_stage`
+mapped to `public_language_invalid` / `language`. Only after both validations,
+map no surviving augmentation to `safety_rejected_all`. Keep successful output
+and engine labels unchanged.
 
 Keep the route module below 300 physical lines by extracting the pre-existing
 conservative prompt/parser responsibility into
 `backend/email_agent/legacy_model_analysis.py`: move
 `LEGACY_PROMPT_INSTRUCTIONS`, `AnalysisError`, `build_analysis_prompt`, the
 legacy result parser, and its language helpers together. Import/re-export
-`AnalysisError` and `build_analysis_prompt` from `analysis_model_routes.py` so
-existing analyzer/test imports and patch targets remain compatible. Keep the
-single `log_analysis_fallback(...)` call in `analysis_model_routes.py`.
+`AnalysisError`, `build_analysis_prompt`, `parse_legacy_result`, and
+`validate_conservative_language` from `analysis_model_routes.py` so existing
+analyzer/test imports and route patch targets remain compatible. Keep the single
+`log_analysis_fallback(...)` call in `analysis_model_routes.py`.
 
 - [ ] **Step 4: Run route, client, diagnostic, and static tests and verify GREEN**
 

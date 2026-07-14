@@ -125,6 +125,11 @@ HTTP status classification is limited to coarse operational groups: authenticati
 - final public language failure;
 - unexpected analysis failure.
 
+Only the fixed `response_incomplete` and `response_empty` reasons map to
+`stage=response`; every other `LlmClientError` reason maps to `stage=provider`.
+
+In conservative mode, `parse_legacy_result` performs JSON parsing, repair, and public schema validation only. The exported internal `validate_conservative_language` validator runs in a separate route `_run_stage`, so failures map to `public_schema_invalid` / `schema` and `public_language_invalid` / `language`, respectively.
+
 It emits the terminal sanitized event and then returns the same complete deterministic rule fallback used today. Diagnostics must never change the returned analysis object.
 
 ### Logging configuration

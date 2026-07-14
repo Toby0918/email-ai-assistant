@@ -295,6 +295,36 @@ class DeepSeekDocumentationContractTests(unittest.TestCase):
         for insecure_recipe in ("logging.getLogger('synthetic').warning", "logging.basicConfig(", "handlers=handlers"):
             self.assertNotIn(insecure_recipe, plan)
 
+    def test_fallback_route_stage_mapping_is_explicit(self) -> None:
+        design = self._read(
+            "docs/superpowers/specs/2026-07-13-deepseek-fallback-diagnostics-design.md"
+        )
+        plan = self._read(
+            "docs/superpowers/plans/2026-07-13-deepseek-fallback-diagnostics.md"
+        )
+        task_three = plan.split("### Task 3:", 1)[1].split("### Task 4:", 1)[0]
+        markers = (
+            "`response_incomplete` and `response_empty`",
+            "`stage=response`",
+            "every other `LlmClientError` reason",
+            "`stage=provider`",
+            "`parse_legacy_result` performs JSON parsing, repair, and public schema validation only",
+            "`validate_conservative_language`",
+            "separate route `_run_stage`",
+            "`public_schema_invalid` / `schema`",
+            "`public_language_invalid` / `language`",
+        )
+        for relative, text in (
+            ("active design", design),
+            ("execution plan Task 3", task_three),
+        ):
+            for marker in markers:
+                with self.subTest(document=relative, marker=marker):
+                    self.assertIn(marker, text)
+        self.assertNotIn(
+            'code=exc.reason_code, stage="provider"', task_three
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
