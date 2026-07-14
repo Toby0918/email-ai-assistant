@@ -13,12 +13,12 @@ from textwrap import dedent
 ROOT = Path(__file__).resolve().parents[1]
 EVENT_TEMPLATE = (
     "event=analysis_fallback code=%s stage=%s provider=%s model=%s "
-    "output_mode=%s elapsed_ms=%d"
+    "output_mode=%s detail=%s elapsed_ms=%d"
 )
 CANONICAL_EVENT = (
-    "event=analysis_fallback code=provider_timeout stage=provider "
+    "event=analysis_fallback code=provider_auth stage=provider "
     "provider=deepseek model=deepseek-v4-flash "
-    "output_mode=model_led elapsed_ms=123"
+    "output_mode=model_led detail=not_applicable elapsed_ms=123"
 )
 PRIVATE_MARKERS = (
     "PRIVATE_OPENAI_BODY",
@@ -29,13 +29,14 @@ PRIVATE_MARKERS = (
     "PRIVATE_SPOOFED_ARGUMENT",
     "PRIVATE_EXCEPTION",
     "PRIVATE_CACHED_EXCEPTION",
+    "PRIVATE_DETAIL",
 )
 CACHED_EXCEPTION_RECORD_SCRIPT = dedent(
     """
     cached_record = logging.LogRecord(
         "backend.email_agent.analysis_diagnostics", logging.WARNING,
         "synthetic.py", 1, __TEMPLATE__,
-        ("provider_timeout", "provider", "deepseek", "deepseek-v4-flash", "model_led", 123),
+        ("provider_auth", "provider", "deepseek", "deepseek-v4-flash", "model_led", "not_applicable", 123),
         None,
     )
     cached_record.exc_text = "PRIVATE_CACHED_EXCEPTION"
@@ -73,6 +74,7 @@ DEBUG_PRIVACY_SCRIPT = dedent(
         "deepseek",
         "deepseek-v4-flash",
         "model_led",
+        "not_applicable",
         123,
     )
     diagnostic.warning(
@@ -82,6 +84,7 @@ DEBUG_PRIVACY_SCRIPT = dedent(
         "deepseek",
         "deepseek-v4-flash",
         "model_led",
+        "not_applicable",
         123,
     )
     diagnostic.warning(
@@ -91,38 +94,53 @@ DEBUG_PRIVACY_SCRIPT = dedent(
         "deepseek",
         "deepseek-v4-flash",
         "model_led",
+        "not_applicable",
         True,
     )
+    invalid_detail_args = (
+        ("envelope_invalid", "envelope", "deepseek", "deepseek-v4-flash", "model_led", "PRIVATE_DETAIL", 123),
+        ("envelope_invalid", "envelope", "deepseek", "deepseek-v4-flash", "model_led", TextSubclass("analysis_shape"), 123),
+        ("envelope_invalid", "envelope", "deepseek", "deepseek-v4-flash", "model_led", True, 123),
+        ("provider_auth", "provider", "deepseek", "deepseek-v4-flash", "model_led", "analysis_shape", 123),
+    )
+    for args in invalid_detail_args:
+        diagnostic.handle(logging.LogRecord(
+            "backend.email_agent.analysis_diagnostics", logging.WARNING,
+            "synthetic.py", 1, template, args, None,
+        ))
     diagnostic.warning(
         TextSubclass(template),
-        "provider_timeout",
+        "provider_auth",
         "provider",
         "deepseek",
         "deepseek-v4-flash",
         "model_led",
+        "not_applicable",
         123,
     )
     diagnostic.error(
         template,
-        "provider_timeout",
+        "provider_auth",
         "provider",
         "deepseek",
         "deepseek-v4-flash",
         "model_led",
+        "not_applicable",
         123,
     )
     try:
         raise RuntimeError("PRIVATE_EXCEPTION")
     except RuntimeError:
-        diagnostic.warning(template, "provider_timeout", "provider", "deepseek", "deepseek-v4-flash", "model_led", 123, exc_info=True)
-    diagnostic.warning(template, "provider_timeout", "provider", "deepseek", "deepseek-v4-flash", "model_led", 123, stack_info=True)
-    diagnostic.warning(template + " ", "provider_timeout", "provider", "deepseek", "deepseek-v4-flash", "model_led", 123)
+        diagnostic.warning(template, "provider_auth", "provider", "deepseek", "deepseek-v4-flash", "model_led", "not_applicable", 123, exc_info=True)
+    diagnostic.warning(template, "provider_auth", "provider", "deepseek", "deepseek-v4-flash", "model_led", "not_applicable", 123, stack_info=True)
+    diagnostic.warning(template + " ", "provider_auth", "provider", "deepseek", "deepseek-v4-flash", "model_led", "not_applicable", 123)
     log_analysis_fallback(
-        code="provider_timeout",
+        code="provider_auth",
         stage="provider",
         provider="deepseek",
         model="deepseek-v4-flash",
         output_mode="model_led",
+        detail="analysis_shape",
         elapsed_ms=123,
     )
     for handler in list(logging.getLogger().handlers) + list(diagnostic.handlers):
@@ -148,6 +166,54 @@ class LoggingConfigTests(unittest.TestCase):
             self.assertEqual(text.count("event=analysis_fallback"), 1, text)
             self.assertIn(CANONICAL_EVENT, text)
 
+    def test_direct_fail_closed_envelope_record_is_accepted(self) -> None:
+        with TemporaryDirectory() as directory:
+            path = Path(directory) / "service.log"
+            code = dedent(
+                f"""
+                import logging
+
+                from backend.email_agent.logging_config import configure_logging
+
+                path = {str(path)!r}
+                configure_logging("DEBUG", log_file=path)
+                diagnostic = logging.getLogger(
+                    "backend.email_agent.analysis_diagnostics"
+                )
+                record = logging.LogRecord(
+                    diagnostic.name,
+                    logging.WARNING,
+                    "synthetic.py",
+                    1,
+                    {EVENT_TEMPLATE!r},
+                    (
+                        "envelope_invalid",
+                        "envelope",
+                        "deepseek",
+                        "deepseek-v4-flash",
+                        "model_led",
+                        "not_applicable",
+                        123,
+                    ),
+                    None,
+                )
+                diagnostic.handle(record)
+                for handler in diagnostic.handlers:
+                    handler.flush()
+                """
+            )
+            result = self._run(code)
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            text = path.read_text(encoding="utf-8")
+            self.assertIn(
+                "event=analysis_fallback code=envelope_invalid stage=envelope "
+                "provider=deepseek model=deepseek-v4-flash "
+                "output_mode=model_led detail=not_applicable elapsed_ms=123",
+                text,
+            )
+            self.assertEqual(text.count("event=analysis_fallback"), 1, text)
+
     def test_every_configured_level_writes_one_canonical_fallback(self) -> None:
         with TemporaryDirectory() as directory:
             for level in (
@@ -172,11 +238,12 @@ class LoggingConfigTests(unittest.TestCase):
                         path = {str(path)!r}
                         configure_logging({level!r}, log_file=path)
                         log_analysis_fallback(
-                            code="provider_timeout",
+                            code="provider_auth",
                             stage="provider",
                             provider="deepseek",
                             model="deepseek-v4-flash",
                             output_mode="model_led",
+                            detail="analysis_shape",
                             elapsed_ms=123,
                         )
                         diagnostic = logging.getLogger(
@@ -228,7 +295,7 @@ class LoggingConfigTests(unittest.TestCase):
                 assert (handler.maxBytes, handler.backupCount) == (1_000_000, 2)
                 assert codecs.lookup(handler.encoding).name == "utf-8", handler.encoding
                 assert handler not in logging.getLogger().handlers
-                log_analysis_fallback(code="provider_timeout", stage="provider", provider="deepseek", model="deepseek-v4-flash", output_mode="model_led", elapsed_ms=123)
+                log_analysis_fallback(code="provider_auth", stage="provider", provider="deepseek", model="deepseek-v4-flash", output_mode="model_led", detail="analysis_shape", elapsed_ms=123)
                 handler.flush()
                 """
             )
@@ -261,11 +328,12 @@ class LoggingConfigTests(unittest.TestCase):
             assert handler.level == logging.WARNING, handler.level
             diagnostic.warning("PRIVATE_DIRECT_DIAGNOSTIC")
             log_analysis_fallback(
-                code="provider_timeout",
+                code="provider_auth",
                 stage="provider",
                 provider="deepseek",
                 model="deepseek-v4-flash",
                 output_mode="model_led",
+                detail="analysis_shape",
                 elapsed_ms=123,
             )
             handler.flush()

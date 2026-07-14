@@ -7,6 +7,7 @@ from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 from .analysis_diagnostics import (
+    FALLBACK_DETAILS,
     FALLBACK_EVENT_TEMPLATE,
     FALLBACK_REASON_CODES,
     FALLBACK_STAGES,
@@ -33,13 +34,17 @@ class _FallbackEventFilter(logging.Filter):
             or type(record.msg) is not str
             or record.msg != FALLBACK_EVENT_TEMPLATE
             or type(record.args) is not tuple
-            or len(record.args) != 6
+            or len(record.args) != 7
             or record.exc_info is not None
             or record.exc_text is not None
             or record.stack_info is not None
         ):
             return False
-        code, stage, provider, model, output_mode, elapsed_ms = record.args
+        code, stage, provider, model, output_mode, detail, elapsed_ms = record.args
+        if type(detail) is not str or detail not in FALLBACK_DETAILS:
+            return False
+        if code != "envelope_invalid" and detail != "not_applicable":
+            return False
         return (
             type(code) is str and code in FALLBACK_REASON_CODES
             and type(stage) is str and stage in FALLBACK_STAGES

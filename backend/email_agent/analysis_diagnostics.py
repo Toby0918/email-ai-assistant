@@ -22,9 +22,18 @@ FALLBACK_STAGES = frozenset({
 SAFE_PROVIDERS = frozenset({"deepseek", "ollama", "openai", "disabled"})
 SAFE_MODELS = frozenset({"deepseek-v4-flash", "deepseek-v4-pro", "local-model", "none"})
 SAFE_OUTPUT_MODES = frozenset({"model_led", "conservative"})
+FALLBACK_DETAILS = frozenset({
+    "not_applicable",
+    "json_syntax",
+    "top_level_shape",
+    "schema_version",
+    "analysis_shape",
+    "attachment_shape",
+    "field_evidence_shape",
+})
 FALLBACK_EVENT_TEMPLATE = (
     "event=analysis_fallback code=%s stage=%s provider=%s model=%s "
-    "output_mode=%s elapsed_ms=%d"
+    "output_mode=%s detail=%s elapsed_ms=%d"
 )
 
 logger = logging.getLogger(__name__)
@@ -45,7 +54,7 @@ def _allowlisted_value(
 
 def log_analysis_fallback(
     *, code: str, stage: str, provider: str, model: str,
-    output_mode: str, elapsed_ms: int,
+    output_mode: str, detail: str, elapsed_ms: int,
 ) -> None:
     safe_code = _allowlisted_value(
         code, FALLBACK_REASON_CODES, "unexpected_analysis_error"
@@ -54,8 +63,16 @@ def log_analysis_fallback(
     safe_provider = _allowlisted_value(provider, SAFE_PROVIDERS, "unknown")
     safe_model = _allowlisted_value(model, SAFE_MODELS, "unknown")
     safe_mode = _allowlisted_value(output_mode, SAFE_OUTPUT_MODES, "unknown")
+    safe_detail = _allowlisted_value(
+        detail,
+        FALLBACK_DETAILS,
+        "not_applicable",
+    )
+    if safe_code != "envelope_invalid":
+        safe_detail = "not_applicable"
     safe_elapsed = elapsed_ms if type(elapsed_ms) is int and elapsed_ms >= 0 else 0
     logger.warning(
         FALLBACK_EVENT_TEMPLATE,
-        safe_code, safe_stage, safe_provider, safe_model, safe_mode, safe_elapsed,
+        safe_code, safe_stage, safe_provider, safe_model, safe_mode, safe_detail,
+        safe_elapsed,
     )

@@ -3,6 +3,7 @@ from __future__ import annotations
 import inspect
 import unittest
 
+from backend.email_agent import analysis_diagnostics
 from backend.email_agent.analysis_diagnostics import log_analysis_fallback
 
 
@@ -17,6 +18,7 @@ class AnalysisDiagnosticsTests(unittest.TestCase):
                 provider="deepseek",
                 model="deepseek-v4-flash",
                 output_mode="model_led",
+                detail="analysis_shape",
                 elapsed_ms=123,
             )
 
@@ -24,9 +26,67 @@ class AnalysisDiagnosticsTests(unittest.TestCase):
         self.assertIn(
             "event=analysis_fallback code=provider_auth stage=provider "
             "provider=deepseek model=deepseek-v4-flash "
-            "output_mode=model_led elapsed_ms=123",
+            "output_mode=model_led detail=not_applicable elapsed_ms=123",
             captured.output[0],
         )
+
+    def test_fixed_envelope_details_appear_unchanged(self) -> None:
+        envelope_details = (
+            "json_syntax",
+            "top_level_shape",
+            "schema_version",
+            "analysis_shape",
+            "attachment_shape",
+            "field_evidence_shape",
+        )
+        self.assertEqual(
+            analysis_diagnostics.FALLBACK_DETAILS,
+            frozenset({"not_applicable", *envelope_details}),
+        )
+
+        with self.assertLogs(
+            "backend.email_agent.analysis_diagnostics", level="WARNING"
+        ) as captured:
+            for detail in envelope_details:
+                log_analysis_fallback(
+                    code="envelope_invalid",
+                    stage="envelope",
+                    provider="deepseek",
+                    model="deepseek-v4-flash",
+                    output_mode="model_led",
+                    detail=detail,
+                    elapsed_ms=123,
+                )
+
+        self.assertEqual(len(captured.output), len(envelope_details))
+        for detail, event in zip(envelope_details, captured.output, strict=True):
+            with self.subTest(detail=detail):
+                self.assertIn(f"detail={detail}", event)
+
+    def test_invalid_detail_fails_closed_without_logging_private_text(self) -> None:
+        private = "PRIVATE_DETAIL_MARKER\nPRIVATE_URL"
+
+        class AllowlistedEvilString(str):
+            def __str__(self) -> str:
+                return private
+
+        for detail in (private, AllowlistedEvilString("analysis_shape")):
+            with self.subTest(detail=type(detail).__name__), self.assertLogs(
+                "backend.email_agent.analysis_diagnostics", level="WARNING"
+            ) as captured:
+                log_analysis_fallback(
+                    code="envelope_invalid",
+                    stage="envelope",
+                    provider="deepseek",
+                    model="deepseek-v4-flash",
+                    output_mode="model_led",
+                    detail=detail,
+                    elapsed_ms=123,
+                )
+
+            text = captured.output[0]
+            self.assertNotIn("PRIVATE", text)
+            self.assertIn("detail=not_applicable", text)
 
     def test_unknown_values_cannot_inject_private_text(self) -> None:
         private = "PRIVATE_SECRET_PROMPT\nPRIVATE_URL"
@@ -44,6 +104,7 @@ class AnalysisDiagnosticsTests(unittest.TestCase):
                 provider=private,
                 model=private,
                 output_mode=private,
+                detail="not_applicable",
                 elapsed_ms=-9,
             )
 
@@ -52,6 +113,7 @@ class AnalysisDiagnosticsTests(unittest.TestCase):
         self.assertIn("code=unexpected_analysis_error", text)
         self.assertIn("stage=analysis", text)
         self.assertIn("provider=unknown model=unknown output_mode=unknown", text)
+        self.assertIn("detail=not_applicable", text)
         self.assertIn("elapsed_ms=0", text)
 
         with self.assertLogs(
@@ -63,6 +125,7 @@ class AnalysisDiagnosticsTests(unittest.TestCase):
                 provider=AllowlistedEvilString("deepseek"),
                 model=AllowlistedEvilString("deepseek-v4-flash"),
                 output_mode=AllowlistedEvilString("model_led"),
+                detail=AllowlistedEvilString("analysis_shape"),
                 elapsed_ms=123,
             )
 
@@ -73,11 +136,20 @@ class AnalysisDiagnosticsTests(unittest.TestCase):
         self.assertIn(
             "provider=unknown model=unknown output_mode=unknown", subclass_text
         )
+        self.assertIn("detail=not_applicable", subclass_text)
 
     def test_signature_has_no_sensitive_payload_channel(self) -> None:
         self.assertEqual(
             tuple(inspect.signature(log_analysis_fallback).parameters),
-            ("code", "stage", "provider", "model", "output_mode", "elapsed_ms"),
+            (
+                "code",
+                "stage",
+                "provider",
+                "model",
+                "output_mode",
+                "detail",
+                "elapsed_ms",
+            ),
         )
 
 
