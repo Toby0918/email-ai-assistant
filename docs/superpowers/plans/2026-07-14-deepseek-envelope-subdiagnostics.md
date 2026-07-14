@@ -20,9 +20,9 @@ source_type: operation_guide
 
 The written design is approved. Runtime Tasks 1-3 and the Task 4
 operator/API/design/task/plan contract synchronization are implemented. Task 5
-final offline verification, status generation, and Task 6 synthetic live
-verification remain pending; this plan does not record a verified state or
-final test/API result.
+offline verification is implemented with the provider disabled. Task 6
+synthetic live verification remains pending; this plan does not claim a live
+test/API result.
 
 ## Global Constraints
 
@@ -55,7 +55,7 @@ final test/API result.
 - Preserves: `str(DeepSeekEnvelopeError(...)) == ERROR_TEXT`
 - Preserves: `parse_deepseek_analysis_v1(raw) -> dict[str, Any]`
 
-- [ ] **Step 1: Write parser-detail tests before production code**
+- [x] **Step 1: Write parser-detail tests before production code**
 
 Update the existing test helper so RED is an assertion failure rather than an `AttributeError`:
 
@@ -132,7 +132,7 @@ self.assert_invalid(
 
 The constructor test must verify a valid built-in detail is retained, a free-form string and a `str` subclass become `not_applicable`, the message remains `ERROR_TEXT`, and no private marker appears in the message.
 
-- [ ] **Step 2: Run focused parser tests and verify RED**
+- [x] **Step 2: Run focused parser tests and verify RED**
 
 ```powershell
 $oldProvider = $env:EMAIL_AGENT_LLM_PROVIDER
@@ -150,7 +150,7 @@ try {
 
 Expected: new assertions fail because the exception has no `detail` and all boundaries currently collapse to one generic error.
 
-- [ ] **Step 3: Implement the fixed parser taxonomy**
+- [x] **Step 3: Implement the fixed parser taxonomy**
 
 Create `backend/email_agent/deepseek_envelope_errors.py` so the existing 292-line schema module remains within the project size guideline:
 
@@ -257,13 +257,13 @@ def validate_deepseek_analysis_v1(value: object) -> dict[str, Any]:
 
 `_object_without_duplicate_keys()` must call `_invalid("json_syntax")` on a duplicate. No other validator may record dynamic context. Keeping `validate_at_boundary()` in the new auxiliary module prevents the existing 292-line schema from growing past the project guideline; add a test assertion that both `deepseek_envelope_errors.py` and `deepseek_analysis_schema.py` contain no more than 300 physical lines.
 
-- [ ] **Step 4: Run focused parser tests and verify GREEN**
+- [x] **Step 4: Run focused parser tests and verify GREEN**
 
 Run the Step 2 command again.
 
 Expected: all parser tests pass, including six fixed detail boundaries, fixed public error text, and no exception cause.
 
-- [ ] **Step 5: Commit Task 1**
+- [x] **Step 5: Commit Task 1**
 
 ```powershell
 git add backend/email_agent/deepseek_envelope_errors.py backend/email_agent/deepseek_analysis_schema.py tests/test_deepseek_analysis_schema.py
@@ -285,7 +285,7 @@ git commit -m "fix: classify DeepSeek envelope failures"
 - Produces: `FALLBACK_DETAILS: frozenset[str]`
 - Changes: `log_analysis_fallback(..., output_mode: str, detail: str, elapsed_ms: int) -> None`
 
-- [ ] **Step 1: Write logger and filter tests before production code**
+- [x] **Step 1: Write logger and filter tests before production code**
 
 Update the signature contract to exactly:
 
@@ -336,7 +336,7 @@ for detail in (
 - `envelope_invalid + not_applicable` is accepted so fail-closed canonicalization never drops the required terminal event.
 - Root, library, near-miss-template, exception, `exc_text`, and stack records remain rejected.
 
-- [ ] **Step 2: Run focused diagnostic tests and verify RED**
+- [x] **Step 2: Run focused diagnostic tests and verify RED**
 
 ```powershell
 & 'C:\Users\33506\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -B -m unittest tests.test_analysis_diagnostics tests.test_logging_config -v
@@ -344,7 +344,7 @@ for detail in (
 
 Expected: failures show the missing `detail` parameter, old six-argument template, and old filter arity.
 
-- [ ] **Step 3: Implement the seven-argument fail-closed sink**
+- [x] **Step 3: Implement the seven-argument fail-closed sink**
 
 In `analysis_diagnostics.py`, add exactly:
 
@@ -398,13 +398,13 @@ if code != "envelope_invalid" and detail != "not_applicable":
 
 Keep the existing isolated handler topology and rotation settings unchanged.
 
-- [ ] **Step 4: Run focused diagnostic tests and verify GREEN**
+- [x] **Step 4: Run focused diagnostic tests and verify GREEN**
 
 Run the Step 2 command again.
 
 Expected: all diagnostic and logging-configuration tests pass; unsafe direct records are absent from the sink.
 
-- [ ] **Step 5: Commit Task 2**
+- [x] **Step 5: Commit Task 2**
 
 ```powershell
 git add backend/email_agent/analysis_diagnostics.py backend/email_agent/logging_config.py tests/test_analysis_diagnostics.py tests/test_logging_config.py
@@ -425,7 +425,7 @@ git commit -m "fix: add allowlisted fallback detail field"
 - Changes: `_diagnosed_fallback(..., detail: str = "not_applicable")`
 - Preserves: exact rule-fallback object identity/equality and one terminal log event
 
-- [ ] **Step 1: Write route propagation tests before production code**
+- [x] **Step 1: Write route propagation tests before production code**
 
 Update all existing fallback-event assertions to include `detail=not_applicable`, except malformed private-envelope cases.
 
@@ -458,7 +458,7 @@ Update the mechanical keyword test to require exactly:
 }
 ```
 
-- [ ] **Step 2: Run focused route tests and verify RED**
+- [x] **Step 2: Run focused route tests and verify RED**
 
 ```powershell
 & 'C:\Users\33506\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -B -m unittest tests.test_analyzer tests.test_static_linter_constraints -v
@@ -466,7 +466,7 @@ Update the mechanical keyword test to require exactly:
 
 Expected: failures show that `_AnalysisFallback` drops detail and the terminal logger call lacks the new argument.
 
-- [ ] **Step 3: Implement internal-only detail propagation**
+- [x] **Step 3: Implement internal-only detail propagation**
 
 Import `DeepSeekEnvelopeError`, then extend the fallback object:
 
@@ -505,13 +505,13 @@ def _run_envelope_stage(action: Callable[[], _T]) -> _T:
 
 Replace only the current model-led parse `_run_stage(...)` call with `_run_envelope_stage(...)`. Carry `failure.detail` to `_diagnosed_fallback()`, add its keyword parameter, and pass it to the existing single `log_analysis_fallback()` call. Do not touch `_rule_fallback(context.fallback)`.
 
-- [ ] **Step 4: Run focused route tests and verify GREEN**
+- [x] **Step 4: Run focused route tests and verify GREEN**
 
 Run the Step 2 command again.
 
 Expected: all route and mechanical tests pass, malformed JSON emits one `json_syntax` event, and returned fallback data is unchanged.
 
-- [ ] **Step 5: Commit Task 3**
+- [x] **Step 5: Commit Task 3**
 
 ```powershell
 git add backend/email_agent/analysis_model_routes.py tests/test_analyzer.py tests/test_static_linter_constraints.py
@@ -532,7 +532,7 @@ git commit -m "fix: propagate envelope failure details"
 - Modify: `docs/superpowers/specs/2026-07-13-deepseek-envelope-subdiagnostics-design.md`
 - Modify: `docs/superpowers/plans/2026-07-14-deepseek-envelope-subdiagnostics.md`
 
-- [ ] **Step 1: Add documentation-contract tests before editing active docs**
+- [x] **Step 1: Add documentation-contract tests before editing active docs**
 
 Add `test_envelope_subdiagnostic_contract_is_explicit` and require the active logging, troubleshooting, deployment, backend API, design, task brief, and plan documents to contain:
 
@@ -549,7 +549,7 @@ field_evidence_shape
 
 Also require language that non-envelope fallbacks use `not_applicable` and that provider output, JSON keys, paths, and values are prohibited. The backend API document must explicitly call this an operator-only log change, not a public response field.
 
-- [ ] **Step 2: Run documentation tests and verify RED**
+- [x] **Step 2: Run documentation tests and verify RED**
 
 ```powershell
 & 'C:\Users\33506\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' -B -m unittest tests.test_deepseek_documentation_contracts -v
@@ -557,7 +557,7 @@ Also require language that non-envelope fallbacks use `not_applicable` and that 
 
 Expected: active operator documents still describe the six-argument event and fail the new contract.
 
-- [ ] **Step 3: Update the active documentation**
+- [x] **Step 3: Update the active documentation**
 
 - `docs/conventions/logging.md`: replace the canonical template with the seven-argument form; list all seven detail values; state that unknown values fail closed and non-envelope failures are `not_applicable`.
 - `docs/operations/troubleshooting.md`: map the six envelope details to the next coarse investigation area; explicitly state that the detail cannot reconstruct provider content.
@@ -592,13 +592,13 @@ attachment_shape -> attachment augmentation validation
 field_evidence_shape -> field-evidence map/list validation
 ```
 
-- [ ] **Step 4: Run documentation tests and verify GREEN**
+- [x] **Step 4: Run documentation tests and verify GREEN**
 
 Run the Step 2 command again.
 
 Expected: documentation-contract tests pass with no public API/schema implication.
 
-- [ ] **Step 5: Commit Task 4**
+- [x] **Step 5: Commit Task 4**
 
 ```powershell
 git add docs tests/test_deepseek_documentation_contracts.py
@@ -614,7 +614,7 @@ git commit -m "docs: document envelope subdiagnostics"
 - Regenerate: `docs/operations/project_status_log.md`
 - Generate locally, do not commit unless already tracked by policy: `outputs/cleanup_report.md`
 
-- [ ] **Step 1: Run all focused Python suites**
+- [x] **Step 1: Run all focused Python suites**
 
 ```powershell
 $py = 'C:\Users\33506\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe'
@@ -633,7 +633,7 @@ try {
 
 Expected: all focused tests pass and no network call occurs.
 
-- [ ] **Step 2: Run complete unit discovery with provider disabled**
+- [x] **Step 2: Run complete unit discovery with provider disabled**
 
 ```powershell
 $oldProvider = $env:EMAIL_AGENT_LLM_PROVIDER
@@ -651,7 +651,7 @@ try {
 
 Expected: `OK`; any failure blocks status generation and live verification.
 
-- [ ] **Step 3: Run JavaScript, diff, and sensitive-content checks**
+- [x] **Step 3: Run JavaScript, diff, and sensitive-content checks**
 
 ```powershell
 $py = 'C:\Users\33506\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe'
@@ -663,7 +663,7 @@ git diff --check
 
 Expected: every JS syntax check exits zero, `git diff --check` is empty, and the repository's audited architecture guard reports no raw secret literal. Use this existing guard instead of a broad regex so intentional synthetic redaction fixtures such as `Bearer synthetic-secret` remain explicitly allowed by the reviewed test policy.
 
-- [ ] **Step 4: Record actual results, regenerate status, and rescan**
+- [x] **Step 4: Record actual results, regenerate status, and rescan**
 
 Fill the task brief execution record with exact files and test counts, set it to `implemented`, and then run:
 
@@ -688,7 +688,7 @@ git status --short
 
 Expected: generated status names this task, full discovery remains `OK`, maintenance scan reports no blocking issue, and only intended files are modified.
 
-- [ ] **Step 5: Commit verification documentation**
+- [x] **Step 5: Commit verification documentation**
 
 ```powershell
 git add docs/operations/deepseek_envelope_subdiagnostics_task_brief.md docs/operations/project_status_log.md docs/superpowers/plans/2026-07-14-deepseek-envelope-subdiagnostics.md

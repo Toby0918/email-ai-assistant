@@ -23,7 +23,7 @@ fix | security | test | docs
 ## 3. Current Status
 
 ```text
-implementation in progress
+implemented
 ```
 
 ## 4. Goal
@@ -207,21 +207,59 @@ set `EMAIL_AGENT_LLM_PROVIDER=disabled` and restart the service.
 Implementation state:
 
 - The approved runtime Tasks 1-3 are implemented and committed.
-- The Task 4 operator/API/design/task/plan contract synchronization is
-  implemented without changing runtime code.
-- Task 5 final offline verification and Task 6 synthetic live verification
-  remain pending; this record does not mark the change verified.
+- The Task 4 operator/API/design/task/plan contract synchronization and its
+  documentation-only fix pass are implemented and committed.
+- Task 5 offline verification is implemented with
+  `EMAIL_AGENT_LLM_PROVIDER=disabled`; no API call, service restart, mailbox
+  access, or live verification occurred.
+- Task 6 synthetic live verification remains pending, so this record does not
+  mark the change live-verified.
 
 ```text
 Actual modified files:
-- Pending the final Task 5 execution record.
+- backend/email_agent/analysis_diagnostics.py
+- backend/email_agent/analysis_model_routes.py
+- backend/email_agent/deepseek_analysis_schema.py
+- backend/email_agent/deepseek_envelope_errors.py
+- backend/email_agent/logging_config.py
+- docs/api/backend_api_contract.md
+- docs/conventions/logging.md
+- docs/operations/deepseek_envelope_subdiagnostics_task_brief.md
+- docs/operations/deployment_notes.md
+- docs/operations/project_status_log.md
+- docs/operations/troubleshooting.md
+- docs/superpowers/plans/2026-07-14-deepseek-envelope-subdiagnostics.md
+- docs/superpowers/specs/2026-07-13-deepseek-envelope-subdiagnostics-design.md
+- tests/test_analysis_diagnostics.py
+- tests/test_analyzer.py
+- tests/test_deepseek_analysis_schema.py
+- tests/test_deepseek_documentation_contracts.py
+- tests/test_logging_config.py
+- tests/test_static_linter_constraints.py
+
+Local-only verification artifacts:
+- .superpowers/sdd/task-5-report.md
+- outputs/cleanup_report.md
 
 Test results:
-- Pending final offline verification.
+- Focused Python suites: 104/104 passed in 4.782s with the provider disabled.
+- Initial full discovery: 704/704 passed in 42.720s with the provider disabled.
+- JavaScript syntax: 7/7 frontend files passed.
+- Audited architecture constraints: 11/11 passed in 0.394s.
+- Pre-generation git diff check: passed with no output.
+- Project status generation: passed; the generated branch field names
+  `codex/deepseek-envelope-subdiagnostics`.
+- Post-generation full discovery: 704/704 passed in 45.704s with the provider
+  disabled.
+- Maintenance scan: passed with no cleanup findings detected.
+- Final git diff check: passed with no output.
+- Final pre-commit status: only this task brief, the generated project status
+  log, and the implementation plan are modified; local reports remain ignored.
+- Offline status: passed. Live verification was not run and is not claimed.
 
 Unfinished items:
-- Final offline verification and project status generation.
 - One authorized synthetic live diagnostic.
+- A separate root-cause correction scoped by the observed fixed detail, if any.
 
 Follow-up recommendation:
 - Use the observed fixed detail to scope a separate root-cause correction.
