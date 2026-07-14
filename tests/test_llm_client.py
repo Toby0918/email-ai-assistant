@@ -13,6 +13,9 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
 
+import httpx
+from openai import APIConnectionError, APITimeoutError
+
 from backend.email_agent.config import AppConfig, load_config
 from backend.email_agent.llm_client import (
     LlmClientError,
@@ -400,6 +403,20 @@ class LlmClientTests(unittest.TestCase):
             with self.subTest(status=status):
                 error = RuntimeError("PRIVATE_PROVIDER_BODY")
                 error.status_code = status
+                self.assertEqual(_deepseek_failure_reason(error), expected)
+
+    def test_deepseek_sdk_timeout_maps_before_connection_error(self) -> None:
+        request = httpx.Request("POST", "https://synthetic-provider.invalid/v1")
+        cases = (
+            (APITimeoutError(request), "provider_timeout"),
+            (
+                APIConnectionError(request=request),
+                "provider_connection_error",
+            ),
+        )
+
+        for error, expected in cases:
+            with self.subTest(error_type=type(error).__name__):
                 self.assertEqual(_deepseek_failure_reason(error), expected)
 
     def test_deepseek_failure_never_calls_ollama(self) -> None:
