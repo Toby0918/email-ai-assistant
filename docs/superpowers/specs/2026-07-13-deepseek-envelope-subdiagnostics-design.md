@@ -1,6 +1,6 @@
 ---
-last_update: 2026-07-13
-status: draft
+last_update: 2026-07-14
+status: active
 owner: "@tobyWang"
 review_cycle: weekly
 source_type: product_spec

@@ -1,6 +1,6 @@
 ---
-last_update: 2026-07-13
-status: draft
+last_update: 2026-07-14
+status: active
 owner: "@tobyWang"
 review_cycle: weekly
 source_type: operation_guide
@@ -23,7 +23,7 @@ fix | security | test | docs
 ## 3. Current Status
 
 ```text
-draft
+approved
 ```
 
 ## 4. Goal
@@ -173,7 +173,7 @@ set `EMAIL_AGENT_LLM_PROVIDER=disabled` and restart the service.
 
 - The user approved the allowlisted envelope-subdiagnostic direction and
   explicitly authorized a synthetic API call.
-- The written design must still be reviewed before implementation begins.
+- The user reviewed and approved the written design on 2026-07-14.
 
 ## 16. Pre-Execution Checklist
 
@@ -183,7 +183,7 @@ set `EMAIL_AGENT_LLM_PROVIDER=disabled` and restart the service.
 [x] Goal, non-goals, security boundaries, and acceptance criteria are explicit.
 [x] No real mailbox, real email, API key, provider output, or customer data will be logged.
 [x] Expected file scope is identified.
-[ ] Written design has been reviewed by the user.
+[x] Written design has been reviewed by the user.
 ```
 
 ## 17. Execution Record
@@ -196,7 +196,6 @@ Test results:
 - Pending implementation.
 
 Unfinished items:
-- Written-design review.
 - Implementation and offline verification.
 - One authorized synthetic live diagnostic.
 
