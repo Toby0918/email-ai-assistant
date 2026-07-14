@@ -684,7 +684,7 @@ log_analysis_fallback(
 )
 ```
 
-Assert that none of the private markers enters the file and that the canonical event occurs exactly once. Add spoof probes for a near-miss template, non-allowlisted values, a `str` subclass, `bool` elapsed time, an ERROR record, exception data, and stack information.
+Assert that none of the private markers enters the file and that the canonical event occurs exactly once. Add spoof probes for a near-miss template, non-allowlisted values, a `str` subclass, `bool` elapsed time, an ERROR record, exception data, prepopulated cached exception text, and stack information. A record whose `exc_text` is already populated must be rejected entirely in both file and no-file stream modes.
 
 Loop over DEBUG, INFO, WARNING, ERROR, CRITICAL, and an invalid level; each configuration must write exactly one canonical WARNING fallback. Add a repeated-configuration case that proves the first handler is closed and only one new diagnostic handler remains. Assert file mode uses one UTF-8 `RotatingFileHandler` with `maxBytes=1_000_000` and `backupCount=2`, no root file handler exists, and no-file mode uses one filtered diagnostic stream. Preserve the accepted-model `assertNoLogs` regression and the existing `assertLogs` tests.
 
@@ -728,6 +728,7 @@ class _FallbackEventFilter(logging.Filter):
             or type(record.args) is not tuple
             or len(record.args) != 6
             or record.exc_info is not None
+            or record.exc_text is not None
             or record.stack_info is not None
         ):
             return False

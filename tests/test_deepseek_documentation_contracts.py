@@ -100,7 +100,7 @@ FALLBACK_DIAGNOSTIC_CONTRACTS = {
         "frontend",
     ),
     "docs/superpowers/specs/2026-07-13-deepseek-fallback-diagnostics-design.md": ("dedicated diagnostic sink", "never attached to the root logger", "`propagate=False`", "fixed `WARNING` threshold", "exact fallback-event template", "exact built-in allowlisted arguments", "DEBUG, INFO, WARNING, ERROR, CRITICAL, or an invalid level"),
-    "docs/superpowers/plans/2026-07-13-deepseek-fallback-diagnostics.md": ("dedicated diagnostic sink", "never attached to the root logger", "`propagate=False`", "fixed `WARNING` threshold", "exact fallback-event template", "exact built-in allowlisted arguments", "PRIVATE_OPENAI_BODY", "DEBUG, INFO, WARNING, ERROR, CRITICAL, and an invalid level"),
+    "docs/superpowers/plans/2026-07-13-deepseek-fallback-diagnostics.md": ("dedicated diagnostic sink", "never attached to the root logger", "`propagate=False`", "fixed `WARNING` threshold", "exact fallback-event template", "exact built-in allowlisted arguments", "PRIVATE_OPENAI_BODY", "DEBUG, INFO, WARNING, ERROR, CRITICAL, and an invalid level", "or record.exc_info is not None", "or record.exc_text is not None", "or record.stack_info is not None"),
 }
 
 
