@@ -12,6 +12,7 @@ from .inventory import (
     InventoryV1,
     MessageEvidence,
 )
+from .imap_utf7 import MailboxDecodeError, decode_modified_utf7
 
 
 def encode_inventory_bundle(bundle: InventoryBundle) -> dict[str, object]:
@@ -22,6 +23,7 @@ def encode_inventory_bundle(bundle: InventoryBundle) -> dict[str, object]:
         "evidence": [
             {
                 "mailbox": folder.mailbox,
+                "wire_mailbox": folder.wire_mailbox.decode("ascii"),
                 "opaque_folder_id": folder.opaque_folder_id,
                 "uidvalidity": folder.uidvalidity,
                 "messages": [
@@ -92,13 +94,26 @@ def _public_folder(value: object) -> FolderInventory:
 
 def _private_folder(value: object) -> FolderEvidence:
     if not isinstance(value, dict) or set(value) != {
-        "mailbox", "opaque_folder_id", "uidvalidity", "messages"
+        "mailbox", "wire_mailbox", "opaque_folder_id", "uidvalidity", "messages"
     }:
         raise InventoryError()
     mailbox = value["mailbox"]
+    wire_mailbox = value["wire_mailbox"]
     messages = value["messages"]
-    if not isinstance(mailbox, str) or not mailbox or not isinstance(messages, list):
+    if (
+        not isinstance(mailbox, str)
+        or not mailbox
+        or not isinstance(wire_mailbox, str)
+        or not wire_mailbox.isascii()
+        or not isinstance(messages, list)
+    ):
         raise InventoryError()
+    try:
+        wire = wire_mailbox.encode("ascii")
+        if decode_modified_utf7(wire) != mailbox:
+            raise InventoryError()
+    except (MailboxDecodeError, UnicodeError):
+        raise InventoryError() from None
     parsed = tuple(_message(item) for item in messages)
     if len({item.uid for item in parsed}) != len(parsed):
         raise InventoryError()
@@ -107,6 +122,7 @@ def _private_folder(value: object) -> FolderEvidence:
         _hex(value["opaque_folder_id"], 64),
         _integer(value["uidvalidity"], minimum=1),
         parsed,
+        wire,
     )
 
 

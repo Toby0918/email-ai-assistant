@@ -7,7 +7,11 @@ import hmac
 import unicodedata
 from dataclasses import dataclass, field
 
-from .imap_utf7 import MailboxDecodeError, decode_modified_utf7
+from .imap_utf7 import (
+    MailboxDecodeError,
+    decode_modified_utf7,
+    encode_modified_utf7,
+)
 
 
 class FolderPolicyError(ValueError):
@@ -20,6 +24,7 @@ class FolderPolicyError(ValueError):
 class RawFolder:
     flags: tuple[str, ...]
     mailbox: str | bytes = field(repr=False)
+    wire_mailbox: bytes | None = field(default=None, repr=False)
 
 
 @dataclass(frozen=True)
@@ -27,6 +32,12 @@ class SelectedFolder:
     mailbox: str = field(repr=False)
     role: str
     opaque_folder_id: str
+    wire_mailbox: bytes | None = field(default=None, repr=False)
+
+    def __post_init__(self) -> None:
+        mailbox, wire = _mailbox_pair(self.mailbox, self.wire_mailbox)
+        object.__setattr__(self, "mailbox", mailbox)
+        object.__setattr__(self, "wire_mailbox", wire)
 
     def __repr__(self) -> str:
         return (
@@ -63,7 +74,7 @@ def select_mail_folders(
     for raw in folders:
         if not isinstance(raw, RawFolder):
             raise FolderPolicyError()
-        mailbox = _decode_mailbox(raw.mailbox)
+        mailbox, wire_mailbox = _mailbox_pair(raw.mailbox, raw.wire_mailbox)
         normalized = mailbox.casefold()
         if normalized in seen_mailboxes:
             raise FolderPolicyError("folder_duplicate")
@@ -85,13 +96,18 @@ def select_mail_folders(
             b"mailbox-folder/v1\0" + mailbox.encode("utf-8"),
             hashlib.sha256,
         ).hexdigest()
-        selected.append(SelectedFolder(mailbox, role, opaque))
+        selected.append(SelectedFolder(mailbox, role, opaque, wire_mailbox))
     if not selected:
         raise FolderPolicyError("no_eligible_folder")
     return tuple(sorted(selected, key=lambda item: (item.role, item.opaque_folder_id)))
 
 
-def _decode_mailbox(value: str | bytes) -> str:
+def _mailbox_pair(
+    value: str | bytes, wire_mailbox: bytes | None
+) -> tuple[str, bytes]:
+    raw = value if isinstance(value, bytes) else wire_mailbox
+    if raw is not None and type(raw) is not bytes:
+        raise FolderPolicyError("folder_decode_failed")
     if isinstance(value, bytes):
         try:
             value = decode_modified_utf7(value)
@@ -99,7 +115,14 @@ def _decode_mailbox(value: str | bytes) -> str:
             raise FolderPolicyError("folder_decode_failed") from None
     if not isinstance(value, str) or not value or any(ord(char) < 32 for char in value):
         raise FolderPolicyError("folder_decode_failed")
-    return unicodedata.normalize("NFC", value)
+    normalized = unicodedata.normalize("NFC", value)
+    try:
+        canonical = encode_modified_utf7(normalized)
+        if raw is not None and raw != canonical:
+            raise FolderPolicyError("folder_decode_failed")
+    except MailboxDecodeError:
+        raise FolderPolicyError("folder_decode_failed") from None
+    return normalized, canonical
 
 
 def _normalize_flag(value: object) -> str:

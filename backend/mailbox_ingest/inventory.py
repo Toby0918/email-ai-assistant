@@ -34,6 +34,7 @@ class FolderEvidence:
     opaque_folder_id: str
     uidvalidity: int
     messages: tuple[MessageEvidence, ...] = field(repr=False)
+    wire_mailbox: bytes = field(repr=False, default=b"")
 
 
 @dataclass(frozen=True)
@@ -121,7 +122,7 @@ def _build_folder_inventory(
     window: DateWindow,
 ) -> tuple[FolderInventory, FolderEvidence]:
     try:
-        uidvalidity = session.examine(folder.mailbox)
+        uidvalidity = session.examine(folder.wire_mailbox)
         candidates = session.uid_search(
             window.window_start.replace(hour=0, minute=0, second=0, microsecond=0)
         )
@@ -137,7 +138,11 @@ def _build_folder_inventory(
         folder.opaque_folder_id, uidvalidity, len(messages), aggregate
     )
     private = FolderEvidence(
-        folder.mailbox, folder.opaque_folder_id, uidvalidity, tuple(messages)
+        folder.mailbox,
+        folder.opaque_folder_id,
+        uidvalidity,
+        tuple(messages),
+        folder.wire_mailbox,
     )
     return public, private
 

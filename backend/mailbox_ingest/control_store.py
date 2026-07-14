@@ -64,6 +64,16 @@ class EncryptedControlStore:
         self._seen_nonces: set[bytes] = set()
 
     def write(self, name: str, payload: dict[str, object]) -> None:
+        token, frame = self._encrypted_frame(name, payload)
+        self._atomic_write(token, frame)
+
+    def create(self, name: str, payload: dict[str, object]) -> None:
+        token, frame = self._encrypted_frame(name, payload)
+        self._atomic_create(token, frame)
+
+    def _encrypted_frame(
+        self, name: str, payload: dict[str, object]
+    ) -> tuple[str, bytes]:
         token, aad = self._name(name)
         try:
             plaintext = json.dumps(
@@ -75,7 +85,7 @@ class EncryptedControlStore:
             raise ControlStoreError("control_store_too_large")
         nonce = self._nonce()
         ciphertext = AESGCM(bytes(self._key)).encrypt(nonce, plaintext, aad)
-        self._atomic_write(token, _MAGIC + nonce + ciphertext)
+        return token, _MAGIC + nonce + ciphertext
 
     def read(self, name: str) -> dict[str, object]:
         token, aad = self._name(name)
@@ -138,6 +148,29 @@ class EncryptedControlStore:
                 stream.flush()
                 os.fsync(stream.fileno())
             os.replace(stage, target)
+        except OSError:
+            raise ControlStoreError("control_store_write_failed") from None
+        finally:
+            if stage is not None:
+                try:
+                    stage.unlink(missing_ok=True)
+                except OSError:
+                    pass
+
+    def _atomic_create(self, token: str, frame: bytes) -> None:
+        stage: Path | None = None
+        try:
+            self._root.mkdir(parents=True, exist_ok=True)
+            target = self._root / token
+            stage = self._root / f".{uuid.uuid4().hex}.stage"
+            with stage.open("xb") as stream:
+                os.chmod(stage, 0o600)
+                stream.write(frame)
+                stream.flush()
+                os.fsync(stream.fileno())
+            os.link(stage, target)
+        except FileExistsError:
+            raise ControlStoreError("control_store_exists") from None
         except OSError:
             raise ControlStoreError("control_store_write_failed") from None
         finally:

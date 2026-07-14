@@ -9,9 +9,14 @@ from typing import Callable
 from .authorization import add_calendar_months
 from .bodystructure import BodyStructureError, parse_bodystructure
 from .control_store import ControlStoreError
+from .first_pass_transfer import (
+    FirstPassContentError,
+    FirstPassTransportError,
+    fetch_first_pass_content,
+)
 from .inventory import InventoryBundle
 from .scan_record import ScanRecordError, encode_scan_record
-from .text_body_decoder import decode_text_body
+from .text_body_decoder import TextBodyDecodeError, decode_text_body
 
 
 class ScanError(ValueError):
@@ -96,14 +101,14 @@ def _scan_folder(
     folder_state = state["folders"].get(folder.opaque_folder_id)
     if not isinstance(folder_state, dict):
         raise ScanError("scan_state_invalid")
-    _require_uidvalidity(session, folder.mailbox, folder.uidvalidity)
+    _require_uidvalidity(session, folder.wire_mailbox, folder.uidvalidity)
     cursor = folder_state.get("cursor")
     if type(cursor) is not int or cursor < 0:
         raise ScanError("scan_state_invalid")
     for message in folder.messages:
         if message.uid <= cursor:
             continue
-        _require_uidvalidity(session, folder.mailbox, folder.uidvalidity)
+        _require_uidvalidity(session, folder.wire_mailbox, folder.uidvalidity)
         outcome = _process_one(
             session, folder.mailbox, inventory.opaque_scope_id,
             inventory.fingerprint, folder.opaque_folder_id, folder.uidvalidity,
@@ -140,23 +145,23 @@ def _process_one(
 ) -> str:
     try:
         source = session.uid_fetch_bodystructure(message.uid)
-        plan = parse_bodystructure(source)
     except Exception:
+        raise ScanError("scan_transport_failed") from None
+    try:
+        plan = parse_bodystructure(source)
+    except BodyStructureError:
         return "ambiguous"
     try:
-        header = session.uid_fetch_peek(message.uid, "HEADER")
-        bodies = tuple(
-            decode_text_body(
-                part,
-                session.uid_fetch_peek(message.uid, part.section),
-            )
-            for part in plan.body_sections
+        header, encoded_bodies = fetch_first_pass_content(
+            session, message.uid, plan.body_sections
         )
-        classification = classifier(header, bodies)
-    except Exception:
+    except FirstPassTransportError:
+        raise ScanError("scan_transport_failed") from None
+    except FirstPassContentError:
         return "ambiguous"
-    if classification not in {"eligible", "sensitive", "ambiguous"}:
-        return "ambiguous"
+    classification, bodies = _classify_downloaded_content(
+        plan.body_sections, encoded_bodies, header, classifier
+    )
     if classification != "eligible":
         return classification
     expires = int(add_calendar_months(message.internal_date, 24).timestamp())
@@ -169,6 +174,28 @@ def _process_one(
     except Exception:
         raise ScanError("scan_persist_failed") from None
     return "created" if result.created else "duplicate"
+
+
+def _classify_downloaded_content(
+    parts: tuple[object, ...],
+    encoded_bodies: tuple[bytes, ...],
+    header: bytes,
+    classifier: Callable[[bytes, tuple[bytes, ...]], str],
+) -> tuple[str, tuple[bytes, ...]]:
+    try:
+        bodies = tuple(
+            decode_text_body(part, payload)
+            for part, payload in zip(parts, encoded_bodies, strict=True)
+        )
+    except TextBodyDecodeError:
+        return "ambiguous", ()
+    try:
+        classification = classifier(header, bodies)
+    except Exception:
+        return "ambiguous", ()
+    if classification not in {"eligible", "sensitive", "ambiguous"}:
+        return "ambiguous", ()
+    return classification, bodies
 
 
 def _encode_eligible_record(

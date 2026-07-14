@@ -10,6 +10,11 @@ from datetime import datetime
 from typing import Callable
 
 from .folder_policy import RawFolder
+from .imap_utf7 import (
+    MailboxDecodeError,
+    decode_modified_utf7,
+    encode_modified_utf7,
+)
 from .imap_errors import ImapReadOnlyError
 from .imap_response import (
     parse_bodystructure_response,
@@ -28,7 +33,7 @@ MAX_IMAP_UID = 4_294_967_295
 MAX_PARTIAL_COUNT = 1024 * 1024
 _SECTION = re.compile(r"^[1-9][0-9]*(?:\.[1-9][0-9]*)*$")
 _PARTIAL_SELECTOR = re.compile(
-    r"^\(BODY\.PEEK\[([1-9][0-9]*(?:\.[1-9][0-9]*)*)\]"
+    r"^\(BODY\.PEEK\[(HEADER|[1-9][0-9]*(?:\.[1-9][0-9]*)*)\]"
     r"<([0-9]+)\.([1-9][0-9]*)>\)$"
 )
 _PEEK_SELECTOR = re.compile(
@@ -79,17 +84,24 @@ class ReadOnlyImapSession:
         context = ssl.create_default_context()
         context.check_hostname = True
         context.verify_mode = ssl.CERT_REQUIRED
+        client: object | None = None
         try:
-            self._imap_client = client_factory(
+            client = client_factory(
                 IMAP_HOST,
                 IMAP_PORT,
                 ssl_context=context,
                 timeout=IMAP_TIMEOUT_SECONDS,
             )
-            status, _data = self._imap_client.login(account, password)
+            status, _data = client.login(account, password)
         except Exception:
+            _cleanup_failed_client(client)
             raise ImapReadOnlyError("imap_connect_failed") from None
-        _require_ok(status, "imap_login_failed")
+        try:
+            _require_ok(status, "imap_login_failed")
+        except ImapReadOnlyError:
+            _cleanup_failed_client(client)
+            raise
+        self._imap_client = client
         self._logged_out = False
 
     def __enter__(self) -> "ReadOnlyImapSession":
@@ -117,11 +129,20 @@ class ReadOnlyImapSession:
         _require_ok(status, "imap_list_failed")
         return parse_list_response(data)
 
-    def examine(self, mailbox: str) -> int:
-        if not isinstance(mailbox, str) or not mailbox or any(ord(c) < 32 for c in mailbox):
+    def examine(self, mailbox: str | bytes) -> int:
+        try:
+            wire_mailbox = (
+                encode_modified_utf7(mailbox)
+                if isinstance(mailbox, str)
+                else mailbox
+            )
+            decode_modified_utf7(wire_mailbox)
+        except (AttributeError, MailboxDecodeError, UnicodeError):
             raise ImapReadOnlyError("imap_mailbox_invalid")
         try:
-            status, data = self._imap_client.select(mailbox=mailbox, readonly=True)
+            status, data = self._imap_client.select(
+                mailbox=_quoted_mailbox(wire_mailbox), readonly=True
+            )
             response_code, response_data = self._imap_client.response("UIDVALIDITY")
         except Exception:
             raise ImapReadOnlyError("imap_examine_failed") from None
@@ -208,6 +229,32 @@ def _require_ok(status: object, code: str) -> None:
 def _require_ok_or_bye(status: object) -> None:
     if status not in {"OK", "BYE"}:
         raise ImapReadOnlyError("imap_logout_failed")
+
+
+def _quoted_mailbox(wire_mailbox: bytes) -> bytes:
+    return b'"' + wire_mailbox.replace(b"\\", b"\\\\").replace(
+        b'"', b'\\"'
+    ) + b'"'
+
+
+def _cleanup_failed_client(client: object | None) -> None:
+    if client is None:
+        return
+    try:
+        status, _data = client.logout()
+        if status in {"OK", "BYE"}:
+            return
+    except Exception:
+        pass
+    try:
+        client.shutdown()
+        return
+    except Exception:
+        pass
+    try:
+        client.sock.close()
+    except Exception:
+        pass
 
 
 __all__ = [

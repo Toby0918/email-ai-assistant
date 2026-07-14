@@ -187,7 +187,7 @@ def _parse_list_item(item: object) -> RawFolder:
         mailbox = decode_modified_utf7(raw_mailbox)
     except (MailboxDecodeError, UnicodeError):
         raise ImapReadOnlyError() from None
-    return RawFolder(flags, mailbox)
+    return RawFolder(flags, mailbox, raw_mailbox)
 
 
 __all__ = [

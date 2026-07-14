@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import hmac
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
@@ -10,8 +11,8 @@ from typing import Callable
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
-from .authorization import AuthorizationScope, DateWindow
-from .control_store import EncryptedControlStore
+from .authorization import AuthorizationError, AuthorizationScope, DateWindow
+from .control_store import ControlStoreError, EncryptedControlStore
 from .dpapi import DpapiProtector
 from .errors import VaultError
 from .folder_policy import RawFolder, SelectedFolder, select_mail_folders
@@ -72,6 +73,44 @@ class OpenedMailboxVault:
         return AuthorizationScope.create(
             authorization_id, account, hmac_key=bytes(self._scope_key)
         )
+
+    def create_authorization_binding(
+        self, authorization_id: str, account: str
+    ) -> AuthorizationScope:
+        scope = self.authorization_scope(authorization_id, account)
+        try:
+            self.control.create(
+                "authorization-binding",
+                {"schema_version": 1, "opaque_scope_id": scope.opaque_scope_id},
+            )
+            self._verify_binding(scope)
+        except (ControlStoreError, AuthorizationError):
+            raise AuthorizationError() from None
+        return scope
+
+    def require_authorization_scope(
+        self, authorization_id: str, account: str
+    ) -> AuthorizationScope:
+        scope = self.authorization_scope(authorization_id, account)
+        self._verify_binding(scope)
+        return scope
+
+    def _verify_binding(self, scope: AuthorizationScope) -> None:
+        try:
+            payload = self.control.read("authorization-binding")
+        except ControlStoreError:
+            raise AuthorizationError() from None
+        stored = payload.get("opaque_scope_id") if isinstance(payload, dict) else None
+        if (
+            not isinstance(payload, dict)
+            or set(payload) != {"schema_version", "opaque_scope_id"}
+            or payload.get("schema_version") != 1
+            or not isinstance(stored, str)
+            or len(stored) != 64
+            or any(character not in "0123456789abcdef" for character in stored)
+            or not hmac.compare_digest(stored, scope.opaque_scope_id)
+        ):
+            raise AuthorizationError()
 
     def select_folders(
         self, folders: tuple[RawFolder, ...]

@@ -8,7 +8,11 @@ import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 
-from backend.mailbox_ingest.authorization import AuthorizationScope, freeze_window
+from backend.mailbox_ingest.authorization import (
+    AuthorizationError,
+    AuthorizationScope,
+    freeze_window,
+)
 from backend.mailbox_ingest.control_store import ControlStoreError, EncryptedControlStore
 from backend.mailbox_ingest.folder_policy import RawFolder, select_mail_folders
 from backend.mailbox_ingest.inventory import InventoryError, build_inventory
@@ -23,7 +27,7 @@ from backend.mailbox_ingest.vault_index import VaultIndex
 
 class FakeInventorySession:
     def __init__(self) -> None:
-        self.selected: list[str] = []
+        self.selected: list[str | bytes] = []
         self.searches: list[datetime] = []
         self.sizes = {
             2: (100, datetime(2022, 2, 28, 12, 30, tzinfo=timezone.utc)),
@@ -31,7 +35,7 @@ class FakeInventorySession:
             4: (300, datetime(2024, 2, 29, 12, 30, tzinfo=timezone.utc)),
         }
 
-    def examine(self, mailbox: str) -> int:
+    def examine(self, mailbox: str | bytes) -> int:
         self.selected.append(mailbox)
         return 77
 
@@ -150,6 +154,32 @@ class InventoryTests(unittest.TestCase):
                 store.read("inventory")
             self.assertFalse(any(path.suffix == ".stage" for path in artifacts[0].parent.iterdir()))
 
+    def test_control_store_create_is_atomic_encrypted_and_immutable(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            nonces = iter((b"A" * 12, b"B" * 12))
+            store = EncryptedControlStore(
+                root,
+                vault_id="11111111-2222-4333-8444-555555555555",
+                master_key=b"M" * 32,
+                rng=lambda _size: next(nonces),
+            )
+            payload = {
+                "schema_version": 1,
+                "opaque_scope_id": "a" * 64,
+            }
+
+            store.create("authorization-binding", payload)
+
+            self.assertEqual(store.read("authorization-binding"), payload)
+            with self.assertRaisesRegex(ControlStoreError, "control_store_exists"):
+                store.create(
+                    "authorization-binding",
+                    {"schema_version": 1, "opaque_scope_id": "b" * 64},
+                )
+            artifact = next((root / "control").iterdir())
+            self.assertNotIn(b"a" * 64, artifact.read_bytes())
+
     def test_private_inventory_control_codec_round_trips_exact_evidence(self) -> None:
         original = self._build()
 
@@ -161,6 +191,27 @@ class InventoryTests(unittest.TestCase):
         payload["unexpected"] = "CANARY"
         with self.assertRaises(InventoryError):
             decode_inventory_bundle(payload)
+
+    def test_inventory_preserves_canonical_wire_mailbox_for_future_selects(self) -> None:
+        session = FakeInventorySession()
+        folders = select_mail_folders(
+            (RawFolder((), "\u5ba2\u6237", b"&W6JiNw-"),),
+            hmac_key=b"F" * 32,
+        )
+
+        bundle = build_inventory(
+            session,
+            scope=self.scope,
+            folders=folders,
+            window=self.window,
+            fingerprint_key=b"I" * 32,
+        )
+        restored = decode_inventory_bundle(encode_inventory_bundle(bundle))
+
+        self.assertEqual(session.selected, [b"&W6JiNw-"])
+        self.assertEqual(bundle.evidence[0].mailbox, "\u5ba2\u6237")
+        self.assertEqual(bundle.evidence[0].wire_mailbox, b"&W6JiNw-")
+        self.assertEqual(restored.evidence[0].wire_mailbox, b"&W6JiNw-")
 
     def test_public_vault_opener_wipes_master_and_atomic_dedup_is_repr_safe(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -197,6 +248,46 @@ class InventoryTests(unittest.TestCase):
 
             with self.assertRaises(Exception):
                 opened.control.read("inventory")
+
+    def test_vault_authorization_binding_is_encrypted_immutable_and_exact(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            vault_id = "11111111-2222-4333-8444-555555555555"
+            VaultIndex(root / "vault-index.sqlite3", vault_id=vault_id).initialize()
+
+            with open_mailbox_vault(
+                root,
+                dpapi=object(),
+                clock=lambda: 1_700_000_000,
+                identity_loader=lambda _root: VaultIdentity(vault_id, 1),
+                master_key_loader=lambda _root, _dpapi: SecretBuffer(b"M" * 32),
+            ) as opened:
+                bound = opened.create_authorization_binding(
+                    "AUTH-BOUND-1", "one@example.test"
+                )
+                required = opened.require_authorization_scope(
+                    "AUTH-BOUND-1", "one@example.test"
+                )
+                self.assertEqual(required.opaque_scope_id, bound.opaque_scope_id)
+                for authorization, account in (
+                    ("AUTH-BOUND-2", "one@example.test"),
+                    ("AUTH-BOUND-1", "two@example.test"),
+                ):
+                    with self.subTest(
+                        authorization=authorization, account=account
+                    ), self.assertRaises(AuthorizationError) as caught:
+                        opened.require_authorization_scope(authorization, account)
+                    self.assertNotIn(account, repr(caught.exception))
+                with self.assertRaises(AuthorizationError):
+                    opened.create_authorization_binding(
+                        "AUTH-BOUND-1", "one@example.test"
+                    )
+
+            combined = b"".join(
+                path.read_bytes() for path in (root / "control").iterdir()
+            )
+            self.assertNotIn(b"AUTH-BOUND-1", combined)
+            self.assertNotIn(b"one@example.test", combined)
 
 
 if __name__ == "__main__":

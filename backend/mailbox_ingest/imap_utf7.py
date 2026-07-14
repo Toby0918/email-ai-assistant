@@ -42,9 +42,46 @@ def decode_modified_utf7(value: bytes) -> str:
     except (UnicodeError, ValueError, binascii.Error):
         raise MailboxDecodeError("mailbox_decode_failed") from None
     normalized = unicodedata.normalize("NFC", "".join(output))
-    if not normalized or any(ord(character) < 32 for character in normalized):
+    if (
+        not normalized
+        or any(ord(character) < 32 for character in normalized)
+        or encode_modified_utf7(normalized) != value
+    ):
         raise MailboxDecodeError("mailbox_decode_failed")
     return normalized
+
+
+def encode_modified_utf7(value: str) -> bytes:
+    if not isinstance(value, str) or not value:
+        raise MailboxDecodeError("mailbox_decode_failed")
+    normalized = unicodedata.normalize("NFC", value)
+    output = bytearray()
+    shifted: list[str] = []
+
+    def flush() -> None:
+        if not shifted:
+            return
+        raw = "".join(shifted).encode("utf-16-be", errors="strict")
+        token = base64.b64encode(raw).rstrip(b"=").replace(b"/", b",")
+        output.extend(b"&" + token + b"-")
+        shifted.clear()
+
+    try:
+        for character in normalized:
+            codepoint = ord(character)
+            if 0x20 <= codepoint <= 0x7E:
+                flush()
+                output.extend(b"&-" if character == "&" else character.encode("ascii"))
+            elif codepoint <= 0x7F:
+                raise MailboxDecodeError("mailbox_decode_failed")
+            else:
+                shifted.append(character)
+        flush()
+    except (UnicodeError, ValueError):
+        raise MailboxDecodeError("mailbox_decode_failed") from None
+    if not output or len(output) > MAX_MAILBOX_BYTES:
+        raise MailboxDecodeError("mailbox_decode_failed")
+    return bytes(output)
 
 
 def _decode_shifted(value: bytes) -> str:
@@ -61,4 +98,4 @@ def _decode_shifted(value: bytes) -> str:
     return decoded
 
 
-__all__ = ["MailboxDecodeError", "decode_modified_utf7"]
+__all__ = ["MailboxDecodeError", "decode_modified_utf7", "encode_modified_utf7"]

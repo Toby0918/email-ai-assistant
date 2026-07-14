@@ -38,6 +38,7 @@ MAX_MANIFEST_BYTES = 1024 * 1024
 class LocalPreflight:
     vault: Path
     project_root: Path
+    volume_evidence: object
 
 
 class MailboxVaultService:
@@ -73,30 +74,32 @@ class MailboxVaultService:
     def preflight(self, arguments: argparse.Namespace) -> LocalPreflight:
         vault = Path(arguments.vault)
         if arguments.command == "init":
-            self._validate_new(
+            evidence = self._validate_new(
                 vault, self.project_root, Path(arguments.recovery_key)
             )
         elif arguments.command == "rewrap-recovery":
-            self._validate_new(
+            evidence = self._validate_new(
                 vault, self.project_root, Path(arguments.new_recovery_key)
             )
         else:
-            self._validate_existing(vault, self.project_root)
-        return LocalPreflight(vault, self.project_root)
+            evidence = self._validate_existing(vault, self.project_root)
+        return LocalPreflight(vault, self.project_root, evidence)
 
     def prepare(self, arguments: argparse.Namespace, local: object):
         if not isinstance(local, LocalPreflight):
             raise ValueError
         if arguments.command == "init":
             return InitOperation(
-                local.vault, Path(arguments.recovery_key), self._dpapi_factory()
-            )
-        if arguments.command == "rewrap-recovery":
-            return RewrapOperation(
                 local.vault,
-                Path(arguments.current_recovery_key),
-                Path(arguments.new_recovery_key),
-                arguments.confirm,
+                Path(arguments.recovery_key),
+                self._dpapi_factory(),
+                local.project_root,
+                local.volume_evidence,
+                self._validate_new,
+                arguments.authorization_id,
+                arguments.account,
+                self._open_vault,
+                self.epoch_clock,
             )
         opened = self._open_vault(
             local.vault,
@@ -104,9 +107,20 @@ class MailboxVaultService:
             clock=self.epoch_clock,
         )
         try:
-            scope = opened.authorization_scope(
+            scope = opened.require_authorization_scope(
                 arguments.authorization_id, arguments.account
             )
+            if arguments.command == "rewrap-recovery":
+                return RewrapOperation(
+                    local.vault,
+                    Path(arguments.current_recovery_key),
+                    Path(arguments.new_recovery_key),
+                    arguments.confirm,
+                    local.project_root,
+                    local.volume_evidence,
+                    self._validate_new,
+                    opened,
+                )
             return self._opened_operation(arguments, opened, scope)
         except Exception:
             opened.close()

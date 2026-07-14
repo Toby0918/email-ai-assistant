@@ -14,6 +14,7 @@ from backend.mailbox_ingest.imap_readonly import (
     validate_fetch_selector,
     validate_single_uid_fetch_target,
 )
+from backend.mailbox_ingest.folder_policy import select_mail_folders
 from backend.mailbox_ingest.imap_response import parse_list_response
 
 
@@ -100,6 +101,41 @@ class ImapReadOnlyTests(unittest.TestCase):
         self.assertEqual(raw.calls[-1], ("logout",))
         self.assertNotIn("SYNTHETIC-APP-PASSWORD", repr(session))
 
+    def test_login_exception_or_rejection_cleans_created_client_safely(self) -> None:
+        for mode in ("exception", "rejected"):
+            raw = FakeRawImap()
+            raw.shutdown_calls = 0
+
+            def login(_account: str, _password: str, *, _mode=mode):
+                raw.calls.append(("login", "ACCOUNT-CANARY", "PASSWORD-CANARY"))
+                if _mode == "exception":
+                    raise RuntimeError("SERVER-CANARY")
+                return "NO", [b"SERVER-CANARY"]
+
+            def logout(*, _mode=mode):
+                raw.calls.append(("logout",))
+                if _mode == "exception":
+                    raise RuntimeError("LOGOUT-CANARY")
+                return "BYE", [b"closed"]
+
+            def shutdown():
+                raw.shutdown_calls += 1
+
+            raw.login = login  # type: ignore[method-assign]
+            raw.logout = logout  # type: ignore[method-assign]
+            raw.shutdown = shutdown  # type: ignore[attr-defined]
+
+            with self.subTest(mode=mode), self.assertRaises(
+                ImapReadOnlyError
+            ) as caught:
+                self._session(raw)
+
+            self.assertIn(("logout",), raw.calls)
+            if mode == "exception":
+                self.assertEqual(raw.shutdown_calls, 1)
+            self.assertNotIn("SERVER-CANARY", repr(caught.exception))
+            self.assertNotIn("PASSWORD-CANARY", repr(caught.exception))
+
     def test_exposes_exact_six_public_operations_and_never_close(self) -> None:
         methods = {
             name
@@ -135,7 +171,7 @@ class ImapReadOnlyTests(unittest.TestCase):
         self.assertIn('"TEXT" "PLAIN"', bodystructure)
         self.assertEqual(header, b"abc")
         self.assertEqual(raw.flags, before_flags)
-        self.assertIn(("select", "INBOX", True), raw.calls)
+        self.assertIn(("select", b'"INBOX"', True), raw.calls)
         self.assertIn(("uid", "SEARCH", None, "SINCE", "28-Feb-2022"), raw.calls)
         self.assertIn(("uid", "FETCH", "7", "(RFC822.SIZE INTERNALDATE)"), raw.calls)
         self.assertIn(("uid", "FETCH", "7", "(BODYSTRUCTURE)"), raw.calls)
@@ -153,6 +189,7 @@ class ImapReadOnlyTests(unittest.TestCase):
             "(RFC822.SIZE INTERNALDATE)", "(BODYSTRUCTURE)",
             "(BODY.PEEK[HEADER])", "(BODY.PEEK[1])", "(BODY.PEEK[2.1])",
             "(BODY.PEEK[2.1]<0.1048576>)",
+            "(BODY.PEEK[HEADER]<0.65536>)",
         )
         self.assertEqual([validate_fetch_selector(item) for item in allowed], list(allowed))
         rejected = (
@@ -244,6 +281,25 @@ class ImapReadOnlyTests(unittest.TestCase):
         )
 
         self.assertEqual([item.mailbox for item in folders], ["\u85aa\u8d44", "Sales&Ops"])
+
+    def test_non_ascii_folder_policy_name_preserves_exact_select_wire_token(self) -> None:
+        raw = FakeRawImap()
+        raw.list = lambda: (  # type: ignore[method-assign]
+            "OK", [b'(\\HasNoChildren) "/" "&W6JiNw-"']
+        )
+        session, _raw, _factory = self._session(raw)
+
+        selected = select_mail_folders(
+            session.list_folders(), hmac_key=b"F" * 32
+        )
+        uidvalidity = session.examine(selected[0].wire_mailbox)
+
+        self.assertEqual(selected[0].mailbox, "\u5ba2\u6237")
+        self.assertEqual(uidvalidity, 42)
+        self.assertIn(("select", b'"&W6JiNw-"', True), raw.calls)
+
+        session.examine("Sales Team")
+        self.assertIn(("select", b'"Sales Team"', True), raw.calls)
 
     def test_list_rejects_invalid_or_canonically_duplicate_modified_utf7(self) -> None:
         invalid = (b"&broken", b"&A-", b"&AGE-")

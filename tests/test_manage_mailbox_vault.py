@@ -11,12 +11,18 @@ from pathlib import Path
 from unittest import mock
 
 from scripts.manage_mailbox_vault import CliDependencies, CliResult, run_cli
-from backend.mailbox_ingest.authorization import AuthorizationScope, freeze_window
+from backend.mailbox_ingest.authorization import (
+    AuthorizationError,
+    AuthorizationScope,
+    freeze_window,
+)
 from backend.mailbox_ingest.control_store import ControlStoreError
 from backend.mailbox_ingest.folder_policy import RawFolder, select_mail_folders
 from backend.mailbox_ingest.inventory import build_inventory
 from backend.mailbox_ingest.inventory_codec import encode_inventory_bundle
 from backend.mailbox_ingest.models import PutRecordResult
+from backend.mailbox_ingest.models import VolumeEvidence
+from backend.mailbox_ingest.errors import VaultError
 from backend.mailbox_ingest.service import MailboxVaultService, build_cli_dependencies
 
 
@@ -255,9 +261,19 @@ class _FacadeSession:
         self.events.append("bodystructure")
         return '("TEXT" "PLAIN" NIL NIL NIL "7BIT" 4 1)'
 
-    def uid_fetch_peek(self, _uid: int, section: str) -> bytes:
+    def uid_fetch_peek(
+        self,
+        _uid: int,
+        section: str,
+        *,
+        offset: int | None = None,
+        count: int | None = None,
+    ) -> bytes:
         self.events.append(f"peek:{section}")
-        return b"head" if section == "HEADER" else b"body"
+        payload = b"head" if section == "HEADER" else b"body"
+        if offset is None or count is None:
+            return payload
+        return payload[offset:offset + count]
 
 
 class _FacadeControl:
@@ -302,6 +318,9 @@ class _FacadeOpened:
         self.closed = False
 
     def authorization_scope(self, _authorization_id: str, _account: str):
+        return self.scope
+
+    def require_authorization_scope(self, _authorization_id: str, _account: str):
         return self.scope
 
     def inventory(self, _session, *, scope, folders, window):
@@ -410,6 +429,175 @@ class ServiceFacadeTests(unittest.TestCase):
         operation.close()
 
         self.assertEqual(result.code, "verify_complete")
+
+    def test_init_and_rewrap_reject_execute_time_volume_identity_change(self) -> None:
+        for command in ("init", "rewrap-recovery"):
+            evidence = iter(
+                (
+                    VolumeEvidence("VAULT-A", "RECOVERY-B"),
+                    VolumeEvidence("VAULT-CHANGED", "RECOVERY-B"),
+                )
+            )
+            opened = mock.Mock()
+            opened.require_authorization_scope.return_value = AuthorizationScope.create(
+                "AUTH-VOLUME-1", "one@example.test", hmac_key=b"S" * 32
+            )
+            service = MailboxVaultService(
+                project_root=Path("C:/project"),
+                validate_new=lambda *_args: next(evidence),
+                dpapi_factory=lambda: object(),
+                open_vault=lambda *_args, **_kwargs: opened,
+            )
+            arguments = argparse.Namespace(
+                command=command,
+                vault=Path("E:/vault"),
+                recovery_key=Path("F:/offline/recovery.key"),
+                current_recovery_key=Path("F:/offline/current.key"),
+                new_recovery_key=Path("G:/offline/new.key"),
+                confirm="REWRAP:11111111-2222-4333-8444-555555555555",
+                authorization_id="AUTH-VOLUME-1",
+                account="one@example.test",
+            )
+            local = service.preflight(arguments)
+            with mock.patch(
+                "backend.mailbox_ingest.service_operations.load_vault_identity",
+                return_value=type("Identity", (), {
+                    "vault_id": "11111111-2222-4333-8444-555555555555"
+                })(),
+            ):
+                operation = service.prepare(arguments, local)
+
+            target = (
+                "backend.mailbox_ingest.service_operations.initialize_key_envelopes"
+                if command == "init"
+                else "backend.mailbox_ingest.service_operations.rewrap_recovery_key"
+            )
+            with self.subTest(command=command), mock.patch(target) as envelope, \
+                    mock.patch(
+                        "backend.mailbox_ingest.service_operations.load_vault_identity",
+                        return_value=type("Identity", (), {
+                            "vault_id": "11111111-2222-4333-8444-555555555555"
+                        })(),
+                    ), mock.patch(
+                        "backend.mailbox_ingest.service_operations.VaultIndex"
+                    ), self.assertRaisesRegex(
+                        VaultError, "recovery_volume_not_separate"
+                    ):
+                operation.execute(None)
+            envelope.assert_not_called()
+
+    def test_execute_time_distinct_checker_is_bound_to_validated_paths(self) -> None:
+        evidence = VolumeEvidence("VAULT-A", "RECOVERY-B")
+        opened = mock.Mock()
+        service = MailboxVaultService(
+            project_root=Path("C:/project"),
+            validate_new=lambda *_args: evidence,
+            dpapi_factory=lambda: object(),
+            open_vault=lambda *_args, **_kwargs: opened,
+        )
+        arguments = argparse.Namespace(
+            command="init",
+            vault=Path("E:/vault"),
+            recovery_key=Path("F:/offline/recovery.key"),
+            authorization_id="AUTH-VOLUME-1",
+            account="one@example.test",
+        )
+        operation = service.prepare(arguments, service.preflight(arguments))
+
+        def initialize(vault, recovery, _dpapi, *, distinct_volume_check):
+            self.assertTrue(distinct_volume_check(vault, recovery))
+            self.assertFalse(distinct_volume_check(vault, Path("H:/other.key")))
+
+        with mock.patch(
+            "backend.mailbox_ingest.service_operations.initialize_key_envelopes",
+            side_effect=initialize,
+        ), mock.patch(
+            "backend.mailbox_ingest.service_operations.load_vault_identity",
+            return_value=type("Identity", (), {
+                "vault_id": "11111111-2222-4333-8444-555555555555"
+            })(),
+        ), mock.patch("backend.mailbox_ingest.service_operations.VaultIndex"):
+            result = operation.execute(None)
+
+        self.assertEqual(result.code, "vault_initialized")
+
+    def test_scope_mismatch_stops_before_getpass_and_session_creation(self) -> None:
+        events: list[object] = []
+        scope = AuthorizationScope.create(
+            "AUTH-BOUND-2", "two@example.test", hmac_key=b"S" * 32
+        )
+
+        class RejectingOpened:
+            def authorization_scope(self, _authorization: str, _account: str):
+                return scope
+
+            def require_authorization_scope(self, _authorization: str, _account: str):
+                events.append("binding-check")
+                raise AuthorizationError()
+
+            def close(self):
+                events.append("opened-close")
+
+        service = MailboxVaultService(
+            project_root=Path("C:/project"),
+            validate_existing=lambda *_args: object(),
+            open_vault=lambda *_args, **_kwargs: RejectingOpened(),
+            dpapi_factory=lambda: object(),
+            session_builder=lambda *_args: events.append("session-created"),
+        )
+        dependencies = build_cli_dependencies(
+            getpass_function=lambda _prompt: events.append("getpass") or "secret",
+            emit=lambda payload: events.append(("emit", payload)),
+            service=service,
+        )
+
+        code = run_cli(
+            [
+                "inventory", "--vault", "E:/vault",
+                "--authorization-id", "AUTH-BOUND-2",
+                "--account", "two@example.test",
+            ],
+            dependencies=dependencies,
+        )
+
+        self.assertEqual(code, 2)
+        self.assertIn("binding-check", events)
+        self.assertNotIn("getpass", events)
+        self.assertNotIn("session-created", events)
+
+    def test_init_creates_binding_from_cli_scope_after_key_initialization(self) -> None:
+        evidence = VolumeEvidence("VAULT-A", "RECOVERY-B")
+        opened = mock.Mock()
+        service = MailboxVaultService(
+            project_root=Path("C:/project"),
+            validate_new=lambda *_args: evidence,
+            open_vault=lambda *_args, **_kwargs: opened,
+            dpapi_factory=lambda: object(),
+        )
+        arguments = argparse.Namespace(
+            command="init",
+            vault=Path("E:/vault"),
+            recovery_key=Path("F:/offline/recovery.key"),
+            authorization_id="AUTH-BOUND-1",
+            account="one@example.test",
+        )
+        operation = service.prepare(arguments, service.preflight(arguments))
+
+        with mock.patch(
+            "backend.mailbox_ingest.service_operations.initialize_key_envelopes"
+        ), mock.patch(
+            "backend.mailbox_ingest.service_operations.load_vault_identity",
+            return_value=type("Identity", (), {
+                "vault_id": "11111111-2222-4333-8444-555555555555"
+            })(),
+        ), mock.patch("backend.mailbox_ingest.service_operations.VaultIndex"):
+            result = operation.execute(None)
+
+        self.assertEqual(result.code, "vault_initialized")
+        opened.create_authorization_binding.assert_called_once_with(
+            "AUTH-BOUND-1", "one@example.test"
+        )
+        opened.close.assert_called_once_with()
 
 
 if __name__ == "__main__":

@@ -10,10 +10,12 @@ from datetime import datetime, timezone
 from backend.mailbox_ingest.authorization import AuthorizationScope, freeze_window
 from backend.mailbox_ingest.folder_policy import RawFolder, select_mail_folders
 from backend.mailbox_ingest.inventory import build_inventory
+from backend.mailbox_ingest.imap_readonly import ImapReadOnlyError
 from backend.mailbox_ingest.models import PutRecordResult
 from backend.mailbox_ingest.bodystructure import TextBodySection
 from backend.mailbox_ingest.scan import ScanError, classify_message, scan_mailbox
 from backend.mailbox_ingest.text_body_decoder import (
+    MAX_ENCODED_TEXT_BYTES,
     TextBodyDecodeError,
     decode_text_body,
 )
@@ -53,17 +55,28 @@ class FakeScanSession:
         self.calls.append(("bodystructure", uid))
         return self.bodystructure
 
-    def uid_fetch_peek(self, uid: int, section: str, **_kwargs) -> bytes:
-        self.calls.append(("peek", uid, section))
+    def uid_fetch_peek(
+        self,
+        uid: int,
+        section: str,
+        *,
+        offset: int | None = None,
+        count: int | None = None,
+    ) -> bytes:
+        self.calls.append(("peek", uid, section, offset, count))
         if section == "HEADER":
-            return f"Subject: SYNTHETIC-{uid}\r\n\r\n".encode("ascii")
-        if section == "1":
-            return (
+            payload = f"Subject: SYNTHETIC-{uid}\r\n\r\n".encode("ascii")
+        elif section == "1":
+            payload = (
                 f"BODY-CANARY-{uid}".encode("ascii")
                 if self.body_content is None
                 else self.body_content
             )
-        raise AssertionError("attachment body fetched during first pass")
+        else:
+            raise AssertionError("attachment body fetched during first pass")
+        if offset is None or count is None:
+            return payload
+        return payload[offset:offset + count]
 
 
 class FakeControl:
@@ -157,9 +170,8 @@ class MailboxScanTests(unittest.TestCase):
         self.assertEqual((report.processed_count, report.created_count), (2, 2))
         self.assertEqual(report.duplicate_count, 0)
         self.assertEqual(
-            [call for call in self.session.calls if call[0] == "peek"],
-            [("peek", 2, "HEADER"), ("peek", 2, "1"),
-             ("peek", 3, "HEADER"), ("peek", 3, "1")],
+            [(call[1], call[2]) for call in self.session.calls if call[0] == "peek"],
+            [(2, "HEADER"), (2, "1"), (3, "HEADER"), (3, "1")],
         )
         expected_expiry = int(datetime(2025, 6, 1, 8, 0, tzinfo=timezone.utc).timestamp())
         self.assertEqual(vault.records[0][1], expected_expiry)
@@ -171,6 +183,119 @@ class MailboxScanTests(unittest.TestCase):
         self.assertEqual(stored["expires_at_utc"], expected_expiry)
         self.assertNotIn("BODY-CANARY", repr(report))
         self.assertNotIn("BODY-CANARY", repr(control.payload))
+
+    def test_first_pass_uses_only_bounded_partial_peek_requests(self) -> None:
+        report, _arguments = self._run()
+
+        peek_calls = [call for call in self.session.calls if call[0] == "peek"]
+        self.assertEqual(report.processed_count, 2)
+        self.assertTrue(peek_calls)
+        self.assertTrue(all(call[3] == 0 for call in peek_calls))
+        self.assertTrue(all(type(call[4]) is int and 0 < call[4] <= 65_536 for call in peek_calls))
+
+    def test_oversized_declared_text_causes_zero_content_fetches(self) -> None:
+        self.session.bodystructure = (
+            '("TEXT" "PLAIN" ("CHARSET" "UTF-8") NIL NIL "8BIT" '
+            f'{MAX_ENCODED_TEXT_BYTES + 1} 1)'
+        )
+
+        report, _arguments = self._run()
+
+        self.assertEqual(report.ambiguous_count, 2)
+        self.assertFalse(any(call[0] == "peek" for call in self.session.calls))
+
+    def test_transport_failures_do_not_advance_cursor_and_resume_same_uid(self) -> None:
+        for stage in ("bodystructure", "header", "text"):
+            session = FakeScanSession()
+            bundle = build_inventory(
+                session,
+                scope=self.scope,
+                folders=self.folders,
+                window=self.window,
+                fingerprint_key=b"I" * 32,
+            )
+            session.calls.clear()
+            control = FakeControl()
+            original_bodystructure = session.uid_fetch_bodystructure
+            original_peek = session.uid_fetch_peek
+
+            def bodystructure(uid: int, *, _stage=stage):
+                if _stage == "bodystructure" and uid == 2:
+                    raise ImapReadOnlyError("imap_fetch_failed")
+                return original_bodystructure(uid)
+
+            def peek(
+                uid: int,
+                section: str,
+                *,
+                offset: int | None = None,
+                count: int | None = None,
+                _stage=stage,
+            ) -> bytes:
+                if uid == 2 and (
+                    _stage == "header" and section == "HEADER"
+                    or _stage == "text" and section == "1"
+                ):
+                    raise ImapReadOnlyError("imap_fetch_failed")
+                return original_peek(uid, section, offset=offset, count=count)
+
+            session.uid_fetch_bodystructure = bodystructure  # type: ignore[method-assign]
+            session.uid_fetch_peek = peek  # type: ignore[method-assign]
+
+            with self.subTest(stage=stage), self.assertRaisesRegex(
+                ScanError, "scan_transport_failed"
+            ):
+                scan_mailbox(
+                    session=session,
+                    inventory_bundle=bundle,
+                    confirmed_fingerprint=bundle.inventory.fingerprint,
+                    vault=FakeVault(),
+                    control_store=control,
+                    rebuild_inventory=lambda: bundle,
+                    classifier=lambda _header, _bodies: "eligible",
+                )
+
+            folder_state = control.payload["folders"][self.folders[0].opaque_folder_id]
+            self.assertEqual(folder_state["cursor"], 0)
+            session.uid_fetch_bodystructure = original_bodystructure  # type: ignore[method-assign]
+            session.uid_fetch_peek = original_peek  # type: ignore[method-assign]
+            report = scan_mailbox(
+                session=session,
+                inventory_bundle=bundle,
+                confirmed_fingerprint=bundle.inventory.fingerprint,
+                vault=FakeVault(),
+                control_store=control,
+                rebuild_inventory=lambda: bundle,
+                classifier=lambda _header, _bodies: "eligible",
+            )
+            self.assertEqual(report.processed_count, 2)
+
+    def test_scan_reselects_folder_with_preserved_wire_mailbox(self) -> None:
+        folders = select_mail_folders(
+            (RawFolder((), "\u5ba2\u6237", b"&W6JiNw-"),),
+            hmac_key=b"F" * 32,
+        )
+        bundle = build_inventory(
+            self.session,
+            scope=self.scope,
+            folders=folders,
+            window=self.window,
+            fingerprint_key=b"I" * 32,
+        )
+        self.session.calls.clear()
+
+        scan_mailbox(
+            session=self.session,
+            inventory_bundle=bundle,
+            confirmed_fingerprint=bundle.inventory.fingerprint,
+            vault=FakeVault(),
+            control_store=FakeControl(),
+            rebuild_inventory=lambda: bundle,
+            classifier=lambda _header, _bodies: "eligible",
+        )
+
+        selects = [call[1] for call in self.session.calls if call[0] == "examine"]
+        self.assertEqual(selects, [b"&W6JiNw-"] * 3)
 
     def test_resume_advances_only_after_atomic_put_and_skips_completed_uids(self) -> None:
         control = FakeControl()

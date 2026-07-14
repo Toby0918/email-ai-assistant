@@ -19,6 +19,7 @@ from .scan import scan_mailbox
 from .service_models import CliResult
 from .vault_access import OpenedMailboxVault
 from .vault_index import VaultIndex
+from .operation_volume import bound_distinct_checker, revalidate_preflight_volume
 
 
 class OpenedOperation:
@@ -30,24 +31,61 @@ class OpenedOperation:
 
 
 class InitOperation:
-    def __init__(self, vault: Path, recovery: Path, dpapi: object) -> None:
+    def __init__(
+        self,
+        vault: Path,
+        recovery: Path,
+        dpapi: object,
+        project_root: Path,
+        preflight_evidence: object,
+        validate_volume: object,
+        authorization_id: str,
+        account: str,
+        open_vault: object,
+        clock: object,
+    ) -> None:
         self.vault = vault
         self.recovery = recovery
         self.dpapi = dpapi
+        self.project_root = project_root
+        self.preflight_evidence = preflight_evidence
+        self.validate_volume = validate_volume
+        self.authorization_id = authorization_id
+        self.account = account
+        self.open_vault = open_vault
+        self.clock = clock
 
     def execute(self, session: object | None) -> CliResult:
         if session is not None:
             raise ValueError
+        evidence = revalidate_preflight_volume(
+            self.validate_volume,
+            self.vault,
+            self.project_root,
+            self.recovery,
+            self.preflight_evidence,
+        )
         initialize_key_envelopes(
             self.vault,
             self.recovery,
             self.dpapi,
-            distinct_volume_check=lambda _vault, _recovery: True,
+            distinct_volume_check=bound_distinct_checker(
+                self.vault, self.recovery, evidence
+            ),
         )
         identity = load_vault_identity(self.vault)
         VaultIndex(
             self.vault / "vault-index.sqlite3", vault_id=identity.vault_id
         ).initialize()
+        opened = self.open_vault(
+            self.vault, dpapi=self.dpapi, clock=self.clock
+        )
+        try:
+            opened.create_authorization_binding(
+                self.authorization_id, self.account
+            )
+        finally:
+            opened.close()
         return CliResult("vault_initialized", count=0)
 
     def close(self) -> None:
@@ -104,7 +142,12 @@ class ScanOperation(OpenedOperation):
         if session is None:
             raise ValueError
         folders = tuple(
-            SelectedFolder(folder.mailbox, "business_custom", folder.opaque_folder_id)
+            SelectedFolder(
+                folder.mailbox,
+                "business_custom",
+                folder.opaque_folder_id,
+                folder.wire_mailbox,
+            )
             for folder in self.bundle.evidence
         )
         window = DateWindow(
@@ -186,29 +229,44 @@ class RewrapOperation:
         current_recovery: Path,
         new_recovery: Path,
         confirmation: str,
+        project_root: Path,
+        preflight_evidence: object,
+        validate_volume: object,
+        opened: OpenedMailboxVault,
     ) -> None:
+        self.opened = opened
         identity = load_vault_identity(vault)
         if confirmation != f"REWRAP:{identity.vault_id}":
             raise ValueError("rewrap_confirmation_required")
         self.vault = vault
         self.current_recovery = current_recovery
         self.new_recovery = new_recovery
+        self.project_root = project_root
+        self.preflight_evidence = preflight_evidence
+        self.validate_volume = validate_volume
 
     def execute(self, session: object | None) -> CliResult:
         if session is not None:
             raise ValueError
+        evidence = revalidate_preflight_volume(
+            self.validate_volume,
+            self.vault,
+            self.project_root,
+            self.new_recovery,
+            self.preflight_evidence,
+        )
         rewrap_recovery_key(
             self.vault,
             self.current_recovery,
             self.new_recovery,
-            distinct_volume_check=lambda _vault, _recovery: True,
+            distinct_volume_check=bound_distinct_checker(
+                self.vault, self.new_recovery, evidence
+            ),
         )
         return CliResult("recovery_rewrap_complete", count=0)
 
     def close(self) -> None:
-        return None
-
-
+        self.opened.close()
 __all__ = [
     "AttachmentOperation",
     "InitOperation",
