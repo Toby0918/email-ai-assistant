@@ -31,12 +31,73 @@ BUDGET_ORDER_DOCS = (
     "docs/operations/deepseek_api_analysis_task_brief.md",
     "docs/superpowers/specs/2026-07-12-deepseek-led-email-analysis-design.md",
 )
-FALLBACK_DIAGNOSTIC_DOCS = (
-    "docs/conventions/logging.md",
-    "docs/operations/troubleshooting.md",
-    "docs/operations/deployment_notes.md",
-    "docs/api/backend_api_contract.md",
-)
+FALLBACK_DIAGNOSTIC_CONTRACTS = {
+    "docs/conventions/logging.md": (
+        "analysis_fallback",
+        "provider_auth",
+        "provider_permission_or_balance",
+        "provider_timeout",
+        "envelope_invalid",
+        "evidence_invalid",
+        "safety_rejected_all",
+        "local_debug_service.log",
+        "public API",
+        "raw exception",
+        "Rule fallback remains a successful public analysis response.",
+        "exactly one terminal allowlisted event",
+        "1 MB",
+        "two backups",
+        "SQLite",
+        "frontend",
+        "Automated verification does not call DeepSeek.",
+        "Logs must not contain API keys, prompts, email or thread content, "
+        "attachment names or content, provider output, raw exception text, "
+        "tracebacks, URLs, paths, or customer identifiers.",
+    ),
+    "docs/operations/troubleshooting.md": (
+        "analysis_fallback",
+        "provider_auth",
+        "provider_permission_or_balance",
+        "provider_timeout",
+        "envelope_invalid",
+        "evidence_invalid",
+        "safety_rejected_all",
+        "local_debug_service.log",
+        "public API",
+        "SQLite",
+        "frontend",
+        "恰好一条终态 allowlisted `event=analysis_fallback`",
+        "Get-Content outputs\\local_debug_service.log -Tail 30 | Select-String 'event=analysis_'",
+    ),
+    "docs/operations/deployment_notes.md": (
+        "analysis_fallback",
+        "local_debug_service.log",
+        "public API",
+        "raw exception",
+        "exactly one terminal allowlisted event",
+        "1 MB",
+        "two backups",
+        "SQLite",
+        "frontend",
+        "Automated verification does not call DeepSeek.",
+        "Get-Content outputs\\local_debug_service.log -Tail 30 | Select-String 'event=analysis_'",
+    ),
+    "docs/api/backend_api_contract.md": (
+        "analysis_fallback",
+        "provider_auth",
+        "provider_permission_or_balance",
+        "provider_timeout",
+        "envelope_invalid",
+        "evidence_invalid",
+        "safety_rejected_all",
+        "public API",
+        "raw exception",
+        "Rule fallback remains a successful public analysis response.",
+        "exactly one terminal allowlisted event",
+        "SQLite",
+        "frontend",
+    ),
+}
 
 
 class DeepSeekDocumentationContractTests(unittest.TestCase):
@@ -211,37 +272,20 @@ class DeepSeekDocumentationContractTests(unittest.TestCase):
                     self.assertIn(marker, text)
 
     def test_fallback_diagnostic_operations_contract_is_explicit(self) -> None:
-        combined = "\n".join(self._read(relative) for relative in FALLBACK_DIAGNOSTIC_DOCS)
-        required = (
-            "analysis_fallback",
-            "provider_auth",
-            "provider_permission_or_balance",
-            "provider_timeout",
-            "envelope_invalid",
-            "evidence_invalid",
-            "safety_rejected_all",
-            "local_debug_service.log",
-            "public API",
-            "raw exception",
-            "Rule fallback remains a successful public analysis response.",
-            "exactly one terminal allowlisted event",
-            "1 MB",
-            "two backups",
-            "SQLite",
-            "frontend",
-            "Automated verification does not call DeepSeek.",
-            "Get-Content outputs\\local_debug_service.log -Tail 30 | Select-String 'event=analysis_'",
-        )
-        for marker in required:
-            with self.subTest(marker=marker):
-                self.assertIn(marker, combined)
+        for relative, markers in FALLBACK_DIAGNOSTIC_CONTRACTS.items():
+            text = self._read(relative)
+            for marker in markers:
+                with self.subTest(path=relative, marker=marker):
+                    self.assertIn(marker, text)
 
-        self.assertIn(
-            "Logs must not contain API keys, prompts, email or thread content, "
-            "attachment names or content, provider output, raw exception text, "
-            "tracebacks, URLs, paths, or customer identifiers.",
-            combined,
-        )
+        troubleshooting = self._read("docs/operations/troubleshooting.md")
+        for weakened in (
+            "最多产生一个终态",
+            "最多一条终态",
+            "at most one terminal",
+        ):
+            with self.subTest(path="docs/operations/troubleshooting.md", weakened=weakened):
+                self.assertNotIn(weakened, troubleshooting)
 
 
 if __name__ == "__main__":

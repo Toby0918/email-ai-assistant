@@ -40,7 +40,7 @@ source_type: operation_guide
 
 界面显示 `Rule fallback` 且分析响应 `ok=true` 时，公开分析仍然成功；不要把规则兜底误报为 API 失败。provider/account 诊断不会进入 `public API`、`SQLite` 或 `frontend`，只写入 operator-only 的 `outputs/local_debug_service.log`。
 
-每次模型尝试最多产生一个终态 `event=analysis_fallback`。只读取最新事件行:
+每个结束于规则兜底的模型尝试会产生恰好一条终态 allowlisted `event=analysis_fallback`。只读取最新事件行:
 
 ```powershell
 Get-Content outputs\local_debug_service.log -Tail 30 | Select-String 'event=analysis_'
