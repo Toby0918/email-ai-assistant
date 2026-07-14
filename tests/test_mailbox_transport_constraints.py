@@ -142,6 +142,81 @@ def _is_canonical_wrapper_client(value: ast.expr) -> bool:
     )
 
 
+def _parent_map(tree: ast.AST) -> dict[ast.AST, ast.AST]:
+    return {
+        child: parent
+        for parent in ast.walk(tree)
+        for child in ast.iter_child_nodes(parent)
+    }
+
+
+def _is_constructor_field_assignment(
+    node: ast.Attribute,
+    parents: dict[ast.AST, ast.AST],
+) -> bool:
+    parent = parents.get(node)
+    if isinstance(parent, ast.Assign):
+        if len(parent.targets) != 1 or parent.targets[0] is not node:
+            return False
+    elif isinstance(parent, ast.AnnAssign):
+        if parent.target is not node:
+            return False
+    else:
+        return False
+
+    current: ast.AST | None = parent
+    enclosing_function: ast.AST | None = None
+    enclosing_class: ast.ClassDef | None = None
+    while current is not None:
+        current = parents.get(current)
+        if enclosing_function is None and isinstance(
+            current,
+            (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda),
+        ):
+            enclosing_function = current
+            continue
+        if enclosing_function is not None and isinstance(current, ast.ClassDef):
+            enclosing_class = current
+            break
+    return (
+        isinstance(enclosing_function, ast.FunctionDef)
+        and enclosing_function.name == "__init__"
+        and enclosing_class is not None
+        and enclosing_class.name == "ReadOnlyImapSession"
+    )
+
+
+def _is_direct_allowlisted_client_call(
+    node: ast.Attribute,
+    parents: dict[ast.AST, ast.AST],
+) -> bool:
+    method_access = parents.get(node)
+    if (
+        not isinstance(method_access, ast.Attribute)
+        or method_access.value is not node
+        or method_access.attr.lower() not in WRAPPER_ONLY_IMAP_METHODS
+    ):
+        return False
+    call = parents.get(method_access)
+    return isinstance(call, ast.Call) and call.func is method_access
+
+
+def _canonical_client_access_violations(tree: ast.AST) -> list[str]:
+    parents = _parent_map(tree)
+    violations: list[str] = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Attribute) or not _is_canonical_wrapper_client(node):
+            continue
+        if _is_constructor_field_assignment(node, parents):
+            continue
+        if _is_direct_allowlisted_client_call(node, parents):
+            continue
+        violations.append(
+            f"line {node.lineno}: raw IMAP client escapes its allowlisted call boundary"
+        )
+    return violations
+
+
 def _is_literal_readonly_select(node: ast.Call) -> bool:
     if len(node.args) > 1:
         return False
@@ -166,7 +241,7 @@ def _imap_call_violations(
     *,
     is_wrapper: bool = True,
 ) -> list[str]:
-    violations: list[str] = []
+    violations = _canonical_client_access_violations(tree) if is_wrapper else []
     if not is_wrapper:
         for node in ast.walk(tree):
             if (
@@ -181,6 +256,12 @@ def _imap_call_violations(
         if not isinstance(node, ast.Call) or not isinstance(node.func, ast.Attribute):
             continue
         method = node.func.attr.lower()
+        if is_wrapper and _is_canonical_wrapper_client(node.func.value):
+            if method not in WRAPPER_ONLY_IMAP_METHODS:
+                violations.append(
+                    f"line {node.lineno}: raw IMAP method {method} is not allowlisted"
+                )
+                continue
         if is_wrapper and method in FORBIDDEN_IMAP_METHODS:
             violations.append(f"line {node.lineno}: forbidden IMAP method {method}")
             continue
@@ -368,6 +449,42 @@ class MailboxTransportConstraintTests(unittest.TestCase):
                 "self._imap_client.select('INBOX', True, readonly=True)",
                 True,
             ),
+            "canonical raw _command": (
+                "self._imap_client._command('EXPUNGE')",
+                True,
+            ),
+            "canonical raw xatom": (
+                "self._imap_client.xatom('IDLE')",
+                True,
+            ),
+            "canonical raw send": (
+                "self._imap_client.send(b'NOOP\\r\\n')",
+                True,
+            ),
+            "canonical raw capability": (
+                "self._imap_client.capability()",
+                True,
+            ),
+            "canonical direct FETCH": (
+                "self._imap_client.fetch('1', '(RFC822.SIZE)')",
+                True,
+            ),
+            "canonical direct SEARCH": (
+                "self._imap_client.search(None, 'ALL')",
+                True,
+            ),
+            "raw client assignment alias": (
+                "client = self._imap_client\nclient.send(b'NOOP\\r\\n')",
+                True,
+            ),
+            "raw client return": (
+                "def expose(self):\n    return self._imap_client",
+                True,
+            ),
+            "raw client argument": (
+                "consume(self._imap_client)",
+                True,
+            ),
             "dynamic FETCH selector": (
                 "self._imap_client.uid('FETCH', '1', selector)",
                 True,
@@ -418,6 +535,18 @@ class MailboxTransportConstraintTests(unittest.TestCase):
                         is_wrapper=True,
                     )
                 )
+
+        constructor_assignment = (
+            "class ReadOnlyImapSession:\n"
+            "    def __init__(self, client):\n"
+            "        self._imap_client = client"
+        )
+        self.assertFalse(
+            _source_transport_violations(
+                ast.parse(constructor_assignment),
+                is_wrapper=True,
+            )
+        )
 
         non_wrapper_samples = (
             "connection.close()",
