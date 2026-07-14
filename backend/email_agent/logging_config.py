@@ -41,19 +41,20 @@ class _FallbackEventFilter(logging.Filter):
         ):
             return False
         code, stage, provider, model, output_mode, detail, elapsed_ms = record.args
-        if type(detail) is not str or detail not in FALLBACK_DETAILS:
-            return False
-        if code != "envelope_invalid" and detail != "not_applicable":
-            return False
-        return (
+        if not (
             type(code) is str and code in FALLBACK_REASON_CODES
             and type(stage) is str and stage in FALLBACK_STAGES
             and type(provider) is str and provider in _CANONICAL_PROVIDERS
             and type(model) is str and model in _CANONICAL_MODELS
             and type(output_mode) is str
             and output_mode in _CANONICAL_OUTPUT_MODES
+            and type(detail) is str and detail in FALLBACK_DETAILS
             and type(elapsed_ms) is int and elapsed_ms >= 0
-        )
+        ):
+            return False
+        if code != "envelope_invalid" and detail != "not_applicable":
+            return False
+        return True
 
 
 def configure_logging(

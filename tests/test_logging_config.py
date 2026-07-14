@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import subprocess
 import sys
 import unittest
@@ -150,6 +151,38 @@ DEBUG_PRIVACY_SCRIPT = dedent(
 
 
 class LoggingConfigTests(unittest.TestCase):
+    def test_filter_rejects_hostile_code_subclass_before_pairing_comparison(
+        self,
+    ) -> None:
+        from backend.email_agent.logging_config import (
+            DIAGNOSTIC_LOGGER_NAME,
+            _FallbackEventFilter,
+        )
+
+        class HostileCode(str):
+            def __ne__(self, other: object) -> bool:
+                raise AssertionError("hostile code comparison executed")
+
+        record = logging.LogRecord(
+            DIAGNOSTIC_LOGGER_NAME,
+            logging.WARNING,
+            "synthetic.py",
+            1,
+            EVENT_TEMPLATE,
+            (
+                HostileCode("envelope_invalid"),
+                "envelope",
+                "deepseek",
+                "deepseek-v4-flash",
+                "model_led",
+                "analysis_shape",
+                123,
+            ),
+            None,
+        )
+
+        self.assertFalse(_FallbackEventFilter().filter(record))
+
     def test_debug_file_rejects_library_backend_and_direct_private_records(self) -> None:
         with TemporaryDirectory() as directory:
             path = Path(directory) / "nested" / "service.log"

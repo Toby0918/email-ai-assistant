@@ -190,8 +190,10 @@ of a fallback event.
 ## Acceptance Criteria
 
 1. Every fallback still emits exactly one canonical terminal event.
-2. `code=envelope_invalid` remains stable and includes one of the six specific
-   envelope details.
+2. `code=envelope_invalid` remains stable. A classified
+   `DeepSeekEnvelopeError` envelope failure includes one of the six specific
+   envelope details; an unexpected envelope-stage exception or invalid
+   caller-owned detail fails closed to `detail=not_applicable`.
 3. Every non-envelope fallback emits `detail=not_applicable`.
 4. No provider response, key, JSON key/path/value, prompt, email, attachment,
    raw exception, traceback, URL, path, or customer identifier is logged.

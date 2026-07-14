@@ -238,7 +238,10 @@ class DeepSeekAnalysisSchemaTests(unittest.TestCase):
 
         for raw in (top_level, nested):
             with self.subTest(raw=raw[:40]):
-                self.assert_invalid(lambda raw=raw: parse_deepseek_analysis_v1(raw))
+                self.assert_invalid(
+                    lambda raw=raw: parse_deepseek_analysis_v1(raw),
+                    detail="json_syntax",
+                )
 
     def test_parse_errors_are_generic_and_do_not_expose_raw_json(self) -> None:
         marker = "PRIVATE_RAW_JSON_MARKER"
@@ -256,7 +259,8 @@ class DeepSeekAnalysisSchemaTests(unittest.TestCase):
         oversized_integer = "9" * (digit_limit + 1)
 
         self.assert_invalid(
-            lambda: parse_deepseek_analysis_v1(oversized_integer)
+            lambda: parse_deepseek_analysis_v1(oversized_integer),
+            detail="json_syntax",
         )
 
     def test_envelope_requires_exact_top_level_keys_and_version(self) -> None:

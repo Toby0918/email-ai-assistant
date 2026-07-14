@@ -157,7 +157,9 @@ JSON paths, or exception text, so untrusted instructions cannot reach the log.
 ## 12. Acceptance Criteria
 
 1. `envelope_invalid` remains the terminal reason code.
-2. The same event contains one of the six fixed envelope details.
+2. A classified `DeepSeekEnvelopeError` envelope failure uses one of the six
+   fixed envelope details. An unexpected envelope-stage exception or invalid
+   caller-owned detail fails closed to `not_applicable`.
 3. Non-envelope fallbacks use `detail=not_applicable`.
 4. Exactly one event is written for every fallback attempt.
 5. Invalid caller-owned detail values fail closed without entering the log.
