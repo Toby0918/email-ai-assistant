@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Callable
 
 from .dpapi import DpapiProtector
+from .envelope_cleanup import revoke_vault_key_files
 from .envelope_io import (
     decode_bytes,
     encode_bytes,
@@ -50,34 +51,19 @@ def initialize_key_envelopes(
     rng: Callable[[int], bytes] = os.urandom,
     distinct_volume_check: Callable[[Path, Path], bool] | None = None,
     vault_id: str | None = None,
+    crash_hook: Callable[[str], None] | None = None,
 ) -> None:
-    vault = Path(vault_root)
-    recovery = Path(recovery_key_path)
-    _require_distinct_volume(vault, recovery, distinct_volume_check)
-    if recovery.exists():
-        raise VaultError("recovery_key_exists")
-    selected_vault_id = str(uuid.uuid4()) if vault_id is None else vault_id
-    _validate_vault_id(selected_vault_id)
-    keys = vault / KEYS_DIRECTORY
-    if any((keys / name).exists() for name in (DPAPI_ENVELOPE, RECOVERY_STATE)):
-        raise VaultError("key_envelopes_exist")
-    master = SecretBuffer(_random_exact(rng, 32))
-    recovery_kek = SecretBuffer(_random_exact(rng, 32))
-    try:
-        recovery_key_id = _write_recovery_key(recovery, recovery_kek)
-        protected = dpapi.protect(_master_payload(selected_vault_id, master))
-        _write_dpapi_envelope(keys, selected_vault_id, protected)
-        nonce = _random_exact(rng, 12)
-        _write_recovery_envelope(
-            keys, selected_vault_id, 1, recovery_key_id, recovery_kek, master, nonce
-        )
-        _write_state(
-            keys,
-            _stable_state(selected_vault_id, 1, recovery_key_id),
-        )
-    finally:
-        master.wipe()
-        recovery_kek.wipe()
+    from .key_initialization import initialize_key_envelopes as implementation
+
+    implementation(
+        vault_root,
+        recovery_key_path,
+        dpapi,
+        rng=rng,
+        distinct_volume_check=distinct_volume_check,
+        vault_id=vault_id,
+        crash_hook=crash_hook,
+    )
 
 
 def open_master_key(vault_root: Path, dpapi: DpapiProtector) -> SecretBuffer:
@@ -228,14 +214,7 @@ def _require_distinct_volume(
 def revoke_key_envelopes(vault_root: Path) -> None:
     """Remove vault-local usable envelopes, never the offline recovery medium."""
 
-    keys = Path(vault_root) / KEYS_DIRECTORY
-    try:
-        targets = [keys / DPAPI_ENVELOPE, keys / RECOVERY_STATE]
-        targets.extend(keys.glob("recovery.*.json"))
-        for path in targets:
-            path.unlink(missing_ok=True)
-    except OSError:
-        raise VaultError("revoke_incomplete") from None
+    revoke_vault_key_files(Path(vault_root) / KEYS_DIRECTORY)
 
 
 def rewrap_recovery_key(*args: object, **kwargs: object) -> None:

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import tempfile
 import unittest
+import sqlite3
+from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest import mock
@@ -242,6 +244,20 @@ class MailboxVaultTests(unittest.TestCase):
         self.assertEqual(report.delete_pending_count, 1)
         self.assertIsNotNone(self.index.get_record(missing_id))
         self.assertTrue(orphan.exists())
+
+    def test_verify_detects_index_dedup_hmac_tamper(self) -> None:
+        record_id = self._put()
+        with closing(sqlite3.connect(self.root / "vault-index.sqlite3")) as connection:
+            connection.execute(
+                "UPDATE records SET dedup_hmac=? WHERE record_id=?",
+                (b"X" * 32, record_id),
+            )
+            connection.commit()
+
+        report = self.vault.verify()
+
+        self.assertEqual(report.total_count, 1)
+        self.assertEqual(report.integrity_failure_count, 1)
 
     def test_delete_pending_survives_failure_and_reconciles_idempotently(self) -> None:
         record_id = self._put()

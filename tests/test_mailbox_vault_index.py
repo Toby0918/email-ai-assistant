@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import sqlite3
 import tempfile
 import unittest
@@ -10,7 +11,9 @@ from pathlib import Path
 from unittest import mock
 
 from backend.mailbox_ingest.errors import VaultError
-from backend.mailbox_ingest.models import VaultRecord
+from backend.mailbox_ingest.models import SecretBuffer, VaultRecord
+from backend.mailbox_ingest.vault import MailboxVault
+from backend.mailbox_ingest.vault_crypto import VaultCrypto
 from backend.mailbox_ingest.vault_index import (
     APPLICATION_ID,
     SCHEMA_VERSION,
@@ -66,7 +69,7 @@ class VaultIndexTests(unittest.TestCase):
         self.temporary.cleanup()
 
     def test_exact_schema_and_durable_local_pragmas(self) -> None:
-        with closing(sqlite3.connect(self.path)) as connection:
+        with closing(self.index._connect()) as connection:
             tables = {
                 row[0]
                 for row in connection.execute(
@@ -83,9 +86,7 @@ class VaultIndexTests(unittest.TestCase):
             application_id = connection.execute("PRAGMA application_id").fetchone()[0]
             user_version = connection.execute("PRAGMA user_version").fetchone()[0]
             journal_mode = connection.execute("PRAGMA journal_mode").fetchone()[0]
-            connection.execute("PRAGMA synchronous=FULL")
             synchronous = connection.execute("PRAGMA synchronous").fetchone()[0]
-            connection.execute("PRAGMA temp_store=MEMORY")
             temp_store = connection.execute("PRAGMA temp_store").fetchone()[0]
 
         self.assertEqual(tables, {"records", "vault_state"})
@@ -118,6 +119,21 @@ class VaultIndexTests(unittest.TestCase):
         self.assertEqual(caught.exception.code, "index_initialize_failed")
         self.assertNotIn(str(nested_path), repr(caught.exception))
 
+    def test_connect_closes_connection_when_pragma_setup_fails(self) -> None:
+        connection = mock.Mock()
+        connection.execute.side_effect = sqlite3.OperationalError(
+            "synthetic pragma failure"
+        )
+        with mock.patch(
+            "backend.mailbox_ingest.vault_index.sqlite3.connect",
+            return_value=connection,
+        ):
+            with self.assertRaises(VaultError) as caught:
+                self.index.list_records()
+
+        self.assertEqual(caught.exception.code, "index_read_failed")
+        connection.close.assert_called_once_with()
+
     def test_crud_round_trip_preserves_only_approved_metadata(self) -> None:
         record = _record()
 
@@ -135,14 +151,31 @@ class VaultIndexTests(unittest.TestCase):
 
     def test_plaintext_canary_never_appears_in_database_bytes(self) -> None:
         canary = b"SYNTHETIC-PLAINTEXT-CANARY"
-        record = _record()
-        self.index.add_record(record)
+        master = SecretBuffer(b"M" * 32)
+        crypto = VaultCrypto(
+            master,
+            vault_id=self.vault_id,
+            rng=lambda size: b"N" * size,
+            max_plaintext_size=1_024,
+        )
+        identifiers = iter(("1" * 32, "a" * 32))
+        vault = MailboxVault(
+            self.root,
+            vault_id=self.vault_id,
+            crypto=crypto,
+            index=self.index,
+            clock=lambda: 1_000,
+            random_identifier=lambda: next(identifiers),
+        )
+        try:
+            vault.put_record(canary, expires_at_utc=2_000)
+        finally:
+            crypto.close()
+            master.wipe()
 
-        database_bytes = self.path.read_bytes()
-
-        self.assertNotIn(canary, database_bytes)
-        self.assertNotIn(b"subject", database_bytes.lower())
-        self.assertNotIn(b"sender", database_bytes.lower())
+        for artifact in self.root.rglob("*"):
+            if artifact.is_file():
+                self.assertNotIn(canary, artifact.read_bytes())
 
     def test_invalid_metadata_and_path_traversal_fail_closed(self) -> None:
         invalid_records = (
@@ -168,6 +201,35 @@ class VaultIndexTests(unittest.TestCase):
                     self.index.add_record(record)
                 self.assertRegex(caught.exception.code, r"^[a-z0-9_]+$")
                 self.assertNotIn("outside", repr(caught.exception))
+
+    def test_reads_reject_corrupt_record_metadata_with_fixed_error(self) -> None:
+        record = _record()
+        self.index.add_record(record)
+        with closing(sqlite3.connect(self.path)) as connection:
+            connection.execute(
+                "UPDATE records SET expires_at_utc='malformed' WHERE record_id=?",
+                (record.record_id,),
+            )
+            connection.commit()
+
+        with self.assertRaisesRegex(VaultError, "invalid_record_metadata"):
+            self.index.get_record(record.record_id)
+        with self.assertRaisesRegex(VaultError, "invalid_record_metadata"):
+            self.index.list_records()
+
+    def test_reads_map_corrupt_row_shape_to_fixed_error(self) -> None:
+        record = _record()
+        self.index.add_record(record)
+        with closing(sqlite3.connect(self.path)) as connection:
+            connection.execute(
+                "ALTER TABLE records RENAME COLUMN expires_at_utc TO malformed"
+            )
+            connection.commit()
+
+        with self.assertRaises(Exception) as caught:
+            self.index.get_record(record.record_id)
+        self.assertIsInstance(caught.exception, VaultError)
+        self.assertEqual(caught.exception.code, "invalid_record_metadata")
 
     def test_duplicate_insert_rolls_back_without_corrupting_existing_row(self) -> None:
         original = _record()
@@ -221,6 +283,22 @@ class VaultIndexTests(unittest.TestCase):
         with second:
             self.assertTrue((self.root / ".mutation.lock").exists())
         self.assertFalse((self.root / ".mutation.lock").exists())
+
+    def test_mutation_lock_closes_descriptor_when_fsync_fails(self) -> None:
+        lock = VaultMutationLock(self.root / ".mutation.lock")
+        with (
+            mock.patch.object(os, "open", return_value=73),
+            mock.patch.object(os, "fsync", side_effect=OSError("synthetic fsync")),
+            mock.patch.object(os, "close") as close,
+            mock.patch.object(Path, "unlink") as unlink,
+        ):
+            with self.assertRaises(VaultError) as caught:
+                lock.__enter__()
+
+        self.assertEqual(caught.exception.code, "vault_busy")
+        close.assert_called_once_with(73)
+        unlink.assert_not_called()
+        self.assertIsNone(lock._descriptor)
 
 
 if __name__ == "__main__":

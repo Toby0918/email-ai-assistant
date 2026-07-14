@@ -48,6 +48,18 @@ class FakeDpapiBackend:
         return SecretBuffer(bytes(data[len(prefix) :][::-1]))
 
 
+class FailFirstProtectBackend(FakeDpapiBackend):
+    def __init__(self) -> None:
+        super().__init__()
+        self.failed = False
+
+    def protect(self, data: bytearray, flags: int) -> SecretBuffer:
+        if not self.failed:
+            self.failed = True
+            raise RuntimeError("synthetic transient DPAPI failure")
+        return super().protect(data, flags)
+
+
 class FakeNativeApi:
     def __init__(
         self,
@@ -240,6 +252,103 @@ class KeyEnvelopeTests(unittest.TestCase):
                 vault_id="11111111-2222-4333-8444-555555555555",
             )
 
+    def test_initialize_retries_safely_after_dpapi_protect_failure(self) -> None:
+        dpapi = DpapiProtector(backend=FailFirstProtectBackend())
+        with self.assertRaisesRegex(VaultError, "dpapi_protect_failed"):
+            initialize_key_envelopes(
+                self.vault,
+                self.old_recovery,
+                dpapi,
+                rng=SequenceRng([b"F" * 32, b"G" * 32]),
+                distinct_volume_check=self._distinct,
+                vault_id="11111111-2222-4333-8444-555555555555",
+            )
+
+        self.assertFalse(self.old_recovery.exists())
+        initialize_key_envelopes(
+            self.vault,
+            self.old_recovery,
+            dpapi,
+            rng=SequenceRng([self.master, self.recovery_kek, self.nonce]),
+            distinct_volume_check=self._distinct,
+            vault_id="11111111-2222-4333-8444-555555555555",
+        )
+
+        dpapi_master = open_master_key(self.vault, dpapi)
+        recovery_master = open_master_key_with_recovery(
+            self.vault, self.old_recovery
+        )
+        self.assertEqual(bytes(dpapi_master), self.master)
+        self.assertEqual(bytes(recovery_master), self.master)
+        dpapi_master.wipe()
+        recovery_master.wipe()
+
+    def test_initialize_resumes_bound_intent_after_recovery_key_publish(self) -> None:
+        def crash_after_key(state: str) -> None:
+            if state == "recovery_key_created":
+                raise RuntimeError("simulated initialization crash")
+
+        with self.assertRaises(Exception) as caught:
+            initialize_key_envelopes(
+                self.vault,
+                self.old_recovery,
+                self.dpapi,
+                rng=SequenceRng([self.master, self.recovery_kek, self.nonce]),
+                distinct_volume_check=self._distinct,
+                vault_id="11111111-2222-4333-8444-555555555555",
+                crash_hook=crash_after_key,
+            )
+        self.assertIsInstance(caught.exception, RuntimeError)
+        self.assertEqual(str(caught.exception), "simulated initialization crash")
+
+        intent_path = self.vault / "keys" / "initialization-state.json"
+        self.assertTrue(intent_path.exists())
+        self.assertTrue(self.old_recovery.exists())
+        self.assertFalse(
+            (self.vault / "keys" / "recovery-state.json").exists()
+        )
+        expected_recovery_bytes = self.old_recovery.read_bytes()
+        intent = json.loads(intent_path.read_text(encoding="utf-8"))
+        self.assertEqual(intent["vault_id"], "11111111-2222-4333-8444-555555555555")
+        self.assertEqual(intent["generation"], 1)
+        self.assertEqual(
+            intent["recovery_key_id"], expected_recovery_bytes[8:24].hex()
+        )
+
+        self.old_recovery.write_bytes(b"arbitrary preexisting key")
+        with self.assertRaisesRegex(VaultError, "recovery_key_invalid"):
+            initialize_key_envelopes(
+                self.vault,
+                self.old_recovery,
+                self.dpapi,
+                rng=SequenceRng([]),
+                distinct_volume_check=self._distinct,
+                vault_id="11111111-2222-4333-8444-555555555555",
+            )
+        self.assertEqual(
+            self.old_recovery.read_bytes(), b"arbitrary preexisting key"
+        )
+
+        self.old_recovery.write_bytes(expected_recovery_bytes)
+        initialize_key_envelopes(
+            self.vault,
+            self.old_recovery,
+            self.dpapi,
+            rng=SequenceRng([]),
+            distinct_volume_check=self._distinct,
+            vault_id="11111111-2222-4333-8444-555555555555",
+        )
+
+        dpapi_master = open_master_key(self.vault, self.dpapi)
+        recovery_master = open_master_key_with_recovery(
+            self.vault, self.old_recovery
+        )
+        self.assertEqual(bytes(dpapi_master), self.master)
+        self.assertEqual(bytes(recovery_master), self.master)
+        self.assertFalse(intent_path.exists())
+        dpapi_master.wipe()
+        recovery_master.wipe()
+
     def test_rewrap_refuses_a_preexisting_unstaged_recovery_key(self) -> None:
         self._initialize()
         self.new_recovery.write_bytes(b"preexisting-untrusted-material")
@@ -290,6 +399,34 @@ class KeyEnvelopeTests(unittest.TestCase):
             (self.vault / "keys" / "recovery-state.json").exists()
         )
         self.assertEqual(list((self.vault / "keys").glob("recovery.*.json")), [])
+
+    def test_revoke_removes_only_exact_active_and_hidden_stage_envelopes(self) -> None:
+        self._initialize()
+        keys = self.vault / "keys"
+        token = "a" * 32
+        residues = (
+            keys / f".dpapi.json.{token}.stage",
+            keys / f".recovery-state.json.{token}.stage",
+            keys / f".recovery.1.json.{token}.stage",
+        )
+        preserved = (
+            keys / ".dpapi.json.deadbeef.stage",
+            keys / f".recovery.0.json.{token}.stage",
+            keys / f".recovery.invalid.json.{token}.stage",
+            keys / "recovery.notes.json",
+            keys / f".unrelated.json.{token}.stage",
+        )
+        for path in (*residues, *preserved):
+            path.write_bytes(b"synthetic residue")
+
+        revoke_key_envelopes(self.vault)
+
+        self.assertTrue(self.old_recovery.exists())
+        self.assertTrue(all(not path.exists() for path in residues))
+        self.assertTrue(all(path.exists() for path in preserved))
+        self.assertFalse((keys / "dpapi.json").exists())
+        self.assertFalse((keys / "recovery-state.json").exists())
+        self.assertFalse((keys / "recovery.1.json").exists())
 
     def test_rewrap_is_crash_recoverable_at_each_durable_state(self) -> None:
         crash_states = ("staged", "verified", "activated")

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import calendar
+import hmac
 import secrets
 from datetime import datetime, timezone
 from pathlib import Path
@@ -216,7 +217,8 @@ class MailboxVault:
             if len(frame) != record.ciphertext_size:
                 return False
             plaintext = self._crypto.decrypt(record.record_id, frame)
-            return True
+            expected_hmac = self._crypto.dedup_hmac(plaintext)
+            return hmac.compare_digest(expected_hmac, record.dedup_hmac)
         except VaultError:
             return False
         finally:

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import re
 import sqlite3
 import uuid
@@ -11,6 +10,7 @@ from pathlib import Path
 
 from .errors import VaultError
 from .models import VaultRecord
+from .vault_lock import VaultMutationLock
 
 
 APPLICATION_ID = 0x4D42564C
@@ -28,42 +28,6 @@ _RECORD_COLUMNS = (
 _STATE_COLUMNS = ("singleton", "vault_id", "lifecycle_state")
 
 
-class VaultMutationLock:
-    """Fail closed when another mutation is in progress or left a stale lock."""
-
-    def __init__(self, path: Path) -> None:
-        self._path = Path(path)
-        self._descriptor: int | None = None
-
-    def __enter__(self) -> "VaultMutationLock":
-        if self._descriptor is not None:
-            raise VaultError("vault_busy")
-        try:
-            self._descriptor = os.open(
-                self._path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600
-            )
-            os.fsync(self._descriptor)
-        except FileExistsError:
-            raise VaultError("vault_busy") from None
-        except OSError:
-            raise VaultError("vault_busy") from None
-        return self
-
-    def __exit__(self, *_args: object) -> None:
-        descriptor, self._descriptor = self._descriptor, None
-        if descriptor is not None:
-            try:
-                os.close(descriptor)
-            finally:
-                try:
-                    self._path.unlink(missing_ok=True)
-                except OSError:
-                    pass
-
-    def __repr__(self) -> str:
-        return "VaultMutationLock(<redacted>)"
-
-
 class VaultIndex:
     def __init__(self, path: Path, *, vault_id: str) -> None:
         self._path = Path(path)
@@ -77,10 +41,17 @@ class VaultIndex:
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self._path, timeout=5, isolation_level=None)
-        connection.row_factory = sqlite3.Row
-        connection.execute("PRAGMA journal_mode=DELETE")
-        connection.execute("PRAGMA synchronous=FULL")
-        connection.execute("PRAGMA temp_store=MEMORY")
+        try:
+            connection.row_factory = sqlite3.Row
+            connection.execute("PRAGMA journal_mode=DELETE")
+            connection.execute("PRAGMA synchronous=FULL")
+            connection.execute("PRAGMA temp_store=MEMORY")
+        except sqlite3.Error:
+            try:
+                connection.close()
+            except sqlite3.Error:
+                pass
+            raise
         return connection
 
     def initialize(self) -> None:
@@ -271,7 +242,12 @@ def _validate_limit(limit: int) -> None:
 
 
 def _row_to_record(row: sqlite3.Row) -> VaultRecord:
-    return VaultRecord(**{column: row[column] for column in _RECORD_COLUMNS})
+    try:
+        record = VaultRecord(**{column: row[column] for column in _RECORD_COLUMNS})
+    except (IndexError, KeyError, TypeError):
+        raise VaultError("invalid_record_metadata") from None
+    _validate_record(record)
+    return record
 
 
 _CREATE_RECORDS = """
