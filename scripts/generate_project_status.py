@@ -56,6 +56,8 @@ KEY_FILES = [
     "docs/constraints/architecture_constraints.md",
     "docs/constraints/linter_constraints.md",
     "docs/constraints/mechanical_rule_translation.md",
+    "docs/decisions/0006-authorized-mailbox-ingest-and-private-knowledge.md",
+    "docs/operations/authorized_mailbox_ingest_task_brief.md",
     "docs/operations/project_status_log.md",
     "docs/operations/project_status_log_guide.md",
     "docs/operations/agents_project_status_snippet.md",
@@ -65,6 +67,10 @@ KEY_FILES = [
     "docs/operations/documentation_rules.md",
     "docs/operations/first_version_task_brief.md",
     "docs/operations/tencent_exmail_browser_extension_task_brief.md",
+    "docs/superpowers/plans/2026-07-14-authorized-mailbox-ingest-knowledge-deepseek.md",
+    "docs/superpowers/plans/2026-07-14-mailbox-vault.md",
+    "docs/superpowers/plans/2026-07-14-private-knowledge.md",
+    "docs/superpowers/plans/2026-07-14-private-deepseek-evaluation.md",
     "docs/templates/agent_task_brief_template.md",
     "docs/templates/cleanup_task_template.md",
     "scripts/repo_utils.py",
@@ -91,6 +97,7 @@ KEY_FILES = [
     "tests/test_architecture_constraints.py",
     "tests/test_static_linter_constraints.py",
     "tests/test_mechanical_rule_constraints.py",
+    "tests/test_mailbox_transport_constraints.py",
     "tests/test_maintenance_scan.py",
     "tests/test_generate_project_status.py",
     "tests/test_email_cleaner.py",
@@ -125,15 +132,28 @@ GUARDRAILS = [
     ("Cleanup automation", "docs/operations/cleanup_agent_codex.md"),
     ("Maintenance scan", "scripts/maintenance_scan.py"),
     ("Agent task brief", "docs/templates/agent_task_brief_template.md"),
+    (
+        "Authorized mailbox ingest boundary",
+        "docs/operations/authorized_mailbox_ingest_task_brief.md",
+    ),
 ]
 
+AUTHORIZED_PRIVATE_INGEST_FILES = {
+    "docs/operations/authorized_mailbox_ingest_task_brief.md",
+    "docs/decisions/0006-authorized-mailbox-ingest-and-private-knowledge.md",
+    "docs/superpowers/plans/2026-07-14-authorized-mailbox-ingest-knowledge-deepseek.md",
+    "docs/superpowers/plans/2026-07-14-mailbox-vault.md",
+    "docs/superpowers/plans/2026-07-14-private-knowledge.md",
+    "docs/superpowers/plans/2026-07-14-private-deepseek-evaluation.md",
+}
+
 HARD_BOUNDARIES = [
-    "不接入真实邮箱账号。",
-    "不读取真实邮箱数据。",
+    "浏览器扩展和正常运行时不接入真实邮箱账号；唯一例外是管理员手动运行的单账户只读导入 CLI。",
+    "浏览器扩展和正常运行时不读取真实邮箱数据；管理员 CLI 只处理授权范围并先确认 inventory fingerprint。",
     "不自动发送邮件。",
     "不自动删除邮件。",
     "不自动归档邮件。",
-    "不自动扫描所有邮件。",
+    "浏览器扩展和正常运行时不自动扫描所有邮件；管理员 CLI 没有 schedule、后台轮询或自动模型推理。",
     "不把 OpenAI API key 放入前端。",
     "不新增依赖，除非先更新约束文档并获得确认。",
     "不放宽任何测试、linter 或架构约束。",
@@ -194,6 +214,8 @@ def count_docs_by_status() -> dict[str, int]:
 
 def infer_stage(files: Sequence[FileStatus]) -> str:
     existing = {item.path for item in files if item.exists}
+    if AUTHORIZED_PRIVATE_INGEST_FILES.issubset(existing):
+        return "authorized_private_ingest_build"
     local_eval_files = {
         "tests/fixtures/sample_emails.json",
         "tests/test_golden_email_analysis.py",
@@ -249,7 +271,14 @@ def render_boundaries() -> str:
 
 
 def render_next_steps(stage: str) -> str:
-    if stage in {"agent_handoff_guardrails", "guardrails_setup"}:
+    if stage == "authorized_private_ingest_build":
+        steps = [
+            "Keep `EMAIL_AGENT_LLM_PROVIDER=disabled` during implementation and automated verification.",
+            "Implement later plan tasks with synthetic fakes and injected probes only.",
+            "Do not connect to a mailbox or run DeepSeek without a separate operator authorization after offline gates pass.",
+            "Preserve the click-only current-message browser extension and normal runtime boundary.",
+        ]
+    elif stage in {"agent_handoff_guardrails", "guardrails_setup"}:
         steps = [
             "创建 `backend/email_agent/` 最小骨架。",
             "先实现邮件清洗、AI JSON 校验和本地 API 的测试。",
@@ -308,7 +337,9 @@ source_type: operation_guide
 
 ## Project Summary
 
-本项目是企业邮箱中的 AI 辅助窗口。第一阶段只做“用户点击按钮后分析当前打开邮件”，不做全邮箱扫描、不自动发送邮件、不删除邮件、不归档邮件、不接入真实邮箱账号。
+本项目是企业邮箱中的 AI 辅助窗口。正常产品只做“用户点击按钮后分析当前打开邮件”，不做全邮箱扫描、不自动发送邮件、不删除邮件或归档邮件。
+
+Separately authorized exception: the `administrator-only CLI` may import one authorized account within a rolling 24-month window after explicit inventory fingerprint confirmation. The browser extension and normal runtime remain click-only and cannot scan a mailbox. The exception has no schedule, browser hook, normal-backend route, or automatic model call.
 
 ## Guardrails Established
 

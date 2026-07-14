@@ -1,5 +1,5 @@
 ﻿---
-last_update: 2026-07-02
+last_update: 2026-07-14
 status: draft
 owner: "@tobyWang"
 review_cycle: monthly
@@ -26,13 +26,31 @@ source_type: product_spec
 - 自动归档邮件。
 - 自动扫描整个邮箱。
 - 自动分析所有未读邮件。
-- 接入真实邮箱账号，除非后续单独确认。
+- 浏览器扩展、local debug page 或正常后端运行时接入真实邮箱账号、枚举邮箱或读取其他邮件。
 - 前端保存或暴露 OpenAI API key。
 - 前端直接调用 OpenAI API。
 - 代表用户承诺价格、交期、付款、合同或法律事项。
 - 在用户点击前收集邮件、附件或会话数据。
 - 读取其他邮件、文件夹或账户数据，或使用 OAuth、邮箱 SDK、后台轮询和全邮箱扫描。
 - 将附件二进制、私有下载 URL、cookie、token 或完整原始附件内容写入 SQLite、日志、文档、测试或仓库。
+
+## 单独授权的管理员导入范围
+
+唯一例外是管理员手动运行的 `scripts/manage_mailbox_vault.py`
+`administrator-only CLI`。它只可处理 `one authorized account`，使用固定
+`imap.exmail.qq.com:993` 和 TLS 证书校验，并把范围限制为
+`rolling 24-month window`。先运行 content-free inventory，再由管理员明确
+确认相同的 inventory fingerprint，才可读取有界内容。
+
+该流程无自动触发、无后台轮询、无定时任务、无浏览器或正常运行时入口。
+The browser extension remains click-only，仍只分析当前打开并可见的邮件及其
+可见受支持资源。扩展 permissions、host permissions、公开 API、public
+SQLite 和人工复核要求均不改变。
+
+管理员导入只允许只读 IMAP：`LIST`、`EXAMINE`、`UID SEARCH`、
+`UID FETCH` 和 `BODY.PEEK`。禁止 SMTP、flags 修改和任何邮箱写操作。
+导入快照只能进入项目外的外部加密 vault，不得自动进入 DeepSeek 或现有
+SQLite。
 
 ## 后续可评估
 
@@ -41,5 +59,6 @@ source_type: product_spec
 - Gmail / Google Workspace Add-on。
 - 团队级规则配置。
 - 人工确认后的草稿插入邮箱编辑器。
+- 在全部离线安全门通过后，由管理员单独运行授权 inventory/scan、知识审核和聚合评估；这不是浏览器产品功能。
 
 

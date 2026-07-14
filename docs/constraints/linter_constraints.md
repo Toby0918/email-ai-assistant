@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-13
+last_update: 2026-07-14
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -25,6 +25,7 @@ source_type: operation_guide
 - 项目中出现疑似真实密钥、token 或数据库文件。
 - `docs/` 下 Markdown 文件缺少 YAML front matter。
 - 架构边界被破坏，例如 `email_cleaner.py` 调用 OpenAI 或数据库。
+- 管理员 mailbox ingest 出现任意 IMAP passthrough、write/flag-mutation command、SMTP、非 PEEK body fetch，或被浏览器/正常 runtime 引用。
 
 ## 2. Linter 报错格式
 
@@ -231,12 +232,57 @@ source_type: operation_guide
 ---
 ```
 
-## 11. 对应测试文件
+## 11. Authorized mailbox transport policy
+
+静态约束必须把 isolated mailbox import 视为一个窄 allowlist，而不是一般邮箱
+SDK。Endpoint 固定为 `imap.exmail.qq.com:993`，且 there is no arbitrary IMAP command passthrough。唯一允许 import `backend.mailbox_ingest` 的外部文件是
+`scripts/manage_mailbox_vault.py`；frontend、backend/email_agent、其他 scripts、
+server、cleanup 和 scheduled workflow 都不得引用该 package。
+
+允许的 transport token：
+
+```text
+`LIST`
+`EXAMINE`
+`UID SEARCH`
+`UID FETCH`
+`BODY.PEEK`
+```
+
+禁止的 transport token/operation：
+
+```text
+`STORE`
+`APPEND`
+`COPY`
+`MOVE`
+`EXPUNGE`
+`CREATE`
+`DELETE`
+`RENAME`
+`SUBSCRIBE`
+`UNSUBSCRIBE`
+`SMTP`
+`BODY[]`
+```
+
+Mechanical test 必须拒绝 `smtplib`、SMTP client/send method、non-PEEK
+`BODY[]` 和 wrapper public interface 中不在 allowlist 的 method。它还必须证明
+浏览器 manifest 仍只有 `activeTab`/`sidePanel` 和既有两个 host permission，
+不得新增 mailbox/OAuth/background-enumeration permission。
+
+Windows DPAPI/BitLocker module 必须 lazy-load behind injected probes；静态和
+import tests 不得在 CI collection 时探测 host。Recovery rewrap code/documentation
+不得声称 cross-volume atomicity。
+
+## 12. 对应测试文件
 
 自定义静态检查实现文件：
 
 ```text
 tests/test_static_linter_constraints.py
+tests/test_architecture_constraints.py
+tests/test_mailbox_transport_constraints.py
 ```
 
 运行方式：
@@ -251,7 +297,7 @@ python -m unittest discover -s tests -p "test_static_linter_constraints.py"
 python -m unittest discover -s tests
 ```
 
-## 12. 修改规则
+## 13. 修改规则
 
 如果新增或修改 linter 规则，必须同步更新：
 

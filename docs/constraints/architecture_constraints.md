@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-13
+last_update: 2026-07-14
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -29,6 +29,13 @@ backend/
     database.py
     exporter.py
     api.py
+  mailbox_ingest/
+    drive_policy.py
+    key_envelopes.py
+    vault.py
+    imap_readonly.py
+    inventory.py
+    scan.py
 
 docs/
 tests/
@@ -53,6 +60,11 @@ infrastructure layer
 
 `infrastructure layer` 负责后端 AI 调用（后端 DeepSeek 专用 provider、OpenAI 占位能力或明确启用的本地 Ollama/Qwen/Gemma）、SQLite 存储、受限临时附件文件、Excel 导出、配置和日志。
 
+单独授权的 `mailbox ingest layer` 是项目外 vault 和管理员 CLI 的离线基础设施，
+不属于 frontend、loopback API 或正常 analysis runtime。它只处理一个授权账号、
+固定 IMAPS endpoint 和滚动 24 个日历月；没有 schedule、background poller、
+normal-runtime hook 或模型调用。
+
 ## 2. 允许依赖方向
 
 允许的核心依赖方向：
@@ -66,6 +78,7 @@ analyzer.py -> database.py
 exporter.py -> database.py
 llm_client.py -> config.py
 database.py -> config.py
+scripts/manage_mailbox_vault.py -> backend.mailbox_ingest
 ```
 
 禁止反向依赖：
@@ -83,7 +96,59 @@ frontend -> DeepSeek
 frontend -> Ollama/Qwen/Gemma/local model endpoint
 frontend -> .env
 frontend -> local SQLite database
+frontend -> backend.mailbox_ingest
+backend.email_agent -> backend.mailbox_ingest
+normal runtime -> backend.mailbox_ingest
+backend.mailbox_ingest -> backend.email_agent
+backend.mailbox_ingest -> DeepSeek/OpenAI/Ollama/local model endpoint
 ```
+
+Only `scripts/manage_mailbox_vault.py` may import `backend.mailbox_ingest`.
+其他 `scripts/*.py`、`frontend/`、`backend.email_agent`、local debug、server、
+cleanup 和 scheduled workflow 不得引用该 isolated package。Package 内部只能
+使用相对导入或自己的 namespace，不得反向依赖正常邮件 analyzer/provider。
+
+## Authorized mailbox transport policy
+
+Importer endpoint 固定为 `imap.exmail.qq.com:993` 并验证 TLS certificate。
+There is no arbitrary IMAP command passthrough。Public wrapper 只允许：
+
+```text
+`LIST`
+`EXAMINE`
+`UID SEARCH`
+`UID FETCH`
+`BODY.PEEK`
+```
+
+`EXAMINE` 必须保持 read-only；content fetch 只能是有界 `UID FETCH` 和
+`BODY.PEEK`。以下 operation/transport 不得出现在 wrapper public interface、
+CLI dispatch 或可执行调用路径：
+
+```text
+`STORE`
+`APPEND`
+`COPY`
+`MOVE`
+`EXPUNGE`
+`CREATE`
+`DELETE`
+`RENAME`
+`SUBSCRIBE`
+`UNSUBSCRIBE`
+`SMTP`
+`BODY[]`
+```
+
+`ReadOnlyImapSession` 只暴露 `list_folders`、`examine`、`uid_search`、
+`uid_fetch_size`、`uid_fetch_bodystructure` 和 `uid_fetch_peek`。不得暴露 raw
+client、arbitrary command、SMTP client、mailbox write、flag mutation 或 close
+that may expunge。连接无法证明 read-only 状态时 fail closed。
+
+Windows DPAPI/BitLocker dependency 只能在 vault policy call 内 lazy-load，并
+由 injected probe 替换，使非 Windows CI 可 import/collect tests。External vault
+index 保持 metadata-only。Recovery rewrap 使用 crash-recoverable staged
+activation/reconciliation；架构不得假设 cross-volume atomic replacement。
 
 ## 3. 模块职责约束
 
@@ -133,6 +198,9 @@ backend/email_agent/database.py 不得 import openai、llm_client、frontend。
 backend/email_agent/exporter.py 不得 import openai、llm_client、frontend。
 backend/email_agent/llm_client.py 不得 import frontend、database、exporter。
 backend/ 不得 import frontend。
+frontend、backend/email_agent 和除 scripts/manage_mailbox_vault.py 之外的脚本不得引用 backend.mailbox_ingest。
+mailbox ingest 不得 import analyzer、llm_client、provider client 或 frontend。
+mailbox ingest 和 CLI 不得 import smtplib、构造 SMTP client、发出 write IMAP command 或使用 BODY[]。
 docs/ 下 Markdown 文件必须包含 YAML front matter。
 项目中不得提交 .env、数据库文件、密钥文件或真实 token 文件。
 ```
@@ -145,6 +213,7 @@ docs/ 下 Markdown 文件必须包含 YAML front matter。
 
 ```text
 tests/test_architecture_constraints.py
+tests/test_mailbox_transport_constraints.py
 ```
 
 推荐运行方式：

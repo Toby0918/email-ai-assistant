@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-12
+last_update: 2026-07-14
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -63,10 +63,61 @@ AGENTS.md
 | python-docx | 1.2.0 | 后端提取受限 DOCX 段落和表格文本 | 不运行嵌入式活动内容 |
 | Pillow | 12.3.0 | 后端检查图片并为 OCR 准备输入 | 不在前端处理图片内容 |
 | pytesseract | 0.3.13 | 后端可选 OCR | Tesseract 缺失时仅降级 OCR，不能阻断规则兜底 |
+| cryptography | 49.0.0 | 仅用于单独授权的项目外 vault AES-256-GCM 和 Ed25519；Task 2 在依赖 RED 测试后加入精确 pin | 不用于普通邮件 runtime，不替代 BitLocker/DPAPI，不允许更高版本或其他 crypto package |
 
 本地 Ollama/Qwen/Gemma 属于后端运行环境能力，不是新增 Python 依赖。`EMAIL_AGENT_OLLAMA_MODEL` 默认是 `qwen3.6:latest`，可选择 `gemma4`；调用失败或输出无效时必须回落到本地规则分析器。`EMAIL_AGENT_OLLAMA_BASE_URL` 只能使用 `localhost` 或字面 loopback IP，不得包含 userinfo，不得指向远程 HTTP(S) 主机；远程 provider 需要单独架构批准和隐私评审。
 
 专用 DeepSeek provider 复用已固定版本的 OpenAI-compatible `openai==2.45.0` SDK，不新增 Python 依赖。禁止安装 third-party DeepSeek SDK，也禁止提供可配置的 arbitrary remote base URL；DeepSeek endpoint 必须由后端代码固定，密钥只允许通过后端 `DEEPSEEK_API_KEY` 提供。
+
+## Authorized mailbox transport policy
+
+单独授权的 mailbox ingest 只允许标准库 `imaplib`、`ssl`、`email`、
+`getpass`、`sqlite3`、`ctypes` 和 `hmac`。不引入第三方 IMAP SDK。只有
+`scripts/manage_mailbox_vault.py` 可导入 `backend.mailbox_ingest`；该 CLI 只可
+由管理员手动运行，处理一个授权账号、固定 `imap.exmail.qq.com:993` 和滚动
+24 个日历月。There is no arbitrary IMAP command passthrough。
+
+允许的 transport operation 只有：
+
+```text
+`LIST`
+`EXAMINE`
+`UID SEARCH`
+`UID FETCH`
+`BODY.PEEK`
+```
+
+`UID FETCH` 必须有界，并且 body section 必须使用 `BODY.PEEK`。禁止
+`BODY[]` 以及任何可能设置 `\\Seen` 或改变 flags 的形式。
+
+以下 operation 和 transport 在 isolated package、CLI 和所有 runtime code
+中一律禁止：
+
+```text
+`STORE`
+`APPEND`
+`COPY`
+`MOVE`
+`EXPUNGE`
+`CREATE`
+`DELETE`
+`RENAME`
+`SUBSCRIBE`
+`UNSUBSCRIBE`
+`SMTP`
+`BODY[]`
+```
+
+禁止 background polling、schedule、IDLE loop、任意 host/account/date range、
+任意 command argument、password flag/env/`.env` source 和 mailbox mutation。
+浏览器扩展、local debug、`backend.email_agent`、loopback API、cleanup agent
+及定时 workflow 不得导入或调用 mailbox ingest。
+
+Vault crypto 只可在 Task 2 dependency tests 先 RED 后加入精确
+`cryptography==49.0.0` pin。Windows DPAPI/BitLocker 设施必须 lazy-load 并通过
+injected probes 测试，使非 Windows CI import/collect 不访问 host。Recovery
+rewrap 必须使用 crash-recoverable staged activation/reconciliation，不得声称
+cross-volume atomicity。
 
 本地邮件分析 HTTP 服务沿用 Python 标准库 `ThreadingHTTPServer`，不得为 Host/Content-Type 门禁新增 HTTP 框架。服务 bind 只支持 `localhost` 或字面 IPv4 `127.0.0.0/8`；分析 POST 必须在读 body 前校验单一 loopback Host 和单一 JSON media type。
 
@@ -75,7 +126,7 @@ AGENTS.md
 1. 新增依赖前，必须先说明为什么现有工具不能满足需求。
 2. 新增依赖必须更新 `requirements.txt`、相关 docs 和测试。
 3. 不允许为单个小功能引入大型框架，除非已有明确架构决策记录。
-4. 不允许在没有批准的情况下引入 ORM、任务队列、后台调度器、浏览器自动化工具或真实邮箱 SDK。
+4. 不允许在没有批准的情况下引入 ORM、任务队列、后台调度器、浏览器自动化工具或真实邮箱 SDK；上述管理员例外只使用标准库 `imaplib`，不得引入第三方邮箱 SDK。
 5. 不允许混用多个功能重叠的包，例如同时引入多个 HTML parser、多个 Excel 库、多个 HTTP 框架。
 6. 不允许绕过版本锁定安装最新版依赖。
 
@@ -296,6 +347,10 @@ AI 草稿 → 自动发送
 真实邮件全文 → 日志
 真实邮件全文 → docs/
 真实密钥 → 前端
+frontend/normal runtime → backend.mailbox_ingest
+backend.email_agent → backend.mailbox_ingest
+mailbox ingest → SMTP or write IMAP command
+raw vault → Codex/DeepSeek/Git/log/public SQLite/docs/tests/status
 ```
 
 ## 9. AI 输出约束
@@ -459,7 +514,7 @@ Agent 每次开始任务前，必须确认：
 [ ] 已阅读本文件。
 [ ] 已阅读相关 docs/ 文件。
 [ ] 没有新增未批准依赖。
-[ ] 没有改变真实邮箱接入边界。
+[ ] 没有把单独授权的管理员导入例外扩展到浏览器、正常后端、调度器、第二账号、任意 host 或任意时间范围。
 [ ] 没有把密钥放进前端。
 [ ] 没有把真实邮件写入日志、docs、tests 或 outputs。
 [ ] 涉及 AI 输出时，已确认 JSON schema。

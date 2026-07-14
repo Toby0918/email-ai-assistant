@@ -79,6 +79,60 @@ def parse_import_roots(path: Path) -> set[str]:
 
 
 class ArchitectureConstraintTests(unittest.TestCase):
+    def test_mailbox_ingest_import_boundary_is_administrator_cli_only(self) -> None:
+        architecture = read_text(
+            ROOT / "docs" / "constraints" / "architecture_constraints.md"
+        )
+        required_contract = (
+            "Only `scripts/manage_mailbox_vault.py` may import "
+            "`backend.mailbox_ingest`."
+        )
+
+        self.assertIn(required_contract, architecture)
+        self.assertIn(
+            "scripts/manage_mailbox_vault.py -> backend.mailbox_ingest",
+            architecture,
+        )
+        self.assertIn("frontend -> backend.mailbox_ingest", architecture)
+        self.assertIn("backend.email_agent -> backend.mailbox_ingest", architecture)
+
+        allowed_importer = ROOT / "scripts" / "manage_mailbox_vault.py"
+        mailbox_package = ROOT / "backend" / "mailbox_ingest"
+        runtime_paths = [
+            path
+            for path in (ROOT / "backend").rglob("*.py")
+            if mailbox_package not in path.parents
+        ]
+        runtime_paths.extend(
+            path
+            for path in (ROOT / "scripts").glob("*.py")
+            if path != allowed_importer
+        )
+        frontend = ROOT / "frontend"
+        runtime_paths.extend(
+            path
+            for path in frontend.rglob("*")
+            if path.is_file() and is_text_file(path)
+        )
+        workflows = ROOT / ".github" / "workflows"
+        if workflows.exists():
+            runtime_paths.extend(
+                path
+                for path in workflows.rglob("*")
+                if path.is_file() and is_text_file(path)
+            )
+
+        importer_reference = re.compile(
+            r"\b(?:backend[./])?mailbox_ingest\b",
+            re.IGNORECASE,
+        )
+        for path in runtime_paths:
+            with self.subTest(path=path):
+                self.assertIsNone(
+                    importer_reference.search(read_text(path)),
+                    f"{path} must not reference the isolated mailbox importer",
+                )
+
     def test_frontend_provider_guard_covers_deepseek_direct_access(self) -> None:
         samples = {
             "DeepSeek API key": "const key = DEEPSEEK_API_KEY;",

@@ -54,7 +54,40 @@ class GenerateProjectStatusTests(unittest.TestCase):
         report = module.build_project_status()
 
         if (ROOT / "tests" / "fixtures" / "sample_emails.json").exists():
-            self.assertIn("| Current stage | local_eval_mvp |", report)
+            expected_stage = (
+                "authorized_private_ingest_build"
+                if (
+                    ROOT
+                    / "docs"
+                    / "operations"
+                    / "authorized_mailbox_ingest_task_brief.md"
+                ).exists()
+                else "local_eval_mvp"
+            )
+            self.assertIn(f"| Current stage | {expected_stage} |", report)
+
+    def test_authorized_ingest_stage_preserves_normal_runtime_boundary(self) -> None:
+        module = load_script_module(SCRIPT, "generate_project_status")
+        report = module.build_project_status()
+
+        self.assertIn("| Current stage | authorized_private_ingest_build |", report)
+        self.assertIn("administrator-only CLI", report)
+        self.assertIn("one authorized account", report)
+        self.assertIn("rolling 24-month window", report)
+        self.assertIn("browser extension and normal runtime remain click-only", report)
+        self.assertIn("cannot scan a mailbox", report)
+
+    def test_authorized_ingest_guardrails_and_next_steps_are_reported(self) -> None:
+        module = load_script_module(SCRIPT, "generate_project_status")
+        report = module.build_project_status()
+
+        self.assertIn("Authorized mailbox ingest boundary", report)
+        self.assertIn("`docs/operations/authorized_mailbox_ingest_task_brief.md`", report)
+        self.assertIn("`docs/decisions/0006-authorized-mailbox-ingest-and-private-knowledge.md`", report)
+        self.assertIn("`tests/test_mailbox_transport_constraints.py`", report)
+        self.assertIn("Keep `EMAIL_AGENT_LLM_PROVIDER=disabled`", report)
+        self.assertIn("synthetic fakes and injected probes only", report)
+        self.assertIn("Do not connect to a mailbox or run DeepSeek", report)
 
     def test_status_log_uses_stable_head_reference(self) -> None:
         module = load_script_module(SCRIPT, "generate_project_status")
@@ -68,6 +101,16 @@ class GenerateProjectStatusTests(unittest.TestCase):
     def test_local_eval_next_steps_reflect_first_phase_closeout(self) -> None:
         module = load_script_module(SCRIPT, "generate_project_status")
         report = module.build_project_status()
+
+        if (
+            ROOT
+            / "docs"
+            / "operations"
+            / "authorized_mailbox_ingest_task_brief.md"
+        ).exists():
+            self.assertIn("Keep `EMAIL_AGENT_LLM_PROVIDER=disabled`", report)
+            self.assertIn("synthetic fakes and injected probes only", report)
+            return
 
         self.assertIn("运行完整测试和维护扫描", report)
         self.assertIn("用虚构样例手动试用本地调试页面", report)

@@ -57,12 +57,17 @@ source_type: product_spec
 - 已形成可重复执行的 release checklist、rollback 步骤和 staged-snapshot 检查。
 - 继续禁止自动发送、删除、归档、移动、转发或回复邮件。
 
-## 阶段 3：受控邮箱集成
+## 阶段 3：单独授权的私有导入构建
 
-- 在单独确认后接入测试邮箱或企业沙箱账号。
-- 验证当前邮件识别能力。
-- 加入最小权限授权。
-- 审计日志和隐私处理规则。
+- 当前状态标识为 `authorized_private_ingest_build`；先建立治理、静态约束和离线测试，再实现任何 live operation。
+- 仅允许管理员手动运行 `scripts/manage_mailbox_vault.py`，处理一个授权账号、固定 `imap.exmail.qq.com:993` 和滚动 24 个日历月。
+- inventory 先输出 content-free fingerprint；scan 必须显式确认同一 fingerprint。
+- 原始分析快照使用项目外的 NTFS BitLocker vault、逐记录 AES-256-GCM、当前用户 DPAPI envelope 和分离的 offline recovery envelope。
+- 建立私有知识候选、业务/隐私/额外 accountable-owner 审核、30 天候选过期和季度复核。
+- 建立本地去标识门和 aggregate-only DeepSeek 评估；任何 20-case gate 失败都停止后续调用，不重试。
+- 加入 `revoke` 和 crash-recoverable `rewrap-recovery`，但不声称跨卷原子性或 SSD 物理安全擦除。
+- 全部自动化只使用 synthetic fakes；live mailbox、vault material 和 DeepSeek 调用仍需管理员再次单独确认。
+- 浏览器扩展继续只允许用户点击后分析当前打开邮件，不获得全邮箱扫描或管理员导入能力。
 
 ## 阶段 4：团队协作能力
 

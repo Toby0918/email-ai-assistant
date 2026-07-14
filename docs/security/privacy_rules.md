@@ -10,10 +10,23 @@ source_type: security_policy
 
 ## 第一阶段原则
 
-- 不接入真实邮箱账号，除非后续单独确认。
-- 不读取真实邮箱数据。
+- 浏览器扩展、local debug page 和正常后端运行时不接入或枚举真实邮箱账号。
+- 浏览器扩展和正常运行时不读取当前可见范围之外的真实邮箱数据。
 - 测试邮件必须使用虚构或脱敏内容。
 - 不提交真实邮件、数据库文件、日志中的敏感内容。
+
+## 单独授权的管理员例外
+
+唯一例外是 `scripts/manage_mailbox_vault.py` `administrator-only CLI`，只处理
+`one authorized account`、固定 Tencent Exmail IMAPS endpoint 和滚动 24 个
+日历月。每次内容读取前必须验证 non-sensitive authorization ID，并由管理员
+确认 content-free inventory fingerprint。
+
+该例外保持 `no scheduled job` 和 `no browser or normal-runtime integration`。
+它不授权 extension、local debug、loopback API、cleanup agent、Codex 或
+automated tests 读取邮箱；也不授权 SMTP、flags mutation 或任何邮箱写操作。
+app password 只可 interactive 输入，不得通过 CLI argument、environment、
+`.env`、log、exception 或 storage 传递。
 
 ## 数据最小化
 
@@ -23,6 +36,9 @@ source_type: security_policy
 - 不采集与分析无关的个人信息。
 - 可选本地 Ollama/Qwen 只允许在后端处理当前邮件内容；不得把模型端点暴露给前端。
 - DeepSeek 外部处理只允许在用户点击后由后端发送当前可见线程和有界、清洗后的受支持附件文本；必须保留 persistent pre-click disclosure，并明确 no zero-retention guarantee。完整边界见 `docs/security/email_data_handling.md`。
+- 管理员导入的 raw snapshot 只可存于项目外的加密 vault；Codex、DeepSeek、Git、public SQLite、日志、tests、docs、status 和 maintenance report 都不得读取或保存 raw/identifying content。
+- 私有知识必须本地去标识、达到 3-conversation/2-counterparty threshold，并经过 business/privacy approval；高风险规则还需 accountable-owner approval。只有 approved、current、signed snapshot 中的 generic cards 可进入 runtime。
+- DeepSeek 只接收 locally deidentified current visible content 和有界 approved cards；任何 residual、placeholder、reidentification、unsafe commitment、invalid schema 或 unsupported fact 都回落规则结果。
 
 ## 展示规则
 

@@ -12,6 +12,25 @@ source_type: security_policy
 
 系统只处理用户当前打开并点击分析的邮件。输入字段包括主题、发件人、收件人、抄送、时间、正文和可选测试上下文。第二阶段可在同一次点击中接收当前邮件页面可见的受支持资源；不得读取其他邮件、文件夹或账户数据。
 
+## 单独授权的管理员导入例外
+
+正常浏览器/loopback 运行时的上述输入边界不变。唯一例外是管理员手动运行
+`scripts/manage_mailbox_vault.py`：一个书面授权范围内的账号、固定
+`imap.exmail.qq.com:993`、TLS 证书校验、滚动 24 个日历月、无 schedule、
+无后台轮询、无浏览器或正常后端入口。
+
+内容读取采用两阶段门禁。`inventory` 只生成 aggregate count/size、opaque
+folder ID、UIDVALIDITY、date window 和 content-free `inventory fingerprint`；
+`scan` 必须收到相同的 `--confirm-inventory-fingerprint`。范围、账号、授权编号、
+fingerprint、UIDVALIDITY 或 validated IMAP `INTERNALDATE` 不符合时，必须在
+进一步读取前 fail closed。24 个月按 `INTERNALDATE` 的日历月计算，不使用
+730 天，也不从 ingest time 延长保留期。
+
+传输只允许 `LIST`、只读 `EXAMINE`、`UID SEARCH`、有界 `UID FETCH` 和
+`BODY.PEEK`；禁止 SMTP、flags 修改、`BODY[]` 和任何写/移动/删除/expunge/
+folder/subscription 操作。app password 只能在本地政策检查后通过 interactive
+`getpass` 获取，不能来自参数、环境变量、`.env`、日志、持久化或诊断信息。
+
 渲染和复制前的 stale revalidation 必须重算与初始分析一致的 canonical complete analyzed scope：基础邮件、完整可见线程、附件元数据、受支持附件内容 identity 和 resource limitations。它只返回 hash，不返回原始内容；任一子范围变化都使现有分析失效。
 
 本地分析服务只绑定 `localhost` 或字面 IPv4 `127.0.0.0/8`。分析请求必须同时通过单一 loopback `Host`（可带匹配的实际端口）和单一 `application/json`/可选 `charset=utf-8` 门禁；拒绝 DNS alias、userinfo、通配/LAN/公网 Host、重复/逗号拼接 header 和 simple `text/plain`/form media type。门禁拒绝发生在 body 读取、分析和持久化之前；Content-Type 只能描述为 CSRF 减缓，必须与 Host 校验共同使用。
@@ -35,12 +54,44 @@ source_type: security_policy
 - 模型路线构造的 ephemeral sanitized attachment context 只在当前请求内存中存在。它 is excluded from API responses, SQLite, and logs，也不得写入调试输出、文档、测试 snapshot 或仓库 fixture；公开响应和 SQLite 只保留安全投影后的 `attachment_insights`。
 - SQLite 保存只有在 commit 成功后才算成功。失败返回 `PERSISTENCE_FAILED`，不返回部分分析；rollback failure 时关闭并 quarantined 该连接。如果 commit、rollback、close 全部失败，服务器在锁内 poison/detach 共享句柄，任何后续请求都不得复用它。
 
+### 管理员导入 vault
+
+- Raw import 使用项目、OneDrive 和 system temp 之外的 `external BitLocker`
+  NTFS volume；它是 analytical snapshot，不是 legal archive 或完整 backup。
+- 每个 raw record 使用独立随机 nonce 的 AES-256-GCM；index 只允许 random
+  record ID、encrypted relative path、HMAC dedup value、timestamp、expiry 和
+  integrity metadata，不允许明文 subject/address/folder/body/attachment name/
+  message ID/UID。
+- Master key 同时有 current-user `DPAPI` envelope 和不同 volume 上的 offline
+  recovery envelope。Recovery rewrap 使用 crash-recoverable staged
+  activation/reconciliation，不声称 cross-volume atomicity；`revoke` 需要管理员
+  明确确认。
+- Windows DPAPI/BitLocker probe 必须 lazy-load 且可注入，使非 Windows CI 可以
+  import/collect synthetic tests，而不探测 host。
+- Plaintext 只能短暂存在于内存或 unlocked vault volume 上的受限临时目录；
+  处理后删除，但不声称 SSD/flash physical secure erase。
+- Codex and DeepSeek never read the raw vault。Git、logs、public SQLite、tests、
+  docs、project status 和 maintenance output 都不得保存 raw 或 real-derived text。
+
+### 私有知识与 runtime snapshot
+
+- Knowledge card 只允许 generic rule，禁止 people/company/domain/contact/URL/
+  filename/path/message ID/hash/verbatim/exact amount/exact date/transaction ID/
+  source locator。
+- 默认批准至少需要 3 个独立 conversation、2 个 counterparty、business
+  approval 和 privacy approval；价格、付款、合同、质量、法律规则还需要额外
+  accountable-owner approval。Candidate 30 天过期，approved card 按季度复查。
+- Authority repository 和 runtime snapshot 使用与 raw vault 分离的 key 和
+  namespace。Runtime 只读验证 signature/encryption/lifecycle；missing/invalid/
+  expired/tampered snapshot 返回 empty card set。
+
 ## AI 处理
 
 - 邮件正文只能从当前打开邮件、用户点击分析后进入后端。
 - 默认 `EMAIL_AGENT_LLM_PROVIDER=disabled`，DeepSeek 输出模式默认 `conservative`。只有后端同时配置 `EMAIL_AGENT_LLM_PROVIDER=deepseek` 和 `EMAIL_AGENT_DEEPSEEK_OUTPUT_MODE=model_led` 时，DeepSeek 才可主导模型字段；provider disabled、缺 key、迟到、失败或输出不安全时回落规则结果。
 - DeepSeek 路线最多进行一次 provider call，SDK retry 为 0；失败后不尝试 Ollama。立即 operational rollback 可设置 `EMAIL_AGENT_LLM_PROVIDER=disabled`，字段权限 rollback 可设置 `EMAIL_AGENT_DEEPSEEK_OUTPUT_MODE=conservative`，两者都需重启后端配置生效。
 - 后端只发送 current visible thread 以及当前可见受支持附件的有界、清洗后文本；不发送附件二进制/base64、任何 URL、cookie、authorization、token、本地路径、active content 或无界原文。
+- 私有知识路线启用后，DeepSeek 也只能接收本地去标识后的 current visible thread、去标识后的受支持附件文本和最多 8 张、合计最多 4,000 characters 的 approved cards；不得接收 raw vault、binary、path、URL、source locator、vault ID 或 restoration map。
 - 所有 provider-authored 文本族在公开合并前使用同一安全策略；链接/markup、命令/工具、自动邮箱动作，以及第一人称或被动/名词化的价格、交期、付款、合同、质量、法律承诺都必须回落。请求、疑问、否定和人工复核措辞不应误报。
 - 前端不得直接调用 DeepSeek、OpenAI、Ollama、Qwen 或其他模型端点。
 - 前端不得在用户点击前收集或传输资源；受支持资源的校验、解析和 OCR 仅可在后端执行。
@@ -58,6 +109,6 @@ Official sources rechecked 2026-07-12：
 
 ## 删除
 
-系统不得删除邮箱中的任何邮件。后端只能清理已过期的本地临时附件文件，且不得删除源邮件或对邮箱执行任何操作。
+系统不得删除邮箱中的任何邮件。后端只能清理已过期的本地临时附件文件；管理员 CLI 可按保留政策清理项目外 vault 中已过期的 encrypted record，或在明确确认后 revoke key envelopes，但不得删除、移动、修改源邮件或邮箱 flags。
 
 

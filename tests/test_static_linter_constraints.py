@@ -7,6 +7,7 @@ Run:
 from __future__ import annotations
 
 import ast
+import json
 import re
 import unittest
 from pathlib import Path
@@ -97,6 +98,53 @@ class PrintCallVisitor(ast.NodeVisitor):
 
 
 class StaticLinterConstraintTests(unittest.TestCase):
+    def test_authorized_mailbox_exception_is_narrowly_documented(self) -> None:
+        governance_markers = {
+            ROOT / "AGENTS.md": (
+                "administrator-only CLI",
+                "one authorized account",
+                "rolling 24-month window",
+                "no scheduled job",
+                "scripts/manage_mailbox_vault.py",
+            ),
+            ROOT / "docs" / "product" / "feature_scope.md": (
+                "administrator-only CLI",
+                "one authorized account",
+                "rolling 24-month window",
+                "browser extension remains click-only",
+            ),
+            ROOT / "docs" / "security" / "email_data_handling.md": (
+                "inventory fingerprint",
+                "external BitLocker",
+                "DPAPI",
+                "Codex and DeepSeek never read the raw vault",
+            ),
+            ROOT / "docs" / "security" / "privacy_rules.md": (
+                "one authorized account",
+                "no scheduled job",
+                "no browser or normal-runtime integration",
+                "administrator-only CLI",
+            ),
+        }
+
+        for path, markers in governance_markers.items():
+            text = read_text(path)
+            for marker in markers:
+                with self.subTest(path=path, marker=marker):
+                    self.assertIn(marker, text)
+
+    def test_browser_extension_permissions_remain_current_message_only(self) -> None:
+        manifest = json.loads(
+            read_text(ROOT / "frontend" / "browser_extension" / "manifest.json")
+        )
+
+        self.assertEqual(set(manifest["permissions"]), {"activeTab", "sidePanel"})
+        self.assertEqual(
+            set(manifest["host_permissions"]),
+            {"https://exmail.qq.com/*", "http://127.0.0.1:8765/*"},
+        )
+        self.assertIn("currently opened Tencent Exmail message", manifest["description"])
+
     def test_analysis_diagnostic_calls_use_only_safe_keywords(self) -> None:
         path = ROOT / "backend" / "email_agent" / "analysis_model_routes.py"
         tree = ast.parse(read_text(path))
