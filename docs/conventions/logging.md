@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-13
+last_update: 2026-07-14
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -142,8 +142,22 @@ token
 Rule fallback remains a successful public analysis response. 每个结束于规则兜底的模型尝试只写 `exactly one terminal allowlisted event`：
 
 ```text
-event=analysis_fallback code=<allowlisted code> stage=<allowlisted stage> provider=<allowlisted provider> model=<allowlisted model> output_mode=<allowlisted mode> elapsed_ms=<non-negative integer>
+event=analysis_fallback code=<allowlisted code> stage=<allowlisted stage> provider=<allowlisted provider> model=<allowlisted model> output_mode=<allowlisted mode> detail=<allowlisted detail> elapsed_ms=<non-negative integer>
 ```
+
+`detail` allowlist 固定为:
+
+```text
+not_applicable
+json_syntax
+top_level_shape
+schema_version
+analysis_shape
+attachment_shape
+field_evidence_shape
+```
+
+每个非 envelope fallback 都使用 `not_applicable`。这是 operator-only 日志字段，不会添加到 `public API` 或 `SQLite`。不得包含 provider output、JSON keys、paths、values 或 exception text，也不得用于重建这些内容。未知 detail、字符串子类和与 reason code 不匹配的 envelope detail 都 fail closed to `not_applicable`。
 
 初始 allowlisted reason codes 为:
 
@@ -170,7 +184,7 @@ public_language_invalid
 unexpected_analysis_error
 ```
 
-诊断是本地运行信息，不得进入 `public API`、`SQLite` 或 `frontend`。日志函数只接收上面的固定枚举和非负耗时，不能接收请求、邮件、线程、附件、Prompt、provider response、异常对象、URL、路径或客户字段。
+诊断是本地运行信息，不得进入 `public API`、`SQLite` 或 `frontend`。日志函数只接收上面的固定枚举、allowlisted detail 和非负耗时，不能接收请求、邮件、线程、附件、Prompt、provider response、异常对象、URL、路径或客户字段。
 
 Writing handler 只接受 exact fallback-event template 和 exact built-in allowlisted arguments；它拒绝 OpenAI, HTTPX, HTTP core、任意 backend/application logger、child logger、direct free-form diagnostic record、非 WARNING record、字符串子类、`bool`、exception 和 stack information。因此一般服务 level 配置为 DEBUG, INFO, WARNING, ERROR, CRITICAL, or an invalid level 时，每个真实 fallback 仍恰好写一条 canonical event；accepted model output 写零条 fallback event。
 

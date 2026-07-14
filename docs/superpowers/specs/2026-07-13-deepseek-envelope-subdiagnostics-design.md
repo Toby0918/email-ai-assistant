@@ -21,6 +21,13 @@ request completed in `10,187 ms` and produced
 response, JSON keys, field values, exception text, prompt, email, attachment,
 API key, URL, path, or customer information.
 
+## Approval And Implementation Status
+
+The user approved this design on 2026-07-14. Runtime Tasks 1-3 and the Task 4
+operator documentation contract are implemented. Task 5 final offline
+verification and Task 6 synthetic live verification remain pending, so this
+document does not record the change as verified.
+
 ## Evidence And Root-Cause Boundary
 
 The live diagnostic proves that the configured DeepSeek request passed the
@@ -81,6 +88,12 @@ analysis_shape
 attachment_shape
 field_evidence_shape
 ```
+
+The detail allowlist is not_applicable, json_syntax, top_level_shape,
+schema_version, analysis_shape, attachment_shape, and field_evidence_shape.
+Every non-envelope fallback uses not_applicable. This operator-only log field
+is not added to the public API or SQLite, and it must never contain or be used
+to reconstruct provider output, JSON keys, paths, values, or exception text.
 
 Meanings:
 

@@ -23,7 +23,7 @@ fix | security | test | docs
 ## 3. Current Status
 
 ```text
-approved
+implementation in progress
 ```
 
 ## 4. Goal
@@ -72,6 +72,10 @@ Expected modifications:
 - focused parser, route, logging, static, and documentation tests
 - `docs/conventions/logging.md`
 - `docs/operations/troubleshooting.md`
+- `docs/operations/deployment_notes.md`
+- `docs/api/backend_api_contract.md`
+- `docs/superpowers/specs/2026-07-13-deepseek-envelope-subdiagnostics-design.md`
+- `docs/superpowers/plans/2026-07-14-deepseek-envelope-subdiagnostics.md`
 - this task brief and project status log
 
 No frontend, database, provider client, prompt, model context, attachment parser,
@@ -118,6 +122,18 @@ None.
 ```text
 The operator-only analysis_fallback event gains one fixed allowlisted detail field.
 ```
+
+The canonical internal event is:
+
+```text
+event=analysis_fallback code=<allowlisted code> stage=<allowlisted stage> provider=<allowlisted provider> model=<allowlisted model> output_mode=<allowlisted mode> detail=<allowlisted detail> elapsed_ms=<non-negative integer>
+```
+
+The detail allowlist is not_applicable, json_syntax, top_level_shape,
+schema_version, analysis_shape, attachment_shape, and field_evidence_shape.
+Every non-envelope fallback uses not_applicable. This operator-only log field
+is not added to the public API or SQLite, and it must never contain or be used
+to reconstruct provider output, JSON keys, paths, values, or exception text.
 
 ## 10. Security And Privacy Check
 
@@ -188,15 +204,23 @@ set `EMAIL_AGENT_LLM_PROVIDER=disabled` and restart the service.
 
 ## 17. Execution Record
 
+Implementation state:
+
+- The approved runtime Tasks 1-3 are implemented and committed.
+- The Task 4 operator/API/design/task/plan contract synchronization is
+  implemented without changing runtime code.
+- Task 5 final offline verification and Task 6 synthetic live verification
+  remain pending; this record does not mark the change verified.
+
 ```text
 Actual modified files:
-- Pending implementation.
+- Pending the final Task 5 execution record.
 
 Test results:
-- Pending implementation.
+- Pending final offline verification.
 
 Unfinished items:
-- Implementation and offline verification.
+- Final offline verification and project status generation.
 - One authorized synthetic live diagnostic.
 
 Follow-up recommendation:

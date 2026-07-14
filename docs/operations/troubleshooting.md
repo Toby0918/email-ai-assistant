@@ -1,5 +1,5 @@
 ﻿---
-last_update: 2026-07-13
+last_update: 2026-07-14
 status: draft
 owner: "@tobyWang"
 review_cycle: monthly
@@ -42,7 +42,7 @@ source_type: operation_guide
 
 该文件由 `backend.email_agent.analysis_diagnostics` 的专用 diagnostic sink 写入，不挂到 root logger。diagnostic logger 使用 `propagate=False` 和独立的固定 `WARNING` 门槛；所以一般服务 level 是 DEBUG、INFO、WARNING、ERROR、CRITICAL 或无效 level 时，canonical fallback 都不会被抑制。handler 只接受精确固定模板和 built-in allowlisted 参数，并拒绝 OpenAI、HTTPX、HTTP core、任意 backend logger 以及 direct free-form diagnostic records。
 
-每个结束于规则兜底的模型尝试会产生恰好一条终态 allowlisted `event=analysis_fallback`。只读取最新事件行:
+每个结束于规则兜底的模型尝试会产生恰好一条终态 allowlisted `event=analysis_fallback`，并包含固定 `detail=<allowlisted detail>`。只读取最新事件行:
 
 ```powershell
 Get-Content outputs\local_debug_service.log -Tail 30 | Select-String 'event=analysis_'
@@ -56,6 +56,19 @@ Get-Content outputs\local_debug_service.log -Tail 30 | Select-String 'event=anal
 - `envelope_invalid`: provider 返回未通过内部 envelope 解析；不要记录 provider output。
 - `evidence_invalid`: provider 字段缺少允许来源或 grounding；保持规则结果。
 - `safety_rejected_all`: 所有模型字段在安全合并中被拒绝；保持规则结果和人工审核边界。
+
+`code=envelope_invalid` 的固定 detail 只指向下一个粗粒度排查区域:
+
+```text
+json_syntax -> JSON decoding or duplicate-key rejection
+top_level_shape -> exact top-level object/key-set validation
+schema_version -> fixed private-envelope version validation
+analysis_shape -> nested analysis field/type/enum validation
+attachment_shape -> attachment augmentation validation
+field_evidence_shape -> field-evidence map/list validation
+```
+
+detail allowlist 是 `not_applicable`、`json_syntax`、`top_level_shape`、`schema_version`、`analysis_shape`、`attachment_shape` 和 `field_evidence_shape`。每个非 envelope fallback 都使用 `not_applicable`。这是 operator-only 日志字段，不会添加到 `public API` 或 `SQLite`。不得包含 provider output、JSON keys、paths、values 或 exception text，也不得用于重建这些内容。该 detail 只能缩小内部验证边界，不能还原 provider 内容。
 
 其他 reason code 及完整 allowlist 见 `docs/conventions/logging.md`。日志只允许固定事件字段；不得粘贴或扩展为原始 provider 错误、响应、邮件、线程、附件、URL、路径或客户信息。自动测试不会调用 DeepSeek；需要 provider 用量的合成 Analyze 操作只能由用户在完成部署后单独触发。
 

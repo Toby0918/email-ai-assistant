@@ -1,5 +1,5 @@
 ﻿---
-last_update: 2026-07-12
+last_update: 2026-07-14
 status: draft
 owner: "@tobyWang"
 review_cycle: monthly
@@ -41,8 +41,10 @@ source_type: operation_guide
 
 ## Backend-only fallback diagnostics
 
-- 模型尝试结束于规则兜底时，后端在本地日志写入 `exactly one terminal allowlisted event`，事件名为 `analysis_fallback`。它只包含固定 reason/stage/provider/model/output-mode 值和非负 `elapsed_ms`。
+- 模型尝试结束于规则兜底时，后端在本地日志写入 `exactly one terminal allowlisted event`，事件名为 `analysis_fallback`。它只包含固定 reason/stage/provider/model/output-mode/detail 值和非负 `elapsed_ms`；固定字段使用 `detail=<allowlisted detail>`。
 - 规则兜底继续返回成功的公开分析，不增加错误响应；provider/account reason code 不得进入 `public API`、`SQLite` 或 `frontend`。
+- detail allowlist 是 `not_applicable`、`json_syntax`、`top_level_shape`、`schema_version`、`analysis_shape`、`attachment_shape` 和 `field_evidence_shape`。每个非 envelope fallback 都使用 `not_applicable`。这是 operator-only 日志字段，不会添加到 `public API` 或 `SQLite`。不得包含 provider output、JSON keys、paths、values 或 exception text，也不得用于重建这些内容。
+- Backend-only diagnostic verification 要求 `code=envelope_invalid` 使用六个 envelope detail 之一；其他 allowlisted reason code 必须使用 `detail=not_applicable`。未知 detail 必须 fail closed，不得扩展事件内容。
 - operator 只使用以下命令查看最新事件，不读取或复制完整日志:
 
 ```powershell

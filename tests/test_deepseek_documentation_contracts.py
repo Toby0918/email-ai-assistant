@@ -102,6 +102,20 @@ FALLBACK_DIAGNOSTIC_CONTRACTS = {
     "docs/superpowers/specs/2026-07-13-deepseek-fallback-diagnostics-design.md": ("dedicated diagnostic sink", "never attached to the root logger", "`propagate=False`", "fixed `WARNING` threshold", "exact fallback-event template", "exact built-in allowlisted arguments", "DEBUG, INFO, WARNING, ERROR, CRITICAL, or an invalid level"),
     "docs/superpowers/plans/2026-07-13-deepseek-fallback-diagnostics.md": ("dedicated diagnostic sink", "never attached to the root logger", "`propagate=False`", "fixed `WARNING` threshold", "exact fallback-event template", "exact built-in allowlisted arguments", "PRIVATE_OPENAI_BODY", "DEBUG, INFO, WARNING, ERROR, CRITICAL, and an invalid level", "or record.exc_info is not None", "or record.exc_text is not None", "or record.stack_info is not None"),
 }
+ENVELOPE_SUBDIAGNOSTIC_DOCS = (
+    "docs/conventions/logging.md",
+    "docs/operations/troubleshooting.md",
+    "docs/operations/deployment_notes.md",
+    "docs/api/backend_api_contract.md",
+    "docs/operations/deepseek_envelope_subdiagnostics_task_brief.md",
+    "docs/superpowers/specs/2026-07-13-deepseek-envelope-subdiagnostics-design.md",
+    "docs/superpowers/plans/2026-07-14-deepseek-envelope-subdiagnostics.md",
+)
+ENGLISH_ENVELOPE_SUBDIAGNOSTIC_DOCS = (
+    "docs/operations/deepseek_envelope_subdiagnostics_task_brief.md",
+    "docs/superpowers/specs/2026-07-13-deepseek-envelope-subdiagnostics-design.md",
+    "docs/superpowers/plans/2026-07-14-deepseek-envelope-subdiagnostics.md",
+)
 
 
 class DeepSeekDocumentationContractTests(unittest.TestCase):
@@ -294,6 +308,74 @@ class DeepSeekDocumentationContractTests(unittest.TestCase):
         plan = self._read("docs/superpowers/plans/2026-07-13-deepseek-fallback-diagnostics.md")
         for insecure_recipe in ("logging.getLogger('synthetic').warning", "logging.basicConfig(", "handlers=handlers"):
             self.assertNotIn(insecure_recipe, plan)
+
+    def test_envelope_subdiagnostic_contract_is_explicit(self) -> None:
+        markers = (
+            "detail=",
+            "not_applicable",
+            "json_syntax",
+            "top_level_shape",
+            "schema_version",
+            "analysis_shape",
+            "attachment_shape",
+            "field_evidence_shape",
+            "provider output",
+            "JSON keys",
+            "paths",
+            "values",
+        )
+        for relative in ENVELOPE_SUBDIAGNOSTIC_DOCS:
+            text = self._read(relative)
+            normalized_text = " ".join(text.split())
+            for marker in markers:
+                with self.subTest(path=relative, marker=marker):
+                    self.assertIn(marker, text)
+
+            non_envelope_contract = (
+                "Every non-envelope fallback uses not_applicable."
+                if relative in ENGLISH_ENVELOPE_SUBDIAGNOSTIC_DOCS
+                else "每个非 envelope fallback 都使用 `not_applicable`。"
+            )
+            reconstruction_contract = (
+                "it must never contain or be used to reconstruct provider output, "
+                "JSON keys, paths, values, or exception text."
+                if relative in ENGLISH_ENVELOPE_SUBDIAGNOSTIC_DOCS
+                else "不得包含 provider output、JSON keys、paths、values 或 exception text，"
+                "也不得用于重建这些内容。"
+            )
+            with self.subTest(path=relative, contract="non-envelope fallback"):
+                self.assertIn(non_envelope_contract, normalized_text)
+            with self.subTest(path=relative, contract="content reconstruction"):
+                self.assertIn(reconstruction_contract, normalized_text)
+
+        canonical_event = (
+            "event=analysis_fallback code=<allowlisted code> "
+            "stage=<allowlisted stage> provider=<allowlisted provider> "
+            "model=<allowlisted model> output_mode=<allowlisted mode> "
+            "detail=<allowlisted detail> elapsed_ms=<non-negative integer>"
+        )
+        for relative in (
+            "docs/conventions/logging.md",
+            "docs/api/backend_api_contract.md",
+        ):
+            with self.subTest(path=relative, contract="canonical event"):
+                self.assertIn(canonical_event, self._read(relative))
+
+        troubleshooting = self._read("docs/operations/troubleshooting.md")
+        for mapping in (
+            "json_syntax -> JSON decoding or duplicate-key rejection",
+            "top_level_shape -> exact top-level object/key-set validation",
+            "schema_version -> fixed private-envelope version validation",
+            "analysis_shape -> nested analysis field/type/enum validation",
+            "attachment_shape -> attachment augmentation validation",
+            "field_evidence_shape -> field-evidence map/list validation",
+        ):
+            with self.subTest(path="docs/operations/troubleshooting.md", mapping=mapping):
+                self.assertIn(mapping, troubleshooting)
+
+        api_contract = self._read("docs/api/backend_api_contract.md")
+        self.assertIn("operator-only 日志变更", api_contract)
+        self.assertIn("不是 public response field", api_contract)
 
     def test_fallback_route_stage_mapping_is_explicit(self) -> None:
         design = self._read(
