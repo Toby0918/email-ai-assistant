@@ -245,6 +245,10 @@ def execute_stage_knowledge_command(
             project_root=project_root,
             clock=epoch_clock,
         ) as source:
+            def read(record_id: str) -> object:
+                selected.require_current(current_time())
+                return source.read_one_record(record_id)
+
             def write(candidates: tuple[object, ...]) -> object:
                 bound = tuple(
                     DetachedCandidate(
@@ -252,6 +256,7 @@ def execute_stage_knowledge_command(
                     )
                     for item in candidates
                 )
+                selected.require_current(current_time())
                 candidate_ids = CandidateBatchStore(
                     Path(arguments.candidate_batch_root), candidate_key,
                     batch_id=batch_id, clock=current_time,
@@ -260,7 +265,7 @@ def execute_stage_knowledge_command(
 
             return stage_knowledge(
                 selected,
-                read_one_record=source.read_one_record,
+                read_one_record=read,
                 deidentify=deidentify_private_text,
                 scan_residuals=scan_residuals,
                 write_encrypted_candidate_batch=write,

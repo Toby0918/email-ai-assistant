@@ -7,7 +7,7 @@ import json
 import tempfile
 import unittest
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from backend.mailbox_ingest.knowledge_stage_source import open_knowledge_stage_source
@@ -191,6 +191,73 @@ class StageKnowledgeTests(unittest.TestCase):
                     project_root=Path("C:/synthetic-project"),
                 )
             self.assertEqual(calls, [])
+
+    def test_default_adapter_rechecks_selection_before_each_read_and_final_write(self) -> None:
+        record_ids = ["a" * 32, "b" * 32]
+        deadline = datetime(2026, 7, 15, 12, 5, tzinfo=timezone.utc)
+
+        for expire_after_first_record, expected_reads in (
+            (True, [record_ids[0]]),
+            (False, [record_ids[0]]),
+        ):
+            with self.subTest(expire_after_first_record=expire_after_first_record), \
+                    tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary).resolve()
+                manifest = root / "selection.json"
+                manifest.write_text(
+                    json.dumps(selection(
+                        record_ids if expire_after_first_record else record_ids[:1]
+                    )),
+                    encoding="utf-8",
+                )
+                now = [deadline - timedelta(seconds=1)]
+                reads: list[str] = []
+                batch_id = str(uuid.uuid4())
+
+                class ExpiringRecord(RawRecord):
+                    def __exit__(self, *_args):
+                        super().__exit__(*_args)
+                        now[0] = deadline
+
+                class Source:
+                    evidence = ("3-5", "2-3")
+
+                    def __enter__(self):
+                        return self
+
+                    def __exit__(self, *_args):
+                        return None
+
+                    def read_one_record(self, record_id: str):
+                        reads.append(record_id)
+                        return ExpiringRecord(
+                            "Alex Example requested status.", LiveState()
+                        )
+
+                candidate_root = root / "candidate"
+                result = execute_stage_knowledge_command(
+                    argparse.Namespace(
+                        vault=root / "raw-vault",
+                        authorization_id="AUTH-STAGE-1",
+                        account="one@example.test",
+                        selection_manifest=manifest,
+                        candidate_batch_root=candidate_root,
+                    ),
+                    source_factory=lambda *_args, **_kwargs: Source(),
+                    protector_factory=lambda: object(),
+                    candidate_key_loader=lambda *_args: SecretBytes(b"K" * 32),
+                    path_validator=lambda *_args: None,
+                    current_time=lambda: now[0],
+                    epoch_clock=lambda: 1_752_500_000,
+                    batch_id_factory=lambda: batch_id,
+                    project_root=Path("C:/synthetic-project"),
+                )
+
+                self.assertEqual(result.code, "stage_callback_failed")
+                self.assertEqual(reads, expected_reads)
+                self.assertFalse(
+                    (candidate_root / f"batch-{batch_id}.pkcand").exists()
+                )
 
     def test_stage_receipt_drives_real_synthetic_import_without_file_enumeration(self) -> None:
         class Protector:

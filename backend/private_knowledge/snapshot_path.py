@@ -37,8 +37,8 @@ def validate_snapshot_path(
 
 def _inside_raw_vault(path: Path) -> bool:
     for parent in path.parents:
-        if ((parent / "vault-index.sqlite3").is_file()
-                or (parent / "keys" / "recovery-state.json").is_file()):
+        if (_marker_exists(parent / "vault-index.sqlite3")
+                or _marker_exists(parent / "keys" / "recovery-state.json")):
             return True
     return False
 
@@ -46,17 +46,30 @@ def _inside_raw_vault(path: Path) -> bool:
 def _inside_private_store(path: Path) -> bool:
     markers = {"candidate-key.pkenv", "authority-keys.pkenv"}
     return any(
-        any((parent / marker).is_file() for marker in markers)
+        any(_marker_exists(parent / marker) for marker in markers)
         for parent in path.parents
     )
 
 
 def _reject_reparse_components(path: Path) -> None:
     for component in reversed((path, *path.parents)):
-        if not component.exists():
+        try:
+            metadata = component.lstat()
+        except FileNotFoundError:
             continue
-        metadata = component.lstat()
+        except OSError:
+            raise PrivateKnowledgeError("snapshot_path_invalid") from None
         attributes = getattr(metadata, "st_file_attributes", 0)
         reparse = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
-        if component.is_symlink() or attributes & reparse:
+        if stat.S_ISLNK(metadata.st_mode) or attributes & reparse:
             raise PrivateKnowledgeError("snapshot_path_invalid")
+
+
+def _marker_exists(path: Path) -> bool:
+    try:
+        path.lstat()
+    except FileNotFoundError:
+        return False
+    except OSError:
+        raise PrivateKnowledgeError("snapshot_path_invalid") from None
+    return True

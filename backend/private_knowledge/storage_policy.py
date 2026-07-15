@@ -45,9 +45,19 @@ def validate_private_storage(project_root: Path, *paths: Path) -> None:
 
 
 def _external_root(value: Path) -> Path:
-    path = _absolute_root(value)
-    _reject_reparse_components(path)
-    return path
+    path = Path(value)
+    if not path.is_absolute():
+        raise PrivateKnowledgeError("private_storage_path_invalid")
+    try:
+        _reject_reparse_components(path)
+        if _inside_raw_vault(path):
+            raise PrivateKnowledgeError("private_storage_path_invalid")
+        resolved = path.resolve(strict=False)
+        if _inside_raw_vault(resolved):
+            raise PrivateKnowledgeError("private_storage_path_invalid")
+        return resolved
+    except (OSError, RuntimeError):
+        raise PrivateKnowledgeError("private_storage_path_invalid") from None
 
 
 def _absolute_root(value: Path) -> Path:
@@ -62,15 +72,34 @@ def _absolute_root(value: Path) -> Path:
 
 def _reject_reparse_components(path: Path) -> None:
     for component in reversed((path, *path.parents)):
-        if not component.exists():
-            continue
         try:
             metadata = component.lstat()
+        except FileNotFoundError:
+            continue
         except OSError:
             raise PrivateKnowledgeError("private_storage_path_invalid") from None
         reparse = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
-        if component.is_symlink() or getattr(metadata, "st_file_attributes", 0) & reparse:
+        if (stat.S_ISLNK(metadata.st_mode)
+                or getattr(metadata, "st_file_attributes", 0) & reparse):
             raise PrivateKnowledgeError("private_storage_path_invalid")
+
+
+def _inside_raw_vault(path: Path) -> bool:
+    for parent in (path, *path.parents):
+        if (_marker_exists(parent / "vault-index.sqlite3")
+                or _marker_exists(parent / "keys" / "recovery-state.json")):
+            return True
+    return False
+
+
+def _marker_exists(path: Path) -> bool:
+    try:
+        path.lstat()
+    except FileNotFoundError:
+        return False
+    except OSError:
+        raise PrivateKnowledgeError("private_storage_path_invalid") from None
+    return True
 
 
 def _overlaps(left: Path, right: Path) -> bool:
