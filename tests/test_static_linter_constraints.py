@@ -328,6 +328,37 @@ class StaticLinterConstraintTests(unittest.TestCase):
                 with self.subTest(path=path, marker=marker):
                     self.assertIn(marker, text)
 
+        runbook = " ".join(read_text(operator_paths[0]).split())
+        for marker in (
+            "`build` reads only the reviewed `.pkevalstage`",
+            "`verify` and `run` read only the final `.pkeval`",
+            "never imports or reads the raw vault",
+            "Create-only final publication performs all target validation before "
+            "the atomic link and performs no target-identity check after the final "
+            "commit point",
+        ):
+            with self.subTest(document="private-evaluation-runbook", marker=marker):
+                self.assertIn(marker, runbook)
+
+        publication_paths = (
+            ROOT / "docs" / "constraints" / "tooling_constraints.md",
+            ROOT / "docs" / "constraints" / "architecture_constraints.md",
+            ROOT / "docs" / "decisions" / "0006-authorized-mailbox-ingest-and-private-knowledge.md",
+            ROOT / "docs" / "operations" / "private_evaluation_build_interactive_task_brief.md",
+            ROOT / "docs" / "operations" / "private_deepseek_evaluation.md",
+            ROOT / "docs" / "operations" / "deployment_notes.md",
+            ROOT / "docs" / "operations" / "project_structure.md",
+            ROOT / "docs" / "templates" / "agent_task_brief_template.md",
+        )
+        for path in publication_paths:
+            text = " ".join(read_text(path).split())
+            for marker in (
+                "final commit point",
+                "never rolls back or unlinks the target by pathname",
+            ):
+                with self.subTest(path=path, marker=marker):
+                    self.assertIn(marker, text)
+
         constraints = " ".join(read_text(
             ROOT / "docs" / "constraints" / "architecture_constraints.md"
         ).split())

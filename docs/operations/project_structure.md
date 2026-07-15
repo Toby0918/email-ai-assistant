@@ -268,8 +268,10 @@ scripts/repository_leakage_scan.py
   pure `EvaluationStageV1`；`backend/private_evaluation/dataset_builder.py` 只把该严格值
   `EvaluationStageV1` 投影为 fresh UUIDv4 namespace 的 200-case final dataset；
   `repository.py` 的 create-only writer 使用 same operator-supplied 32-byte key，
-  但保留 final magic/purpose/nonce separation，以 atomic no-clobber link 发布并仅按
-  exact identity 回滚，拒绝覆盖/delete competitor 和 path race，且不删除 stage。
+  但保留 final magic/purpose/nonce separation，以 atomic no-clobber link 发布。
+  publication helper 成功返回即 final commit point；代码 never rolls back or unlinks
+  the target by pathname，其后仅做不影响成功结果的 best-effort internal-stage cleanup，
+  拒绝覆盖/delete competitor 和 path race，且不删除 reviewed stage。
 - `backend/private_evaluation/terminal_judge.py` 只接收 `UsefulnessJudgeView`，仅在
   real local TTY 中显示已去标识 input 与 production-gated public output，并读取一次
   pre-key fixed exact-y readiness，拒绝 terminal control/format chars，再逐 case 读取

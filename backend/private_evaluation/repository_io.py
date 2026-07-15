@@ -62,9 +62,6 @@ def replace_bounded_checked(
     *, require_absent: bool = False,
 ) -> None:
     stage: Path | None = None
-    target: Path | None = None
-    published: _Identity | None = None
-    complete = False
     try:
         if type(payload) is not bytes or len(payload) > maximum:
             _unavailable()
@@ -79,31 +76,36 @@ def replace_bounded_checked(
         if _identity(stage, regular=True) != stage_opened:
             _unavailable()
         if require_absent:
-            os.link(stage, target, follow_symlinks=False)
-            published = stage_opened
-        else:
-            os.replace(stage, target)
-            stage = None
+            _publish_new(stage, target, stage_opened)
+            return
+        os.replace(stage, target)
+        stage = None
         hook("write_after_replace", target)
         _revalidate(original, target, parent_before, stage_opened, validate)
         _sync_directory(target.parent)
-        if require_absent:
-            stage.unlink()
-            stage = None
-            _sync_directory(target.parent)
-        complete = True
     except PrivateEvaluationError:
         raise
     except Exception:
         _unavailable()
     finally:
-        if not complete and target is not None and published is not None:
-            _unlink_if_identity(target, published)
         if stage is not None:
-            try:
-                stage.unlink(missing_ok=True)
-            except OSError:
-                pass
+            _unlink_stage_best_effort(stage)
+
+
+def _publish_new(stage: Path, target: Path, expected: _Identity) -> None:
+    try:
+        os.link(stage, target, follow_symlinks=False)
+    except BaseException:
+        if _optional_identity(target) == expected:
+            return
+        raise
+
+
+def _unlink_stage_best_effort(stage: Path) -> None:
+    try:
+        stage.unlink(missing_ok=True)
+    except BaseException:
+        pass
 
 
 def _write_stage(target: Path, payload: bytes) -> tuple[Path, _Identity]:
@@ -149,14 +151,6 @@ def _same_node(left: _Identity, right: _Identity) -> bool:
     ) == (
         right.device, right.inode, stat.S_IFMT(right.mode)
     )
-
-
-def _unlink_if_identity(path: Path, expected: _Identity) -> None:
-    try:
-        if _optional_identity(path) == expected:
-            path.unlink()
-    except (OSError, PrivateEvaluationError):
-        pass
 
 
 def _identity(path: Path, *, regular: bool = False, directory: bool = False) -> _Identity:

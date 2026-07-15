@@ -179,12 +179,13 @@ escape import fails the mechanical guard.
 The evaluator exposes only fixed `build`, `verify`, and `run` commands. `build`
 uses the same operator-supplied 32-byte hidden key to decrypt one validated stage
 and create one fresh, create-only final dataset in a separate external directory.
-Create-only publication uses an atomic no-clobber same-directory link; failures
-after publication remove only the exact published identity and never a competitor;
-it revalidates exactly 200 cases, required strata/dual approvals and at least 40
-Pro approvals through final schema and selection, creates no provider or judge,
-and never deletes the stage. `verify` is strictly local and never imports or creates
-a provider client.
+Create-only publication uses an atomic no-clobber same-directory link. The
+publication helper's successful return is the final commit point; code never rolls
+back or unlinks the target by pathname, and only best-effort internal-stage cleanup
+may follow. Before that point it revalidates exactly 200 cases, required strata/dual
+approvals and at least 40 Pro approvals through final schema and selection, creates
+no provider or judge, and never deletes the reviewed stage. `verify` is strictly
+local and never imports or creates a provider client.
 
 The `run` bridge to the existing backend DeepSeek provider is lazy. Its exact gate
 order is: parse -> interactive flag -> exact confirmation -> TTY -> readiness -> hidden key -> dataset -> provider configuration -> client construction -> calls. stdin and stdout

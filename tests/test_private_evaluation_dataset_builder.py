@@ -224,50 +224,166 @@ class PrivateEvaluationDatasetBuilderTests(unittest.TestCase):
             self.assertEqual(path.read_bytes(), b"post-validation-racing-file")
             self.assertEqual(tuple(path.parent.glob(".*.tmp")), ())
 
-    def test_create_only_post_publication_failure_rolls_back_only_its_own_target(self) -> None:
+    def test_create_only_commit_has_no_target_rollback_cleanup_window(self) -> None:
         builder = _load_builder(self)
         write_new = _load_new_writer(self)
         dataset = builder.build_evaluation_dataset(stage_value())
         key = bytearray(b"F" * 32)
+        real_unlink = Path.unlink
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()
-            own_path = root / "own.pkeval"
-            competitor_path = root / "competitor.pkeval"
+            path = root / "dataset.pkeval"
+            after_publication_hook_called = False
+            target_cleanup_attempted = False
 
             def fail_after_publication(stage: str, _path: Path) -> None:
+                nonlocal after_publication_hook_called
                 if stage == "write_after_replace":
+                    after_publication_hook_called = True
                     raise OSError("synthetic-post-publication-failure")
+
+            def swap_competitor_at_target_unlink(
+                candidate: Path, *args, **kwargs,
+            ) -> None:
+                nonlocal target_cleanup_attempted
+                if candidate == path:
+                    target_cleanup_attempted = True
+                    real_unlink(candidate)
+                    candidate.write_bytes(b"post-publication-competitor")
+                real_unlink(candidate, *args, **kwargs)
 
             with patch(
                 "backend.private_evaluation.repository._validate_external_dataset_path",
-                side_effect=lambda value: Path(value),
+                return_value=path,
             ), patch(
                 "backend.private_evaluation.repository._test_race_hook",
                 side_effect=fail_after_publication,
-            ), self.assertRaisesRegex(PrivateEvaluationError, "dataset_unavailable"):
-                write_new(own_path, dataset, key)
+            ), patch.object(Path, "unlink", new=swap_competitor_at_target_unlink):
+                write_new(path, dataset, key)
+                loaded = read_encrypted_dataset(path, key)
 
-            self.assertFalse(own_path.exists())
+            self.assertFalse(after_publication_hook_called)
+            self.assertFalse(target_cleanup_attempted)
+            self.assertEqual(loaded, dataset)
             self.assertEqual(tuple(root.glob(".*.tmp")), ())
 
-            def replace_with_competitor(stage: str, _path: Path) -> None:
-                if stage == "write_after_replace":
-                    competitor_path.unlink()
-                    competitor_path.write_bytes(b"post-publication-competitor")
+    def test_create_only_link_success_cannot_be_misreported_by_wrapper_error(self) -> None:
+        builder = _load_builder(self)
+        write_new = _load_new_writer(self)
+        dataset = builder.build_evaluation_dataset(stage_value())
+        key = bytearray(b"L" * 32)
+        real_link = os.link
 
+        def link_then_raise(source, destination, **kwargs) -> None:
+            real_link(source, destination, **kwargs)
+            raise OSError("synthetic-link-wrapper-failure")
+
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary).resolve() / "dataset.pkeval"
             with patch(
                 "backend.private_evaluation.repository._validate_external_dataset_path",
-                side_effect=lambda value: Path(value),
+                return_value=path,
             ), patch(
-                "backend.private_evaluation.repository._test_race_hook",
-                side_effect=replace_with_competitor,
-            ), self.assertRaisesRegex(PrivateEvaluationError, "dataset_unavailable"):
-                write_new(competitor_path, dataset, key)
+                "backend.private_evaluation.repository_io.os.link",
+                side_effect=link_then_raise,
+            ):
+                write_new(path, dataset, key)
+                loaded = read_encrypted_dataset(path, key)
 
-            self.assertEqual(
-                competitor_path.read_bytes(), b"post-publication-competitor"
-            )
-            self.assertEqual(tuple(root.glob(".*.tmp")), ())
+            self.assertEqual(loaded, dataset)
+            self.assertEqual(tuple(path.parent.glob(".*.tmp")), ())
+
+    def test_create_only_link_success_survives_wrapper_keyboard_interrupt(self) -> None:
+        builder = _load_builder(self)
+        write_new = _load_new_writer(self)
+        dataset = builder.build_evaluation_dataset(stage_value())
+        key = bytearray(b"I" * 32)
+        real_link = os.link
+
+        def link_then_interrupt(source, destination, **kwargs) -> None:
+            real_link(source, destination, **kwargs)
+            raise KeyboardInterrupt("synthetic-link-wrapper-interrupt")
+
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary).resolve() / "dataset.pkeval"
+            with patch(
+                "backend.private_evaluation.repository._validate_external_dataset_path",
+                return_value=path,
+            ), patch(
+                "backend.private_evaluation.repository_io.os.link",
+                side_effect=link_then_interrupt,
+            ):
+                try:
+                    write_new(path, dataset, key)
+                except KeyboardInterrupt:
+                    self.fail("committed link was misreported as interrupted")
+                loaded = read_encrypted_dataset(path, key)
+
+            self.assertEqual(loaded, dataset)
+            self.assertEqual(tuple(path.parent.glob(".*.tmp")), ())
+
+    def test_create_only_temp_cleanup_failure_cannot_change_committed_success(self) -> None:
+        builder = _load_builder(self)
+        write_new = _load_new_writer(self)
+        dataset = builder.build_evaluation_dataset(stage_value())
+        key = bytearray(b"T" * 32)
+        real_unlink = Path.unlink
+        cleanup_failed = False
+
+        def unlink_stage_then_raise(candidate: Path, *args, **kwargs) -> None:
+            nonlocal cleanup_failed
+            if candidate.name.endswith(".tmp") and not cleanup_failed:
+                cleanup_failed = True
+                raise OSError("synthetic-temp-cleanup-wrapper-failure")
+            real_unlink(candidate, *args, **kwargs)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary).resolve() / "dataset.pkeval"
+            with patch(
+                "backend.private_evaluation.repository._validate_external_dataset_path",
+                return_value=path,
+            ), patch.object(Path, "unlink", new=unlink_stage_then_raise):
+                write_new(path, dataset, key)
+                loaded = read_encrypted_dataset(path, key)
+
+            self.assertTrue(cleanup_failed)
+            self.assertEqual(loaded, dataset)
+            remaining = tuple(path.parent.glob(".*.tmp"))
+            self.assertEqual(len(remaining), 1)
+            remaining[0].unlink()
+
+    def test_create_only_temp_cleanup_interrupt_cannot_change_committed_success(self) -> None:
+        builder = _load_builder(self)
+        write_new = _load_new_writer(self)
+        dataset = builder.build_evaluation_dataset(stage_value())
+        key = bytearray(b"K" * 32)
+        real_unlink = Path.unlink
+        cleanup_interrupted = False
+
+        def unlink_stage_then_interrupt(candidate: Path, *args, **kwargs) -> None:
+            nonlocal cleanup_interrupted
+            if candidate.name.endswith(".tmp") and not cleanup_interrupted:
+                cleanup_interrupted = True
+                raise KeyboardInterrupt("synthetic-temp-cleanup-interrupt")
+            real_unlink(candidate, *args, **kwargs)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary).resolve() / "dataset.pkeval"
+            with patch(
+                "backend.private_evaluation.repository._validate_external_dataset_path",
+                return_value=path,
+            ), patch.object(Path, "unlink", new=unlink_stage_then_interrupt):
+                try:
+                    write_new(path, dataset, key)
+                except KeyboardInterrupt:
+                    self.fail("committed write was interrupted by temp cleanup")
+                loaded = read_encrypted_dataset(path, key)
+
+            self.assertTrue(cleanup_interrupted)
+            self.assertEqual(loaded, dataset)
+            remaining = tuple(path.parent.glob(".*.tmp"))
+            self.assertEqual(len(remaining), 1)
+            remaining[0].unlink()
 
     def test_create_only_stage_close_failure_leaves_no_target_or_temp(self) -> None:
         builder = _load_builder(self)

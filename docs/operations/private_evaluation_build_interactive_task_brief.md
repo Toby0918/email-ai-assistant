@@ -75,8 +75,10 @@ distinct final magic, HKDF purpose and random nonce.
 The final target is create-only and in a separate project/OneDrive/temp/raw-vault/
 private-store-external directory. Reparse, parent/target identity, race and write
 failures leave no partial final file. Atomic no-clobber publication never overwrites
-a post-validation racer; rollback removes only the exact published identity and
-never a competitor. The stage is never automatically deleted.
+a post-validation racer. The publication helper's successful return is the final
+commit point; code never rolls back or unlinks the target by pathname. Only
+best-effort internal-stage cleanup follows, and it cannot change committed success.
+The reviewed stage is never automatically deleted.
 
 `run` order is parse, explicit `--interactive-judge`, exact confirmation, real
 local stdin/stdout TTY, fixed exact-y readiness acknowledgement, hidden key,
@@ -132,8 +134,9 @@ merge path. Terminal text is displayed, never executed, logged or serialized.
 1. Stage-to-final synthetic round trip proves fresh namespace and distinct
    magic/purpose/nonce under the same key.
 2. Invalid stage/key/tamper/count/coverage/approval/path/race/write conditions
-   fail closed without a partial final file or stage deletion; atomic publication
-   never overwrites or identity-cleanup-deletes a competitor.
+   fail closed before publication without a partial final file or stage deletion;
+   atomic publication never overwrites a competitor and no target-path cleanup
+   occurs after the commit point.
 3. Build and verify create zero provider/judge/network calls.
 4. Run without flag, with wrong confirmation, non-TTY/redirection or readiness
    EOF/cancel/invalid input stops before key or client construction.

@@ -57,8 +57,9 @@ python -B -m scripts.manage_mailbox_vault stage-evaluation --vault <external-vau
 
 Only `scripts/manage_mailbox_vault.py` and `scripts.evaluate_private_deepseek.py`
 bridge the evaluation package: the former may use only staging modules and is the
-only raw-vault reader; the latter reads only a separately built final `.pkeval`
-and never imports or reads the raw vault.
+only raw-vault reader; in the latter, `build` reads only the reviewed `.pkevalstage`,
+while `verify` and `run` read only the final `.pkeval`. The latter never imports or
+reads the raw vault.
 
 ## Stage to final dataset build
 
@@ -79,8 +80,11 @@ stage namespace. The final frame keeps `.pkeval` magic and
 HKDF purpose, namespace and nonce remain distinct even though the master key is
 the same. The final target must be in a separate project/OneDrive/temp/raw-vault/
 private-store-external directory, must not exist, and passes bounded descriptor,
-reparse, parent/target identity and race checks. Failure leaves no partial final
-file and never deletes the stage.
+reparse, parent/target identity and race checks. The publication helper's successful
+return is the final commit point; code never rolls back or unlinks the target by
+pathname. All reportable checks precede that point, and only best-effort internal-
+stage cleanup follows. Pre-publication failure leaves no partial final file and the
+reviewed stage is never deleted.
 
 Build constructs zero provider clients and zero judge, performs zero network
 calls, writes zero logs/transcripts/per-case files, and succeeds only with the
@@ -101,12 +105,14 @@ fixed identifier-free `dataset_built` / 200 result.
   contain no reparse component, and not overlap a raw vault or another private
   store. The key has no CLI/env argument and is wiped from a mutable copy.
 - Dataset reads use a bounded descriptor and no-follow flags where the platform
-  supports them. Reads and staged atomic writes revalidate the original and
-  resolved path, reparse state, parent identity, and target identity before and
-  after the sensitive operation. On Windows these pre/post identity checks are
-  an in-process best-effort mitigation; the project does not claim absolute
-  protection against an actor with the same user privileges who can race kernel
-  namespace operations.
+  supports them. Reads and legacy staged-overwrite writes revalidate the original
+  and resolved path, reparse state, parent identity, and target identity before
+  and after the sensitive operation. Create-only final publication performs all
+  target validation before the atomic link and performs no target-identity check
+  after the final commit point. On Windows these read, legacy-overwrite, and
+  pre-publication identity checks are an in-process best-effort mitigation; the
+  project does not claim absolute protection against an actor with the same user
+  privileges who can race kernel namespace operations.
 - Descendant marker discovery reads directory metadata only, never file content;
   a reparse point, inaccessible entry, depth/entry bound, or metadata error fails
   closed instead of weakening raw-vault/private-store separation.

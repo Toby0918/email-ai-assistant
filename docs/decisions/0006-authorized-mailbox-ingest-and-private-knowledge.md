@@ -128,9 +128,11 @@ complete production strata, current business/privacy approvals and at least 40
 explicit Pro-pair approvals, then create one final `.pkeval` in a separate external
 directory. It uses the same operator-supplied 32-byte hidden key but a fresh UUIDv4
 final namespace, final-specific magic/HKDF purpose and a fresh random nonce. The
-final target uses atomic no-clobber publication and identity-checked failure cleanup;
-it never overwrites or deletes a competitor. The stage is never deleted
-automatically. Build constructs no provider or judge and makes no network call.
+final target uses atomic no-clobber publication. The publication helper's successful
+return is the final commit point; code never rolls back or unlinks the target by
+pathname, and only best-effort internal-stage cleanup may follow. It never overwrites
+or deletes a competitor. The reviewed stage is never deleted automatically. Build
+constructs no provider or judge and makes no network call.
 
 Live usefulness judging remains default-off. `run` requires both the exact
 confirmation and explicit `--interactive-judge`, with stdin and stdout attached to

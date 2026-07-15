@@ -575,9 +575,12 @@ Agent 每次开始任务前，必须确认：
   Pro-pair approvals through `EvaluationDatasetV1` and deterministic selection.
   The target must be a separate external directory, create-only, non-reparse and
   race checked. Atomic no-clobber publication must not overwrite a post-validation
-  racer, and failure rollback may unlink only the exact published identity; an
-  existing target or write failure leaves no partial final file,
-  and the stage is never auto-deleted.
+  racer. A successful publication-helper return is the final commit point; code
+  never rolls back or unlinks the target by pathname. All validation and other
+  reportable work precedes that point, while later internal-stage cleanup is
+  best-effort and cannot change success. An existing target or pre-publication
+  write failure leaves no partial final file, and the reviewed stage is never
+  auto-deleted.
 - `run --interactive-judge` is the only live judge surface. stdin and stdout must
   both be a real local TTY and complete one fixed exact-y readiness read before
   hidden key loading. The adapter receives only `UsefulnessJudgeView`, shows

@@ -149,9 +149,11 @@ python -B -m scripts.evaluate_private_deepseek verify --dataset $Dataset
 `build` 只接受 `EvaluationStageV1`，重新验证 exactly 200/full strata/current
 business+privacy approvals/at least 40 Pro approvals，并生成 fresh UUIDv4 final
 namespace、distinct final magic/purpose/nonce。target 使用 atomic no-clobber
-create-only publication 和 exact-identity failure cleanup；existing target、
-path/reparse/race/write failure 均不得留下 partial final 或删除 competitor，stage 不自动删除。Build 和
-verify 创建 zero provider/judge/network/transcript/log。
+create-only publication；publication helper 成功返回即 final commit point，且代码
+never rolls back or unlinks the target by pathname。其后仅允许不影响成功结果的
+best-effort internal-stage cleanup；existing target、path/reparse/race/write 的
+pre-publication failure 均不得留下 partial final 或删除 competitor，reviewed stage
+不自动删除。Build 和 verify 创建 zero provider/judge/network/transcript/log。
 
 外置 vault 是分析快照，`not a legal archive`，也有 `no automatic second backup`。
 恢复密钥只恢复解锁能力，不能恢复损坏或丢失的数据。Python 删除临时明文不构成
