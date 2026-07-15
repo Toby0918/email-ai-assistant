@@ -57,6 +57,7 @@ def stage_selection_mapping(count: int = 200) -> dict[str, object]:
         "schema_version": "StageEvaluationSelectionV1",
         "vault_id": uuid4_for(80_000),
         "scope_fingerprint": "a" * 64,
+        "inventory_fingerprint": "b" * 64,
         "window_start": "2024-07-15T00:00:00Z",
         "window_end": "2026-07-15T00:00:00Z",
         "expires_at": "2026-07-16T12:00:00Z",
@@ -155,6 +156,22 @@ class PrivateEvaluationStagingTests(unittest.TestCase):
         self.assertEqual(rendered, "StageEvaluationSelection(<redacted>)")
         self.assertNotIn(selected.cases[0].record_id, rendered)
         self.assertNotIn(selected.cases[0].case_id, rendered)
+
+    def test_manifest_requires_a_separate_reviewed_inventory_fingerprint(self) -> None:
+        value = stage_selection_mapping()
+        selected = StageEvaluationSelection(value)
+        self.assertEqual(selected.scope_fingerprint, "a" * 64)
+        self.assertEqual(selected.inventory_fingerprint, "b" * 64)
+
+        missing = copy.deepcopy(value)
+        missing.pop("inventory_fingerprint")
+        invalid = copy.deepcopy(value)
+        invalid["inventory_fingerprint"] = "not-an-inventory-fingerprint"
+        for candidate in (missing, invalid):
+            with self.subTest(candidate_fields=sorted(candidate)), self.assertRaisesRegex(
+                PrivateEvaluationError, "evaluation_stage_selection_invalid"
+            ):
+                StageEvaluationSelection(candidate)
 
     def test_manifest_rejects_count_duplicates_unknown_content_and_scope_window(self) -> None:
         invalid_values: list[dict[str, object]] = []
@@ -406,6 +423,41 @@ class PrivateEvaluationStagingTests(unittest.TestCase):
         self.assertNotIn(cases[0].case_id.encode("ascii"), first)
         self.assertNotEqual(STAGE_MAGIC, DATASET_MAGIC)
         self.assertNotEqual(STAGE_PURPOSE, DATASET_PURPOSE)
+
+    def test_stage_repository_real_validator_excludes_only_its_own_target(self) -> None:
+        from backend.private_evaluation.staging_repository import (
+            _validate_external_stage_path,
+        )
+
+        cases = evaluation_cases()
+        key = bytearray(b"V" * 32)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            target = root / "cases.pkevalstage"
+            with patch(
+                "backend.private_evaluation.repository_path.tempfile.gettempdir",
+                return_value="C:/SyntheticPolicyTemp",
+            ):
+                write_encrypted_stage(target, cases, key)
+                first = read_encrypted_stage(target, key)
+                write_encrypted_stage(target, cases, key)
+                second = read_encrypted_stage(target, key)
+                self.assertEqual(first.cases, cases)
+                self.assertEqual(second.cases, cases)
+
+                with self.assertRaisesRegex(
+                    PrivateEvaluationError, "evaluation_stage_unavailable"
+                ):
+                    _validate_external_stage_path(root / "peer.pkevalstage")
+
+                target.unlink()
+                nested = root / "nested"
+                nested.mkdir()
+                (nested / "other.pkevalstage").write_bytes(b"synthetic")
+                with self.assertRaisesRegex(
+                    PrivateEvaluationError, "evaluation_stage_unavailable"
+                ):
+                    _validate_external_stage_path(root / "new.pkevalstage")
 
     def test_stage_repository_rejects_wrong_key_tamper_invalid_key_and_oversize(self) -> None:
         cases = evaluation_cases()

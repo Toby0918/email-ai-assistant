@@ -4,12 +4,21 @@ from __future__ import annotations
 
 import argparse
 import base64
+import gc
 import json
+import subprocess
+import sys
 import tempfile
 import unittest
+import weakref
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest.mock import patch
 
+from backend.mailbox_ingest import knowledge_stage_source as mailbox_stage_source
+from backend.mailbox_ingest.errors import VaultError
+from backend.mailbox_ingest.models import SecretBuffer
+from backend.mailbox_ingest.scan_record import encode_scan_record
 from backend.private_evaluation.errors import PrivateEvaluationError
 from backend.private_evaluation.staging_contract import StageEvaluationResult
 from scripts.manage_mailbox_vault import (
@@ -58,6 +67,58 @@ class _Source:
     def read_one_record(self, record_id: str) -> _RawRecord:
         self.events.append(("read", record_id))
         return _RawRecord(self.events)
+
+
+class _SyntheticOpenedVault:
+    def __init__(self, records: dict[str, bytes], *, vault_id: str, scope: str) -> None:
+        self.identity = type("Identity", (), {"vault_id": vault_id})()
+        self.vault = type("Vault", (), {
+            "get_record": staticmethod(
+                lambda record_id: SecretBuffer(records[record_id])
+                if record_id in records else None
+            )
+        })()
+        self._scope = scope
+        self.closed = False
+
+    def require_authorization_scope(self, _authorization: str, _account: str):
+        return type("Scope", (), {"opaque_scope_id": self._scope})()
+
+    def close(self) -> None:
+        self.closed = True
+
+
+class _RawIdentifierCanary:
+    __slots__ = ("__weakref__",)
+
+    def __contains__(self, _value: object) -> bool:
+        return True
+
+    def casefold(self) -> _RawIdentifierCanary:
+        return self
+
+    def endswith(self, _value: object) -> bool:
+        return False
+
+    def rsplit(self, *_args: object) -> list[_RawIdentifierCanary]:
+        return [self]
+
+
+def _scan_payload(index: int, fingerprint: str) -> bytes:
+    return encode_scan_record(
+        scope="a" * 64, fingerprint=fingerprint,
+        opaque_folder_id="c" * 64, mailbox="INBOX",
+        uidvalidity=1, uid=index,
+        internal_date=datetime(2025, 7, 15, tzinfo=timezone.utc),
+        expires_at_utc=1_800_000_000,
+        header=(
+            f"From: Partner {index} <partner{index}@vendor{index}.invalid>\r\n"
+            "To: Internal User <one@example.test>\r\n"
+            f"Message-ID: <synthetic-{index}@vendor{index}.invalid>\r\n\r\n"
+        ).encode("ascii"),
+        bodies=(b"Synthetic evaluation body.",), attachments=(),
+        candidate_id_factory=lambda: "d" * 32,
+    )
 
 
 class ManageMailboxVaultStageEvaluationTests(unittest.TestCase):
@@ -126,6 +187,41 @@ class ManageMailboxVaultStageEvaluationTests(unittest.TestCase):
                     events, [("emit", {"ok": False, "code": "argument_invalid"})]
                 )
 
+    def test_module_entrypoint_emits_exact_argument_invalid_without_details(self) -> None:
+        project = Path(__file__).resolve().parents[1]
+        base = [sys.executable, "-B", "-m", "scripts.manage_mailbox_vault"]
+        forbidden_key = "SENSITIVE-STAGING-KEY-CANARY"
+        cases = (
+            [*self._argv(), "--key", forbidden_key],
+            [
+                *self._argv()[:-1],
+                "relative-evaluation.pkevalstage",
+            ],
+        )
+        for argv in cases:
+            with self.subTest(argv_tail=argv[-2:]):
+                completed = subprocess.run(
+                    [*base, *argv], cwd=project, capture_output=True,
+                    text=True, timeout=10, check=False,
+                )
+                self.assertEqual(completed.returncode, 2)
+                self.assertEqual(
+                    completed.stdout,
+                    '{"code":"argument_invalid","ok":false}\n',
+                )
+                self.assertEqual(completed.stderr, "")
+                self.assertNotIn(forbidden_key, completed.stdout + completed.stderr)
+                self.assertNotIn(str(self.stage_path), completed.stdout)
+
+        help_result = subprocess.run(
+            [*base, "--help"], cwd=project, capture_output=True,
+            text=True, timeout=10, check=False,
+        )
+        self.assertEqual(help_result.returncode, 0)
+        self.assertIn("usage:", help_result.stdout)
+        self.assertNotIn("argument_invalid", help_result.stdout)
+        self.assertEqual(help_result.stderr, "")
+
     def test_adapter_validates_manifest_and_path_before_hidden_key_then_reads_and_writes(self) -> None:
         events: list[object] = []
         source = _Source(events)
@@ -174,6 +270,82 @@ class ManageMailboxVaultStageEvaluationTests(unittest.TestCase):
         self.assertEqual(events[-2:], [("write", ".pkevalstage", 200), "source-exit"])
         self.assertEqual(source_kwargs["expected_vault_id"], stage_selection_mapping()["vault_id"])
         self.assertEqual(source_kwargs["expected_scope"], "a" * 64)
+        self.assertEqual(source_kwargs["expected_fingerprint"], "b" * 64)
+
+    def test_evaluation_source_rejects_inventory_mismatch_before_plaintext_release(self) -> None:
+        factory = getattr(mailbox_stage_source, "open_evaluation_stage_source", None)
+        self.assertIsNotNone(factory)
+        vault_id = stage_selection_mapping()["vault_id"]
+        record_id = "1" * 32
+        opened = _SyntheticOpenedVault(
+            {record_id: _scan_payload(1, "c" * 64)},
+            vault_id=vault_id, scope="a" * 64,
+        )
+        source = factory(
+            Path("E:/synthetic-vault"),
+            authorization_id="AUTH-EVAL-STAGE-1", account="one@example.test",
+            expected_vault_id=vault_id, expected_scope="a" * 64,
+            expected_fingerprint="b" * 64,
+            window_start=datetime(2024, 7, 15, tzinfo=timezone.utc),
+            window_end=datetime(2026, 7, 15, tzinfo=timezone.utc),
+            project_root=Path("C:/synthetic-project"),
+            validate_existing=lambda *_args: object(),
+            dpapi_factory=lambda: object(),
+            opener=lambda *_args, **_kwargs: opened,
+            clock=lambda: 1_752_500_000,
+        )
+        with source, self.assertRaises(VaultError) as caught:
+            with source.read_one_record(record_id):
+                self.fail("mismatched inventory fingerprint released plaintext")
+        self.assertEqual(caught.exception.code, "internal_error")
+        self.assertTrue(opened.closed)
+
+    def test_evaluation_source_retains_no_cross_record_evidence_identifiers(self) -> None:
+        factory = getattr(mailbox_stage_source, "open_evaluation_stage_source", None)
+        self.assertIsNotNone(factory)
+        vault_id = stage_selection_mapping()["vault_id"]
+        record_ids = ("1" * 32, "2" * 32)
+        opened = _SyntheticOpenedVault(
+            {
+                record_ids[0]: _scan_payload(1, "b" * 64),
+                record_ids[1]: _scan_payload(2, "b" * 64),
+            },
+            vault_id=vault_id, scope="a" * 64,
+        )
+        source = factory(
+            Path("E:/synthetic-vault"),
+            authorization_id="AUTH-EVAL-STAGE-1", account="one@example.test",
+            expected_vault_id=vault_id, expected_scope="a" * 64,
+            expected_fingerprint="b" * 64,
+            window_start=datetime(2024, 7, 15, tzinfo=timezone.utc),
+            window_end=datetime(2026, 7, 15, tzinfo=timezone.utc),
+            project_root=Path("C:/synthetic-project"),
+            validate_existing=lambda *_args: object(),
+            dpapi_factory=lambda: object(),
+            opener=lambda *_args, **_kwargs: opened,
+            clock=lambda: 1_752_500_000,
+        )
+        references: list[weakref.ReferenceType] = []
+
+        def identities(_message: object):
+            value = _RawIdentifierCanary()
+            references.append(weakref.ref(value))
+            return ["Synthetic Person"], [], [value]
+
+        with patch.object(mailbox_stage_source, "_header_identities", identities), patch.object(
+            mailbox_stage_source, "_thread_key",
+            side_effect=AssertionError("evaluation source derived thread evidence"),
+        ), source:
+            for record_id in record_ids:
+                gc.collect()
+                self.assertTrue(all(reference() is None for reference in references))
+                with source.read_one_record(record_id) as raw:
+                    self.assertIn("Synthetic evaluation body", raw.text)
+                self.assertEqual(raw.text, "")
+            gc.collect()
+            self.assertTrue(all(reference() is None for reference in references))
+            self.assertIsNone(source._threads)
+            self.assertIsNone(source._counterparties)
 
     def test_invalid_manifest_or_path_stops_before_key_source_and_writer(self) -> None:
         calls: list[str] = []

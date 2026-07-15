@@ -149,11 +149,23 @@ Only `scripts/manage_mailbox_vault.py` and `scripts/evaluate_private_deepseek.py
 may bridge the private evaluation package. The mailbox CLI bridge is limited to
 the local `stage-evaluation` contract/repository: a strict
 `StageEvaluationSelectionV1` binds exactly 200 reviewed raw record IDs to unique
-case IDs, processes one record at a time, releases raw text and mapping before the
-next record, and writes only external `.pkevalstage` with distinct magic, purpose,
-and namespace. It is not a provider bridge, is not in `NETWORK_COMMANDS`, requests
-no mailbox app password, and returns only fixed codes/counts including
-`evaluation_stage_complete`.
+case IDs and separately binds authorization `scope_fingerprint` plus reviewed
+`inventory_fingerprint`. The evaluation-only source validates each record's
+inventory fingerprint before plaintext release, performs no evidence accumulation,
+and retains no raw-derived identifier between records. It processes one record at
+a time, releases raw text and mapping before the next record, and writes only
+external `.pkevalstage` with distinct magic, purpose, and namespace. Atomic
+post-replacement validation excludes only that exact target while sibling and
+descendant stores remain rejected. It is not a provider bridge, is not in
+`NETWORK_COMMANDS`, requests no mailbox app password, and returns only fixed
+codes/counts including `evaluation_stage_complete` and parse/local
+`argument_invalid`.
+
+The private-evaluation import guard canonicalizes relative imports against each
+module package and uses a positive import allowlist for the exact standard-library,
+cryptography, internal evaluation, deidentification, and pure analysis modules in
+use. Any unlisted network, provider, mailbox, store, runtime, frontend, or relative
+escape import fails the mechanical guard.
 
 The evaluator bridge to the existing backend DeepSeek provider is lazy: dataset
 decryption, schema validation, deterministic selection, the exact operator

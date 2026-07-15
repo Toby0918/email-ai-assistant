@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-14
+last_update: 2026-07-15
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -223,7 +223,26 @@ Complete this section whenever a task changes remote AI input, runtime knowledge
 [ ] Verification is offline and does not call a live provider, mailbox, vault, DPAPI or BitLocker.
 ```
 
-## 18. 执行后记录
+## 18. Administrator stage-evaluation checklist
+
+Complete this section whenever a task changes the raw-vault to private-evaluation
+handoff.
+
+```text
+[ ] `StageEvaluationSelectionV1` binds exactly 200 unique record IDs to unique UUIDv4 case IDs.
+[ ] `scope_fingerprint` and `inventory_fingerprint` are separate, reviewed, exact manifest fields.
+[ ] The evaluation-only source validates vault, authorization scope, inventory fingerprint and rolling window before plaintext release.
+[ ] The evaluation-only source performs no evidence accumulation and retains no raw-derived identifier between records.
+[ ] Raw plaintext and restoration mapping are released one record at a time before the next record opens.
+[ ] Only a hidden interactive base64 32-byte key may encrypt the external `.pkevalstage`; mutable copies are wiped.
+[ ] Real validator tests prove the target survives post-replacement validation while sibling and descendant private stores remain rejected.
+[ ] Success is only `evaluation_stage_complete` with 200/0 counts; parse and local-validation failure is only `argument_invalid`.
+[ ] Output and repr contain no record/case IDs, paths, text, matched values, key material or exception detail.
+[ ] The command uses no network, provider, mailbox app password, public API, SQLite, frontend or normal-runtime bridge.
+[ ] Verification is synthetic/offline and does not open a real mailbox, vault, provider, DPAPI, BitLocker or ignored SQLite file.
+```
+
+## 19. 执行后记录
 
 任务完成后填写。
 

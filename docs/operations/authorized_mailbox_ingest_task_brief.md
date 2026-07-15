@@ -117,8 +117,9 @@ stage_knowledge(
 The separately reviewed `stage-evaluation` handoff is also local-only in
 `scripts/manage_mailbox_vault.py` and is not one of the eight core commands or a
 `NETWORK_COMMANDS` member. Its strict `StageEvaluationSelectionV1` binds exactly
-200 unique raw record IDs to unique UUIDv4 case IDs, the authorized vault/scope
-and rolling window, current-revision business/privacy approvals by distinct
+200 unique raw record IDs to unique UUIDv4 case IDs, the authorized vault,
+authorization `scope_fingerprint`, reviewed `inventory_fingerprint`, rolling
+window, current-revision business/privacy approvals by distinct
 actors, optional Pro-pair approval, production stratum, and expected category,
 mandatory risks, and required actions. The manifest contains no subject, body,
 address, filename, source locator, or other message content and expires no later
@@ -127,14 +128,20 @@ than 24 hours after the latest required review.
 The command decrypts one record at a time, applies structured local
 deidentification and residual scanning in memory, builds one validated evaluation
 case, and releases raw plaintext plus restoration mapping before the next record.
+Its evaluation-only source validates the record inventory fingerprint before
+plaintext release, performs no evidence accumulation, and retains no counterparty
+domain, message/thread ID, or other raw-derived identifier between records.
 It uses a hidden interactive base64 32-byte staging/evaluation key and no mailbox
 app password, key flag, environment, `.env`, or key file. Only a bounded,
 atomically replaced, project-external `.pkevalstage` is written with AES-256-GCM,
 a random nonce, and distinct magic, purpose, and namespace from final `.pkeval`,
-raw vault, and private knowledge. Success is exactly
+raw vault, and private knowledge. Post-replacement path validation excludes only
+the exact target while sibling and descendant private stores still fail closed.
+Success is exactly
 `evaluation_stage_complete` with 200 accepted and zero rejected; all failures,
 repr, logs, and output contain only fixed codes/counts and never case/record IDs,
-paths, text, matches, exception detail, or a partial stage file. The evaluator
+paths, text, matches, exception detail, or a partial stage file. Parser and local
+validation failure is exactly `argument_invalid`. The evaluator
 never imports or reads the raw vault.
 
 ## 7. Expected Scope

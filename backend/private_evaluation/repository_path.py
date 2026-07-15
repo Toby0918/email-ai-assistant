@@ -83,7 +83,9 @@ def _overlaps_other_store(path: Path) -> bool:
             for entry in _entries(parent):
                 if entry != path and _is_private_marker(entry):
                     return True
-        return _descendant_has_marker(path.parent, _is_private_marker)
+        return _descendant_has_marker(
+            path.parent, _is_private_marker, exclude=path
+        )
     except OSError:
         _unavailable()
 
@@ -94,12 +96,19 @@ def _overlaps_evaluation_dataset(path: Path) -> bool:
             for entry in _entries(parent):
                 if entry != path and _is_evaluation_dataset(entry):
                     return True
-        return _descendant_has_marker(path.parent, _is_evaluation_dataset)
+        return _descendant_has_marker(
+            path.parent, _is_evaluation_dataset, exclude=path
+        )
     except OSError:
         _unavailable()
 
 
-def _descendant_has_marker(root: Path, predicate) -> bool:
+def _descendant_has_marker(
+    root: Path,
+    predicate,
+    *,
+    exclude: Path | None = None,
+) -> bool:
     stack: list[tuple[Path, int]] = [(root, 0)]
     seen = 0
     while stack:
@@ -115,7 +124,7 @@ def _descendant_has_marker(root: Path, predicate) -> bool:
                 if entry.is_symlink() or _is_reparse(metadata):
                     _unavailable()
                 candidate = Path(entry.path)
-                if predicate(candidate):
+                if candidate != exclude and predicate(candidate):
                     return True
                 if stat.S_ISDIR(metadata.st_mode):
                     stack.append((candidate, depth + 1))

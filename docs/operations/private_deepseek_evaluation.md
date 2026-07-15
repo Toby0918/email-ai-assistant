@@ -22,14 +22,18 @@ source sample.
 The administrator creates the evaluator handoff only through local
 `stage-evaluation`; it is not in `NETWORK_COMMANDS` and requests no mailbox app
 password. `StageEvaluationSelectionV1` contains exactly 200 unique reviewed
-record/case bindings plus vault ID, scope fingerprint, rolling window, expiry,
-current-revision approvals, production stratum, and expected enum metadata. It
-contains no subject, body, address, filename, locator, or source content.
+record/case bindings plus vault ID, authorization `scope_fingerprint`, reviewed
+`inventory_fingerprint`, rolling window, expiry, current-revision approvals,
+production stratum, and expected enum metadata. It contains no subject, body,
+address, filename, locator, or source content.
 
 Each selected raw record is opened one record at a time inside the administrator
 vault CLI, structurally deidentified, residual-scanned, converted to one
 `PrivateEvaluationCaseV1`, then closed together with its restoration mapping
-before the next record. The final case uses fixed identifier-free subject,
+before the next record. The evaluation-only source validates each record's
+inventory fingerprint before plaintext release, performs no evidence accumulation,
+and retains no domain, message/thread ID, or other raw-derived identifier across
+records. The final case uses fixed identifier-free subject,
 sender, recipients, and time values; only the deidentified full mail text enters
 `thread_text`, and attachments are empty. Any residual or callback failure rejects
 the complete 200-case batch and writes no partial file.
@@ -38,11 +42,14 @@ The output suffix is exactly `.pkevalstage`. It uses AES-256-GCM, a fresh random
 nonce, bounded atomic replacement, reparse rejection, and distinct magic,
 purpose, and namespace from `.pkeval`, raw vault, and private knowledge. The
 absolute path is outside the project, OneDrive, system temp, raw vault, and every
-other private store. The 32-byte staging/evaluation key comes only from hidden
+other private store. Post-replacement validation excludes only the exact target
+from the descendant scan; sibling and descendant stores remain rejected. The
+32-byte staging/evaluation key comes only from hidden
 interactive base64 input; it has no flag, environment, `.env`, key-file, stdout,
 log, repr, exception, or persistence surface, and mutable copies are wiped.
 Success is exactly `evaluation_stage_complete` with 200 accepted and zero
-rejected. Failure output is a fixed code/count only.
+rejected. Failure output is a fixed code/count only, and parser/local validation
+is exactly `argument_invalid`.
 
 ```text
 python -B -m scripts.manage_mailbox_vault stage-evaluation --vault <external-vault> --authorization-id <non-sensitive-id> --account <authorized-account> --selection-manifest <absolute-reviewed.json> --staging-dataset <external.pkevalstage>

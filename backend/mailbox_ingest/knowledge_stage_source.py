@@ -89,14 +89,17 @@ class MailboxKnowledgeStageSource:
         account: str,
         window_start: datetime,
         window_end: datetime,
+        expected_fingerprint: str | None = None,
+        retain_evidence: bool = True,
     ) -> None:
         self._opened = opened
         self._scope = expected_scope
         self._account_domain = account.rsplit("@", 1)[-1].casefold()
         self._window_start = window_start
         self._window_end = window_end
-        self._threads: set[str] = set()
-        self._counterparties: set[str] = set()
+        self._fingerprint = expected_fingerprint
+        self._threads: set[str] | None = set() if retain_evidence else None
+        self._counterparties: set[str] | None = set() if retain_evidence else None
         self._closed = False
 
     def read_one_record(self, record_id: str) -> _RawRecordContext:
@@ -106,25 +109,32 @@ class MailboxKnowledgeStageSource:
 
     @property
     def evidence(self) -> tuple[str, str]:
+        if self._threads is None or self._counterparties is None:
+            raise VaultError("stage_evidence_unavailable")
         return (_conversation_bucket(len(self._threads)),
                 _counterparty_bucket(len(self._counterparties)))
 
     def _decode(self, payload: bytes, record_id: str) -> RawStageRecord:
         try:
             value = json.loads(payload.decode("ascii"))
-            _validate_record(value, self._scope, self._window_start, self._window_end)
+            _validate_record(
+                value, self._scope, self._window_start, self._window_end,
+                self._fingerprint,
+            )
             header = base64.b64decode(value["header_b64"], validate=True)
             bodies = tuple(base64.b64decode(item, validate=True) for item in value["bodies_b64"])
             if sum(map(len, (header, *bodies))) > 25 * 1024 * 1024:
                 raise ValueError
             message = BytesParser(policy=policy.default).parsebytes(header)
             people, organizations, addresses = _header_identities(message)
-            self._counterparties.update(
-                address.rsplit("@", 1)[-1].casefold()
-                for address in addresses
-                if "@" in address and not address.casefold().endswith("@" + self._account_domain)
-            )
-            self._threads.add(_thread_key(message, record_id))
+            if self._counterparties is not None and self._threads is not None:
+                self._counterparties.update(
+                    address.rsplit("@", 1)[-1].casefold()
+                    for address in addresses
+                    if "@" in address
+                    and not address.casefold().endswith("@" + self._account_domain)
+                )
+                self._threads.add(_thread_key(message, record_id))
             filenames = _filenames(value["attachments"])
             text = "\n".join(
                 [header.decode("utf-8", errors="replace")]
@@ -139,8 +149,10 @@ class MailboxKnowledgeStageSource:
         if self._closed:
             return
         self._closed = True
-        self._threads.clear()
-        self._counterparties.clear()
+        if self._threads is not None:
+            self._threads.clear()
+        if self._counterparties is not None:
+            self._counterparties.clear()
         self._opened.close()
 
     def __enter__(self) -> MailboxKnowledgeStageSource:
@@ -169,6 +181,8 @@ def open_knowledge_stage_source(
     dpapi_factory: Callable[[], object] = DpapiProtector,
     opener: Callable[..., object] = open_mailbox_vault,
     clock: Callable[[], int],
+    expected_fingerprint: str | None = None,
+    retain_evidence: bool = True,
 ) -> MailboxKnowledgeStageSource:
     validate_existing(Path(vault_root), Path(project_root))
     opened = opener(Path(vault_root), dpapi=dpapi_factory(), clock=clock)
@@ -180,15 +194,50 @@ def open_knowledge_stage_source(
         return MailboxKnowledgeStageSource(
             opened, expected_scope=expected_scope, account=account,
             window_start=window_start, window_end=window_end,
+            expected_fingerprint=expected_fingerprint,
+            retain_evidence=retain_evidence,
         )
     except Exception:
         opened.close()
         raise
 
 
-def _validate_record(value: object, scope: str, start: datetime, end: datetime) -> None:
+def open_evaluation_stage_source(
+    vault_root: Path,
+    *,
+    authorization_id: str,
+    account: str,
+    expected_vault_id: str,
+    expected_scope: str,
+    expected_fingerprint: str,
+    window_start: datetime,
+    window_end: datetime,
+    project_root: Path,
+    validate_existing: Callable[..., object] = validate_existing_vault_location,
+    dpapi_factory: Callable[[], object] = DpapiProtector,
+    opener: Callable[..., object] = open_mailbox_vault,
+    clock: Callable[[], int],
+) -> MailboxKnowledgeStageSource:
+    return open_knowledge_stage_source(
+        vault_root, authorization_id=authorization_id, account=account,
+        expected_vault_id=expected_vault_id, expected_scope=expected_scope,
+        window_start=window_start, window_end=window_end,
+        project_root=project_root, validate_existing=validate_existing,
+        dpapi_factory=dpapi_factory, opener=opener, clock=clock,
+        expected_fingerprint=expected_fingerprint, retain_evidence=False,
+    )
+
+
+def _validate_record(
+    value: object,
+    scope: str,
+    start: datetime,
+    end: datetime,
+    fingerprint: str | None,
+) -> None:
     if (not isinstance(value, dict) or set(value) != _FIELDS
             or value["schema_version"] != 1 or value["scope"] != scope
+            or (fingerprint is not None and value["fingerprint"] != fingerprint)
             or not isinstance(value["bodies_b64"], list)
             or not isinstance(value["attachments"], list)):
         raise ValueError

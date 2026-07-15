@@ -121,6 +121,7 @@ def _stage_from_source(
             Path(arguments.vault), authorization_id=arguments.authorization_id,
             account=arguments.account, expected_vault_id=selected.vault_id,
             expected_scope=selected.scope_fingerprint,
+            expected_fingerprint=selected.inventory_fingerprint,
             window_start=selected.window_start, window_end=selected.window_end,
             project_root=project_root, clock=epoch_clock,
         ) as source:

@@ -335,10 +335,20 @@ metrics, reporting, or selection path.
 Mechanical checks must keep `stage-evaluation` outside `NETWORK_COMMANDS`, require
 exactly 200 unique reviewed record/case bindings, one record at a time cleanup,
 hidden interactive base64 key input with no mailbox app password, and exact
-`.pkevalstage` suffix. The stage frame has distinct magic, purpose, and namespace
-from `.pkeval`; public success is only `evaluation_stage_complete` with 200/0
-counts, while repr/errors/output contain no IDs, paths, text, matches, keys, or
-exception detail.
+`.pkevalstage` suffix. `scope_fingerprint` and `inventory_fingerprint` are separate
+required fields; the evaluation-only source validates the latter before plaintext
+release, performs no evidence accumulation, and retains no raw-derived identifier
+between records. The real writer/validator test must prove post-replacement checks
+exclude only the exact target while sibling and descendant stores remain rejected.
+The stage frame has distinct magic, purpose, and namespace from `.pkeval`; public
+success is only `evaluation_stage_complete` with 200/0 counts, parse/local failure
+is only `argument_invalid`, and repr/errors/output contain no IDs, paths, text,
+matches, keys, or exception detail.
+
+Import checks must canonicalize every relative `ImportFrom.level` against the
+containing package and apply a positive import allowlist to all modules, not only
+`backend.*` names. Unlisted standard-library/network modules such as `ftplib` and
+relative escapes into mailbox ingest must fail.
 
 The evaluation CLI must expose only the frozen `verify` and `run` surfaces. It
 must not accept model, endpoint, key, key-file, prompt, case-count, threshold,

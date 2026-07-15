@@ -7,6 +7,7 @@ Run:
 from __future__ import annotations
 
 import ast
+import importlib.util
 import re
 import tempfile
 import unittest
@@ -102,7 +103,11 @@ def parse_called_names(path: Path) -> set[str]:
     return names
 
 
-def parse_import_modules(path: Path) -> set[str]:
+def parse_import_modules(
+    path: Path,
+    *,
+    package: str | None = None,
+) -> set[str]:
     if not path.exists():
         return set()
     tree = ast.parse(read_text(path))
@@ -110,9 +115,26 @@ def parse_import_modules(path: Path) -> set[str]:
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             modules.update(alias.name for alias in node.names)
-        elif isinstance(node, ast.ImportFrom) and node.module:
-            modules.add(node.module)
+        elif isinstance(node, ast.ImportFrom):
+            if node.level:
+                selected = package or _package_for_import(path)
+                relative = "." * node.level + (node.module or "")
+                modules.add(
+                    importlib.util.resolve_name(relative, selected)
+                    if selected else f"unresolved:{relative}"
+                )
+            elif node.module:
+                modules.add(node.module)
     return modules
+
+
+def _package_for_import(path: Path) -> str | None:
+    try:
+        relative = path.resolve().relative_to(ROOT.resolve()).with_suffix("")
+    except (OSError, ValueError):
+        return None
+    parts = relative.parts[:-1]
+    return ".".join(parts) if parts else None
 
 
 def _mailbox_import_boundary_script_paths(
@@ -126,7 +148,15 @@ def _mailbox_import_boundary_script_paths(
     ]
 
 
-_PRIVATE_EVALUATION_ALLOWED_BACKEND_IMPORTS = frozenset({
+_PRIVATE_EVALUATION_ALLOWED_IMPORTS = frozenset({
+    "__future__", "argparse", "base64", "binascii", "collections",
+    "dataclasses", "datetime", "decimal", "getpass", "hashlib", "hmac",
+    "json", "math", "os", "pathlib", "re", "stat", "struct", "tempfile",
+    "time", "types", "typing", "uuid",
+    "cryptography.exceptions",
+    "cryptography.hazmat.primitives",
+    "cryptography.hazmat.primitives.ciphers.aead",
+    "cryptography.hazmat.primitives.kdf.hkdf",
     "backend.email_agent.analysis_budget",
     "backend.email_agent.analysis_schema",
     "backend.email_agent.deepseek_analysis_schema",
@@ -137,27 +167,49 @@ _PRIVATE_EVALUATION_ALLOWED_BACKEND_IMPORTS = frozenset({
     "backend.email_agent.prompt_context",
     "backend.email_agent.rule_analyzer",
     "backend.email_agent.thread_timeline",
+    "backend.private_evaluation.case_context",
+    "backend.private_evaluation.errors",
+    "backend.private_evaluation.metrics",
+    "backend.private_evaluation.reporting",
+    "backend.private_evaluation.repository_io",
+    "backend.private_evaluation.repository_path",
+    "backend.private_evaluation.runner_values",
+    "backend.private_evaluation.schema",
+    "backend.private_evaluation.schema_validation",
+    "backend.private_evaluation.schema_values",
+    "backend.private_evaluation.selection",
+    "backend.private_evaluation.staging_contract",
     "backend.private_knowledge.deidentifier",
     "backend.private_knowledge.entity_patterns",
     "backend.private_knowledge.residual_scanner",
 })
-_PRIVATE_EVALUATION_FORBIDDEN_IMPORT_ROOTS = frozenset({
-    "aiohttp", "anthropic", "frontend", "http", "httpx", "imaplib",
-    "ollama", "openai", "requests", "smtplib", "socket", "sqlite3", "urllib",
-})
 
 
-def _private_evaluation_backend_imports_are_allowed(imports: set[str]) -> bool:
-    return all(
-        not module.startswith("backend.")
-        or module in _PRIVATE_EVALUATION_ALLOWED_BACKEND_IMPORTS
-        for module in imports
-    )
+def _private_evaluation_imports_are_allowed(imports: set[str]) -> bool:
+    return imports.issubset(_PRIVATE_EVALUATION_ALLOWED_IMPORTS)
 
 
 class ArchitectureConstraintTests(unittest.TestCase):
+    def test_private_evaluation_import_policy_canonicalizes_relative_imports(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            probe = Path(temporary) / "probe.py"
+            probe.write_text(
+                "from ..mailbox_ingest import vault_access\nimport ftplib\n",
+                encoding="utf-8",
+            )
+            imports = parse_import_modules(
+                probe, package="backend.private_evaluation"
+            )
+
+        self.assertEqual(
+            imports, {"backend.mailbox_ingest", "ftplib"}
+        )
+        self.assertFalse(
+            _private_evaluation_imports_are_allowed(imports)
+        )
+
     def test_private_evaluation_backend_import_policy_rejects_new_runtime_and_store_bridges(self) -> None:
-        self.assertTrue(_private_evaluation_backend_imports_are_allowed({
+        self.assertTrue(_private_evaluation_imports_are_allowed({
             "backend.email_agent.analysis_schema",
             "backend.private_knowledge.residual_scanner",
         }))
@@ -171,7 +223,7 @@ class ArchitectureConstraintTests(unittest.TestCase):
         ):
             with self.subTest(forbidden=forbidden):
                 self.assertFalse(
-                    _private_evaluation_backend_imports_are_allowed({forbidden})
+                    _private_evaluation_imports_are_allowed({forbidden})
                 )
 
     def test_private_evaluation_is_isolated_with_exactly_two_narrow_cli_bridges(self) -> None:
@@ -180,12 +232,8 @@ class ArchitectureConstraintTests(unittest.TestCase):
             imports = parse_import_modules(path)
             with self.subTest(path=path):
                 self.assertTrue(
-                    parse_import_roots(path).isdisjoint(
-                        _PRIVATE_EVALUATION_FORBIDDEN_IMPORT_ROOTS
-                    )
-                )
-                self.assertTrue(
-                    _private_evaluation_backend_imports_are_allowed(imports)
+                    _private_evaluation_imports_are_allowed(imports),
+                    sorted(imports - _PRIVATE_EVALUATION_ALLOWED_IMPORTS),
                 )
                 self.assertNotIn("backend.mailbox_ingest", read_text(path))
 

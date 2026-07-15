@@ -226,6 +226,60 @@ class StaticLinterConstraintTests(unittest.TestCase):
             with self.subTest(path=path, marker=command):
                 self.assertIn(command, " ".join(read_text(path).split()))
 
+        hardened_paths = (
+            ROOT / "AGENTS.md",
+            ROOT / "docs" / "constraints" / "tooling_constraints.md",
+            ROOT / "docs" / "constraints" / "architecture_constraints.md",
+            ROOT / "docs" / "constraints" / "linter_constraints.md",
+            ROOT / "docs" / "operations" / "authorized_mailbox_ingest_task_brief.md",
+            ROOT / "docs" / "operations" / "private_deepseek_evaluation.md",
+            ROOT / "docs" / "operations" / "project_structure.md",
+            ROOT / "docs" / "operations" / "testing_checklist.md",
+            ROOT / "docs" / "operations" / "deployment_notes.md",
+        )
+        for path in hardened_paths:
+            text = " ".join(read_text(path).split())
+            for marker in (
+                "`inventory_fingerprint`",
+                "evaluation-only source",
+                "no evidence accumulation",
+            ):
+                with self.subTest(path=path, marker=marker):
+                    self.assertIn(marker, text)
+
+    def test_stage_evaluation_template_and_logging_companions_are_explicit(self) -> None:
+        template = " ".join(read_text(
+            ROOT / "docs" / "templates" / "agent_task_brief_template.md"
+        ).split())
+        for marker in (
+            "`StageEvaluationSelectionV1`",
+            "`scope_fingerprint` and `inventory_fingerprint`",
+            "exactly 200",
+            "evaluation-only source",
+            "no evidence accumulation",
+            "before plaintext release",
+            "hidden interactive base64",
+            "`.pkevalstage`",
+            "`evaluation_stage_complete`",
+            "`argument_invalid`",
+            "no network, provider, mailbox app password",
+        ):
+            with self.subTest(document="task-template", marker=marker):
+                self.assertIn(marker, template)
+
+        logging = " ".join(read_text(
+            ROOT / "docs" / "conventions" / "logging.md"
+        ).split())
+        for marker in (
+            "`stage-evaluation` writes zero log records",
+            "one fixed content-free stdout JSON line",
+            "`evaluation_stage_complete`",
+            "`argument_invalid`",
+            "record IDs, case IDs, paths, text, matched values, keys, or exception detail",
+        ):
+            with self.subTest(document="logging", marker=marker):
+                self.assertIn(marker, logging)
+
     def test_authorized_mailbox_exception_is_narrowly_documented(self) -> None:
         governance_markers = {
             ROOT / "AGENTS.md": (

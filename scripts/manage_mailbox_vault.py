@@ -122,22 +122,20 @@ def run_cli(
     stage_runner: Callable[[argparse.Namespace], StageKnowledgeResult] | None = None,
     stage_evaluation_runner: Callable[[argparse.Namespace], StageEvaluationResult] | None = None,
 ) -> int:
+    emit = dependencies.emit if dependencies is not None else _default_emit
     try:
         arguments = build_parser().parse_args(argv)
     except _ArgumentFailure:
-        if dependencies is not None:
-            dependencies.emit({"ok": False, "code": "argument_invalid"})
+        emit({"ok": False, "code": "argument_invalid"})
         return 2
     except SystemExit as exit_error:
         return int(exit_error.code or 0)
     try:
         _validate_local_arguments(arguments)
     except (AuthorizationError, ValueError):
-        if dependencies is not None:
-            dependencies.emit({"ok": False, "code": "argument_invalid"})
+        emit({"ok": False, "code": "argument_invalid"})
         return 2
     if arguments.command == STAGE_COMMAND:
-        emit = dependencies.emit if dependencies is not None else _default_emit
         try:
             result = (stage_runner or _default_stage_runner)(arguments)
             if not isinstance(result, StageKnowledgeResult):
@@ -148,7 +146,6 @@ def run_cli(
             emit({"ok": False, "code": "internal_error"})
             return 2
     if arguments.command == STAGE_EVALUATION_COMMAND:
-        emit = dependencies.emit if dependencies is not None else _default_emit
         try:
             result = (stage_evaluation_runner or _default_stage_evaluation_runner)(arguments)
             if not isinstance(result, StageEvaluationResult):
@@ -317,11 +314,11 @@ def _default_stage_runner(arguments: argparse.Namespace) -> StageKnowledgeResult
 
 
 def _default_stage_evaluation_runner(arguments: argparse.Namespace) -> StageEvaluationResult:
-    from backend.mailbox_ingest.knowledge_stage_source import open_knowledge_stage_source
+    from backend.mailbox_ingest.knowledge_stage_source import open_evaluation_stage_source
 
     return execute_stage_evaluation_command(
         arguments,
-        source_factory=open_knowledge_stage_source,
+        source_factory=open_evaluation_stage_source,
         key_loader=_load_stage_evaluation_key,
         stage_writer=write_encrypted_stage,
         path_validator=_validate_external_stage_path,

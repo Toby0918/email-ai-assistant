@@ -193,4 +193,22 @@ Writing handler 只接受 exact fallback-event template 和 exact built-in allow
 
 Logs must not contain API keys, prompts, email or thread content, attachment names or content, provider output, raw exception text, tracebacks, URLs, paths, or customer identifiers.
 
+## 8. Private evaluation staging output is not logging
+
+`stage-evaluation` writes zero log records. Its only machine-readable surface is
+one fixed content-free stdout JSON line. Help remains the static argparse help
+surface and does not emit a staging result.
+
+Successful staging is exactly `evaluation_stage_complete` with 200 accepted and
+zero rejected. Parser and local-validation failures emit only `argument_invalid`.
+Residual, callback, schema, key, decrypt and storage failures use only their fixed
+allowlisted code and, where the result contract defines them, fixed counts.
+
+The staging path must never log or print record IDs, case IDs, paths, text,
+matched values, keys, or exception detail. It also must not log the manifest,
+raw or deidentified content, restoration mapping, inventory fingerprint,
+authorization data, ciphertext, command arguments or dynamic error text. These
+rules apply at every configured logging level and to both expected and unexpected
+failures.
+
 预期的 provider/validation fallback 路径不得使用 `logger.exception`，不得插值 `raw exception`，也不得设置 `exc_info=True`。自动测试仅使用合成对象并拦截 provider client；Automated verification does not call DeepSeek.

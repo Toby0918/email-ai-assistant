@@ -131,14 +131,17 @@ git diff --check
    `python -B -m scripts.manage_mailbox_vault attachments --vault $VaultRoot
    --authorization-id $AuthorizationId --account $Account --manifest $AttachmentManifest`；
    总数不得超过 `50`，并继续执行 10 MiB 单文件和 25 MiB 单会话上限。
-5. 只有另行审核的 `StageEvaluationSelectionV1` 已严格绑定 exactly 200 条且本地
-   staging/evaluation key 已准备由 hidden getpass 输入时，才可运行
+5. 只有另行审核的 `StageEvaluationSelectionV1` 已严格绑定 exactly 200 条、
+   authorization `scope_fingerprint` 与双审清单 `inventory_fingerprint` 分别通过，
+   且本地 staging/evaluation key 已准备由 hidden getpass 输入时，才可运行
    `python -B -m scripts.manage_mailbox_vault stage-evaluation --vault $VaultRoot
    --authorization-id $AuthorizationId --account $Account
    --selection-manifest $EvaluationSelection
    --staging-dataset $EvaluationStage`。`$EvaluationStage` 必须是项目、OneDrive、
    temp、raw vault 和其他 private store 之外的 `.pkevalstage`；命令请求 no mailbox
-   app password，成功只输出 `evaluation_stage_complete` 和 200/0 counts。
+   app password。测试必须证明 handoff 使用 evaluation-only source、在 plaintext
+   释放前拒绝 inventory mismatch、保持 no evidence accumulation，并在下一条前释放
+   raw-derived identifiers；成功只输出 `evaluation_stage_complete` 和 200/0 counts。
 6. 使用 `python -B -m scripts.manage_mailbox_vault verify --vault $VaultRoot
    --authorization-id $AuthorizationId --account $Account` 做完整性检查；按授权使用
    `python -B -m scripts.manage_mailbox_vault purge-expired --vault $VaultRoot

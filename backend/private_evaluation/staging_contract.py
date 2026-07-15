@@ -15,8 +15,8 @@ from .schema import EvaluationCaseV1
 
 
 _SELECTION_FIELDS = frozenset({
-    "schema_version", "vault_id", "scope_fingerprint", "window_start",
-    "window_end", "expires_at", "cases",
+    "schema_version", "vault_id", "scope_fingerprint", "inventory_fingerprint",
+    "window_start", "window_end", "expires_at", "cases",
 })
 _CASE_FIELDS = frozenset({
     "record_id", "case_id", "revision", "approvals", "stratum", "expected",
@@ -92,8 +92,8 @@ class StageEvaluationCaseSelection:
 
 class StageEvaluationSelection:
     __slots__ = (
-        "vault_id", "scope_fingerprint", "window_start", "window_end",
-        "expires_at", "cases", "_latest_review",
+        "vault_id", "scope_fingerprint", "inventory_fingerprint", "window_start",
+        "window_end", "expires_at", "cases", "_latest_review",
     )
 
     def __init__(self, value: object) -> None:
@@ -103,6 +103,7 @@ class StageEvaluationSelection:
             _invalid_selection()
         self.vault_id = _uuid4(value["vault_id"])
         self.scope_fingerprint = _fingerprint(value["scope_fingerprint"])
+        self.inventory_fingerprint = _fingerprint(value["inventory_fingerprint"])
         self.window_start = _timestamp(value["window_start"])
         self.window_end = _timestamp(value["window_end"])
         if not timedelta(0) < self.window_end - self.window_start <= timedelta(days=732):

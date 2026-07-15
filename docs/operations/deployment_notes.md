@@ -122,8 +122,11 @@ python -B -m scripts.manage_mailbox_vault scan --vault $VaultRoot --authorizatio
 文件路径执行这些管理员 CLI。
 
 经单独业务/隐私审核的 `StageEvaluationSelectionV1` 必须 exactly 200 条、未过期，
-且每条只绑定 raw record ID 与 UUIDv4 case ID/production metadata。之后管理员才可
-运行：
+且每条只绑定 raw record ID 与 UUIDv4 case ID/production metadata。部署前必须分别
+核对 authorization `scope_fingerprint` 和审核 inventory 的 `inventory_fingerprint`；
+handoff 必须使用 evaluation-only source，在 plaintext release 前核对 inventory，
+保持 no evidence accumulation，并在处理下一条前释放 raw-derived identifiers。之后
+管理员才可运行：
 
 ```powershell
 python -B -m scripts.manage_mailbox_vault stage-evaluation --vault $VaultRoot --authorization-id $AuthorizationId --account $Account --selection-manifest $EvaluationSelection --staging-dataset $EvaluationStage
