@@ -102,6 +102,19 @@ def parse_called_names(path: Path) -> set[str]:
     return names
 
 
+def parse_import_modules(path: Path) -> set[str]:
+    if not path.exists():
+        return set()
+    tree = ast.parse(read_text(path))
+    modules: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            modules.update(alias.name for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            modules.add(node.module)
+    return modules
+
+
 def _mailbox_import_boundary_script_paths(
     root: Path,
     allowed_importer: Path,
@@ -114,6 +127,51 @@ def _mailbox_import_boundary_script_paths(
 
 
 class ArchitectureConstraintTests(unittest.TestCase):
+    def test_private_knowledge_package_isolated_from_mailbox_and_normal_runtime(self) -> None:
+        private_package = ROOT / "backend" / "private_knowledge"
+        forbidden_imports = {"imaplib", "smtplib", "openai"}
+        forbidden_references = ("backend.mailbox_ingest", "backend.email_agent")
+        for path in private_package.rglob("*.py"):
+            text = read_text(path)
+            with self.subTest(path=path):
+                self.assertTrue(parse_import_roots(path).isdisjoint(forbidden_imports))
+                self.assertTrue(all(value not in text for value in forbidden_references))
+
+        mailbox_package = ROOT / "backend" / "mailbox_ingest"
+        for path in mailbox_package.rglob("*.py"):
+            with self.subTest(path=path, direction="mailbox-to-private"):
+                self.assertNotIn("private_knowledge", read_text(path))
+
+    def test_only_mailbox_admin_cli_may_bridge_mailbox_and_private_knowledge(self) -> None:
+        allowed = (ROOT / "scripts" / "manage_mailbox_vault.py").resolve()
+        paths = list((ROOT / "backend").rglob("*.py"))
+        paths.extend((ROOT / "scripts").rglob("*.py"))
+        for path in paths:
+            text = read_text(path)
+            bridges = "mailbox_ingest" in text and "private_knowledge" in text
+            with self.subTest(path=path):
+                self.assertFalse(bridges and path.resolve() != allowed)
+
+    def test_runtime_knowledge_loader_has_read_only_projection_dependencies(self) -> None:
+        loader = ROOT / "backend" / "private_knowledge" / "runtime_loader.py"
+        forbidden = {
+            "repository", "review", "deidentifier", "candidate_imports",
+            "key_store", "snapshot", "atomic_ciphertext", "cli_service",
+        }
+        imported_leaves = {
+            module.rsplit(".", 1)[-1] for module in parse_import_modules(loader)
+        }
+        self.assertTrue(imported_leaves.isdisjoint(forbidden), imported_leaves)
+
+        architecture = read_text(
+            ROOT / "docs" / "constraints" / "architecture_constraints.md"
+        )
+        self.assertIn(
+            "backend.private_knowledge must not import backend.mailbox_ingest",
+            architecture,
+        )
+        self.assertIn("runtime loader is read-only", architecture)
+
     def test_mailbox_ingest_import_boundary_is_administrator_cli_only(self) -> None:
         architecture = read_text(
             ROOT / "docs" / "constraints" / "architecture_constraints.md"

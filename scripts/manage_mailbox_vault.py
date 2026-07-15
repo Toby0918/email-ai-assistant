@@ -7,7 +7,11 @@ import getpass
 import json
 import re
 import sys
+import time
+import uuid
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Callable
 
 from backend.mailbox_ingest.authorization import (
     AuthorizationError,
@@ -18,6 +22,16 @@ from backend.mailbox_ingest.service_models import (
     CliResult,
     PreparedOperation,
 )
+from backend.private_knowledge.deidentifier import deidentify_private_text
+from backend.private_knowledge.key_store import open_candidate_key
+from backend.private_knowledge.repository import CandidateBatchStore
+from backend.private_knowledge.residual_scanner import scan_residuals
+from backend.private_knowledge.staging import stage_knowledge
+from backend.private_knowledge.staging_contract import (
+    StageKnowledgeResult,
+    load_stage_selection_manifest,
+)
+from backend.private_knowledge.storage_policy import validate_stage_storage
 
 
 NETWORK_COMMANDS = frozenset({"inventory", "scan", "attachments"})
@@ -25,6 +39,7 @@ COMMANDS = (
     "init", "inventory", "scan", "attachments", "verify", "purge-expired",
     "revoke", "rewrap-recovery",
 )
+STAGE_COMMAND = "stage-knowledge"
 _FINGERPRINT = re.compile(r"^[0-9a-f]{64}$")
 _SAFE_CODES = frozenset(
     {
@@ -48,7 +63,7 @@ class _ArgumentFailure(Exception):
 def build_parser() -> argparse.ArgumentParser:
     parser = _SafeParser(prog="manage_mailbox_vault.py")
     commands = parser.add_subparsers(dest="command", required=True)
-    for command in COMMANDS:
+    for command in (*COMMANDS, STAGE_COMMAND):
         subparser = commands.add_parser(command)
         _add_common_arguments(subparser)
         if command == "init":
@@ -69,6 +84,9 @@ def build_parser() -> argparse.ArgumentParser:
             )
             subparser.add_argument("--new-recovery-key", type=Path, required=True)
             subparser.add_argument("--confirm", required=True)
+        elif command == STAGE_COMMAND:
+            subparser.add_argument("--selection-manifest", type=Path, required=True)
+            subparser.add_argument("--candidate-batch-root", type=Path, required=True)
     return parser
 
 
@@ -82,6 +100,7 @@ def run_cli(
     argv: list[str] | None = None,
     *,
     dependencies: CliDependencies | None = None,
+    stage_runner: Callable[[argparse.Namespace], StageKnowledgeResult] | None = None,
 ) -> int:
     try:
         arguments = build_parser().parse_args(argv)
@@ -97,6 +116,17 @@ def run_cli(
         if dependencies is not None:
             dependencies.emit({"ok": False, "code": "argument_invalid"})
         return 2
+    if arguments.command == STAGE_COMMAND:
+        emit = dependencies.emit if dependencies is not None else _default_emit
+        try:
+            result = (stage_runner or _default_stage_runner)(arguments)
+            if not isinstance(result, StageKnowledgeResult):
+                raise ValueError
+            emit(result.to_dict())
+            return 0 if result.code == "stage_complete" else 2
+        except Exception:
+            emit({"ok": False, "code": "internal_error"})
+            return 2
     selected = dependencies if dependencies is not None else _default_dependencies()
     operation: PreparedOperation | None = None
     try:
@@ -135,7 +165,8 @@ def _validate_local_arguments(arguments: argparse.Namespace) -> None:
     if not arguments.vault.is_absolute():
         raise ValueError
     for name in (
-        "recovery_key", "manifest", "current_recovery_key", "new_recovery_key"
+        "recovery_key", "manifest", "current_recovery_key", "new_recovery_key",
+        "selection_manifest", "candidate_batch_root",
     ):
         value = getattr(arguments, name, None)
         if value is not None and not value.is_absolute():
@@ -170,6 +201,70 @@ def _default_dependencies() -> CliDependencies:
     return build_cli_dependencies(
         getpass_function=getpass.getpass,
         emit=_default_emit,
+    )
+
+
+def execute_stage_knowledge_command(
+    arguments: argparse.Namespace,
+    *,
+    source_factory: Callable[..., object],
+    protector_factory: Callable[[], object],
+    current_time: Callable[[], datetime],
+    epoch_clock: Callable[[], int],
+    project_root: Path,
+    candidate_key_loader: Callable[..., object] = open_candidate_key,
+    path_validator: Callable[..., object] = validate_stage_storage,
+    batch_id_factory: Callable[[], str] = lambda: str(uuid.uuid4()),
+) -> StageKnowledgeResult:
+    selected = load_stage_selection_manifest(
+        Path(arguments.selection_manifest), now=current_time()
+    )
+    path_validator(
+        Path(arguments.candidate_batch_root), Path(arguments.vault), project_root
+    )
+    batch_id = batch_id_factory()
+    with candidate_key_loader(
+        Path(arguments.candidate_batch_root), protector_factory()
+    ) as candidate_key:
+        with source_factory(
+            Path(arguments.vault),
+            authorization_id=arguments.authorization_id,
+            account=arguments.account,
+            expected_vault_id=selected.vault_id,
+            expected_scope=selected.scope_fingerprint,
+            window_start=selected.window_start,
+            window_end=selected.window_end,
+            project_root=project_root,
+            clock=epoch_clock,
+        ) as source:
+            def write(candidates: tuple[object, ...]) -> object:
+                return CandidateBatchStore(
+                    Path(arguments.candidate_batch_root), candidate_key,
+                    batch_id=batch_id, evidence=source.evidence,
+                ).write(candidates)
+
+            return stage_knowledge(
+                selected,
+                read_one_record=source.read_one_record,
+                deidentify=deidentify_private_text,
+                scan_residuals=scan_residuals,
+                write_encrypted_candidate_batch=write,
+            )
+
+
+def _default_stage_runner(arguments: argparse.Namespace) -> StageKnowledgeResult:
+    from backend.mailbox_ingest.knowledge_stage_source import (
+        open_knowledge_stage_source,
+    )
+    from backend.private_knowledge.dpapi import CurrentUserDpapiProtector
+
+    return execute_stage_knowledge_command(
+        arguments,
+        source_factory=open_knowledge_stage_source,
+        protector_factory=CurrentUserDpapiProtector,
+        current_time=lambda: datetime.now(timezone.utc).replace(microsecond=0),
+        epoch_clock=lambda: int(time.time()),
+        project_root=Path(__file__).resolve().parents[1],
     )
 
 

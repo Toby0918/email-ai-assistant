@@ -1,0 +1,222 @@
+"""One-record-at-a-time raw-vault reader for the administrator staging bridge."""
+
+from __future__ import annotations
+
+import base64
+import json
+import re
+from datetime import datetime
+from email import policy
+from email.parser import BytesParser
+from email.utils import getaddresses
+from pathlib import Path
+from typing import Callable
+
+from .dpapi import DpapiProtector
+from .errors import VaultError
+from .existing_vault_policy import validate_existing_vault_location
+from .models import SecretBuffer
+from .vault_access import open_mailbox_vault
+
+
+_RECORD_ID = re.compile(r"^[0-9a-f]{32}$")
+_FIELDS = {
+    "schema_version", "scope", "fingerprint", "opaque_folder_id", "mailbox",
+    "uidvalidity", "uid", "internal_date", "expires_at_utc", "header_b64",
+    "bodies_b64", "attachments",
+}
+
+
+class RawStageRecord:
+    __slots__ = ("text", "context")
+
+    def __init__(self, text: str, people: list[str]) -> None:
+        self.text = text
+        self.context = {"people": people, "organizations": []}
+
+    def close(self) -> None:
+        self.text = ""
+        self.context = {}
+
+    def __repr__(self) -> str:
+        return "RawStageRecord(<redacted>)"
+
+
+class _RawRecordContext:
+    __slots__ = ("_source", "_record_id", "_record")
+
+    def __init__(self, source: MailboxKnowledgeStageSource, record_id: str) -> None:
+        self._source = source
+        self._record_id = record_id
+        self._record: RawStageRecord | None = None
+
+    def __enter__(self) -> RawStageRecord:
+        if self._record is not None:
+            raise VaultError("stage_record_invalid")
+        secret = self._source._opened.vault.get_record(self._record_id)
+        if not isinstance(secret, SecretBuffer):
+            raise VaultError("stage_record_invalid")
+        with secret:
+            self._record = self._source._decode(bytes(secret), self._record_id)
+        return self._record
+
+    def __exit__(self, *_args: object) -> None:
+        if self._record is not None:
+            self._record.close()
+            self._record = None
+
+    def __repr__(self) -> str:
+        return "RawRecordContext(<redacted>)"
+
+
+class MailboxKnowledgeStageSource:
+    def __init__(
+        self,
+        opened: object,
+        *,
+        expected_scope: str,
+        account: str,
+        window_start: datetime,
+        window_end: datetime,
+    ) -> None:
+        self._opened = opened
+        self._scope = expected_scope
+        self._account_domain = account.rsplit("@", 1)[-1].casefold()
+        self._window_start = window_start
+        self._window_end = window_end
+        self._threads: set[str] = set()
+        self._counterparties: set[str] = set()
+        self._closed = False
+
+    def read_one_record(self, record_id: str) -> _RawRecordContext:
+        if self._closed or not isinstance(record_id, str) or _RECORD_ID.fullmatch(record_id) is None:
+            raise VaultError("stage_record_invalid")
+        return _RawRecordContext(self, record_id)
+
+    @property
+    def evidence(self) -> tuple[str, str]:
+        return (_conversation_bucket(len(self._threads)),
+                _counterparty_bucket(len(self._counterparties)))
+
+    def _decode(self, payload: bytes, record_id: str) -> RawStageRecord:
+        try:
+            value = json.loads(payload.decode("ascii"))
+            _validate_record(value, self._scope, self._window_start, self._window_end)
+            header = base64.b64decode(value["header_b64"], validate=True)
+            bodies = tuple(base64.b64decode(item, validate=True) for item in value["bodies_b64"])
+            if sum(map(len, (header, *bodies))) > 25 * 1024 * 1024:
+                raise ValueError
+            message = BytesParser(policy=policy.default).parsebytes(header)
+            people, addresses = _header_identities(message)
+            self._counterparties.update(
+                address.rsplit("@", 1)[-1].casefold()
+                for address in addresses
+                if "@" in address and not address.casefold().endswith("@" + self._account_domain)
+            )
+            self._threads.add(_thread_key(message, record_id))
+            filenames = _filenames(value["attachments"])
+            text = "\n".join(
+                [header.decode("utf-8", errors="replace")]
+                + [item.decode("utf-8", errors="replace") for item in bodies]
+                + filenames
+            )
+            return RawStageRecord(text, people)
+        except (ValueError, TypeError, KeyError, UnicodeError, json.JSONDecodeError):
+            raise VaultError("stage_record_invalid") from None
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        self._threads.clear()
+        self._counterparties.clear()
+        self._opened.close()
+
+    def __enter__(self) -> MailboxKnowledgeStageSource:
+        if self._closed:
+            raise VaultError("stage_source_closed")
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        self.close()
+
+    def __repr__(self) -> str:
+        return "MailboxKnowledgeStageSource(<redacted>)"
+
+
+def open_knowledge_stage_source(
+    vault_root: Path,
+    *,
+    authorization_id: str,
+    account: str,
+    expected_vault_id: str,
+    expected_scope: str,
+    window_start: datetime,
+    window_end: datetime,
+    project_root: Path,
+    validate_existing: Callable[..., object] = validate_existing_vault_location,
+    dpapi_factory: Callable[[], object] = DpapiProtector,
+    opener: Callable[..., object] = open_mailbox_vault,
+    clock: Callable[[], int],
+) -> MailboxKnowledgeStageSource:
+    validate_existing(Path(vault_root), Path(project_root))
+    opened = opener(Path(vault_root), dpapi=dpapi_factory(), clock=clock)
+    try:
+        scope = opened.require_authorization_scope(authorization_id, account)
+        if (getattr(opened.identity, "vault_id", None) != expected_vault_id
+                or getattr(scope, "opaque_scope_id", None) != expected_scope):
+            raise VaultError("stage_scope_mismatch")
+        return MailboxKnowledgeStageSource(
+            opened, expected_scope=expected_scope, account=account,
+            window_start=window_start, window_end=window_end,
+        )
+    except Exception:
+        opened.close()
+        raise
+
+
+def _validate_record(value: object, scope: str, start: datetime, end: datetime) -> None:
+    if (not isinstance(value, dict) or set(value) != _FIELDS
+            or value["schema_version"] != 1 or value["scope"] != scope
+            or not isinstance(value["bodies_b64"], list)
+            or not isinstance(value["attachments"], list)):
+        raise ValueError
+    internal = datetime.fromisoformat(value["internal_date"])
+    if internal.utcoffset() is None or not start <= internal < end:
+        raise ValueError
+
+
+def _header_identities(message: object) -> tuple[list[str], list[str]]:
+    values: list[str] = []
+    for name in ("from", "to", "cc", "reply-to"):
+        values.extend(str(item) for item in message.get_all(name, []))
+    pairs = getaddresses(values)
+    people = sorted({name.strip() for name, _address in pairs if 1 <= len(name.strip()) <= 200})
+    addresses = [address for _name, address in pairs]
+    return people, addresses
+
+
+def _thread_key(message: object, fallback: str) -> str:
+    references = str(message.get("references", "")).split()
+    return (references[0] if references else str(
+        message.get("in-reply-to") or message.get("message-id") or fallback
+    ))[:500]
+
+
+def _filenames(attachments: object) -> list[str]:
+    result: list[str] = []
+    for item in attachments:
+        if not isinstance(item, dict):
+            raise ValueError
+        filename = item.get("filename")
+        if isinstance(filename, str) and filename:
+            result.append(filename[:500])
+    return result
+
+
+def _conversation_bucket(count: int) -> str:
+    return "1" if count <= 1 else "2" if count == 2 else "3-5" if count <= 5 else "6-10" if count <= 10 else "11+"
+
+
+def _counterparty_bucket(count: int) -> str:
+    return "1" if count <= 1 else "2-3" if count <= 3 else "4-10" if count <= 10 else "11+"

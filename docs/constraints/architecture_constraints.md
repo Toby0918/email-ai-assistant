@@ -115,6 +115,28 @@ The second CLI dependency above is permitted only for Task 4 `stage-knowledge`;
 `backend.private_knowledge` must never import `backend.mailbox_ingest` or own a
 raw-vault reader.
 
+The executable form of this boundary is: backend.private_knowledge must not import backend.mailbox_ingest,
+`backend.email_agent`, IMAP/SMTP clients, or any model provider. Conversely,
+`backend.mailbox_ingest` must not import `backend.private_knowledge`. Only
+`scripts/manage_mailbox_vault.py` may bridge both namespaces for the explicit,
+local `stage-knowledge` command. `scripts/manage_private_knowledge.py` receives
+only an encrypted deidentified candidate batch and must never import or open the
+raw vault.
+
+Private candidate, authority, and runtime-snapshot data use separate keys,
+magic values, HKDF purposes, namespaces, and project-external paths. The
+selection manifest binds immutable vault ID, authorization scope fingerprint,
+time window, dual reviewers, approved random record IDs, and a maximum 24-hour
+review deadline. No CLI accepts raw text, mapping, evidence counter, threshold,
+bulk/force override, key, password, vault locator, or raw record ID.
+
+The private-knowledge runtime loader is read-only. It may depend only on the
+bounded read-only file reader, snapshot path/codec, immutable runtime schema,
+fixed errors, and cryptographic verification. It must not import authority
+repository, lifecycle review, candidate store, deidentifier, key store,
+publisher, CLI service, SQLite, or any write helper. Failure returns an empty
+immutable card set so normal generic rules continue.
+
 ## Authorized mailbox transport policy
 
 Importer endpoint 固定为 `imap.exmail.qq.com:993` 并验证 TLS certificate。
