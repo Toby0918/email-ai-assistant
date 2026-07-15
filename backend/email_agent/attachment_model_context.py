@@ -99,6 +99,11 @@ _BUSINESS_LABELS = {
     "amount", "deadline", "due", "invoice", "part", "po", "price", "qty",
     "quantity", "rfq", "size", "total", "usd", "eur", "cny", "rmb",
 }
+_BOUNDARY_ID_TOKEN = re.compile(
+    r"(?i)\b(?:po|order|txn|transaction)\s*[:#-]?\s*[a-z0-9][a-z0-9-]{3,}\b"
+)
+_BOUNDARY_PHONE_TOKEN = re.compile(r"(?<!\w)(?:\+?\d[\d ()-]{7,}\d)(?!\w)")
+_BOUNDARY_SENSITIVE_PATTERNS = (_EMAIL_ADDRESS, _BOUNDARY_ID_TOKEN, _BOUNDARY_PHONE_TOKEN)
 
 
 @dataclass(frozen=True, slots=True, repr=False)
@@ -157,7 +162,11 @@ def sanitize_remote_text(
     cleaned = _RELATIVE_PATH.sub(_remove_relative_path, cleaned)
     normalized = _normalize(_restore_emails(cleaned, emails))
     limit = max(0, int(max_characters))
-    return SanitizedModelText(normalized[:limit], link_was_present, len(normalized) > limit)
+    return SanitizedModelText(
+        _token_safe_bound(normalized, limit),
+        link_was_present,
+        len(normalized) > limit,
+    )
 
 
 def build_attachment_model_context(
@@ -257,3 +266,31 @@ def _remove_relative_path(match: re.Match[str]) -> str:
 def _normalize(value: str) -> str:
     lines = [re.sub(r"[ \t]+", " ", line).strip() for line in value.split("\n")]
     return re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
+
+
+def _token_safe_bound(value: str, limit: int) -> str:
+    if len(value) <= limit:
+        return value
+    if limit <= 0:
+        return ""
+    sensitive_start = _crossing_sensitive_start(value, limit)
+    if sensitive_start is not None:
+        return _token_safe_bound(value, sensitive_start)
+    prefix = value[:limit]
+    if prefix[-1].isspace() or value[limit].isspace():
+        return prefix.rstrip()
+    boundary = max(
+        (index for index, character in enumerate(prefix) if character.isspace()),
+        default=-1,
+    )
+    return prefix[:boundary].rstrip() if boundary >= 0 else ""
+
+
+def _crossing_sensitive_start(value: str, limit: int) -> int | None:
+    starts = (
+        match.start()
+        for pattern in _BOUNDARY_SENSITIVE_PATTERNS
+        for match in pattern.finditer(value)
+        if match.start() < limit < match.end()
+    )
+    return min(starts, default=None)

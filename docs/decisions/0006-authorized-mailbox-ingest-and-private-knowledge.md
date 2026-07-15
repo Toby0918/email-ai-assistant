@@ -106,6 +106,14 @@ totalling at most 4,000 characters. It receives no raw vault data, binary, URL,
 path, source locator, vault identifier, or restoration mapping. Codex and
 DeepSeek never read the raw vault.
 
+The local identity context covers current headers and every sender/recipient in
+the bounded timeline sources selected for the prompt. Outbound truncation may
+stop only at a complete token boundary and drops a field when no safe boundary
+exists. Before either production analysis parser runs, provider output passes a
+raw scan plus a bounded, duplicate-key-rejecting JSON privacy decode that scans
+decoded keys and string leaves. Any invalid JSON or private artifact fails
+closed to the complete rule result.
+
 The provider stays disabled by default. Offline tests use injected clients.
 Private live evaluation stops after its first 20 cases on any schema, safety,
 grounding, serialization, or p95 latency gate failure. There is one call per

@@ -7,7 +7,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any, TypeVar
 
-from .analysis_budget import AnalysisBudget
+from .analysis_budget import AnalysisBudget, DEEPSEEK_PROVIDER_MAX_SECONDS
 from .analysis_diagnostics import log_analysis_fallback
 from .analysis_schema import validate_analysis_result
 from .attachment_model_context import (
@@ -251,12 +251,12 @@ def _attachment_public_sources(
 
 
 def _provider_timeout(context: AnalysisRouteContext) -> float | None:
-    configured = (
-        context.config.deepseek_timeout_seconds
-        if context.config.llm_provider == "deepseek"
-        else context.config.ollama_timeout_seconds
-    )
-    return context.budget.provider_timeout_seconds(configured)
+    if context.config.llm_provider == "deepseek":
+        return context.budget.provider_timeout_seconds(
+            context.config.deepseek_timeout_seconds,
+            maximum_seconds=DEEPSEEK_PROVIDER_MAX_SECONDS,
+        )
+    return context.budget.provider_timeout_seconds(context.config.ollama_timeout_seconds)
 
 
 def _model_led(config: AppConfig) -> bool:

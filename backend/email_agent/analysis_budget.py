@@ -6,7 +6,8 @@ from dataclasses import dataclass, field
 BACKEND_TARGET_SECONDS = 13.0
 RESPONSE_MARGIN_SECONDS = 2.0
 PARSER_MAX_SECONDS = 8.0
-PROVIDER_MAX_SECONDS = 10.0
+PROVIDER_MAX_SECONDS = 25.0
+DEEPSEEK_PROVIDER_MAX_SECONDS = 10.0
 PROVIDER_MIN_SECONDS = 5.0
 
 
@@ -46,10 +47,12 @@ class AnalysisBudget:
     def provider_timeout_seconds(
         self,
         configured_timeout_seconds: float,
+        *,
+        maximum_seconds: float = PROVIDER_MAX_SECONDS,
     ) -> float | None:
         timeout = min(
             configured_timeout_seconds,
-            PROVIDER_MAX_SECONDS,
+            maximum_seconds,
             self.remaining_seconds(reserve_seconds=RESPONSE_MARGIN_SECONDS),
         )
         return timeout if timeout >= PROVIDER_MIN_SECONDS else None

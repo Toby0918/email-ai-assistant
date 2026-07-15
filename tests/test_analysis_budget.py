@@ -70,7 +70,7 @@ class AnalysisBudgetTests(unittest.TestCase):
         now = [100.0]
         budget = AnalysisBudget.start(clock=lambda: now[0])
 
-        self.assertEqual(budget.provider_timeout_seconds(90), 10.0)
+        self.assertEqual(budget.provider_timeout_seconds(90), 11.0)
         self.assertEqual(budget.provider_timeout_seconds(7), 7)
 
         now[0] = 106.0

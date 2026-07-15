@@ -77,7 +77,7 @@ class DeepSeekEvaluationTests(unittest.TestCase):
             report = _evaluate(cases)
 
         self.assertEqual(report["case_count"], 3)
-        self.assertEqual(parser.call_count, 3)
+        self.assertEqual(parser.call_count, 2)
         self.assertEqual(evidence.call_count, 2)
         self.assertEqual(merge.call_count, 1)
 
@@ -323,7 +323,7 @@ class DeepSeekEvaluationTests(unittest.TestCase):
             routes, "generate_analysis", side_effect=AssertionError("network path used")
         ):
             self.assertEqual(_evaluate(cases), expected)
-        self.assertEqual(parser.call_count, 50)
+        self.assertEqual(parser.call_count, 48)
 
         env = os.environ.copy()
         env.pop("DEEPSEEK_API_KEY", None)

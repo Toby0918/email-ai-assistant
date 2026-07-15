@@ -1039,7 +1039,7 @@ class AnalyzerTests(unittest.TestCase):
         self.assertIn("detail=not_applicable", captured.output[0])
         self.assertNotIn("PRIVATE_EMPTY_RESPONSE", captured.output[0])
 
-    def test_model_led_malformed_envelope_has_specific_diagnostic(self) -> None:
+    def test_model_led_invalid_json_has_specific_safety_diagnostic(self) -> None:
         expected = self._expected_model_email_rule_fallback()
         with self._capture_analysis_fallback_logs() as captured:
             result = analyze_current_email(
@@ -1050,12 +1050,8 @@ class AnalyzerTests(unittest.TestCase):
 
         self.assertEqual(result, expected)
         self.assertEqual(len(captured.output), 1)
-        self.assertIn(
-            "code=envelope_invalid stage=envelope provider=deepseek "
-            "model=deepseek-v4-flash output_mode=model_led "
-            "detail=json_syntax",
-            captured.output[0],
-        )
+        self.assertIn("code=safety_rejected_all stage=safety", captured.output[0])
+        self.assertIn("detail=not_applicable", captured.output[0])
 
     def test_model_led_envelope_error_detail_is_propagated(self) -> None:
         expected = self._expected_model_email_rule_fallback()
@@ -1192,7 +1188,7 @@ class AnalyzerTests(unittest.TestCase):
         self.assertIn("detail=not_applicable", captured.output[0])
         self.assertNotIn("PRIVATE_LANGUAGE", captured.output[0])
 
-    def test_conservative_schema_failure_has_specific_diagnostic(self) -> None:
+    def test_conservative_invalid_json_has_specific_safety_diagnostic(self) -> None:
         expected = self._expected_model_email_rule_fallback()
         config = replace(
             self._deepseek_config(), deepseek_output_mode="conservative"
@@ -1206,7 +1202,7 @@ class AnalyzerTests(unittest.TestCase):
 
         self.assertEqual(result, expected)
         self.assertEqual(len(captured.output), 1)
-        self.assertIn("code=public_schema_invalid stage=schema", captured.output[0])
+        self.assertIn("code=safety_rejected_all stage=safety", captured.output[0])
         self.assertIn("detail=not_applicable", captured.output[0])
         self.assertNotIn("PRIVATE_SCHEMA_RESPONSE", captured.output[0])
 
@@ -1443,9 +1439,42 @@ class AnalyzerTests(unittest.TestCase):
 
         generate.assert_called_once()
         self.assertIs(generate.call_args.kwargs["config"], config)
-        self.assertEqual(generate.call_args.kwargs["timeout_seconds"], 10.0)
+        self.assertEqual(generate.call_args.kwargs["timeout_seconds"], 11.0)
         self.assertEqual(generate.call_args.kwargs["system_prompt"], "")
         self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
+
+    def test_provider_specific_caps_hold_under_artificial_long_budget(self) -> None:
+        base = load_config(dotenv_path=None)
+        cases = (
+            (
+                "deepseek",
+                self._deepseek_config(deepseek_timeout_seconds=90),
+                10.0,
+            ),
+            (
+                "ollama",
+                replace(
+                    base,
+                    llm_provider="ollama",
+                    ollama_timeout_seconds=30,
+                ),
+                25.0,
+            ),
+        )
+
+        for provider, config, expected in cases:
+            with self.subTest(provider=provider), patch(
+                "backend.email_agent.analysis_model_routes.generate_analysis",
+                return_value="not json",
+            ) as generate:
+                analyze_current_email(
+                    self._model_email(),
+                    config=config,
+                    budget=AnalysisBudget(deadline=140.0, _clock=lambda: 100.0),
+                )
+
+            generate.assert_called_once()
+            self.assertEqual(generate.call_args.kwargs["timeout_seconds"], expected)
 
     def test_conservative_timeout_is_computed_after_prompt_construction(self) -> None:
         now = [100.0]
@@ -1552,6 +1581,58 @@ class AnalyzerTests(unittest.TestCase):
                 if mode == "model_led":
                     self.assertNotIn("<LOCAL_PATH_", prompts[0])
                 self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
+
+    def test_both_deepseek_modes_deidentify_historical_display_names(self) -> None:
+        email = {
+            "subject": "Synthetic current request",
+            "from": "current@example.test",
+            "body_text": "Please review the visible conversation.",
+            "thread_segments": [{
+                "position": 1,
+                "from": "Alice <alice@example.test>",
+                "to": "张伟 <zhang@example.test>",
+                "subject": "Delivery request from Alice",
+                "body_text": "Alice asks 张伟 to confirm delivery.",
+            }],
+        }
+
+        for mode in ("model_led", "conservative"):
+            with self.subTest(mode=mode):
+                prompts: list[str] = []
+                result = analyze_current_email(
+                    email,
+                    llm_generate=lambda prompt: prompts.append(prompt) or "not json",
+                    config=self._deepseek_config(deepseek_output_mode=mode),
+                )
+
+                self.assertEqual(len(prompts), 1)
+                self.assertNotIn("Alice", prompts[0])
+                self.assertNotIn("张伟", prompts[0])
+                self.assertIn("<PERSON_", prompts[0])
+                self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
+
+    def test_deepseek_fails_closed_when_timeline_header_was_overlimit(self) -> None:
+        calls: list[str] = []
+        email = {
+            "subject": "Synthetic current request",
+            "from": "current@example.test",
+            "body_text": "Please review the visible conversation.",
+            "thread_segments": [{
+                "position": 1,
+                "from": "x" * 513,
+                "subject": "Synthetic request",
+                "body_text": "Please confirm delivery.",
+            }],
+        }
+
+        result = analyze_current_email(
+            email,
+            llm_generate=lambda prompt: calls.append(prompt) or "not json",
+            config=self._deepseek_config(),
+        )
+
+        self.assertEqual(calls, [])
+        self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
 
     def test_local_ollama_route_remains_ungated_and_does_not_render_runtime_cards(self) -> None:
         base = load_config(dotenv_path=None)
@@ -1660,6 +1741,42 @@ class AnalyzerTests(unittest.TestCase):
             self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
             self.assertIn("code=safety_rejected_all stage=safety", captured.output[0])
             self.assertNotIn("<EMAIL_1>", json.dumps(result))
+
+    def test_decoded_or_invalid_provider_output_fails_before_both_parsers(self) -> None:
+        routes = (
+            (
+                "model_led",
+                "backend.email_agent.analysis_model_routes.parse_deepseek_analysis_v1",
+            ),
+            (
+                "conservative",
+                "backend.email_agent.analysis_model_routes.parse_legacy_result",
+            ),
+        )
+        outputs = (
+            r'{"summary":"\u003cEmAiL_1\u003e"}',
+            r'{"summary":"pri\u0076ate_con\u0074ext"}',
+            '{"summary":"safe","summary":"duplicate"}',
+            "not json",
+        )
+
+        for mode, parser_target in routes:
+            for raw in outputs:
+                with self.subTest(mode=mode, raw=raw[:24]), patch(
+                    parser_target
+                ) as parser, self._capture_analysis_fallback_logs() as captured:
+                    result = analyze_current_email(
+                        self._model_email(),
+                        llm_generate=lambda _prompt, output=raw: output,
+                        config=self._deepseek_config(deepseek_output_mode=mode),
+                    )
+
+                parser.assert_not_called()
+                self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
+                self.assertIn("code=safety_rejected_all stage=safety", captured.output[0])
+                serialized = json.dumps(result).upper()
+                self.assertNotIn("EMAIL_1", serialized)
+                self.assertNotIn("PRIVATE_CONTEXT", serialized)
 
     @staticmethod
     def _model_email() -> dict[str, object]:

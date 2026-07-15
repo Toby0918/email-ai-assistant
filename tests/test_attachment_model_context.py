@@ -102,9 +102,76 @@ class AttachmentModelContextTests(unittest.TestCase):
             f"{private_url} " + ("ordinary business text " * 20),
             max_characters=60,
         )
-        self.assertEqual(len(truncated.text), 60)
+        self.assertLessEqual(len(truncated.text), 60)
+        self.assertEqual(truncated.text.split()[-1], "ordinary")
         self.assertTrue(truncated.link_was_present)
         self.assertTrue(truncated.truncated)
+
+    def test_remote_text_truncation_never_emits_partial_sensitive_tokens(self) -> None:
+        limit = 80
+        cases = (
+            ("email", "alice@acme.example"),
+            ("domain", "private.acme.example"),
+            ("order", "PO-ABCD1234"),
+            ("transaction", "TXN-ABCD1234"),
+            ("path", r"C:\private\records\quote.xlsx"),
+            ("phone", "+1 202 555 0123"),
+        )
+        for label, token in cases:
+            for offset in (-1, 0, 1):
+                token_end = limit + offset
+                filler_length = token_end - len("safe ") - 1 - len(token)
+                raw = (
+                    "safe " + ("甲" * filler_length) + " " + token
+                    + " trailing " + ("tail " * 30)
+                )
+
+                with self.subTest(label=label, offset=offset):
+                    sanitized = sanitize_remote_text(raw, max_characters=limit)
+                    self.assertTrue(sanitized.truncated)
+                    self.assertLessEqual(len(sanitized.text), limit)
+                    if token not in sanitized.text:
+                        for prefix_length in range(4, len(token)):
+                            fragment = token[:prefix_length].rstrip()
+                            if len(fragment) >= 4:
+                                self.assertNotIn(fragment, sanitized.text)
+
+    def test_remote_text_drops_unbroken_field_when_no_safe_boundary_exists(self) -> None:
+        raw = ("x" * 1_988) + "alice@acme.com"
+
+        sanitized = sanitize_remote_text(raw, max_characters=2_000)
+
+        self.assertTrue(sanitized.truncated)
+        self.assertEqual(sanitized.text, "")
+
+    def test_attachment_context_uses_token_safe_truncation_at_its_real_limit(self) -> None:
+        token = "alice@acme.example"
+        token_end = MAX_MODEL_CHARACTERS_PER_ATTACHMENT + 1
+        filler_length = token_end - len("safe ") - 1 - len(token)
+        raw = (
+            "safe " + ("甲" * filler_length) + " " + token
+            + " trailing " + ("tail " * 30)
+        )
+
+        context = build_attachment_model_context(
+            (AttachmentModelCandidate("attachment:0", raw),)
+        )
+
+        self.assertEqual(len(context), 1)
+        self.assertTrue(context[0].truncated)
+        self.assertNotIn(token[:-1], context[0].text)
+        self.assertLessEqual(
+            len(context[0].text),
+            MAX_MODEL_CHARACTERS_PER_ATTACHMENT,
+        )
+
+    def test_normal_long_remote_text_remains_nonempty_and_bounded(self) -> None:
+        sanitized = sanitize_remote_text("ordinary word " * 100, max_characters=80)
+
+        self.assertTrue(sanitized.truncated)
+        self.assertTrue(sanitized.text)
+        self.assertLessEqual(len(sanitized.text), 80)
+        self.assertEqual(sanitized.text.split()[-1], "ordinary")
 
     def test_link_marker_is_optional_and_attachment_context_omits_it(self) -> None:
         raw = "before https://private.example.test/a after"
@@ -140,7 +207,7 @@ class AttachmentModelContextTests(unittest.TestCase):
             sum(len(item.text) for item in items),
             MAX_MODEL_CHARACTERS_TOTAL,
         )
-        self.assertEqual(sum(len(item.text) for item in items), 24_000)
+        self.assertTrue(all(item.text.endswith("detail") for item in items))
         self.assertTrue(all(item.truncated for item in items))
 
     def test_empty_sanitized_candidates_are_not_accepted(self) -> None:
