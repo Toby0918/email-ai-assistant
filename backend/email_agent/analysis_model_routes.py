@@ -10,10 +10,7 @@ from typing import Any, TypeVar
 from .analysis_budget import AnalysisBudget, DEEPSEEK_PROVIDER_MAX_SECONDS
 from .analysis_diagnostics import log_analysis_fallback
 from .analysis_schema import validate_analysis_result
-from .attachment_model_context import (
-    AttachmentAnalysisBundle,
-    build_attachment_model_context,
-)
+from .attachment_model_context import AttachmentAnalysisBundle, build_attachment_model_context
 from .config import AppConfig
 from .deepseek_analysis_schema import (
     DeepSeekEnvelopeError,
@@ -26,17 +23,14 @@ from .legacy_model_analysis import (
     parse_legacy_result,
     validate_conservative_language,
 )
-from .llm_client import (
-    LlmClientError,
-    configured_analysis_engine_label,
-    generate_analysis,
+from .llm_client import LlmClientError, configured_analysis_engine_label, generate_analysis
+from .model_exact_fact_safety import (
+    DEEPSEEK_CONSERVATIVE_SYSTEM_PROMPT,
+    retain_conservative_backend_exact_facts,
 )
 from .model_result_safety import merge_deepseek_analysis_v1
 from .model_text_safety import validate_public_language
-from .prompt_context import (
-    DEEPSEEK_SYSTEM_PROMPT,
-    build_deepseek_untrusted_context,
-)
+from .prompt_context import DEEPSEEK_SYSTEM_PROMPT, build_deepseek_untrusted_context
 from .private_analysis_route import PrivateAnalysisRouteError, prepare_private_deepseek_prompt
 from .private_analysis_route import validate_private_provider_output
 from .thread_timeline import TimelineBuild
@@ -183,13 +177,19 @@ def _run_conservative(
     timeout = _provider_timeout(context)
     if timeout is None:
         raise _AnalysisFallback("budget_exhausted", "budget")
-    raw = _generate(prompt, context, llm_generate, timeout)
+    system_prompt = (
+        DEEPSEEK_CONSERVATIVE_SYSTEM_PROMPT
+        if context.config.llm_provider == "deepseek" else ""
+    )
+    raw = _generate(prompt, context, llm_generate, timeout, system_prompt)
     if context.config.llm_provider == "deepseek":
         validate_private_provider_output(raw)
     result = _run_stage(
         "public_schema_invalid", "schema",
         lambda: parse_legacy_result(raw, fallback=context.fallback),
     )
+    if context.config.llm_provider == "deepseek":
+        result = retain_conservative_backend_exact_facts(result, context.fallback)
     _run_stage(
         "public_language_invalid", "language",
         lambda: validate_conservative_language(result),

@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-14
+last_update: 2026-07-15
 status: active
 owner: "@tobyWang"
 review_cycle: weekly
@@ -124,7 +124,7 @@ The parser will produce an internal attachment analysis bundle with two projecti
 
 The model projection is limited to 6,000 characters per accepted attachment and 24,000 attachment characters per request. Existing file-count, byte, type, page, sheet, row, image-pixel, OCR, and decoder limits remain in force. A parser reaching its limit records a limitation instead of claiming complete coverage.
 
-The model projection preserves business identifiers, part numbers, names, email addresses, quantities, measurements, currency amounts, dates, deadlines, quality language, and table relationships because those elements are necessary for useful analysis. It removes or excludes:
+The model projection preserves deidentified business semantics, quantities, measurements, currency amounts, relative deadlines, quality language, and table relationships needed for useful analysis. Identities, exact business identifiers, and exact calendar dates are converted locally to unnumbered generic semantics; published exact values come only from locally verified backend rule fields. It removes or excludes:
 
 - Attachment binary and base64.
 - Browser-private attachment download URLs.
@@ -384,7 +384,7 @@ Required coverage:
 
 - DeepSeek config defaults, model allowlist, backend-only key, fixed official endpoint, and output-mode opt-in.
 - Exact provider request shape, non-thinking JSON mode, zero retries, output limit, total cancellation, completion reasons, and sanitized exceptions.
-- Positive remote-context coverage for visible thread, business identifiers, quantities, amounts, dates, deadlines, table relationships, and OCR text.
+- Positive remote-context coverage for the deidentified visible thread, generic identifier/date semantics, quantities, amounts, relative deadlines, table relationships, and OCR text; negative canaries prove exact identifiers and dates stay local.
 - Negative canaries for binary/base64, every URL/URI shape, cookies, authorization values, tokens, local paths, active content, logs, SQLite, API responses, and text beyond limits.
 - Persistent pre-click external-processing disclosure under the operator-wide consent model.
 - Versioned provider-envelope parsing, evidence/source registry validation, attachment augmentation mapping, and unchanged public response projection.

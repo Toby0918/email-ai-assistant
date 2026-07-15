@@ -151,6 +151,35 @@ DEBUG_PRIVACY_SCRIPT = dedent(
 
 
 class LoggingConfigTests(unittest.TestCase):
+    def test_filter_accepts_placeholder_echo_only_for_safety_pair(self) -> None:
+        from backend.email_agent.logging_config import (
+            DIAGNOSTIC_LOGGER_NAME,
+            _FallbackEventFilter,
+        )
+
+        def record(stage: str) -> logging.LogRecord:
+            return logging.LogRecord(
+                DIAGNOSTIC_LOGGER_NAME,
+                logging.WARNING,
+                "synthetic.py",
+                1,
+                EVENT_TEMPLATE,
+                (
+                    "provider_output_placeholder_echo",
+                    stage,
+                    "deepseek",
+                    "deepseek-v4-flash",
+                    "model_led",
+                    "not_applicable",
+                    123,
+                ),
+                None,
+            )
+
+        event_filter = _FallbackEventFilter()
+        self.assertTrue(event_filter.filter(record("safety")))
+        self.assertFalse(event_filter.filter(record("provider")))
+
     def test_filter_rejects_hostile_code_subclass_before_pairing_comparison(
         self,
     ) -> None:

@@ -1,12 +1,17 @@
 ---
-last_update: 2026-07-12
-status: active
+last_update: 2026-07-15
+status: deprecated
 owner: "@tobyWang"
 review_cycle: weekly
 source_type: operation_guide
 ---
 
 # DeepSeek-Led Current Email Analysis Implementation Plan
+
+> Superseded by the implemented contract-alignment design and the active
+> `docs/operations/deepseek_api_analysis_task_brief.md`. Historical task steps
+> below are retained for traceability and must not override current privacy or
+> timeout constraints.
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
@@ -24,9 +29,9 @@ source_type: operation_guide
 - Fix the endpoint to `https://api.deepseek.com`; allow only `deepseek-v4-flash` and `deepseek-v4-pro`; use JSON output, thinking disabled, temperature `0`, streaming disabled, `max_tokens=2400`, and SDK retries `0`.
 - Only an explicit Analyze click may collect or analyze the currently visible message/thread and visible supported resources. Never scan another message, mailbox, folder, account, or background data source.
 - Never transmit binary/base64, private download URLs, any URL/URI, credentials, cookies, tokens, paths, or active content. Expanded model context is request-memory-only and must not enter logs, API JSON, SQLite, docs, or fixtures.
-- Preserve business identifiers, names, email addresses, quantities, measurements, amounts, dates, deadlines, and table relationships after redaction and within the approved bounds.
+- Preserve deidentified business semantics, quantities, measurements, amounts, relative deadlines, and table relationships within the approved bounds. Convert identities, exact business identifiers, and exact calendar dates locally to unnumbered generic semantics; publish exact values only from locally verified backend rule fields.
 - The backend owns the complete bounded timeline skeleton, accepted attachment set/status/limitations, mandatory local safety risks, public schema, source projection, `needs_human_review=true`, and the prohibition on automatic mailbox actions and unconditional commercial/legal commitments.
-- The frontend waits at most 35 seconds for the analysis POST after resource collection. The backend uses one 32-second monotonic target, an 8-second hard parser/OCR process deadline, a 25-second maximum provider deadline, a 5-second minimum provider window, and a 2-second response reserve.
+- The frontend waits at most 15 seconds for the analysis POST after resource collection. The backend uses one cooperative 13-second target, an 8-second hard parser/OCR process deadline, a 10-second maximum provider deadline, a 5-second minimum provider window, and a 2-second response reserve.
 - No automated test calls the live DeepSeek API. Live smoke and quality tests require a separate approval, a local key, and fully synthetic data.
 - Keep each Python module below the existing 300-line guard and preserve all one-argument test injection seams.
 

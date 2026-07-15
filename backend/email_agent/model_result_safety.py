@@ -8,6 +8,7 @@ from typing import Any
 from .analysis_schema import validate_analysis_result
 from .deepseek_analysis_schema import validate_deepseek_analysis_v1, validate_envelope_evidence
 from .model_context_projection import safe_decision_brief, safe_timeline_interpretation
+from .model_exact_fact_safety import contains_model_authored_exact_fact
 from .model_grounding import find_grounding_violations
 from .model_text_safety import has_chinese, is_safe_model_text, looks_english, validate_public_language
 from .prompt_context import EvidenceSource
@@ -56,6 +57,9 @@ def merge_deepseek_analysis_v1(
         else:
             public["conversation_timeline"] = merged_timeline
         _merge_extended(public, fallback, private, raw_analysis, sources, violations, kept)
+        _retain_backend_exact_fact_fields(
+            public, fallback, analysis, raw_analysis, kept,
+        )
         validate_analysis_result(public)
         validate_public_language(public)
         used_model = any(
@@ -134,6 +138,26 @@ def _merge_extended(public, fallback, private, raw_analysis, sources, violations
         if fell_back:
             kept.add(field)
 
+
+def _retain_backend_exact_fact_fields(
+    public: dict[str, Any], fallback: Mapping[str, Any],
+    analysis: Mapping[str, Any], raw_analysis: Mapping[str, Any],
+    kept: set[str],
+) -> None:
+    provider_values = {
+        "summary": analysis["summary"],
+        "priority_reason": analysis["priority_reason"],
+        "tags": analysis["tags"],
+        "decision_brief": analysis["decision_brief"],
+        "conversation_timeline": analysis["timeline_interpretation"],
+        "suggested_actions": analysis["suggested_actions"],
+        "reply_draft": raw_analysis["reply_draft"],
+    }
+    for field, value in provider_values.items():
+        if contains_model_authored_exact_fact(value):
+            public[field] = copy.deepcopy(fallback[field])
+            kept.add(field)
+
 def _risk_shape(item: object) -> bool:
     return isinstance(item, dict) and set(item) == _RISK_FIELDS and all(
         isinstance(item[field], str) for field in _RISK_FIELDS
@@ -166,6 +190,7 @@ def _safe_risks(
             key in seen or not has_chinese(item["evidence"])
             or not has_chinese(item["recommendation"])
             or not is_safe_model_text(item)
+            or contains_model_authored_exact_fact(item)
             or any(value.startswith(pointer) for value in violations)
         )
         if unsafe:
@@ -187,6 +212,7 @@ def _safe_actions(items: object, fallback: object, violations: set[str]
             not isinstance(description, str) or not has_chinese(description)
             or any(value.startswith(prefix) for value in violations)
             or not is_safe_model_text(combined)
+            or contains_model_authored_exact_fact(item)
         ):
             return copy.deepcopy(fallback), True
     return copy.deepcopy(items), False
@@ -200,6 +226,7 @@ def _safe_draft(
         safe = safe and all(has_chinese(item) for item in value["review_reasons"])
         safe = safe and not any(item.startswith("/analysis/reply_draft/") for item in violations)
         safe = safe and is_safe_model_text(value)
+        safe = safe and not contains_model_authored_exact_fact(value)
     if safe:
         return copy.deepcopy(value), False
     result = copy.deepcopy(fallback)
@@ -229,6 +256,7 @@ def _safe_attachments(
             and result[index]["status"] == "parsed"
             and source.public_source == "attachment:" + result[index]["filename"]
             and is_safe_model_text(item["summary"], item["key_facts"])
+            and not contains_model_authored_exact_fact(item)
             and not any(value.startswith(f"/attachment_augmentations/{position}/") for value in violations)
         )
         if not valid:

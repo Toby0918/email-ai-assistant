@@ -39,6 +39,7 @@ FALLBACK_DIAGNOSTIC_CONTRACTS = {
         "provider_timeout",
         "envelope_invalid",
         "evidence_invalid",
+        "provider_output_placeholder_echo",
         "safety_rejected_all",
         "local_debug_service.log",
         "public API",
@@ -62,6 +63,7 @@ FALLBACK_DIAGNOSTIC_CONTRACTS = {
         "provider_timeout",
         "envelope_invalid",
         "evidence_invalid",
+        "provider_output_placeholder_echo",
         "safety_rejected_all",
         "local_debug_service.log",
         "public API",
@@ -73,6 +75,7 @@ FALLBACK_DIAGNOSTIC_CONTRACTS = {
     ),
     "docs/operations/deployment_notes.md": (
         "analysis_fallback",
+        "provider_output_placeholder_echo",
         "local_debug_service.log",
         "public API",
         "raw exception",
@@ -91,6 +94,7 @@ FALLBACK_DIAGNOSTIC_CONTRACTS = {
         "provider_timeout",
         "envelope_invalid",
         "evidence_invalid",
+        "provider_output_placeholder_echo",
         "safety_rejected_all",
         "public API",
         "raw exception",
@@ -146,6 +150,51 @@ class DeepSeekDocumentationContractTests(unittest.TestCase):
             "actual `analysis_engine.source`",
         ):
             self.assertIn(marker, schema)
+
+    def test_placeholder_echo_and_local_exact_fact_authority_are_documented(self) -> None:
+        required_markers = {
+            "docs/prompts/analyzer_prompt.md": (
+                "must never emit deidentification placeholder tokens",
+                "generic references for exact identifiers and dates",
+                "backend-verified exact facts remain authoritative",
+                "model-authored exact identifiers and dates fall back to backend rule fields",
+                "internal deidentification tokens stay local",
+                "post-conversion residual scan",
+                "unknown token fails closed",
+            ),
+            "docs/api/backend_api_contract.md": (
+                "must never emit deidentification placeholder tokens",
+                "generic references for exact identifiers and dates",
+                "backend-verified exact facts remain authoritative",
+                "model-authored exact identifiers and dates fall back to backend rule fields",
+                "internal deidentification tokens stay local",
+                "post-conversion residual scan",
+                "unknown token fails closed",
+            ),
+            "docs/security/email_data_handling.md": (
+                "must never emit deidentification placeholder tokens",
+                "generic references for exact identifiers and dates",
+                "backend-verified exact facts remain authoritative",
+                "model-authored exact identifiers and dates fall back to backend rule fields",
+                "internal deidentification tokens stay local",
+                "post-conversion residual scan",
+                "unknown token fails closed",
+            ),
+            "docs/security/privacy_rules.md": (
+                "must never emit deidentification placeholder tokens",
+                "generic references for exact identifiers and dates",
+                "backend-verified exact facts remain authoritative",
+                "model-authored exact identifiers and dates fall back to backend rule fields",
+                "internal deidentification tokens stay local",
+                "post-conversion residual scan",
+                "unknown token fails closed",
+            ),
+        }
+        for relative, markers in required_markers.items():
+            text = self._read(relative)
+            for marker in markers:
+                with self.subTest(path=relative, marker=marker):
+                    self.assertIn(marker, text)
 
     def test_api_contract_records_deadlines_persistence_and_no_chain(self) -> None:
         contract = self._read("docs/api/backend_api_contract.md")

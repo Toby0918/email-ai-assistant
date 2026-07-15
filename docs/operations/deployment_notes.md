@@ -48,6 +48,7 @@ event=analysis_fallback code=<allowlisted code> stage=<allowlisted stage> provid
 ```
 
 - 规则兜底继续返回成功的公开分析，不增加错误响应；provider/account reason code 不得进入 `public API`、`SQLite` 或 `frontend`。
+- `provider_output_placeholder_echo` 固定表示 provider 在业务 parser 前回显去标识占位符；它使用 `stage=safety`、`detail=not_applicable`，不得记录实际 token 或 provider output。
 - detail allowlist 是 `not_applicable`、`json_syntax`、`top_level_shape`、`schema_version`、`analysis_shape`、`attachment_shape` 和 `field_evidence_shape`。每个非 envelope fallback 都使用 `not_applicable`。这是 operator-only 日志字段，不会添加到 `public API` 或 `SQLite`。不得包含 provider output、JSON keys、paths、values 或 exception text，也不得用于重建这些内容。
 - Backend-only diagnostic verification 要求 `code=envelope_invalid` 使用六个 envelope detail 之一；其他 allowlisted reason code 必须使用 `detail=not_applicable`。未知 detail 必须 fail closed，不得扩展事件内容。
 - operator 只使用以下命令查看最新事件，不读取或复制完整日志:

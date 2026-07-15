@@ -7,34 +7,24 @@ import unicodedata
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
+from backend.exact_fact_patterns import (
+    iter_exact_date_signatures,
+    iter_exact_identifiers,
+)
+
 from .deepseek_analysis_schema import APPROVED_EVIDENCE_PATTERNS
 from .model_text_safety import passive_commitment_categories
 from .prompt_context import EvidenceSource
 
-
 _INVALID_SOURCE_REASON = "Evidence source is invalid."
 _UNGROUNDED_REASON = "Critical model text is not grounded."
 _UNAVAILABLE_ATTACHMENT_REASON = "Attachment evidence is unavailable."
-
-_IDENTIFIER_RE = re.compile(
-    r"\b(?P<label>PO|RFQ|invoice|INV|part(?:\s+number)?|PN|tracking(?:\s+number)?|"
-    r"contract(?:\s+number)?|order(?:\s+number)?)\s*[:#-]?\s*"
-    r"(?P<value>(?=[A-Z0-9._/-]*\d)[A-Z0-9][A-Z0-9._/-]{0,63})",
-    re.IGNORECASE,
-)
-_CHINESE_IDENTIFIER_RE = re.compile(
-    r"(?P<label>采购订单|订单号|发票号|零件号|追踪号|合同号)\s*[:：#-]?\s*"
-    r"(?P<value>(?=[A-Z0-9._/-]*\d)[A-Z0-9][A-Z0-9._/-]{0,63})",
-    re.IGNORECASE,
-)
 _AMOUNT_RE = re.compile(
     r"(?:(?P<prefix>USD|EUR|CNY|RMB|GBP|JPY|CAD|AUD|[$€¥£])\s*"
     r"(?P<prefix_value>\d[\d,]*(?:\.\d+)?)|(?P<suffix_value>\d[\d,]*(?:\.\d+)?)\s*"
     r"(?P<suffix>USD|EUR|CNY|RMB|GBP|JPY|CAD|AUD))",
     re.IGNORECASE,
 )
-_DATE_RE = re.compile(r"\b(20\d{2})[-/](\d{1,2})[-/](\d{1,2})\b")
-_CHINESE_DATE_RE = re.compile(r"(20\d{2})年(\d{1,2})月(\d{1,2})日")
 _RELATIVE_DEADLINE_RE = re.compile(
     r"\b(today|tomorrow|eod|end\s+of\s+day|this\s+week|next\s+week|"
     r"within\s+\d+\s+(?:days?|hours?)|by\s+(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday))\b|"
@@ -180,18 +170,15 @@ def _attachment_owner_for_pointer(
 
 def _critical_signatures(text: str) -> frozenset[str]:
     signatures: set[str] = set()
-    for pattern in (_IDENTIFIER_RE, _CHINESE_IDENTIFIER_RE):
-        for match in pattern.finditer(text):
-            signatures.add(
-                f"id:{_identifier_label(match.group('label'))}:{_compact(match.group('value'))}"
-            )
+    for label, value in iter_exact_identifiers(text):
+        signatures.add(f"id:{_identifier_label(label)}:{_compact(value)}")
     for match in _AMOUNT_RE.finditer(text):
         currency = match.group("prefix") or match.group("suffix")
         value = match.group("prefix_value") or match.group("suffix_value")
         signatures.add(f"amount:{_currency(currency)}:{_number(value)}")
-    for pattern in (_DATE_RE, _CHINESE_DATE_RE):
-        for year, month, day in pattern.findall(text):
-            signatures.add(f"date:{int(year):04d}-{int(month):02d}-{int(day):02d}")
+    signatures.update(
+        "date:" + value for value in iter_exact_date_signatures(text)
+    )
     signatures.update(
         "deadline:" + _compact(match.group(0))
         for match in _RELATIVE_DEADLINE_RE.finditer(text)

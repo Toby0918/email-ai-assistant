@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-14
+last_update: 2026-07-15
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -306,7 +306,17 @@ Executable constraints must enforce all of the following:
 - no frontend source or browser renderer may reference `runtime_cards`, `private_context`, `placeholder_mapping`, `card_id`, `snapshot_id`, `vault_id`, or a deidentification placeholder;
 - no public API or SQLite result may gain private context or knowledge-card fields;
 - DeepSeek provider output containing a placeholder, restoration/re-identification instruction, or private metadata marker is rejected before either parser runs;
-- logs and exceptions remain content-free and reuse the frozen diagnostic schema;
+- `backend.exact_fact_patterns` is the canonical exact-fact recognizer for
+  outbound deidentification, provider-output rejection, and grounding; all three
+  boundaries must import it and parity tests must cover compact identifiers,
+  `: # - / _ . = ( )` plus `number`/`no.`/`ID`/`ref.`/`reference` separated
+  forms, supported numeric/Chinese/month-name calendar-date forms (including
+  dotted abbreviations and `日`/`号`), and safe punctuated or bare
+  count/section phrases;
+- logs and exceptions remain content-free; the diagnostic field shape remains frozen,
+  general privacy refusal uses `safety_rejected_all` / `safety` / `not_applicable`,
+  and only placeholder echo may use the fixed
+  `provider_output_placeholder_echo` / `safety` / `not_applicable` tuple;
 - exact budget constants are 13/10/8/5/2 seconds and the frontend analysis POST wait is 15 seconds.
 
 These guards belong in `tests/test_architecture_constraints.py`, the frontend static suites, and the public response/persistence canaries. They must run with synthetic data and no network.

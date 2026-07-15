@@ -43,6 +43,10 @@ class AnalysisDiagnosticsTests(unittest.TestCase):
             analysis_diagnostics.FALLBACK_DETAILS,
             frozenset({"not_applicable", *envelope_details}),
         )
+        self.assertIn(
+            "provider_output_placeholder_echo",
+            analysis_diagnostics.FALLBACK_REASON_CODES,
+        )
 
         with self.assertLogs(
             "backend.email_agent.analysis_diagnostics", level="WARNING"
@@ -62,6 +66,26 @@ class AnalysisDiagnosticsTests(unittest.TestCase):
         for detail, event in zip(envelope_details, captured.output, strict=True):
             with self.subTest(detail=detail):
                 self.assertIn(f"detail={detail}", event)
+
+    def test_placeholder_echo_has_one_fixed_content_free_reason_code(self) -> None:
+        with self.assertLogs(
+            "backend.email_agent.analysis_diagnostics", level="WARNING"
+        ) as captured:
+            log_analysis_fallback(
+                code="provider_output_placeholder_echo",
+                stage="safety",
+                provider="deepseek",
+                model="deepseek-v4-flash",
+                output_mode="model_led",
+                detail="not_applicable",
+                elapsed_ms=123,
+            )
+
+        self.assertIn(
+            "code=provider_output_placeholder_echo stage=safety",
+            captured.output[0],
+        )
+        self.assertIn("detail=not_applicable", captured.output[0])
 
     def test_invalid_detail_fails_closed_without_logging_private_text(self) -> None:
         private = "PRIVATE_DETAIL_MARKER\nPRIVATE_URL"

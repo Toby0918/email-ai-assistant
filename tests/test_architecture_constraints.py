@@ -237,7 +237,40 @@ class ArchitectureConstraintTests(unittest.TestCase):
             architecture,
         )
         self.assertIn("runtime_cards=()", architecture)
-        self.assertIn("public field set and diagnostic field set remain frozen", architecture)
+        self.assertIn("public field set and diagnostic field shape remain frozen", architecture)
+        self.assertIn(
+            "provider_output_placeholder_echo` / `safety` / `not_applicable`",
+            architecture,
+        )
+        linter = read_text(
+            ROOT / "docs" / "constraints" / "linter_constraints.md"
+        )
+        self.assertIn("diagnostic field shape remains frozen", linter)
+        self.assertIn(
+            "provider_output_placeholder_echo` / `safety` / `not_applicable`",
+            linter,
+        )
+
+    def test_remote_exact_fact_boundaries_share_one_canonical_recognizer(self) -> None:
+        consumers = (
+            ROOT / "backend" / "private_knowledge" / "entity_patterns.py",
+            ROOT / "backend" / "email_agent" / "model_exact_fact_safety.py",
+            ROOT / "backend" / "email_agent" / "model_grounding.py",
+        )
+        for path in consumers:
+            with self.subTest(path=path):
+                self.assertIn(
+                    "backend.exact_fact_patterns",
+                    parse_import_modules(path),
+                )
+
+        required = "`backend.exact_fact_patterns` is the canonical exact-fact recognizer"
+        for relative in (
+            "docs/constraints/architecture_constraints.md",
+            "docs/constraints/linter_constraints.md",
+        ):
+            with self.subTest(relative=relative):
+                self.assertIn(required, read_text(ROOT / relative))
 
     def test_mailbox_ingest_import_boundary_is_administrator_cli_only(self) -> None:
         architecture = read_text(

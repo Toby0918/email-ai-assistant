@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-14
+last_update: 2026-07-15
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -178,11 +178,14 @@ response_incomplete
 response_empty
 envelope_invalid
 evidence_invalid
+provider_output_placeholder_echo
 safety_rejected_all
 public_schema_invalid
 public_language_invalid
 unexpected_analysis_error
 ```
+
+`provider_output_placeholder_echo` 只表示 provider 输出在业务 parser 前回显了去标识占位符；固定映射为 `stage=safety`、`detail=not_applicable`，不得记录实际 token 或 provider output。其他 provider 输出安全拒绝继续使用 `safety_rejected_all`。
 
 诊断是本地运行信息，不得进入 `public API`、`SQLite` 或 `frontend`。日志函数只接收上面的固定枚举、allowlisted detail 和非负耗时，不能接收请求、邮件、线程、附件、Prompt、provider response、异常对象、URL、路径或客户字段。
 

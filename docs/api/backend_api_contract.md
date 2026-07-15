@@ -1,5 +1,5 @@
 ﻿---
-last_update: 2026-07-14
+last_update: 2026-07-15
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -17,7 +17,7 @@ source_type: api_contract
 - 公开请求/响应 schema 不因 provider 改变。后端默认 `EMAIL_AGENT_LLM_PROVIDER=disabled`，`EMAIL_AGENT_DEEPSEEK_OUTPUT_MODE=conservative`；只有 `EMAIL_AGENT_LLM_PROVIDER=deepseek` 与 `EMAIL_AGENT_DEEPSEEK_OUTPUT_MODE=model_led` 同时显式配置时，DeepSeek 才能主导 consequential fields。
 - DeepSeek endpoint 固定为 `https://api.deepseek.com`，只允许 `deepseek-v4-flash` 和 `deepseek-v4-pro`。集成复用 `openai==2.45.0`，不安装第三方 DeepSeek package，也不接受 arbitrary remote base URL。
 - 每次分析最多发出 one provider call。SDK `max_retries=0`，请求为 non-streaming JSON object，并通过 `extra_body={"thinking":{"type":"disabled"}}` 使用 non-thinking mode。任何 provider 失败都回落规则结果，does not try Ollama。
-- DeepSeek 的 `conservative` 与 `model_led` 路线都必须通过 backend-only private outbound gate。去标识身份上下文必须覆盖当前 sender/to/cc 和实际选入 prompt 的每个 timeline source sender/recipient；结构无效、畸形或超限时 fail closed。provider 只接收 locally deidentified plain text 和最多 8 张、合计 4,000 characters 的 identifier-free approved knowledge cards；placeholder mapping/resolver、identity source/ID、card/snapshot/vault identifier、path、URL、binary 和 restoration hint 都不得越过该门。provider 输出在业务 parser 前先做 raw scan，再做有 size/depth/item 上限、拒绝 duplicate key 的 privacy-only JSON decode，并递归扫描 decoded keys 和 string leaves；非法 JSON 或私有标记直接完整规则回落。
+- DeepSeek 的 `conservative` 与 `model_led` 路线都必须通过 backend-only private outbound gate。去标识身份上下文必须覆盖当前 sender/to/cc 和实际选入 prompt 的每个 timeline source sender/recipient；结构无效、畸形或超限时 fail closed。provider 只接收 locally deidentified plain text 和最多 8 张、合计 4,000 characters 的 identifier-free approved knowledge cards；placeholder mapping/resolver、identity source/ID、card/snapshot/vault identifier、path、URL、binary 和 restoration hint 都不得越过该门。模型 must never emit deidentification placeholder tokens，只能使用 generic references for exact identifiers and dates；backend-verified exact facts remain authoritative，并由本地确定性规则在安全合并时补回。model-authored exact identifiers and dates fall back to backend rule fields，覆盖摘要、原因、标签、Decision Brief、时间线、风险、动作、草稿和附件增强。internal deidentification tokens stay local，并在 provider 调用前确定性转换成无编号通用语义；随后执行 post-conversion residual scan，且 any unknown token fails closed。provider 输出在业务 parser 前先做 raw scan，再做有 size/depth/item 上限、拒绝 duplicate key 的 privacy-only JSON decode，并递归扫描 decoded keys 和 string leaves；非法 JSON 或私有标记直接完整规则回落。
 - DeepSeek 响应先解析为内部 `deepseek_analysis_v1`，再执行来源、grounding、mandatory-risk、commitment/action 和公开 schema 校验。所有 provider-authored 文本族共享 universal policy：URL/markup、工具/命令、自动邮箱动作和第一人称或被动后果性承诺均按字段回落；安全的请求、疑问、否定和人工核查措辞允许保留。公开响应仍只有本页列出的字段。
 
 ### Backend-only diagnostic boundary
@@ -47,11 +47,14 @@ response_incomplete
 response_empty
 envelope_invalid
 evidence_invalid
+provider_output_placeholder_echo
 safety_rejected_all
 public_schema_invalid
 public_language_invalid
 unexpected_analysis_error
 ```
+
+`provider_output_placeholder_echo` 表示 provider 回显了去标识占位符，输出在业务 parser 前被拒绝；它固定使用 `stage=safety` 和 `detail=not_applicable`，且不会记录占位符或响应内容。
 
 detail allowlist 是 `not_applicable`、`json_syntax`、`top_level_shape`、`schema_version`、`analysis_shape`、`attachment_shape` 和 `field_evidence_shape`。每个非 envelope fallback 都使用 `not_applicable`。这是 operator-only 日志变更，不是 public response field；不会添加到 `public API` 或 `SQLite`。不得包含 provider output、JSON keys、paths、values 或 exception text，也不得用于重建这些内容。
 

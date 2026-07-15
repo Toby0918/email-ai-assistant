@@ -229,6 +229,65 @@ class ModelGroundingTests(unittest.TestCase):
                     (),
                 )
 
+    def test_compact_identifiers_are_critical_but_count_phrases_are_not(self) -> None:
+        for text in (
+            "PO1234 requires review.",
+            "POAB1234 requires review.",
+            "PO/ABC123 requires review.",
+            "PO_AB123 requires review.",
+            "PO.AB123 requires review.",
+            "PO=AB123 requires review.",
+            "PO No. 123 requires review.",
+            "PO ID ABC123 requires review.",
+            "PO Ref. ABC123 requires review.",
+            "PO (No. ABC123) requires review.",
+            "INV2026001 is open.",
+            "INVABC2026 is open.",
+            "PN1234 is listed.",
+            "PNAB12 is listed.",
+            "RFQABC123 is listed.",
+            "contract/ABC123 is listed.",
+            "order_AB123 is listed.",
+            "order ID ABC123 is listed.",
+            "order reference ABC123 is listed.",
+            "order (1234) is listed.",
+            "order (#1234) is listed.",
+            "2026\u5e748\u670831\u53f7 is listed.",
+            "31-Aug-2026 is listed.",
+            "Aug-31-2026 is listed.",
+            "Aug. 31, 2026 is listed.",
+            "31 Aug. 2026 is listed.",
+            "Sept. 30, 2026 is listed.",
+        ):
+            with self.subTest(exact=text):
+                envelope = valid_envelope()
+                envelope["analysis"]["summary"] = text
+                violations = find_grounding_violations(envelope, {}, self.sources)
+                self.assertEqual(
+                    [item.pointer for item in violations], ["/analysis/summary"]
+                )
+
+        for text in (
+            "Review order 2 samples.",
+            "Read part 2 of the document.",
+            "The policy2026 update is generic text.",
+            "The Policy2026 update is generic text.",
+            "Review order (2 samples).",
+            "Read part (2 of the document).",
+            "Review order. 2 samples.",
+            "Review order 1000 samples.",
+            "Review order 1000 boxes.",
+            "Review tracking 2026 results.",
+            "Review PO. 2 samples.",
+            "Review PO (2 samples).",
+        ):
+            with self.subTest(generic=text):
+                envelope = valid_envelope()
+                envelope["analysis"]["summary"] = text
+                self.assertEqual(
+                    find_grounding_violations(envelope, {}, self.sources), ()
+                )
+
     def test_missing_or_wrong_source_evidence_is_a_violation(self) -> None:
         envelope = valid_envelope()
         envelope["analysis"]["summary"] = "PO 1013970520 requires review."

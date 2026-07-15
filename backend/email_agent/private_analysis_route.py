@@ -10,6 +10,7 @@ from .private_context_gate import (
     PrivateModelContext,
     PrivateModelRequest,
     build_private_model_context,
+    provider_output_contains_placeholder,
     provider_output_is_private_safe,
 )
 from .prompt_context import MAX_DEEPSEEK_THREAD_SOURCES
@@ -82,4 +83,9 @@ def _participant_headers(context: _PrivateRouteContext) -> tuple[str, ...] | Non
 
 def validate_private_provider_output(raw: object) -> None:
     if not provider_output_is_private_safe(raw):
-        raise PrivateAnalysisRouteError("safety_rejected_all", "safety")
+        code = (
+            "provider_output_placeholder_echo"
+            if provider_output_contains_placeholder(raw)
+            else "safety_rejected_all"
+        )
+        raise PrivateAnalysisRouteError(code, "safety")

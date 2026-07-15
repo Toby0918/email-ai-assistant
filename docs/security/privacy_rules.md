@@ -1,5 +1,5 @@
 ﻿---
-last_update: 2026-07-13
+last_update: 2026-07-15
 status: draft
 owner: "@tobyWang"
 review_cycle: monthly
@@ -38,7 +38,7 @@ app password 只可 interactive 输入，不得通过 CLI argument、environment
 - DeepSeek 外部处理只允许在用户点击后由后端发送当前可见线程和有界、清洗后的受支持附件文本；必须保留 persistent pre-click disclosure，并明确 no zero-retention guarantee。完整边界见 `docs/security/email_data_handling.md`。
 - 管理员导入的 raw snapshot 只可存于项目外的加密 vault；Codex、DeepSeek、Git、public SQLite、日志、tests、docs、status 和 maintenance report 都不得读取或保存 raw/identifying content。
 - 私有知识必须本地去标识、达到 3-conversation/2-counterparty threshold，并经过 business/privacy approval；高风险规则还需 accountable-owner approval。只有 approved、current、signed snapshot 中的 generic cards 可进入 runtime。
-- DeepSeek 只接收 locally deidentified current visible content 和有界 approved cards；任何 residual、placeholder、reidentification、unsafe commitment、invalid schema 或 unsupported fact 都回落规则结果。
+- DeepSeek 只接收 locally deidentified current visible content 和有界 approved cards；模型 must never emit deidentification placeholder tokens，只能使用 generic references for exact identifiers and dates；backend-verified exact facts remain authoritative，并由本地确定性规则安全补回。model-authored exact identifiers and dates fall back to backend rule fields，覆盖两种 DeepSeek 模式的所有模型可写文本族。internal deidentification tokens stay local，并在 provider 调用前确定性转换成无编号通用语义；随后执行 post-conversion residual scan，且 any unknown token fails closed。任何 residual、placeholder、reidentification、unsafe commitment、invalid schema 或 unsupported fact 都回落规则结果。
 
 ## 展示规则
 

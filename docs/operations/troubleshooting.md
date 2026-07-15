@@ -1,5 +1,5 @@
 ﻿---
-last_update: 2026-07-14
+last_update: 2026-07-15
 status: draft
 owner: "@tobyWang"
 review_cycle: monthly
@@ -59,7 +59,8 @@ Get-Content outputs\local_debug_service.log -Tail 30 | Select-String 'event=anal
 - `provider_timeout`: 检查既定 provider deadline 和网络状态；不要通过增加重试绕过 one-call contract。
 - `envelope_invalid`: provider 返回未通过内部 envelope 解析；不要记录 provider output。
 - `evidence_invalid`: provider 字段缺少允许来源或 grounding；保持规则结果。
-- `safety_rejected_all`: 所有模型字段在安全合并中被拒绝；保持规则结果和人工审核边界。
+- `provider_output_placeholder_echo`: provider 回显了去标识占位符，输出在业务 parser 前被拒绝；保持规则结果，检查 system prompt 合同，不要记录或复制 provider response。该码固定使用 `stage=safety`、`detail=not_applicable`。
+- `safety_rejected_all`: 其他 provider 输出安全门或安全合并拒绝了全部模型字段；保持规则结果和人工审核边界。
 
 `code=envelope_invalid` 的固定 detail 只指向下一个粗粒度排查区域:
 

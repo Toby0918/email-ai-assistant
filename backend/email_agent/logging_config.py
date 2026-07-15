@@ -54,6 +54,8 @@ class _FallbackEventFilter(logging.Filter):
             return False
         if code != "envelope_invalid" and detail != "not_applicable":
             return False
+        if code == "provider_output_placeholder_echo" and stage != "safety":
+            return False
         return True
 
 

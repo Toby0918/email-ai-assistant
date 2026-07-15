@@ -264,6 +264,10 @@ def render_analysis_contract() -> str:
         "rules": {
             "no_extra_keys": True,
             "null_allowed": False,
+            "deidentification_placeholders": "forbidden_in_output",
+            "exact_identifiers_and_dates": (
+                "generic_model_reference_backend_verified_only"
+            ),
             "analysis.decision_brief.next_steps": "1..4",
             "analysis.reply_draft.needs_human_review": True,
             "empty_lists_allowed_only": list(EMPTY_LIST_FIELDS),

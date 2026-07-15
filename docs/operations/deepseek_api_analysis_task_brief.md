@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-14
+last_update: 2026-07-15
 status: active
 owner: "@tobyWang"
 review_cycle: weekly
@@ -26,7 +26,67 @@ feature | security | prompt | test | api_contract
 active
 ```
 
-The user approved DeepSeek remote processing and documented default context caching for the current visible message/thread and bounded supported-attachment text. Tasks 1-14 implement and verify the provider, safety, timing, persistence, frontend disclosure, offline quality-gate, and release-record contracts. The 2026-07-13 bounded final review fix wave closed the eight Important findings while preserving all activation and mailbox boundaries. DeepSeek may lead the displayed analysis, while mailbox actions remain forbidden and backend hard safety invariants remain authoritative. This task brief remains active as the operating contract; provider enablement and deployment remain opt-in and were not performed.
+The user approved DeepSeek remote processing and documented default context caching for the current visible message/thread and bounded supported-attachment text. Tasks 1-14 implement and verify the provider, safety, timing, persistence, frontend disclosure, offline quality-gate, and release-record contracts. The 2026-07-13 bounded final review fix wave closed the eight Important findings while preserving all activation and mailbox boundaries. DeepSeek may lead the displayed analysis, while mailbox actions remain forbidden and backend hard safety invariants remain authoritative. This task brief remains active as the operating contract; production/default enablement and deployment remain opt-in and were not performed. A user-configured local environment was used only for the separately authorized synthetic probes documented below.
+
+### 2026-07-15 placeholder-echo remediation authorization
+
+Two separately authorized, synthetic-only DeepSeek probes completed in 7,063 ms
+and 7,500 ms. Authentication, transport, completion extraction, and the provider
+budget succeeded, but the provider-output privacy gate rejected both responses.
+The second content-free probe classified the fixed cause as
+`deidentification_placeholder_echo`; it did not log, persist, or display the
+provider response. Envelope parsing, evidence validation, and safe merge were
+not reached.
+
+The user authorized a bounded correction after confirming the precision model:
+DeepSeek may interpret intent and business meaning using generic references,
+while exact order identifiers and dates remain backend-owned facts copied only
+from the current visible, locally validated rule result. Exact facts are never
+reconstructed from placeholders. Ambiguous, historical, unsupported, or
+non-unique identifiers/dates remain omitted or require human review. The fix
+must add a canonical no-placeholder-output instruction, preserve the existing
+fail-closed provider-output gate, add only fixed content-free diagnostics, and
+use TDD plus one synthetic live verification after offline gates pass.
+
+The single authorized remediation verification used only synthetic
+`example.test` content and made exactly one provider call. It completed in
+7,875 ms, preserved the backend rule result's exact order/date facts, and kept
+the public result placeholder-free, but the model still echoed an internal
+token; the new fixed diagnostic correctly reported
+`provider_output_placeholder_echo` / `safety` / `not_applicable` and returned
+the complete rule fallback. This proves the exact-fact ownership model did not
+reduce factual precision, while a prompt instruction alone was insufficient.
+
+The follow-up offline fix keeps the internal resolver and `<TYPE_N>` tokens
+inside the local deidentifier scope. Before either DeepSeek mode or the private
+evaluation client is called, known tokens are deterministically converted to
+unnumbered generic semantics, a post-conversion residual scan runs, and any
+unknown token fails closed. The provider-output gate remains unchanged as
+defense in depth. No second live request is included in this bounded
+authorization; another one-call synthetic verification requires explicit
+operator approval.
+
+Independent review then found that a syntactically valid model response could
+still author a concrete identifier or date in public prose, especially in the
+conservative route. The corrected authority gate now applies deterministic
+field/item fallback across every provider-authored text family in both DeepSeek
+modes. Conservative DeepSeek also receives a fixed system instruction forbidding
+concrete identifiers and calendar dates. Locally verified rule fields remain the
+only source of published exact identifiers and dates; generic model semantics and
+safe classifications can still merge independently.
+
+The final matcher audit centralized numeric and uppercase-alphanumeric compact
+business identifiers, `: # - / _ . = ( )` and
+`number`/`no.`/`ID`/`ref.`/`reference` separated identifiers, ISO-8601
+timestamps, Chinese `日`/`号` dates, year-last numeric dates, and space- or
+hyphen-separated month-name dates (including dotted abbreviations) in
+`backend.exact_fact_patterns`. The outbound deidentifier, inbound exact-fact gate,
+and grounding validator import that canonical recognizer. Generic count/section
+phrases such as `order 2 samples`, `order (2 samples)`, `PO. 2 samples`,
+`order 1000 samples`, `order 1000 boxes`, and `part 2 of the document`, plus
+ordinary words such as `Policy2026`, are not identifiers and remain eligible
+for safe model augmentation. Measurements such as `1000 kg` remain grounding
+critical even though they are not business identifiers.
 
 ## 4. Goal
 
@@ -109,7 +169,7 @@ The later private-gate alignment changes the backend POST wait to 15 seconds aft
 2. Call the official `https://api.deepseek.com` endpoint through the already pinned `openai==2.45.0` package. Do not expose a configurable arbitrary remote base URL.
 3. Use `deepseek-v4-flash`, non-streaming JSON Output, explicit non-thinking mode, bounded `max_tokens`, zero SDK retries, and a 10-second maximum/default provider budget. Allow the approved `deepseek-v4-pro` model through backend configuration for later synthetic evaluation, but do not make it the default.
 4. Treat the user's approval as operator-wide consent for this local installation whenever both `deepseek` and `model_led` are configured. Show a persistent pre-click disclosure that Analyze sends the current visible thread and bounded attachment extraction to the configured remote provider. Keep the public request schema unchanged.
-5. Build one bounded remote context from the current visible thread plus locally extracted image/PDF/XLSX/DOCX text. Preserve business identifiers, names, dates, quantities, amounts, deadlines, and quality language. Remove every URL, secret, authorization value, private attachment download URL, cookie, token, local path, and active-content marker.
+5. Build one bounded remote context from the current visible thread plus locally extracted image/PDF/XLSX/DOCX text. Deidentify identities, business identifiers, and exact calendar dates into unnumbered generic semantics before the provider call; preserve safe quantities, amounts, relative deadlines, and quality language. Remove every URL, secret, authorization value, private attachment download URL, cookie, token, local path, and active-content marker. Publish exact identifiers and dates only from locally verified backend rule fields.
 6. Keep the expanded attachment model text ephemeral and out of SQLite, logs, API responses, docs, tests, and repository fixtures. Continue returning only bounded `attachment_insights` to the UI and SQLite.
 7. Define a versioned internal `deepseek_analysis_v1` response envelope with request-local source IDs and model-led fields. Validate and map it into the unchanged public response schema.
 8. Require a successful completion reason and non-empty content before passing JSON through internal schema, language, source, grounding, and safety validation.
@@ -189,7 +249,7 @@ DeepSeek's current official documentation states that disk context caching is en
 1. `EMAIL_AGENT_LLM_PROVIDER=deepseek` with a backend key calls the official DeepSeek OpenAI-compatible Chat Completions API using `deepseek-v4-flash`, `response_format={"type":"json_object"}`, `stream=false`, explicit non-thinking mode, bounded `max_tokens`, and no automatic SDK retry.
 2. The provider receives the remaining backend response budget, never more than 10 seconds, and the request is cancellable even when the remote service sends keep-alive data.
 3. Missing key, authentication/balance/rate/server errors, timeout, empty content, non-success finish reason, malformed JSON, schema failure, or language failure returns a valid rule fallback without leaking provider details.
-4. The remote request contains the bounded current visible thread and bounded supported-attachment extraction required for useful analysis, including business identifiers and dates, but no attachment binary/base64, URL, cookie/authorization/token, local path, active content, or unbounded source text. Canary tests prove both the positive and negative boundaries.
+4. The remote request contains the locally deidentified bounded current visible thread and supported-attachment extraction required for useful analysis. Exact business identifiers and calendar dates are represented only by unnumbered generic semantics; the provider receives no attachment binary/base64, URL, cookie/authorization/token, local path, active content, restoration mapping, or unbounded source text. Canary tests prove both the positive and negative boundaries, while published exact values come only from locally verified backend rule fields.
 5. A versioned internal DeepSeek envelope carries request-local evidence/source IDs and model-led fields, then maps into the unchanged public response only after validation.
 6. A valid DeepSeek result can lead summary, priority, category, timeline interpretation, Decision Brief, risks, suggested actions, and reply draft. The backend preserves hard invariants and uses field-level or full fallback for unsafe or ungrounded output.
 7. Mandatory locally detected prompt-injection, security, and commitment risks are always unioned into the result and cannot be removed or downgraded by DeepSeek.
@@ -307,9 +367,9 @@ Rollback flags and release state:
 - Historical Task 13 handoff marker: Final release verification: pending Task 14.
 
 Unfinished and explicitly deferred items:
-- A live paid DeepSeek API smoke test was not run; it requires separate authorization and a locally supplied backend key with fully synthetic input.
+- Three separately authorized, fully synthetic DeepSeek API probes were run with a locally supplied backend key. The last authorized probe preceded the offline token-genericization fix and therefore does not establish a post-fix live model-led pass; a further one-call synthetic verification requires new explicit authorization.
 - Real mailbox or real mail-data testing was not run and remains forbidden by the current task boundary.
 - Manual Chrome/Edge pixel/CSS verification of persistent notice visibility remains deferred; automated static/behavior contracts passed.
-- Deployment and provider enablement remain opt-in operator actions and were not performed.
+- Production/default deployment and provider enablement remain opt-in operator actions and were not performed.
 - No push or pull request was performed.
 ```

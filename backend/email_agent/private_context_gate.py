@@ -15,6 +15,7 @@ from backend.private_knowledge.residual_scanner import scan_residuals
 
 from .analysis_budget import DEEPSEEK_PROVIDER_MAX_SECONDS
 from .private_knowledge_context import render_private_knowledge_context
+from .private_prompt_genericizer import genericize_private_prompt
 
 
 MAX_HEADER_VALUES = 117
@@ -73,10 +74,14 @@ def build_private_model_context(
     outbound = request.prompt
     if knowledge.text:
         outbound += "\n\napproved_knowledge_context\n" + knowledge.text
+    outbound = genericize_private_prompt(outbound, _PRIVATE_PLACEHOLDER)
+    if outbound is None:
+        return PrivateContextFallbackCode.SAFETY
     try:
         with deidentify_private_text(outbound, identity_context) as deidentified:
-            text = _normalize_reserved_labels(deidentified.text)
-            if not isinstance(text, str) or scan_residuals(text):
+            placeholder_text = _normalize_reserved_labels(deidentified.text)
+            text = genericize_private_prompt(placeholder_text, _PRIVATE_PLACEHOLDER)
+            if text is None or scan_residuals(text):
                 return PrivateContextFallbackCode.SAFETY
     except Exception:
         return PrivateContextFallbackCode.SAFETY
@@ -100,6 +105,27 @@ def provider_output_is_private_safe(raw: object) -> bool:
     except Exception:
         return False
     return _decoded_output_is_private_safe(decoded)
+
+
+def provider_output_contains_placeholder(raw: object) -> bool:
+    """Return only whether a bounded provider output echoes a private token."""
+    if (
+        type(raw) is not str
+        or not raw
+        or len(raw) > MAX_PROVIDER_OUTPUT_CHARACTERS
+    ):
+        return False
+    if _PRIVATE_PLACEHOLDER.search(raw):
+        return True
+    try:
+        decoded = json.loads(
+            raw,
+            object_pairs_hook=_unique_object,
+            parse_constant=_reject_json_constant,
+        )
+    except Exception:
+        return False
+    return _decoded_contains_placeholder(decoded)
 
 
 def _unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
@@ -138,6 +164,26 @@ def _decoded_output_is_private_safe(decoded: object) -> bool:
         elif value is not None and not isinstance(value, (bool, int, float)):
             return False
     return True
+
+
+def _decoded_contains_placeholder(decoded: object) -> bool:
+    items = 0
+    stack = [(decoded, 0)]
+    while stack:
+        value, depth = stack.pop()
+        items += 1
+        if depth > MAX_PROVIDER_OUTPUT_DEPTH or items > MAX_PROVIDER_OUTPUT_ITEMS:
+            return False
+        if isinstance(value, dict):
+            for key, child in value.items():
+                if _PRIVATE_PLACEHOLDER.search(key):
+                    return True
+                stack.append((child, depth + 1))
+        elif isinstance(value, list):
+            stack.extend((child, depth + 1) for child in value)
+        elif isinstance(value, str) and _PRIVATE_PLACEHOLDER.search(value):
+            return True
+    return False
 
 
 def _contains_private_artifact(value: str) -> bool:

@@ -17,7 +17,7 @@ source_type: operation_guide
 |---|---|
 | Generated on | 2026-07-15 |
 | Current stage | authorized_private_analysis_offline_ready |
-| Git branch | codex/authorized-mailbox-ingest |
+| Git branch | master |
 | Git HEAD reference | Run `git rev-parse --short HEAD` in this workspace |
 | Working tree status | Run `git status --short --ignored` in this workspace |
 
@@ -164,9 +164,9 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 
 | Status | Count |
 |---|---:|
-| active | 89 |
+| active | 88 |
 | draft | 24 |
-| deprecated | 0 |
+| deprecated | 1 |
 | missing_front_matter | 0 |
 
 ## Recommended Next Steps

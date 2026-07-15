@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-14
+last_update: 2026-07-15
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -320,7 +320,22 @@ No other `backend.email_agent` module may import `backend.private_knowledge`. Th
 
 `runtime_cards=()` is an immutable backend-only seam. The private context, deidentified prompt, resolver/mapping, card identifiers, selection metadata, and card count are transient implementation details. They must never change the public API, SQLite schema or stored JSON, browser renderer, log record, exception, or fallback diagnostics schema.
 
-Privacy refusal maps to the existing `safety_rejected_all` / `safety` diagnostic pair. Deadline refusal maps to the existing `budget_exhausted` / `budget` pair. The public field set and diagnostic field set remain frozen.
+`backend.exact_fact_patterns` is the canonical exact-fact recognizer for the
+outbound deidentifier, provider-authored output gate, and grounding validator.
+Those three boundaries must import the same identifier/date families and retain
+parity tests for compact forms plus `: # - / _ . = ( )` separators and
+`number`/`no.`/`ID`/`ref.`/`reference` labels. Ambiguous punctuation and bare numeric forms must
+retain count/section negative cases. Exact identifiers and calendar dates remain backend-owned; safe
+generic count or section phrases such as `order 2 samples` and `part 2` must not
+be classified as identifiers.
+
+General privacy refusal maps to the existing `safety_rejected_all` / `safety` /
+`not_applicable` diagnostic tuple. The only allowlisted privacy subreason is the
+fixed `provider_output_placeholder_echo` / `safety` / `not_applicable` tuple when
+the bounded provider output echoes a deidentification placeholder. It carries no
+matched text, placeholder value, prompt, response, exception, or dynamic detail.
+Deadline refusal maps to the existing `budget_exhausted` / `budget` /
+`not_applicable` tuple. The public field set and diagnostic field shape remain frozen.
 
 ## 7. 修改规则
 

@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 from collections.abc import Iterable
 
+from backend.exact_fact_patterns import EXACT_DATE_PATTERNS, EXACT_IDENTIFIER_PATTERNS
+
 
 PLACEHOLDER = re.compile(r"<[A-Z_]+_[1-9][0-9]*>")
 AMBIGUOUS_CONTROLS = re.compile(r"[\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]")
@@ -44,13 +46,9 @@ PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("SOURCE_HASH", re.compile(r"(?i)\b(?:sha(?:256)?\s*[:=]?\s*)?[0-9a-f]{64}\b")),
     ("SOURCE_LOCATOR", re.compile(r"(?i)\b(?:source\s+(?:record|locator)|record[_ -]?id)\s*[:=#]?\s*[0-9a-f-]{16,}\b")),
     ("RESTORATION_HINT", re.compile(r"(?i)\b(?:restore|recover|replace).{0,30}(?:original|placeholder|mapping|value)\b")),
-    ("ORDER_ID", re.compile(r"(?i)\b(?:po|order)\s*[:#-]?\s*[a-z0-9][a-z0-9-]{3,}\b")),
-    ("INVOICE_ID", re.compile(r"(?i)\b(?:inv|invoice)\s*[:#-]?\s*[a-z0-9][a-z0-9-]{3,}\b")),
-    ("TRACKING_ID", re.compile(r"(?i)\b(?:trk|tracking)\s*[:#-]?\s*[a-z0-9][a-z0-9-]{3,}\b")),
-    ("PART_ID", re.compile(r"(?i)\b(?:pn|part)\s*[:#-]?\s*[a-z0-9][a-z0-9-]{3,}\b")),
-    ("TRANSACTION_ID", re.compile(r"(?i)\b(?:txn|transaction)\s*[:#-]?\s*[a-z0-9][a-z0-9-]{3,}\b")),
+    *EXACT_IDENTIFIER_PATTERNS,
     ("AMOUNT", re.compile(r"(?i)(?:\b(?:usd|cny|rmb|eur|gbp)\s*|[$¥€£]\s*)\d[\d,]*(?:\.\d{1,2})?\b")),
-    ("DATE", re.compile(r"\b(?:19|20)\d{2}[-/.](?:0?[1-9]|1[0-2])[-/.](?:0?[1-9]|[12]\d|3[01])\b")),
+    *(("DATE", pattern) for pattern in EXACT_DATE_PATTERNS),
     ("PHONE", re.compile(r"(?<!\w)(?:\+?\d[\d ()-]{7,}\d)(?!\w)")),
     ("ADDRESS", re.compile(r"(?i)\b\d{1,6}\s+[a-z][a-z .'-]{2,}\s(?:street|st|road|rd|avenue|ave|lane|ln|drive|dr)\b|[一-鿿]{2,}(?:路|街|大道)\d+号")),
     ("FILENAME", re.compile(r"(?i)(?<![/\\\w.-])[\w.-]{1,120}\.(?:pdf|docx?|xlsx?|png|jpe?g|txt|csv|zip)\b")),

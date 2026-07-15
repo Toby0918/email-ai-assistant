@@ -219,6 +219,84 @@ class ModelResultSafetyTests(unittest.TestCase):
                 f"/attachment_augmentations/{index}/key_facts/{fact_index}"
             ] = [source_id]
 
+    def test_grounded_model_exact_identifier_and_date_still_use_fallback(self) -> None:
+        exact_text = (
+            "\u5ba2\u6237\u8981\u6c42\u5728 2026-08-31T10:30:00Z \u524d\u5904\u7406\u3002"
+        )
+        self.envelope["analysis"]["summary"] = exact_text
+        self.envelope["field_evidence"]["/analysis/summary"] = ["thread:0"]
+        self.sources["thread:0"] = EvidenceSource(
+            "thread:0", "thread", exact_text, "thread"
+        )
+
+        result = self.merge()
+
+        self.assertEqual(result.analysis["summary"], self.fallback["summary"])
+        self.assertIn("summary", result.fallback_fields)
+        self.assertNotIn("2026-08-31", result.analysis["summary"])
+
+    def test_model_led_keeps_generic_count_phrases(self) -> None:
+        safe_summary = (
+            "\u5ba2\u6237\u8981\u6c42\u5ba1\u6838 order 2 samples \u548c "
+            "part 2 of the document\u3002"
+        )
+        self.envelope["analysis"]["summary"] = safe_summary
+
+        result = self.merge()
+
+        self.assertEqual(result.analysis["summary"], safe_summary)
+        self.assertNotIn("summary", result.fallback_fields)
+
+    def test_model_led_compact_identifier_still_uses_fallback(self) -> None:
+        exact_text = "\u5ba2\u6237\u8981\u6c42\u5904\u7406 POAB1234\u3002"
+        self.envelope["analysis"]["summary"] = exact_text
+        self.envelope["field_evidence"]["/analysis/summary"] = ["thread:0"]
+        self.sources["thread:0"] = EvidenceSource(
+            "thread:0", "thread", exact_text, "thread"
+        )
+
+        result = self.merge()
+
+        self.assertEqual(result.analysis["summary"], self.fallback["summary"])
+        self.assertIn("summary", result.fallback_fields)
+        self.assertNotIn("POAB1234", result.analysis["summary"])
+
+    def test_model_led_long_slash_identifier_still_uses_fallback(self) -> None:
+        exact_text = "\u5ba2\u6237\u8981\u6c42\u5904\u7406 contract/ABC123\u3002"
+        self.envelope["analysis"]["summary"] = exact_text
+        self.envelope["field_evidence"]["/analysis/summary"] = ["thread:0"]
+        self.sources["thread:0"] = EvidenceSource(
+            "thread:0", "thread", exact_text, "thread"
+        )
+
+        result = self.merge()
+
+        self.assertEqual(result.analysis["summary"], self.fallback["summary"])
+        self.assertIn("summary", result.fallback_fields)
+        self.assertNotIn("contract/ABC123", result.analysis["summary"])
+
+    def test_grounded_attachment_exact_facts_still_use_local_attachment(self) -> None:
+        self.add_attachments()
+        exact_text = (
+            "\u9644\u4ef6\u58f0\u79f0 PO-FAKE9999 \u5c06\u4e8e 2026-08-31 \u5904\u7406\u3002"
+        )
+        self.sources["attachment:0"] = EvidenceSource(
+            "attachment:0", "attachment", exact_text,
+            "attachment:synthetic.xlsx", attachment_index=0, parsed=True,
+        )
+        self.add_augmentation("attachment:0", exact_text, [exact_text])
+
+        result = self.merge()
+
+        self.assertEqual(
+            result.analysis["attachment_insights"],
+            self.fallback["attachment_insights"],
+        )
+        self.assertIn("attachment_insights", result.fallback_fields)
+        serialized = str(result.analysis["attachment_insights"])
+        self.assertNotIn("PO-FAKE9999", serialized)
+        self.assertNotIn("2026-08-31", serialized)
+
     def test_safe_direct_brief_and_timeline_values_merge(self) -> None:
         analysis = self.envelope["analysis"]
         analysis["summary"] = "客户需要新的报价答复。"
@@ -839,9 +917,15 @@ class ModelResultSafetyTests(unittest.TestCase):
                         source.public_source,
                     )
                 result = self.merge(envelope, sources=sources)
-                self.assertEqual(subject, result.analysis["reply_draft"]["subject"])
-                self.assertEqual(body, result.analysis["reply_draft"]["body"])
-                self.assertNotIn("reply_draft", result.fallback_fields)
+                if "PO 123" in subject or "PO 123" in body:
+                    self.assertEqual(
+                        self.fallback["reply_draft"], result.analysis["reply_draft"]
+                    )
+                    self.assertIn("reply_draft", result.fallback_fields)
+                else:
+                    self.assertEqual(subject, result.analysis["reply_draft"]["subject"])
+                    self.assertEqual(body, result.analysis["reply_draft"]["body"])
+                    self.assertNotIn("reply_draft", result.fallback_fields)
 
     def test_non_english_latin_draft_uses_deterministic_fallback(self) -> None:
         cases = (

@@ -27,6 +27,9 @@ from backend.email_agent.deepseek_analysis_schema import DeepSeekEnvelopeError
 from backend.email_agent.email_cleaner import clean_email_body
 from backend.email_agent.llm_client import LlmClientError
 from backend.email_agent.model_result_safety import SafeMergeResult
+from backend.email_agent.model_exact_fact_safety import (
+    DEEPSEEK_CONSERVATIVE_SYSTEM_PROMPT,
+)
 from backend.email_agent.prompt_context import (
     DEEPSEEK_SYSTEM_PROMPT,
     build_deepseek_untrusted_context,
@@ -1250,6 +1253,104 @@ class AnalyzerTests(unittest.TestCase):
             {"source": "ai_model", "label": "DeepSeek V4 Flash"},
         )
 
+    def test_conservative_deepseek_rejects_model_authored_exact_facts(self) -> None:
+        fallback = self._expected_model_email_rule_fallback()
+        raw_result = copy.deepcopy(fallback)
+        raw_result.pop("analysis_engine")
+        raw_result["summary"] = (
+            "\u5ba2\u6237\u8981\u6c42\u5728 2026-08-31 \u524d\u786e\u8ba4 PO-FAKE9999\u3002"
+        )
+        raw_result["priority_reason"] = (
+            "\u6a21\u578b\u58f0\u79f0 PO-FAKE9999 \u7684\u622a\u6b62\u65e5\u671f\u662f 2026-08-31\u3002"
+        )
+        raw_result["tags"] = ["PO-FAKE9999", "2026-08-31"]
+        raw_result["priority"] = "high"
+        config = self._deepseek_config(deepseek_output_mode="conservative")
+
+        result = analyze_current_email(
+            self._model_email(),
+            llm_generate=lambda _prompt: json.dumps(raw_result, ensure_ascii=False),
+            config=config,
+        )
+
+        self.assertEqual(result["summary"], fallback["summary"])
+        self.assertEqual(result["priority_reason"], fallback["priority_reason"])
+        self.assertEqual(result["tags"], fallback["tags"])
+        serialized = json.dumps(result, ensure_ascii=False)
+        self.assertNotIn("PO-FAKE9999", serialized)
+        self.assertNotIn("2026-08-31", serialized)
+        self.assertEqual(result["priority"], "high")
+        self.assertEqual(result["analysis_engine"]["source"], "ai_model")
+
+    def test_conservative_deepseek_rejects_model_authored_iso_timestamp(self) -> None:
+        fallback = self._expected_model_email_rule_fallback()
+        raw_result = copy.deepcopy(fallback)
+        raw_result.pop("analysis_engine")
+        raw_result["summary"] = (
+            "\u5ba2\u6237\u8981\u6c42\u5728 2026-08-31T10:30:00Z \u524d\u5904\u7406\u3002"
+        )
+        raw_result["priority"] = "high"
+
+        result = analyze_current_email(
+            self._model_email(),
+            llm_generate=lambda _prompt: json.dumps(raw_result, ensure_ascii=False),
+            config=self._deepseek_config(deepseek_output_mode="conservative"),
+        )
+
+        self.assertEqual(result["summary"], fallback["summary"])
+        self.assertNotIn("2026-08-31", json.dumps(result, ensure_ascii=False))
+        self.assertEqual(result["priority"], "high")
+
+    def test_conservative_deepseek_rejects_compact_model_identifier(self) -> None:
+        fallback = self._expected_model_email_rule_fallback()
+        raw_result = copy.deepcopy(fallback)
+        raw_result.pop("analysis_engine")
+        raw_result["summary"] = "\u5ba2\u6237\u8981\u6c42\u5904\u7406 POAB1234\u3002"
+        raw_result["priority"] = "high"
+
+        result = analyze_current_email(
+            self._model_email(),
+            llm_generate=lambda _prompt: json.dumps(raw_result, ensure_ascii=False),
+            config=self._deepseek_config(deepseek_output_mode="conservative"),
+        )
+
+        self.assertEqual(result["summary"], fallback["summary"])
+        self.assertNotIn("POAB1234", json.dumps(result, ensure_ascii=False))
+        self.assertEqual(result["priority"], "high")
+
+    def test_conservative_deepseek_keeps_generic_count_phrases(self) -> None:
+        raw_result = self._expected_model_email_rule_fallback()
+        raw_result.pop("analysis_engine")
+        safe_summary = (
+            "\u5ba2\u6237\u8981\u6c42\u5ba1\u6838 order 2 samples \u548c "
+            "part 2 of the document\u3002"
+        )
+        raw_result["summary"] = safe_summary
+
+        result = analyze_current_email(
+            self._model_email(),
+            llm_generate=lambda _prompt: json.dumps(raw_result, ensure_ascii=False),
+            config=self._deepseek_config(deepseek_output_mode="conservative"),
+        )
+
+        self.assertEqual(result["summary"], safe_summary)
+        self.assertEqual(result["analysis_engine"]["source"], "ai_model")
+
+    def test_conservative_deepseek_rejects_long_slash_identifier(self) -> None:
+        fallback = self._expected_model_email_rule_fallback()
+        raw_result = copy.deepcopy(fallback)
+        raw_result.pop("analysis_engine")
+        raw_result["summary"] = "\u5ba2\u6237\u8981\u6c42\u5904\u7406 contract/ABC123\u3002"
+
+        result = analyze_current_email(
+            self._model_email(),
+            llm_generate=lambda _prompt: json.dumps(raw_result, ensure_ascii=False),
+            config=self._deepseek_config(deepseek_output_mode="conservative"),
+        )
+
+        self.assertEqual(result["summary"], fallback["summary"])
+        self.assertNotIn("contract/ABC123", json.dumps(result, ensure_ascii=False))
+
     def test_unexpected_analysis_failure_has_specific_diagnostic(self) -> None:
         with patch(
             "backend.email_agent.analysis_model_routes.build_deepseek_untrusted_context",
@@ -1443,6 +1544,25 @@ class AnalyzerTests(unittest.TestCase):
         self.assertEqual(generate.call_args.kwargs["system_prompt"], "")
         self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
 
+    def test_deepseek_conservative_generator_gets_exact_fact_system_prompt(self) -> None:
+        config = self._deepseek_config(deepseek_output_mode="conservative")
+        with patch(
+            "backend.email_agent.analysis_model_routes.generate_analysis",
+            return_value="not json",
+        ) as generate:
+            result = analyze_current_email(self._model_email(), config=config)
+
+        generate.assert_called_once()
+        self.assertEqual(
+            generate.call_args.kwargs["system_prompt"],
+            DEEPSEEK_CONSERVATIVE_SYSTEM_PROMPT,
+        )
+        self.assertIn(
+            "Never output a concrete identifier or calendar date",
+            DEEPSEEK_CONSERVATIVE_SYSTEM_PROMPT,
+        )
+        self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
+
     def test_provider_specific_caps_hold_under_artificial_long_budget(self) -> None:
         base = load_config(dotenv_path=None)
         cases = (
@@ -1574,12 +1694,15 @@ class AnalyzerTests(unittest.TestCase):
                 self.assertIs(type(prompts[0]), str)
                 for marker in raw_markers:
                     self.assertNotIn(marker, prompts[0])
-                self.assertIn("<MESSAGE_ID_", prompts[0])
-                self.assertIn("<ORDER_ID_", prompts[0])
+                self.assertNotRegex(prompts[0], r"(?i)<[A-Z_]+_[1-9][0-9]*>")
+                self.assertIn("a message reference", prompts[0])
+                self.assertIn("a purchase reference", prompts[0])
+                self.assertIn("a stated date", prompts[0])
+                self.assertIn("a stated amount", prompts[0])
                 self.assertIn("approved_knowledge_context", prompts[0])
                 self.assertNotIn("card_id", prompts[0])
                 if mode == "model_led":
-                    self.assertNotIn("<LOCAL_PATH_", prompts[0])
+                    self.assertNotIn("a local resource", prompts[0])
                 self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
 
     def test_both_deepseek_modes_deidentify_historical_display_names(self) -> None:
@@ -1608,7 +1731,8 @@ class AnalyzerTests(unittest.TestCase):
                 self.assertEqual(len(prompts), 1)
                 self.assertNotIn("Alice", prompts[0])
                 self.assertNotIn("张伟", prompts[0])
-                self.assertIn("<PERSON_", prompts[0])
+                self.assertNotRegex(prompts[0], r"(?i)<[A-Z_]+_[1-9][0-9]*>")
+                self.assertIn("a person", prompts[0])
                 self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
 
     def test_deepseek_fails_closed_when_timeline_header_was_overlimit(self) -> None:
@@ -1739,7 +1863,11 @@ class AnalyzerTests(unittest.TestCase):
 
             parser.assert_not_called()
             self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
-            self.assertIn("code=safety_rejected_all stage=safety", captured.output[0])
+            self.assertIn(
+                "code=provider_output_placeholder_echo stage=safety",
+                captured.output[0],
+            )
+            self.assertIn("detail=not_applicable", captured.output[0])
             self.assertNotIn("<EMAIL_1>", json.dumps(result))
 
     def test_decoded_or_invalid_provider_output_fails_before_both_parsers(self) -> None:
@@ -1754,14 +1882,14 @@ class AnalyzerTests(unittest.TestCase):
             ),
         )
         outputs = (
-            r'{"summary":"\u003cEmAiL_1\u003e"}',
-            r'{"summary":"pri\u0076ate_con\u0074ext"}',
-            '{"summary":"safe","summary":"duplicate"}',
-            "not json",
+            (r'{"summary":"\u003cEmAiL_1\u003e"}', "provider_output_placeholder_echo"),
+            (r'{"summary":"pri\u0076ate_con\u0074ext"}', "safety_rejected_all"),
+            ('{"summary":"safe","summary":"duplicate"}', "safety_rejected_all"),
+            ("not json", "safety_rejected_all"),
         )
 
         for mode, parser_target in routes:
-            for raw in outputs:
+            for raw, expected_code in outputs:
                 with self.subTest(mode=mode, raw=raw[:24]), patch(
                     parser_target
                 ) as parser, self._capture_analysis_fallback_logs() as captured:
@@ -1773,7 +1901,9 @@ class AnalyzerTests(unittest.TestCase):
 
                 parser.assert_not_called()
                 self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
-                self.assertIn("code=safety_rejected_all stage=safety", captured.output[0])
+                self.assertIn(
+                    f"code={expected_code} stage=safety", captured.output[0]
+                )
                 serialized = json.dumps(result).upper()
                 self.assertNotIn("EMAIL_1", serialized)
                 self.assertNotIn("PRIVATE_CONTEXT", serialized)

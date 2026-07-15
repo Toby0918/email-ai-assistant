@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import unittest
 from unittest.mock import patch
 
@@ -67,6 +68,24 @@ def outputs_for(cases) -> list[str]:
 
 
 class PrivateEvaluationRunnerTests(unittest.TestCase):
+    def test_private_evaluation_client_receives_generic_semantics_without_internal_tokens(self) -> None:
+        chosen = selection()
+        case = chosen.selected[0]
+        flash = FakeClient([envelope_json_for(case)])
+
+        _attempt_case(case, FLASH_MODEL, flash, ())
+
+        self.assertEqual(len(flash.calls), 1)
+        prompt = flash.calls[0]["prompt"]
+        self.assertIs(type(prompt), str)
+        assert isinstance(prompt, str)
+        self.assertIsNone(
+            re.search(r"<[A-Z_]+_[1-9][0-9]*>", prompt, re.IGNORECASE)
+        )
+        self.assertIn("an organization", prompt)
+        self.assertIn("a contact address", prompt)
+        self.assertIn("a stated date", prompt)
+
     def test_passing_run_calls_flash_200_then_pro_40_sequentially_and_reuses_flash(self) -> None:
         chosen = selection()
         flash = FakeClient(outputs_for(chosen.selected))

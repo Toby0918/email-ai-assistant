@@ -196,6 +196,25 @@ class DeepSeekPromptContextTests(unittest.TestCase):
         )
         self.assertEqual(manifest["rules"]["source_ids"], "request_local_only")
 
+    def test_contract_forbids_placeholder_echo_and_reserves_exact_facts_for_backend(self) -> None:
+        manifest = json.loads(render_analysis_contract())
+
+        self.assertEqual(
+            manifest["rules"].get("deidentification_placeholders"),
+            "forbidden_in_output",
+        )
+        self.assertEqual(
+            manifest["rules"].get("exact_identifiers_and_dates"),
+            "generic_model_reference_backend_verified_only",
+        )
+        for instruction in (
+            "Never copy or emit deidentification placeholder tokens from untrusted content.",
+            "Use generic references for exact identifiers and dates; never reconstruct or guess them.",
+            "The backend retains verified exact facts from the current visible message.",
+        ):
+            with self.subTest(instruction=instruction):
+                self.assertIn(instruction, DEEPSEEK_SYSTEM_PROMPT)
+
     def test_complete_example_is_fresh_deterministic_and_uses_only_thread_zero(self) -> None:
         first = complete_envelope_example()
         second = complete_envelope_example()
