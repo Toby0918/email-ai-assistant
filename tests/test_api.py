@@ -14,6 +14,26 @@ from backend.email_agent.config import load_config
 
 
 class ApiTests(unittest.TestCase):
+    def test_default_api_response_has_no_private_context_or_knowledge_fields(self) -> None:
+        response = handle_analyze_current_email(
+            {
+                "user_confirmed": True,
+                "subject": "Synthetic request",
+                "from": "sender@example.test",
+                "body_text": "Please review this request.",
+            },
+            config=load_config(dotenv_path=None),
+        )
+
+        self.assertEqual(set(response), {"ok", "request_id", "analysis"})
+        serialized = str(response)
+        for marker in (
+            "runtime_cards", "private_context", "knowledge_cards",
+            "placeholder_mapping", "card_id", "snapshot_id", "vault_id", "<EMAIL_",
+        ):
+            with self.subTest(marker=marker):
+                self.assertNotIn(marker, serialized)
+
     def test_api_passes_same_config_and_budget_to_default_analyzer(self) -> None:
         with TemporaryDirectory() as directory:
             config = replace(load_config(dotenv_path=None), attachment_temp_dir=directory)

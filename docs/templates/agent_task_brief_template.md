@@ -1,5 +1,5 @@
 ---
-last_update: 2026-06-29
+last_update: 2026-07-14
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -204,7 +204,26 @@ draft | approved | in_progress | implemented | blocked
 [ ] 已确认需要修改的文件范围。
 ```
 
-## 17. 执行后记录
+## 17. Remote provider private-context checklist
+
+Complete this section whenever a task changes remote AI input, runtime knowledge, privacy transformation, or provider budgets.
+
+```text
+[ ] Provider remains disabled by default; DeepSeek output mode remains conservative by default.
+[ ] Every remote path passes one backend-only deidentification and residual-scan gate.
+[ ] runtime_cards defaults to an immutable empty tuple and accepts only verified RuntimeKnowledgeCard values.
+[ ] No environment/path/key/bootstrap/vault/DPAPI/BitLocker/frontend field crosses the runtime seam.
+[ ] Knowledge rendering is identifier-free, deterministic, at most 8 cards and 4,000 characters.
+[ ] Resolver/mapping is closed before the provider call and cannot reach provider/parser/API/SQLite/logs/exceptions.
+[ ] Provider output placeholders, restoration hints and private metadata markers are rejected before parsing.
+[ ] Public API, SQLite, frontend renderer and diagnostic schema remain unchanged.
+[ ] Privacy and budget failures reuse safety_rejected_all/safety and budget_exhausted/budget.
+[ ] Backend/provider/parser/minimum/reserve/frontend budgets are exactly 13/10/8/5/2/15 seconds.
+[ ] Persistent pre-click disclosure uses the approved exact sentence.
+[ ] Verification is offline and does not call a live provider, mailbox, vault, DPAPI or BitLocker.
+```
+
+## 18. 执行后记录
 
 任务完成后填写。
 

@@ -39,7 +39,7 @@ def _deepseek_config(**changes: object) -> AppConfig:
         llm_provider="deepseek",
         deepseek_api_key="synthetic-deepseek-key",
         deepseek_model="deepseek-v4-flash",
-        deepseek_timeout_seconds=25,
+        deepseek_timeout_seconds=10,
     )
     return replace(config, **changes)
 
@@ -167,7 +167,7 @@ class LlmClientTests(unittest.TestCase):
         cases = (
             (3.0, 19, 3.0),
             (19.0, 4, 4.0),
-            (40.0, 30, 25.0),
+            (40.0, 30, 10.0),
         )
 
         for caller_timeout, config_timeout, expected in cases:

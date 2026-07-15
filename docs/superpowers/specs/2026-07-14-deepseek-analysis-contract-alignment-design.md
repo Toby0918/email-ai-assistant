@@ -1,6 +1,6 @@
 ---
 last_update: 2026-07-14
-status: draft
+status: active
 owner: "@tobyWang"
 review_cycle: weekly
 source_type: product_spec
@@ -13,12 +13,34 @@ source_type: product_spec
 Align the private `deepseek_analysis_v1` validator and the DeepSeek system
 prompt behind one shared analysis-contract source. Keep the strict validator,
 one-call provider route, deterministic rule fallback, public API, SQLite,
-frontend, timeout, retry, model-authority, and privacy boundaries unchanged.
+retry, model authority, and human-review boundaries unchanged.
 
-The user approved Approach 1 on 2026-07-14. This written specification remains
-draft until the user reviews the committed file and approves it for
-implementation planning. No production implementation or new DeepSeek request
-is part of the design-document commit.
+The user approved Approach 1 and this written specification on 2026-07-14.
+Implementation remains offline and uses a disabled provider; approval does not
+authorize a DeepSeek request.
+
+### Task 5 supersession note
+
+The later master Task 5 in
+`docs/superpowers/plans/2026-07-14-authorized-mailbox-ingest-knowledge-deepseek.md`
+supersedes this earlier design only for three implementation concerns:
+
+1. both remote DeepSeek routes must cross a local deidentification and residual
+   gate, with optional bounded approved runtime knowledge;
+2. both frontend surfaces must carry the approved persistent pre-click remote
+   processing disclosure; and
+3. synchronous budgets are exactly browser/local-debug POST 15 seconds,
+   backend 13 seconds, provider cap 10 seconds, and minimum remaining provider
+   budget 5 seconds, while the response margin remains 2 seconds and parser
+   maximum remains 8 seconds.
+
+The canonical schema/prompt contract, strict fail-closed validation, one-call
+provider request shape, public interfaces, and no-live-call boundary in this
+design remain authoritative. Task 5 adds only a backend-only immutable
+`runtime_cards=()` seam for already verified `RuntimeKnowledgeCard` tuples; it
+does not define snapshot paths, keys, authority/vault access, or frontend
+fields. Privacy refusals reuse `safety_rejected_all`/`safety`; low-budget
+refusals reuse `budget_exhausted`/`budget`.
 
 ## Problem And Evidence
 
@@ -82,11 +104,14 @@ References:
 - Do not guarantee that every generated response will be accepted.
 - Do not loosen, repair, normalize, or guess missing provider fields.
 - Do not add a retry, second provider call, second model, or asynchronous job.
-- Do not change the provider endpoint, model, timeout, `max_tokens`, thinking
-  mode, output mode, or `response_format`.
+- Do not change the provider endpoint, model, `max_tokens`, thinking mode,
+  output mode, `response_format`, retry count, or no-tools request shape.
 - Do not adopt DeepSeek strict function calling or the beta endpoint.
-- Do not change the public analysis schema, API, SQLite, frontend, extension,
-  attachment parsing, mailbox scope, or mailbox actions.
+- Do not change the public analysis schema, API, SQLite, renderer fields,
+  attachment parsing, mailbox scope, or mailbox actions. Frontend changes are
+  limited to the approved disclosure and 15-second analysis POST timeout.
+- Do not add snapshot/key/bootstrap configuration, vault access, Task 6
+  evaluation behavior, or a public runtime-card input.
 - Do not log or persist the raw/private provider response, private envelope,
   or finer field-level diagnostics. The validated safe public projection
   continues to use the existing SQLite path.
@@ -242,23 +267,28 @@ the bounded scope and verification evidence.
 
 ## Data Flow
 
-The runtime flow remains:
+The Task 5 runtime flow is:
 
 ```text
-user click
--> bounded current-visible-email context
--> one DeepSeek JSON-object request
+user click after persistent remote-processing disclosure
+-> bounded current-visible-email context and optional verified runtime cards
+-> build the existing local prompt
+-> locally deidentify the complete outbound prompt and scan residuals
+-> close the resolver and retain only a plain string
+-> one DeepSeek JSON-object request when at least 5 seconds remain
+-> reject placeholders, restoration attempts, or private markers before parsing
 -> strict deepseek_analysis_v1 parsing
 -> evidence, grounding, language, and safety checks
 -> safe public merge or complete rule fallback
 -> user-reviewed draft only
 ```
 
-The only externally observable runtime request change is the static system
-prompt content. Internally, the new contract module and validator imports
-remove duplicated contract definitions. The dynamic user context, source
-registry, provider request count, provider endpoint, and public response remain
-unchanged.
+Externally observable changes are limited to the persistent disclosure and the
+15-second frontend analysis POST timeout. The remote user prompt is now locally
+deidentified and may include at most eight whole approved knowledge cards in at
+most 4,000 rendered characters. The provider request count, fixed endpoint,
+model, JSON-object body contract, public response, SQLite projection, and
+renderers remain unchanged.
 
 ## Error Handling And Safety
 
@@ -303,11 +333,16 @@ Implementation uses TDD with synthetic data only.
 6. Retain existing malformed and `analysis_shape` fallback tests to prove the
    strict rejection path is unchanged.
 7. Update documentation-contract tests.
-8. Run the focused prompt, private-schema, analyzer, provider-client,
-   documentation, and evaluator tests with the provider disabled.
-9. Run the 50-case offline evaluation, full unit discovery, JavaScript syntax
-   checks, architecture/static/mechanical checks, `git diff --check`, project
-   status generation, and maintenance scan required by repository rules.
+8. Add RED coverage for the private gate, runtime-card limits, both DeepSeek
+   modes, provider-output refusal, exact local key facts, budgets, disclosure,
+   dependency allowlists, and public/storage/render/log/exception canaries.
+9. Run the focused prompt, private-schema, gate, knowledge, analyzer, budget,
+   provider-client, frontend, documentation, architecture, static, and public
+   interface tests with the provider disabled.
+10. Run the 50-case offline evaluation, full unit discovery, JavaScript syntax
+    checks, architecture/static/mechanical/transport checks, `git diff --check`,
+    and maintenance scan. Project-status generation is deferred to Task 7 by
+    the authorized-ingest master plan.
 
 Tests may not inspect a real key, call a provider, read a real mailbox, or use
 real email or attachment content.
@@ -342,13 +377,22 @@ made. A second live request requires new explicit authorization.
    is no longer than 8,000 characters.
 5. The strict private validator accepts and rejects the same envelopes as
    before this refactor.
-6. Public API, SQLite, frontend, provider request configuration, timeout,
-   retries, model authority, and rule fallback remain unchanged.
-7. Invalid or unsafe output remains fail-closed without raw-output logging.
-8. Focused, offline evaluation, full-suite, documentation, static,
-   architecture, mechanical, JavaScript, status-generation, maintenance, and
-   diff checks pass with the provider disabled.
-9. No live DeepSeek request occurs without separate explicit authorization.
+6. Both DeepSeek routes locally deidentify the complete outbound prompt, close
+   the resolver before the client, enforce 8-card/4,000-character whole-card
+   limits, and reject unsafe provider output before either parser.
+7. Budgets are exactly 15/13/10/5 with 2-second response margin and 8-second
+   parser maximum; the DeepSeek provider request shape and single-call/no-retry
+   behavior remain unchanged.
+8. Public API, SQLite projection, renderer fields, diagnostics schema, disabled
+   defaults, Ollama behavior, model authority, and rule fallback remain
+   unchanged.
+9. Invalid, residual-bearing, late, placeholder-bearing, or unsafe output
+   remains fail-closed without raw-output logging.
+10. Focused, offline evaluation, full-suite, documentation, static,
+    architecture, mechanical, transport, JavaScript, maintenance, and diff
+    checks pass with the provider disabled; status generation remains deferred
+    to Task 7.
+11. No live DeepSeek request occurs without separate explicit authorization.
 
 ## Rollback
 

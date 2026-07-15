@@ -286,7 +286,24 @@ tests/test_mailbox_transport_constraints.py
 python -m unittest discover -s tests -p "test_architecture_constraints.py"
 ```
 
-## 6. 修改规则
+## 6. Private knowledge to analysis boundary
+
+The normal runtime bridge is intentionally narrow:
+
+```text
+backend.email_agent.private_context_gate -> backend.private_knowledge.deidentifier
+backend.email_agent.private_context_gate -> backend.private_knowledge.entity_patterns
+backend.email_agent.private_context_gate -> backend.private_knowledge.residual_scanner
+backend.email_agent.private_knowledge_context -> backend.private_knowledge.runtime_schema
+```
+
+No other `backend.email_agent` module may import `backend.private_knowledge`. The renderer may import only `runtime_schema`; it must not import the repository, loader, vault, mailbox ingest, key store, snapshot, CLI, review, candidate-import, filesystem, or environment layers.
+
+`runtime_cards=()` is an immutable backend-only seam. The private context, deidentified prompt, resolver/mapping, card identifiers, selection metadata, and card count are transient implementation details. They must never change the public API, SQLite schema or stored JSON, browser renderer, log record, exception, or fallback diagnostics schema.
+
+Privacy refusal maps to the existing `safety_rejected_all` / `safety` diagnostic pair. Deadline refusal maps to the existing `budget_exhausted` / `budget` pair. The public field set and diagnostic field set remain frozen.
+
+## 7. 修改规则
 
 如果需要改变架构边界，必须同时修改：
 

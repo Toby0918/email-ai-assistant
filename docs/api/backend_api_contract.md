@@ -17,6 +17,7 @@ source_type: api_contract
 - 公开请求/响应 schema 不因 provider 改变。后端默认 `EMAIL_AGENT_LLM_PROVIDER=disabled`，`EMAIL_AGENT_DEEPSEEK_OUTPUT_MODE=conservative`；只有 `EMAIL_AGENT_LLM_PROVIDER=deepseek` 与 `EMAIL_AGENT_DEEPSEEK_OUTPUT_MODE=model_led` 同时显式配置时，DeepSeek 才能主导 consequential fields。
 - DeepSeek endpoint 固定为 `https://api.deepseek.com`，只允许 `deepseek-v4-flash` 和 `deepseek-v4-pro`。集成复用 `openai==2.45.0`，不安装第三方 DeepSeek package，也不接受 arbitrary remote base URL。
 - 每次分析最多发出 one provider call。SDK `max_retries=0`，请求为 non-streaming JSON object，并通过 `extra_body={"thinking":{"type":"disabled"}}` 使用 non-thinking mode。任何 provider 失败都回落规则结果，does not try Ollama。
+- DeepSeek 的 `conservative` 与 `model_led` 路线都必须通过 backend-only private outbound gate。provider 只接收 locally deidentified plain text 和最多 8 张、合计 4,000 characters 的 identifier-free approved knowledge cards；placeholder mapping/resolver、card/snapshot/vault identifier、path、URL、binary 和 restoration hint 都不得越过该门。
 - DeepSeek 响应先解析为内部 `deepseek_analysis_v1`，再执行来源、grounding、mandatory-risk、commitment/action 和公开 schema 校验。所有 provider-authored 文本族共享 universal policy：URL/markup、工具/命令、自动邮箱动作和第一人称或被动后果性承诺均按字段回落；安全的请求、疑问、否定和人工核查措辞允许保留。公开响应仍只有本页列出的字段。
 
 ### Backend-only diagnostic boundary
@@ -229,13 +230,13 @@ operator-only 日志位置、轮转上限和读取命令见 `docs/conventions/lo
 
 ### Ephemeral model context
 
-DeepSeek-led 路线可使用当前可见线程和本地解析出的 ephemeral sanitized attachment context。该上下文有单附件/请求总量上限，移除 URL、密钥、authorization、cookie、token、本地路径、二进制/base64 和 active content。自然语言 credential/password/API-key/session-ID 值即使使用冒号、等号、copula、whitespace-only separator 或引号连接也必须删除；不含值的 reset/rotation/expiry/policy 说明保留。它只存在于当前 provider 请求内存，不能出现在公开响应、SQLite 或日志；公开 `attachment_insights` 仍是六字段安全投影。
+DeepSeek-led 路线可使用当前可见线程和本地解析出的 ephemeral sanitized attachment context。该上下文有单附件/请求总量上限，移除 URL、密钥、authorization、cookie、token、本地路径、二进制/base64 和 active content。自然语言 credential/password/API-key/session-ID 值即使使用冒号、等号、copula、whitespace-only separator 或引号连接也必须删除；不含值的 reset/rotation/expiry/policy 说明保留。整个出站文本还必须经过本地 deidentification 和 residual scan；request-local resolver 在 provider call 前关闭。该上下文及 `runtime_cards` 都不能出现在公开响应、SQLite、frontend renderer、日志或异常；公开 `attachment_insights` 仍是六字段安全投影。
 
 ### Deadline contract
 
-- 浏览器扩展和本地调试页在独立资源收集完成后使用 35-second POST wait；浏览器收集本身有独立的 20-second resource collection 上限，因此 35 秒不是从点击开始计算的硬性总时限。
-- 后端在读取并校验 request body 之前立即调用 `AnalysisBudget.start()`；实际顺序是 `start -> read -> api`，所以受限 body 读取时间计入 one monotonic 32-second cooperative target。该 target 继续共享给分析、parser、provider、校验和 persistence。body 读取、附件写入、SQLite 和 socket response write 是同步阶段，所以不能描述为严格 end-to-end cancellation guarantee。
-- Ollama 的 request creation、connect 和完整 response-body read 使用同一个 absolute wall-clock deadline；逐字节 trickle 不得续期超时。DeepSeek 使用剩余预算，最多为 25-second，且必须保留 2-second validation/response reserve；剩余 provider 时间少于 5-second 时跳过模型并返回规则结果。
+- 浏览器扩展和本地调试页在独立资源收集完成后使用 15-second POST wait；浏览器收集本身有独立的 20-second resource collection 上限，因此 15 秒不是从点击开始计算的硬性总时限。
+- 后端在读取并校验 request body 之前立即调用 `AnalysisBudget.start()`；实际顺序是 `start -> read -> api`，所以受限 body 读取时间计入 one monotonic 13-second cooperative target。该 target 继续共享给分析、parser、private gate、provider、校验和 persistence。body 读取、附件写入、SQLite 和 socket response write 是同步阶段，所以不能描述为严格 end-to-end cancellation guarantee。
+- Ollama 的 request creation、connect 和完整 response-body read 使用同一个 absolute wall-clock deadline；逐字节 trickle 不得续期超时。所有 provider 使用剩余预算，每次最多为 10-second；DeepSeek configured default 也是 10-second，并且必须保留 2-second validation/response reserve。剩余 provider 时间少于 5-second 时跳过模型并返回规则结果。
 - 附件 parser/OCR worker 使用 hard 8-second 总截止。`Process.start()` 与 terminate/kill/close cleanup 都受硬边界约束；超时后启动的 worker 进入 late-start quarantine 并最终终止，cleanup 本身不得阻塞请求或留下 orphan。
 - 前端 abort 不能保证取消服务器工作；后端截止独立执行。
 

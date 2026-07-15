@@ -520,7 +520,16 @@ Agent 每次开始任务前，必须确认：
 [ ] 涉及 AI 输出时，已确认 JSON schema。
 ```
 
-## 13. 执行后检查
+## 13. Private DeepSeek outbound gate
+
+- DeepSeek `conservative` and `model_led` requests must pass the same backend-only private outbound gate before the single provider call.
+- The shared analysis budget is exactly 13 seconds. Parser/OCR keeps the hard 8-second deadline; provider timeout is capped at 10 seconds with a 10-second DeepSeek default, a 5-second minimum usable window, and a 2-second response/validation reserve.
+- Browser extension and local debug analysis POST waits are exactly 15 seconds. Visible-resource collection remains a separate cumulative 20-second deadline.
+- The analyzer seam is keyword-only `runtime_cards=()`. It must be an immutable tuple, defaults empty, and accepts only verified `RuntimeKnowledgeCard` objects. It must not read environment variables, paths, keys, bootstrap state, vault state, DPAPI/BitLocker state, or frontend fields.
+- Automated tests, the 50-case evaluator, static checks, and maintenance scan remain offline: no live provider, mailbox, vault, DPAPI, or BitLocker access.
+- Task 5 must not regenerate `docs/operations/project_status_log.md`; that regeneration is reserved for the later integration task.
+
+## 14. 执行后检查
 
 Agent 每次完成任务后，必须确认：
 

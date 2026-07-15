@@ -17,7 +17,7 @@ source_type: operation_guide
 - Python 固定为 3.12.13。
 - 依赖版本遵守 `AGENTS.md`。
 - 当前 provider 默认保持 `EMAIL_AGENT_LLM_PROVIDER=disabled`。如后续单独启用 OpenAI，API key 只能放在后端环境变量或后端本地 `.env`。
-- 专用 DeepSeek provider 复用现有 OpenAI-compatible `openai==2.45.0` SDK，不安装 third-party DeepSeek SDK，也不接受可配置的 arbitrary remote base URL。`DEEPSEEK_API_KEY` 只能放在后端环境变量或后端本地 `.env`；默认模型、最大 provider 超时和输出模式分别为 `deepseek-v4-flash`、`25` 秒和 `conservative`，provider 本身仍默认 `disabled`。
+- 专用 DeepSeek provider 复用现有 OpenAI-compatible `openai==2.45.0` SDK，不安装 third-party DeepSeek SDK，也不接受可配置的 arbitrary remote base URL。`DEEPSEEK_API_KEY` 只能放在后端环境变量或后端本地 `.env`；默认模型、最大 provider 超时和输出模式分别为 `deepseek-v4-flash`、`10` 秒和 `conservative`，provider 本身仍默认 `disabled`。所有 DeepSeek 出站内容必须先通过本地去标识与 residual scan，且前端必须显示 exact persistent pre-click disclosure。
 - 后端启动时会加载项目根目录 `.env`；显式进程环境变量优先于 `.env`。
 - 本地 HTTP 服务 `--host` 只支持 `localhost` 或字面 IPv4 loopback（`127.0.0.0/8`），默认 `127.0.0.1`；通配地址、LAN/公网地址、DNS alias、userinfo 和 IPv6 在 bind 前拒绝。浏览器扩展固定调用 `http://127.0.0.1:8765`。
 - `/api/analyze-current-email` 在读 body 前要求单一且匹配实际端口的 loopback `Host`，并要求单一 `application/json`（可选 `charset=utf-8`）Content-Type。Host 门禁与 media-type CSRF 减缓必须同时保留。

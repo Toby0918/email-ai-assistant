@@ -60,6 +60,36 @@ class _CommitFailOnceConnection:
 
 
 class DatabaseTests(unittest.TestCase):
+    def test_private_context_fields_are_not_persisted(self) -> None:
+        connection = sqlite3.connect(":memory:")
+        self.addCleanup(connection.close)
+        initialize_schema(connection)
+
+        save_analysis(
+            connection,
+            subject="Synthetic",
+            sender="sender@example.test",
+            analysis={
+                "summary": "Synthetic summary.",
+                "runtime_cards": ["PRIVATE_CARD"],
+                "private_context": "PRIVATE_CONTEXT",
+                "placeholder_mapping": {"<EMAIL_1>": "private@example.test"},
+                "card_id": "PRIVATE_CARD_ID",
+                "snapshot_id": "PRIVATE_SNAPSHOT_ID",
+                "vault_id": "PRIVATE_VAULT_ID",
+            },
+        )
+
+        stored = connection.execute(
+            "SELECT analysis_json FROM email_analysis"
+        ).fetchone()[0]
+        for marker in (
+            "runtime_cards", "private_context", "placeholder_mapping",
+            "card_id", "snapshot_id", "vault_id", "PRIVATE_", "<EMAIL_",
+        ):
+            with self.subTest(marker=marker):
+                self.assertNotIn(marker, stored)
+
     def test_connect_default_busy_timeout_is_below_two_seconds(self) -> None:
         connection = connect(":memory:")
         self.addCleanup(connection.close)

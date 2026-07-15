@@ -10,8 +10,9 @@ ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = ROOT / "frontend"
 EXTENSION = FRONTEND / "browser_extension"
 REMOTE_PROCESSING_NOTICE = (
-    "After you click Analyze, a configured remote AI provider receives only the current visible "
-    "message/thread within configured limits and text extracted from supported visible attachments."
+    "After you click Analyze, a configured remote AI provider receives locally deidentified current "
+    "visible content and, when available, bounded approved knowledge cards. Processing is not "
+    "local-only, and no zero-retention guarantee is made."
 )
 
 
@@ -171,6 +172,13 @@ class BrowserExtensionStaticTests(unittest.TestCase):
         self.assertIn("renderDecisionBrief", script)
         self.assertIn("formatAttachments", script)
         self.assertIn("new_product_development", script)
+
+        for private_field in (
+            "runtime_cards", "private_context", "knowledge_cards",
+            "placeholder_mapping", "card_id", "snapshot_id", "vault_id", "<EMAIL_",
+        ):
+            with self.subTest(private_field=private_field):
+                self.assertNotIn(private_field, script)
 
     def test_popup_styles_long_analysis_output(self) -> None:
         page = (EXTENSION / "popup.html").read_text(encoding="utf-8")

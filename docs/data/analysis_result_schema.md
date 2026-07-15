@@ -1,5 +1,5 @@
 ﻿---
-last_update: 2026-07-13
+last_update: 2026-07-14
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -104,6 +104,10 @@ AI 分析结果必须能解析为 JSON，并至少包含以下字段。
 本页 JSON 是 unchanged public analysis schema。启用 DeepSeek-led 路线不会改变 `POST /api/analyze-current-email` 的公开请求或响应形状，也不会增加 SQLite 列。
 
 DeepSeek 返回的是版本化内部 `deepseek_analysis_v1` envelope，而不是本页对象。内部 envelope 包含 request-local source ID、`field_evidence`、`timeline_interpretation` 和 `attachment_augmentations`；这些 provider-only 字段在后端完成 JSON/schema/语言/来源/grounding/安全校验后才映射到本页对象，并且 are never returned to the frontend、never persisted to SQLite、never written to logs。扩展的附件模型上下文同样只存在于当前请求内存中。
+
+Private outbound gate 的 `runtime_cards`、approved knowledge rendering、deidentified prompt、placeholder mapping、resolver、private context count，以及 `card_id` / `snapshot_id` / `vault_id` 均不是公开 schema 字段，也不是 SQLite 字段。它们不得出现在 API response、browser renderer、日志或异常中。模型输出如包含 placeholder、restoration/re-identification instruction 或 private metadata marker，必须在 parser 前整体拒绝并返回精确规则 fallback。
+
+模型采用的 `decision_brief.key_facts` 不能替换本地事实集合。公开结果必须使用规则 fallback 中 exact、deep-copied local key facts；模型仍可在其他允许且 grounded 的字段提供增量。
 
 `analysis_engine.source` 的公开枚举保持 `ai_model | rule_fallback`。有效 DeepSeek 结果使用 `ai_model`，`label` 可显示 `DeepSeek V4 Flash` 或 `DeepSeek V4 Pro`；provider 被禁用、超时、失败或输出无效时返回完整规则结果并使用 `rule_fallback` / `Rule fallback`。
 

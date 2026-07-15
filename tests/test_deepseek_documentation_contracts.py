@@ -154,9 +154,9 @@ class DeepSeekDocumentationContractTests(unittest.TestCase):
             "deepseek-v4-flash",
             "deepseek-v4-pro",
             "openai==2.45.0",
-            "32-second cooperative",
+            "13-second cooperative",
             "8-second",
-            "25-second",
+            "10-second",
             "5-second",
             "2-second",
             "0.5-second cumulative",
@@ -164,7 +164,7 @@ class DeepSeekDocumentationContractTests(unittest.TestCase):
             "PERSISTENCE_FAILED",
             "rollback failure",
             "quarantined",
-            "35-second POST wait",
+            "15-second POST wait",
             "20-second resource collection",
             "does not try Ollama",
             "absolute wall-clock deadline",
@@ -192,6 +192,7 @@ class DeepSeekDocumentationContractTests(unittest.TestCase):
         policy = self._read("docs/security/email_data_handling.md")
         for marker in (
             "persistent pre-click disclosure",
+            "After you click Analyze, a configured remote AI provider receives locally deidentified current visible content and, when available, bounded approved knowledge cards. Processing is not local-only, and no zero-retention guarantee is made.",
             "current visible thread",
             "ephemeral sanitized attachment context",
             "excluded from API responses, SQLite, and logs",
@@ -209,7 +210,7 @@ class DeepSeekDocumentationContractTests(unittest.TestCase):
 
     def test_adr_and_review_records_close_the_final_review_fix_wave(self) -> None:
         adr = self._read("docs/decisions/0005-deepseek-led-analysis.md")
-        self.assertTrue(adr.startswith("---\nlast_update: 2026-07-13\nstatus: active\n"))
+        self.assertTrue(adr.startswith("---\nlast_update: 2026-07-14\nstatus: active\n"))
         for marker in (
             "https://api.deepseek.com",
             "deepseek-v4-flash",

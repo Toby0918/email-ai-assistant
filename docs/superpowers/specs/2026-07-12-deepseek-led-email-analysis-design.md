@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-13
+last_update: 2026-07-14
 status: active
 owner: "@tobyWang"
 review_cycle: weekly
@@ -150,7 +150,7 @@ Backend configuration:
 DEEPSEEK_API_KEY=<backend-only secret>
 EMAIL_AGENT_LLM_PROVIDER=deepseek
 EMAIL_AGENT_DEEPSEEK_MODEL=deepseek-v4-flash
-EMAIL_AGENT_DEEPSEEK_TIMEOUT_SECONDS=25
+EMAIL_AGENT_DEEPSEEK_TIMEOUT_SECONDS=10
 EMAIL_AGENT_DEEPSEEK_OUTPUT_MODE=model_led
 ```
 
@@ -314,16 +314,16 @@ If JSON parsing, required schema, language boundaries, or overall source integri
 
 The approved synchronous budgets are:
 
-- Browser extension and local debug page: wait up to 35 seconds for `POST /api/analyze-current-email`.
-- Backend analysis target: 32 seconds from `AnalysisBudget.start()`, which is called immediately before the request body is read and validated. The runtime order is `start -> read -> api`, so body-read time consumes the same monotonic target used across analysis, parsing, provider work, validation, and persistence. This is a cooperative target rather than a hard end-to-end guarantee because bounded request reading, local attachment writes, SQLite calls, and socket response writing are synchronous.
+- Browser extension and local debug page: wait up to 15 seconds for `POST /api/analyze-current-email`.
+- Backend analysis target: 13 seconds from `AnalysisBudget.start()`, which is called immediately before the request body is read and validated. The runtime order is `start -> read -> api`, so body-read time consumes the same monotonic target used across analysis, parsing, provider work, validation, and persistence. This is a cooperative target rather than a hard end-to-end guarantee because bounded request reading, local attachment writes, SQLite calls, and socket response writing are synchronous.
 - Fixed validation/response margin: 2 seconds reserved at the end of the backend deadline.
 - Attachment parse/OCR budget within the backend request: at most 8 seconds in total for model-context preparation. PDF, XLSX, DOCX, image decoding, and OCR run in spawn-based worker processes. Worker start and terminate/kill/close controls are themselves bounded; a process whose blocked start completes after timeout enters late-start quarantine and is eventually terminated without holding the request open. Partial private output is discarded and remaining attachments degrade without another worker.
-- DeepSeek attempt: `min(25 seconds, remaining backend time minus the fixed 2-second validation/response margin)`.
+- DeepSeek attempt: `min(10 seconds, remaining backend time minus the fixed 2-second validation/response margin)`.
 - Ollama request creation, connect, and complete response-body consumption share one absolute monotonic wall-clock deadline; trickled bytes cannot refresh that deadline.
 - If less than 5 seconds remains for DeepSeek, skip the model and immediately return rule fallback.
 - Bounded synchronous attachment storage receives monotonic before/after checks. SQLite persistence receives one cumulative 0.5-second stage for lock acquisition, INSERT, and commit, with a 0.25-second response floor. Its busy timeout is recomputed from the same stage deadline before blocking operations. These checks reduce overruns but are not described as cancellation of an in-progress operating-system write.
 
-The 35-second frontend wait begins after browser resource collection. Current browser resource collection has its own maximum 20-second budget, so this design does not claim a strict 35-second Analyze-click-to-result guarantee. That distinction is documented in the UI/API operations guidance.
+The 15-second frontend wait begins after browser resource collection. Current browser resource collection has its own maximum 20-second budget, so this design does not claim a strict 15-second Analyze-click-to-result guarantee. That distinction is documented in the UI/API operations guidance.
 
 The browser abort does not reliably cancel server work. The backend therefore enforces its own deadline and must not depend on the frontend timer for cancellation.
 
@@ -391,9 +391,9 @@ Required coverage:
 - Model-led Decision Brief, timeline, risks, actions, and draft.
 - Stable timeline open-item identity/set/order/source/owner/due projection with grounded model wording only.
 - Attachment status/source ownership, all-field critical-fact/completion/commitment grounding, mandatory backend safety-risk union, field-level replacement, and full rule fallback.
-- Terminable parser/OCR worker-process behavior, partial-output disposal, hard 8-second parser deadline, cooperative 32-second backend target, SQLite busy timeout, and fixed 2-second response margin.
+- Terminable parser/OCR worker-process behavior, partial-output disposal, hard 8-second parser deadline, cooperative 13-second backend target, SQLite busy timeout, and fixed 2-second response margin.
 - No DeepSeek-to-Ollama chain.
-- 35-second frontend POST deadline and bounded backend remaining-budget behavior.
+- 15-second frontend POST deadline and bounded backend remaining-budget behavior.
 - Existing current-message click gate, current-message-only DOM trust, no automatic mailbox actions, architecture guards, linter guards, and mechanical constraints.
 
 Automated tests never call the live DeepSeek service. A live A/B evaluation of Flash and Pro uses only synthetic prompts, a locally supplied backend key, and separate operator approval after deterministic tests pass.

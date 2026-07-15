@@ -10,6 +10,8 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
+from backend.email_agent import deepseek_analysis_contract as contract
+from backend.email_agent import deepseek_analysis_schema as schema
 from backend.email_agent.deepseek_analysis_schema import (
     DeepSeekEnvelopeError,
     canonical_json_pointer,
@@ -207,6 +209,7 @@ class DeepSeekAnalysisSchemaTests(unittest.TestCase):
         relative_paths = (
             Path("backend/email_agent/deepseek_envelope_errors.py"),
             Path("backend/email_agent/deepseek_analysis_schema.py"),
+            Path("backend/email_agent/deepseek_analysis_contract.py"),
         )
 
         for relative_path in relative_paths:
@@ -217,6 +220,30 @@ class DeepSeekAnalysisSchemaTests(unittest.TestCase):
                     len(module_path.read_text(encoding="utf-8").splitlines()),
                     300,
                 )
+
+    def test_validator_reexports_the_canonical_immutable_contract(self) -> None:
+        names = (
+            "SCHEMA_VERSION",
+            "ENVELOPE_FIELDS",
+            "ANALYSIS_FIELDS",
+            "DECISION_FIELDS",
+            "NEXT_STEP_FIELDS",
+            "KEY_FACT_FIELDS",
+            "REPLY_RECOMMENDATION_FIELDS",
+            "TIMELINE_FIELDS",
+            "OPEN_ANNOTATION_FIELDS",
+            "RISK_FIELDS",
+            "ACTION_FIELDS",
+            "REPLY_FIELDS",
+            "ATTACHMENT_FIELDS",
+            "APPROVED_EVIDENCE_PATTERNS",
+        )
+
+        for name in names:
+            with self.subTest(name=name):
+                self.assertIs(getattr(schema, name), getattr(contract, name))
+        self.assertIsInstance(contract.ENVELOPE_FIELDS, frozenset)
+        self.assertIsInstance(contract.APPROVED_EVIDENCE_PATTERNS, frozenset)
 
     def test_parse_accepts_complete_versioned_envelope(self) -> None:
         raw = json.dumps(valid_envelope())
@@ -292,6 +319,13 @@ class DeepSeekAnalysisSchemaTests(unittest.TestCase):
                 "decision next steps",
                 lambda e: e["analysis"]["decision_brief"].update(next_steps=[]),
             ),
+            (
+                "decision too many next steps",
+                lambda e: e["analysis"]["decision_brief"].update(
+                    next_steps=e["analysis"]["decision_brief"]["next_steps"] * 5
+                ),
+            ),
+            ("required null", lambda e: e["analysis"].update(summary=None)),
             (
                 "decision next step extra",
                 lambda e: e["analysis"]["decision_brief"]["next_steps"][0].update(

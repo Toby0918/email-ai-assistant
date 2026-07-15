@@ -17,11 +17,11 @@ RESOURCE_COLLECTOR = EXTENSION / "content" / "current_message_collector.js"
 
 
 class BrowserExtensionTask6ContractTests(unittest.TestCase):
-    def test_analysis_post_wait_is_35_seconds_and_resource_collection_stays_20_seconds(self) -> None:
+    def test_analysis_post_wait_is_15_seconds_and_resource_collection_stays_20_seconds(self) -> None:
         api_source = API_CLIENT.read_text(encoding="utf-8")
         collector_source = RESOURCE_COLLECTOR.read_text(encoding="utf-8")
 
-        self.assertIn("MAX_ANALYZE_TIMEOUT_MS = 35000", api_source)
+        self.assertIn("MAX_ANALYZE_TIMEOUT_MS = 15000", api_source)
         self.assertIn("MAX_OVERALL_RESOURCE_TIMEOUT_MS = 20000", collector_source)
         self.assertNotIn("RESOURCE_COLLECTION_TIMEOUT_MS", api_source)
 
@@ -254,7 +254,7 @@ class BrowserExtensionTask6ContractTests(unittest.TestCase):
               await context.EmailAssistantApi.analyzeCurrentEmail(email);
               await context.EmailAssistantApi.analyzeCurrentEmail(email, { timeoutMs: 40000 });
               await context.EmailAssistantApi.analyzeCurrentEmail(email, { timeoutMs: 17 });
-              const expected = [35000, 35000, 17];
+              const expected = [15000, 15000, 17];
               if (JSON.stringify(requestedDelays) !== JSON.stringify(expected)) {
                 throw new Error(`unexpected analysis waits: ${JSON.stringify(requestedDelays)}`);
               }

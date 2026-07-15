@@ -32,10 +32,10 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config.deepseek_api_key, "synthetic-deepseek-key")
         self.assertEqual(config.llm_provider, "deepseek")
         self.assertEqual(config.deepseek_model, "deepseek-v4-pro")
-        self.assertEqual(config.deepseek_timeout_seconds, 17)
+        self.assertEqual(config.deepseek_timeout_seconds, 10)
         self.assertEqual(config.deepseek_output_mode, "model_led")
 
-    def test_load_config_caps_deepseek_timeout_at_25_seconds(self) -> None:
+    def test_load_config_caps_deepseek_timeout_at_10_seconds(self) -> None:
         with patch.dict(
             os.environ,
             {"EMAIL_AGENT_DEEPSEEK_TIMEOUT_SECONDS": "999"},
@@ -43,7 +43,7 @@ class ConfigTests(unittest.TestCase):
         ):
             config = load_config(dotenv_path=None)
 
-        self.assertEqual(config.deepseek_timeout_seconds, 25)
+        self.assertEqual(config.deepseek_timeout_seconds, 10)
 
     def test_load_config_has_safe_deepseek_defaults(self) -> None:
         with patch.dict(os.environ, {}, clear=True):
@@ -51,7 +51,7 @@ class ConfigTests(unittest.TestCase):
 
         self.assertIsNone(config.deepseek_api_key)
         self.assertEqual(config.deepseek_model, "deepseek-v4-flash")
-        self.assertEqual(config.deepseek_timeout_seconds, 25)
+        self.assertEqual(config.deepseek_timeout_seconds, 10)
         self.assertEqual(config.deepseek_output_mode, "conservative")
 
     def test_deepseek_key_does_not_fall_back_to_openai_key(self) -> None:
@@ -64,6 +64,7 @@ class ConfigTests(unittest.TestCase):
         sample = (ROOT / ".env.example").read_text(encoding="utf-8")
 
         self.assertIn("DEEPSEEK_API_KEY=", sample)
+        self.assertIn("EMAIL_AGENT_DEEPSEEK_TIMEOUT_SECONDS=10", sample)
         self.assertIn("EMAIL_AGENT_DEEPSEEK_OUTPUT_MODE=conservative", sample)
         self.assertNotIn("EMAIL_AGENT_DEEPSEEK_BASE_URL", sample)
 

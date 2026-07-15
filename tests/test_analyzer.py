@@ -33,6 +33,7 @@ from backend.email_agent.prompt_context import (
 )
 from backend.email_agent.rule_analyzer import build_rule_based_analysis
 from backend.email_agent.thread_timeline import build_timeline_skeleton
+from tests.test_private_knowledge_context import runtime_card
 
 
 def _contains_chinese(text: str) -> bool:
@@ -828,14 +829,14 @@ class AnalyzerTests(unittest.TestCase):
         self.assertEqual(len(generate.call_args.args), 1)
         self.assertIs(generate.call_args.kwargs["config"], config)
         self.assertIs(generate.call_args.kwargs["system_prompt"], DEEPSEEK_SYSTEM_PROMPT)
-        self.assertEqual(generate.call_args.kwargs["timeout_seconds"], 17.0)
+        self.assertEqual(generate.call_args.kwargs["timeout_seconds"], 10.0)
 
     def test_model_led_timeout_is_computed_after_prompt_construction(self) -> None:
         now = [100.0]
         budget = AnalysisBudget.start(clock=lambda: now[0])
 
         def build_slow_context(**kwargs):
-            now[0] = 108.0
+            now[0] = 105.0
             return build_deepseek_untrusted_context(**kwargs)
 
         with patch(
@@ -849,7 +850,7 @@ class AnalyzerTests(unittest.TestCase):
                 self._model_email(), config=self._deepseek_config(), budget=budget
             )
 
-        self.assertEqual(generate.call_args.kwargs["timeout_seconds"], 22.0)
+        self.assertEqual(generate.call_args.kwargs["timeout_seconds"], 6.0)
         self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
 
     def test_model_led_skips_generator_when_prompt_consumes_minimum_budget(self) -> None:
@@ -857,7 +858,7 @@ class AnalyzerTests(unittest.TestCase):
         budget = AnalysisBudget.start(clock=lambda: now[0])
 
         def build_slow_context(**kwargs):
-            now[0] = 126.0
+            now[0] = 106.1
             return build_deepseek_untrusted_context(**kwargs)
 
         with patch(
@@ -1442,7 +1443,7 @@ class AnalyzerTests(unittest.TestCase):
 
         generate.assert_called_once()
         self.assertIs(generate.call_args.kwargs["config"], config)
-        self.assertEqual(generate.call_args.kwargs["timeout_seconds"], 11.0)
+        self.assertEqual(generate.call_args.kwargs["timeout_seconds"], 10.0)
         self.assertEqual(generate.call_args.kwargs["system_prompt"], "")
         self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
 
@@ -1455,7 +1456,7 @@ class AnalyzerTests(unittest.TestCase):
         )
 
         def build_slow_prompt(*args, **kwargs):
-            now[0] = 124.0
+            now[0] = 105.0
             return build_analysis_prompt(*args, **kwargs)
 
         with patch(
@@ -1478,7 +1479,7 @@ class AnalyzerTests(unittest.TestCase):
         config = replace(load_config(dotenv_path=None), llm_provider="ollama")
 
         def build_slow_prompt(*args, **kwargs):
-            now[0] = 126.0
+            now[0] = 106.1
             return build_analysis_prompt(*args, **kwargs)
 
         with patch(
@@ -1510,9 +1511,155 @@ class AnalyzerTests(unittest.TestCase):
                     config=config,
                 )
                 self.assertEqual(len(prompts), 1)
-                self.assertIn("UNTRUSTED_EMAIL.subject", prompts[0])
+                expected_label = (
+                    "untrusted_email.subject"
+                    if config.llm_provider == "deepseek"
+                    else "UNTRUSTED_EMAIL.subject"
+                )
+                self.assertIn(expected_label, prompts[0])
                 self.assertNotIn('"context_type":"current_visible_email"', prompts[0])
                 self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
+
+    def test_both_deepseek_modes_use_plain_deidentified_prompt_and_runtime_cards(self) -> None:
+        email = {
+            "subject": "Synthetic request",
+            "from": "Synthetic Buyer <buyer@example.test>",
+            "to": ["Synthetic Sales <sales@example.test>"],
+            "body_text": "Please review PO-ABCD1234 by 2026-07-20 for USD 120.00.",
+        }
+        raw_markers = (
+            "Synthetic Buyer", "buyer@example.test", "Synthetic Sales",
+            "sales@example.test", "PO-ABCD1234", "2026-07-20", "USD 120.00",
+        )
+
+        for mode in ("model_led", "conservative"):
+            with self.subTest(mode=mode):
+                prompts: list[str] = []
+                result = analyze_current_email(
+                    email,
+                    llm_generate=lambda prompt: prompts.append(prompt) or "not json",
+                    config=self._deepseek_config(deepseek_output_mode=mode),
+                    runtime_cards=(runtime_card(1, category="customer_inquiry"),),
+                )
+                self.assertEqual(len(prompts), 1)
+                self.assertIs(type(prompts[0]), str)
+                for marker in raw_markers:
+                    self.assertNotIn(marker, prompts[0])
+                self.assertIn("<MESSAGE_ID_", prompts[0])
+                self.assertIn("<ORDER_ID_", prompts[0])
+                self.assertIn("approved_knowledge_context", prompts[0])
+                self.assertNotIn("card_id", prompts[0])
+                if mode == "model_led":
+                    self.assertNotIn("<LOCAL_PATH_", prompts[0])
+                self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
+
+    def test_local_ollama_route_remains_ungated_and_does_not_render_runtime_cards(self) -> None:
+        base = load_config(dotenv_path=None)
+        config = replace(base, llm_provider="ollama")
+        prompts: list[str] = []
+        email = {
+            "subject": "Synthetic request",
+            "from": "Synthetic Buyer <buyer@example.test>",
+            "body_text": "Please review PO-ABCD1234.",
+        }
+
+        result = analyze_current_email(
+            email,
+            llm_generate=lambda prompt: prompts.append(prompt) or "not json",
+            config=config,
+            runtime_cards=(runtime_card(1),),
+        )
+
+        self.assertEqual(len(prompts), 1)
+        self.assertIn("Synthetic Buyer", prompts[0])
+        self.assertIn("PO-ABCD1234", prompts[0])
+        self.assertNotIn("approved_knowledge_context", prompts[0])
+        self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
+
+    def test_private_residual_blocks_client_and_stays_out_of_result_log_and_exception(self) -> None:
+        marker = "UNMAPPED-PRIVATE-ENTITY"
+        calls: list[str] = []
+        email = {
+            "subject": "Synthetic request",
+            "from": "buyer@example.test",
+            "body_text": f"Please review {marker}.",
+        }
+
+        with self._capture_analysis_fallback_logs() as captured:
+            result = analyze_current_email(
+                email,
+                llm_generate=lambda prompt: calls.append(prompt) or "{}",
+                config=self._deepseek_config(),
+            )
+
+        self.assertEqual(calls, [])
+        self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
+        self.assertEqual(len(captured.output), 1)
+        self.assertIn("code=safety_rejected_all stage=safety", captured.output[0])
+        self.assertNotIn(marker, captured.output[0])
+        serialized = json.dumps(result)
+        for forbidden in (
+            "private_context", "knowledge_cards", "placeholder_mapping",
+            "resolver", "card_id", "snapshot_id", "vault_id", "<EMAIL_",
+            "<ORDER_ID_", "<PERSON_",
+        ):
+            self.assertNotIn(forbidden, serialized)
+
+    def test_resolver_is_closed_before_injected_client_is_called(self) -> None:
+        class ResolverSpy:
+            text = "safe lower-case prompt"
+            closed = False
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                self.closed = True
+
+        resolver = ResolverSpy()
+
+        def injected(_prompt: str) -> str:
+            self.assertTrue(resolver.closed)
+            return "not json"
+
+        with patch(
+            "backend.email_agent.private_context_gate.deidentify_private_text",
+            return_value=resolver,
+        ):
+            result = analyze_current_email(
+                self._model_email(),
+                llm_generate=injected,
+                config=self._deepseek_config(),
+            )
+
+        self.assertTrue(resolver.closed)
+        self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
+
+    def test_private_provider_output_is_rejected_before_both_parsers(self) -> None:
+        cases = (
+            (
+                "model_led",
+                "backend.email_agent.analysis_model_routes.parse_deepseek_analysis_v1",
+            ),
+            (
+                "conservative",
+                "backend.email_agent.analysis_model_routes.parse_legacy_result",
+            ),
+        )
+
+        for mode, parser_target in cases:
+            with self.subTest(mode=mode), patch(parser_target) as parser, \
+                    self._capture_analysis_fallback_logs() as captured:
+                result = analyze_current_email(
+                    self._model_email(),
+                    llm_generate=lambda _prompt: '{"summary":"<EMAIL_1>"}',
+                    config=self._deepseek_config(deepseek_output_mode=mode),
+                )
+
+            parser.assert_not_called()
+            self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
+            self.assertIn("code=safety_rejected_all stage=safety", captured.output[0])
+            self.assertNotIn("<EMAIL_1>", json.dumps(result))
 
     @staticmethod
     def _model_email() -> dict[str, object]:
@@ -1525,14 +1672,14 @@ class AnalyzerTests(unittest.TestCase):
     @staticmethod
     def _deepseek_config(**changes):
         base = load_config(dotenv_path=None)
-        return replace(
-            base,
-            llm_provider="deepseek",
-            deepseek_api_key="synthetic-test-key",
-            deepseek_model="deepseek-v4-flash",
-            deepseek_output_mode="model_led",
-            **changes,
-        )
+        values = {
+            "llm_provider": "deepseek",
+            "deepseek_api_key": "synthetic-test-key",
+            "deepseek_model": "deepseek-v4-flash",
+            "deepseek_output_mode": "model_led",
+        }
+        values.update(changes)
+        return replace(base, **values)
 
     def _capture_analysis_fallback_logs(self):
         return self.assertLogs(

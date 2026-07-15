@@ -172,6 +172,39 @@ class ArchitectureConstraintTests(unittest.TestCase):
         )
         self.assertIn("runtime loader is read-only", architecture)
 
+    def test_email_agent_private_knowledge_bridge_is_exactly_allowlisted(self) -> None:
+        email_agent = ROOT / "backend" / "email_agent"
+        allowed = {
+            (email_agent / "private_context_gate.py").resolve(): {
+                "backend.private_knowledge.deidentifier",
+                "backend.private_knowledge.entity_patterns",
+                "backend.private_knowledge.residual_scanner",
+            },
+            (email_agent / "private_knowledge_context.py").resolve(): {
+                "backend.private_knowledge.runtime_schema",
+            },
+        }
+        observed: dict[Path, set[str]] = {}
+        for path in email_agent.rglob("*.py"):
+            private_imports = {
+                module for module in parse_import_modules(path)
+                if module.startswith("backend.private_knowledge")
+            }
+            if private_imports:
+                observed[path.resolve()] = private_imports
+
+        self.assertEqual(observed, allowed)
+
+        architecture = read_text(
+            ROOT / "docs" / "constraints" / "architecture_constraints.md"
+        )
+        self.assertIn(
+            "No other `backend.email_agent` module may import `backend.private_knowledge`",
+            architecture,
+        )
+        self.assertIn("runtime_cards=()", architecture)
+        self.assertIn("public field set and diagnostic field set remain frozen", architecture)
+
     def test_mailbox_ingest_import_boundary_is_administrator_cli_only(self) -> None:
         architecture = read_text(
             ROOT / "docs" / "constraints" / "architecture_constraints.md"

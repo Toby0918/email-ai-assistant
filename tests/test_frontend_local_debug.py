@@ -12,16 +12,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = ROOT / "frontend" / "local_debug_page"
 REMOTE_PROCESSING_NOTICE = (
-    "After you click Analyze, a configured remote AI provider receives only the current visible "
-    "message/thread within configured limits and text extracted from supported visible attachments."
+    "After you click Analyze, a configured remote AI provider receives locally deidentified current "
+    "visible content and, when available, bounded approved knowledge cards. Processing is not "
+    "local-only, and no zero-retention guarantee is made."
 )
 
 
 class FrontendLocalDebugTests(unittest.TestCase):
-    def test_local_debug_analysis_wait_is_35_seconds(self) -> None:
+    def test_local_debug_analysis_wait_is_15_seconds(self) -> None:
         script = (FRONTEND / "app.js").read_text(encoding="utf-8")
 
-        self.assertIn("const ANALYZE_TIMEOUT_MS = 35000;", script)
+        self.assertIn("const ANALYZE_TIMEOUT_MS = 15000;", script)
 
     def test_local_debug_shows_remote_processing_notice_before_analyze_click(self) -> None:
         page = (FRONTEND / "index.html").read_text(encoding="utf-8")
@@ -209,7 +210,7 @@ class FrontendLocalDebugTests(unittest.TestCase):
             const fs = require("fs");
             const vm = require("vm");
             const source = fs.readFileSync(__APP__, "utf8")
-              .replace("const ANALYZE_TIMEOUT_MS = 35000;", "const ANALYZE_TIMEOUT_MS = 20;");
+              .replace("const ANALYZE_TIMEOUT_MS = 15000;", "const ANALYZE_TIMEOUT_MS = 20;");
             const listeners = new Map();
             const elements = new Map();
             function element(selector) {

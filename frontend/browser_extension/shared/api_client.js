@@ -1,6 +1,6 @@
 (function () {
   const ANALYZE_URL = "http://127.0.0.1:8765/api/analyze-current-email";
-  const MAX_ANALYZE_TIMEOUT_MS = 35000;
+  const MAX_ANALYZE_TIMEOUT_MS = 15000;
   const FRONTEND_RESOURCE_LIMITATION_CODES = new Set([
     "unsupported_type",
     "frontend_limit",

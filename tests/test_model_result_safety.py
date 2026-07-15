@@ -431,13 +431,31 @@ class ModelResultSafetyTests(unittest.TestCase):
     def test_decision_brief_source_ids_are_projected_to_public_sources(self) -> None:
         brief = self.envelope["analysis"]["decision_brief"]
         brief["next_steps"][0]["source"] = "attachment:0"
-        brief["key_facts"][0]["source"] = "thread:1"
+        brief["key_facts"] = [{
+            "label": "模型事实", "value": "模型值", "source": "thread:1",
+        }]
         brief["one_line_conclusion"] = "应参考附件并核实事实。"
         result = self.merge()
         merged = result.analysis["decision_brief"]
         self.assertEqual("attachment:synthetic.xlsx", merged["next_steps"][0]["source"])
-        self.assertEqual("thread", merged["key_facts"][0]["source"])
+        self.assertEqual(self.fallback["decision_brief"]["key_facts"], merged["key_facts"])
+        self.assertIsNot(self.fallback["decision_brief"]["key_facts"], merged["key_facts"])
         self.assertNotIn("decision_brief", result.fallback_fields)
+
+    def test_exact_local_key_facts_survive_safe_model_brief_byte_for_byte_and_deep_copied(self) -> None:
+        expected = copy.deepcopy(self.fallback["decision_brief"]["key_facts"])
+        self.envelope["analysis"]["decision_brief"]["key_facts"] = [{
+            "label": "模型编号", "value": "模型生成值", "source": "thread:1",
+        }]
+
+        result = self.merge()
+        actual = result.analysis["decision_brief"]["key_facts"]
+
+        self.assertEqual(actual, expected)
+        self.assertIsNot(actual, self.fallback["decision_brief"]["key_facts"])
+        if actual:
+            self.assertIsNot(actual[0], self.fallback["decision_brief"]["key_facts"][0])
+        self.assertNotIn("模型生成值", str(actual))
 
     def test_unconditional_commitment_and_direct_auto_action_variants_replace_brief(self) -> None:
         phrases = (

@@ -4,9 +4,22 @@ from __future__ import annotations
 from collections.abc import Collection, Mapping
 from typing import Any
 
-from .analysis_schema import (
-    ACTION_TYPES, CATEGORIES, CONFIDENCE_LEVELS, DECISION_REPLY_TYPES, PRIORITIES,
-    RISK_LEVELS, RISK_TYPES,
+from .deepseek_analysis_contract import (
+    ACTION_FIELDS,
+    ANALYSIS_FIELDS,
+    APPROVED_EVIDENCE_PATTERNS,
+    ATTACHMENT_FIELDS,
+    DECISION_FIELDS,
+    ENVELOPE_FIELDS,
+    KEY_FACT_FIELDS,
+    NEXT_STEP_FIELDS,
+    OPEN_ANNOTATION_FIELDS,
+    REPLY_FIELDS,
+    REPLY_RECOMMENDATION_FIELDS,
+    RISK_FIELDS,
+    SCHEMA_VERSION,
+    TIMELINE_FIELDS,
+    ENUM_FIELDS,
 )
 from .deepseek_envelope_errors import (
     ERROR_TEXT, DeepSeekEnvelopeError, decode_provider_json as _decode_json,
@@ -14,43 +27,7 @@ from .deepseek_envelope_errors import (
     validate_at_boundary as _validate_boundary,
 )
 
-SCHEMA_VERSION = "deepseek_analysis_v1"
 MAX_POINTER_INDEX_DIGITS = 10
-ENVELOPE_FIELDS = {"schema_version", "analysis", "attachment_augmentations", "field_evidence"}
-ANALYSIS_FIELDS = {
-    "summary", "priority", "priority_reason", "category", "tags", "decision_brief",
-    "timeline_interpretation", "risk_flags", "suggested_actions", "reply_draft",
-}
-DECISION_FIELDS = {
-    "one_line_conclusion", "requested_outcome", "next_steps", "key_facts",
-    "must_check", "missing_info", "reply_recommendation", "confidence",
-}
-APPROVED_EVIDENCE_PATTERNS = {
-    ("analysis", "summary"), ("analysis", "priority_reason"),
-    ("analysis", "tags", "*"),
-    ("analysis", "decision_brief", "one_line_conclusion"),
-    ("analysis", "decision_brief", "requested_outcome"),
-    ("analysis", "decision_brief", "next_steps", "*", "step"),
-    ("analysis", "decision_brief", "next_steps", "*", "owner_hint"),
-    ("analysis", "decision_brief", "next_steps", "*", "due_hint"),
-    ("analysis", "decision_brief", "key_facts", "*", "label"),
-    ("analysis", "decision_brief", "key_facts", "*", "value"),
-    ("analysis", "decision_brief", "must_check", "*"),
-    ("analysis", "decision_brief", "missing_info", "*"),
-    ("analysis", "decision_brief", "reply_recommendation", "reason"),
-    ("analysis", "timeline_interpretation", "previous_context"),
-    ("analysis", "timeline_interpretation", "status_reason"),
-    ("analysis", "timeline_interpretation", "open_item_annotations", "*", "item"),
-    ("analysis", "risk_flags", "*", "evidence"),
-    ("analysis", "risk_flags", "*", "recommendation"),
-    ("analysis", "suggested_actions", "*", "description"),
-    ("analysis", "suggested_actions", "*", "owner_hint"),
-    ("analysis", "suggested_actions", "*", "due_hint"),
-    ("analysis", "reply_draft", "subject"), ("analysis", "reply_draft", "body"),
-    ("analysis", "reply_draft", "review_reasons", "*"),
-    ("attachment_augmentations", "*", "summary"),
-    ("attachment_augmentations", "*", "key_facts", "*"),
-}
 
 def parse_deepseek_analysis_v1(raw: str | bytes | bytearray) -> dict[str, Any]:
     value = _decode_json(raw, _object_without_duplicate_keys)
@@ -113,9 +90,9 @@ def validate_envelope_evidence(
 def _validate_analysis(value: object) -> None:
     analysis = _object(value, ANALYSIS_FIELDS)
     _string(analysis["summary"])
-    _enum(analysis["priority"], PRIORITIES)
+    _enum(analysis["priority"], ENUM_FIELDS["analysis.priority"])
     _string(analysis["priority_reason"])
-    _enum(analysis["category"], CATEGORIES)
+    _enum(analysis["category"], ENUM_FIELDS["analysis.category"])
     _string_list(analysis["tags"])
     _validate_decision_brief(analysis["decision_brief"])
     _validate_timeline(analysis["timeline_interpretation"])
@@ -130,43 +107,44 @@ def _validate_decision_brief(value: object) -> None:
     steps = _list(brief["next_steps"])
     if not 1 <= len(steps) <= 4:
         _invalid()
-    _text_objects(steps, {"step", "owner_hint", "due_hint", "source"})
-    _text_objects(brief["key_facts"], {"label", "value", "source"})
+    _text_objects(steps, NEXT_STEP_FIELDS)
+    _text_objects(brief["key_facts"], KEY_FACT_FIELDS)
     _string_list(brief["must_check"])
     _string_list(brief["missing_info"])
     recommendation = _object(
-        brief["reply_recommendation"], {"should_reply", "reply_type", "reason"}
+        brief["reply_recommendation"], REPLY_RECOMMENDATION_FIELDS
     )
     if not isinstance(recommendation["should_reply"], bool):
         _invalid()
-    _enum(recommendation["reply_type"], DECISION_REPLY_TYPES)
+    _enum(
+        recommendation["reply_type"],
+        ENUM_FIELDS["analysis.decision_brief.reply_recommendation.reply_type"],
+    )
     _string(recommendation["reason"])
-    _enum(brief["confidence"], CONFIDENCE_LEVELS)
+    _enum(brief["confidence"], ENUM_FIELDS["analysis.decision_brief.confidence"])
 
 def _validate_timeline(value: object) -> None:
-    timeline = _object(
-        value, {"previous_context", "status_reason", "open_item_annotations", "evidence_sources"}
-    )
+    timeline = _object(value, TIMELINE_FIELDS)
     _string(timeline["previous_context"])
     _string(timeline["status_reason"])
-    _text_objects(timeline["open_item_annotations"], {"open_item_id", "item"})
+    _text_objects(timeline["open_item_annotations"], OPEN_ANNOTATION_FIELDS)
     _string_list(timeline["evidence_sources"])
 
 def _validate_risks(value: object) -> None:
-    for item in _objects(value, {"type", "level", "evidence", "recommendation"}):
-        _enum(item["type"], RISK_TYPES)
-        _enum(item["level"], RISK_LEVELS)
+    for item in _objects(value, RISK_FIELDS):
+        _enum(item["type"], ENUM_FIELDS["analysis.risk_flags[].type"])
+        _enum(item["level"], ENUM_FIELDS["analysis.risk_flags[].level"])
         _string(item["evidence"])
         _string(item["recommendation"])
 
 def _validate_actions(value: object) -> None:
-    for item in _objects(value, {"type", "description", "owner_hint", "due_hint"}):
-        _enum(item["type"], ACTION_TYPES)
+    for item in _objects(value, ACTION_FIELDS):
+        _enum(item["type"], ENUM_FIELDS["analysis.suggested_actions[].type"])
         for field in ("description", "owner_hint", "due_hint"):
             _string(item[field])
 
 def _validate_reply(value: object) -> None:
-    reply = _object(value, {"subject", "body", "needs_human_review", "review_reasons"})
+    reply = _object(value, REPLY_FIELDS)
     _string(reply["subject"])
     _string(reply["body"])
     if reply["needs_human_review"] is not True:
@@ -174,8 +152,7 @@ def _validate_reply(value: object) -> None:
     _string_list(reply["review_reasons"])
 
 def _validate_attachments(value: object) -> None:
-    fields = {"source_id", "summary", "key_facts", "evidence_sources"}
-    for item in _objects(value, fields):
+    for item in _objects(value, ATTACHMENT_FIELDS):
         _string(item["source_id"])
         _string(item["summary"])
         _string_list(item["key_facts"])
@@ -251,15 +228,15 @@ def _validate_source_list(values: list[str], source_ids: set[str], *, allow_empt
     if len(values) != len(set(values)) or any(value not in source_ids for value in values):
         _invalid()
 
-def _objects(value: object, fields: set[str]) -> list[dict[str, Any]]:
+def _objects(value: object, fields: Collection[str]) -> list[dict[str, Any]]:
     return [_object(item, fields) for item in _list(value)]
 
-def _text_objects(value: object, fields: set[str]) -> None:
+def _text_objects(value: object, fields: Collection[str]) -> None:
     for item in _objects(value, fields):
         for field in fields:
             _string(item[field])
 
-def _object(value: object, fields: set[str]) -> dict[str, Any]:
+def _object(value: object, fields: Collection[str]) -> dict[str, Any]:
     if not isinstance(value, dict) or set(value) != fields:
         _invalid()
     return value
@@ -279,7 +256,7 @@ def _string(value: object) -> None:
     if not isinstance(value, str):
         _invalid()
 
-def _enum(value: object, allowed: set[str]) -> None:
+def _enum(value: object, allowed: Collection[str]) -> None:
     if not isinstance(value, str) or value not in allowed:
         _invalid()
 

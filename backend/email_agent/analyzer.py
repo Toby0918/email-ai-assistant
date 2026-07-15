@@ -39,6 +39,7 @@ def analyze_current_email(
     *,
     config: AppConfig | None = None,
     budget: AnalysisBudget | None = None,
+    runtime_cards: tuple[object, ...] = (),
 ) -> dict[str, Any]:
     current_config = config or load_config()
     current_budget = budget or AnalysisBudget.start()
@@ -56,7 +57,7 @@ def analyze_current_email(
     )
     context = _route_context(
         email, subject, sender, clean_body, timeline, bundles, insights,
-        fallback, current_config, current_budget,
+        fallback, current_config, current_budget, runtime_cards,
     )
     return route_analysis(context, llm_generate, analysis_engine_label)
 
@@ -65,7 +66,7 @@ def _route_context(
     email: dict[str, Any], subject: str, sender: str, clean_body: str,
     timeline: TimelineBuild, bundles: tuple[AttachmentAnalysisBundle, ...],
     insights: list[dict[str, object]], fallback: dict[str, Any],
-    config: AppConfig, budget: AnalysisBudget,
+    config: AppConfig, budget: AnalysisBudget, runtime_cards: tuple[object, ...],
 ) -> AnalysisRouteContext:
     return AnalysisRouteContext(
         subject=subject, sender=sender, clean_body=clean_body,
@@ -75,6 +76,7 @@ def _route_context(
         sent_at=_optional_text(email.get("sent_at"), 160), timeline=timeline,
         attachment_insights=insights, attachment_bundles=bundles,
         fallback=fallback, config=config, budget=budget,
+        runtime_cards=runtime_cards if type(runtime_cards) is tuple else (),
     )
 
 

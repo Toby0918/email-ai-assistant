@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-13
+last_update: 2026-07-14
 status: active
 owner: "@tobyWang"
 review_cycle: weekly
@@ -19,7 +19,7 @@ The user approved this direction on 2026-07-13 by instructing Codex to execute t
 ## Pre-implementation Evidence
 
 - The service is healthy and returns successful rule results.
-- The effective local configuration is `provider=deepseek`, `model=deepseek-v4-flash`, `output_mode=model_led`, and a 25-second provider timeout.
+- The effective local configuration is `provider=deepseek`, `model=deepseek-v4-flash`, `output_mode=model_led`, and a 10-second provider timeout.
 - The configured key is present and has a plausible non-placeholder shape, but remote authentication has not been independently proven.
 - The service started after the `.env` update, so a missed restart is not the leading explanation.
 - DNS resolution and TCP port 443 connectivity to the fixed DeepSeek host work.

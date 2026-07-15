@@ -43,6 +43,9 @@ def merge_deepseek_analysis_v1(
         if brief is None:
             kept.add("decision_brief")
         else:
+            brief["key_facts"] = copy.deepcopy(
+                fallback["decision_brief"]["key_facts"]
+            )
             public["decision_brief"] = brief
         merged_timeline = safe_timeline_interpretation(
             analysis["timeline_interpretation"], timeline, violations, normalized_evidence

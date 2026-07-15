@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-13
+last_update: 2026-07-14
 status: active
 owner: "@tobyWang"
 review_cycle: weekly
@@ -101,13 +101,13 @@ Expected new or modified files:
 - Focused tests under `tests/`
 - Related provider, privacy, API, prompt, setup, deployment, and troubleshooting documents under `docs/`
 
-The approved frontend scope changes the backend POST wait to 35 seconds after browser resource collection. A strict Analyze-click-to-result deadline is explicitly outside this task because it would require shared browser collection and backend execution deadlines.
+The later private-gate alignment changes the backend POST wait to 15 seconds after browser resource collection. A strict Analyze-click-to-result deadline remains outside this task because browser collection and backend execution have independent deadlines.
 
 ## 8. Technical Approach
 
 1. Add `deepseek` as an opt-in backend provider with a separate backend-only `DEEPSEEK_API_KEY`.
 2. Call the official `https://api.deepseek.com` endpoint through the already pinned `openai==2.45.0` package. Do not expose a configurable arbitrary remote base URL.
-3. Use `deepseek-v4-flash`, non-streaming JSON Output, explicit non-thinking mode, bounded `max_tokens`, zero SDK retries, and a 25-second maximum provider budget. Allow the approved `deepseek-v4-pro` model through backend configuration for later synthetic evaluation, but do not make it the default.
+3. Use `deepseek-v4-flash`, non-streaming JSON Output, explicit non-thinking mode, bounded `max_tokens`, zero SDK retries, and a 10-second maximum/default provider budget. Allow the approved `deepseek-v4-pro` model through backend configuration for later synthetic evaluation, but do not make it the default.
 4. Treat the user's approval as operator-wide consent for this local installation whenever both `deepseek` and `model_led` are configured. Show a persistent pre-click disclosure that Analyze sends the current visible thread and bounded attachment extraction to the configured remote provider. Keep the public request schema unchanged.
 5. Build one bounded remote context from the current visible thread plus locally extracted image/PDF/XLSX/DOCX text. Preserve business identifiers, names, dates, quantities, amounts, deadlines, and quality language. Remove every URL, secret, authorization value, private attachment download URL, cookie, token, local path, and active-content marker.
 6. Keep the expanded attachment model text ephemeral and out of SQLite, logs, API responses, docs, tests, and repository fixtures. Continue returning only bounded `attachment_insights` to the UI and SQLite.
@@ -117,7 +117,7 @@ The approved frontend scope changes the backend POST wait to 35 seconds after br
 10. Ground critical identifiers, quantities, measurements, amounts, dates, completion claims, and commitment claims in every model-led text field, not only Decision Brief key facts.
 11. On any sanitized provider error, return the existing rule fallback in the same API response. Do not try Ollama after DeepSeek failure.
 12. Keep the provider default disabled. When explicitly configured as `deepseek`, DeepSeek is the primary attempt and rules are the only automatic fallback.
-13. Treat 35 seconds as the frontend wait for `POST /api/analyze-current-email` after independent 20-second browser resource collection. Call `AnalysisBudget.start()` immediately before the validated request body read; the runtime order is `start -> read -> api`, so body-read time consumes the 32-second cooperative backend budget. Keep the fixed 2-second response margin, hard 8-second parser/OCR process deadline, 25-second maximum/5-second minimum provider attempt, and a 0.5-second cumulative SQLite stage with a 0.25-second response floor. Synchronous request reading, attachment storage, SQLite calls, and response writing are not described as hard-cancellable. Do not describe this as a strict Analyze-click total or hard end-to-end guarantee.
+13. Treat 15 seconds as the frontend wait for `POST /api/analyze-current-email` after independent 20-second browser resource collection. Call `AnalysisBudget.start()` immediately before the validated request body read; the runtime order is `start -> read -> api`, so body-read time consumes the 13-second cooperative backend budget. Keep the fixed 2-second response margin, hard 8-second parser/OCR process deadline, 10-second maximum/default and 5-second minimum provider attempt, and a 0.5-second cumulative SQLite stage with a 0.25-second response floor. Synchronous request reading, attachment storage, SQLite calls, and response writing are not described as hard-cancellable. Do not describe this as a strict Analyze-click total or hard end-to-end guarantee.
 
 ## 9. Data Structure Or Interface Changes
 
@@ -151,7 +151,7 @@ Yes. The provider request must explicitly ask for json, include a bounded exampl
 DEEPSEEK_API_KEY=<backend-only secret>
 EMAIL_AGENT_LLM_PROVIDER=deepseek
 EMAIL_AGENT_DEEPSEEK_MODEL=deepseek-v4-flash
-EMAIL_AGENT_DEEPSEEK_TIMEOUT_SECONDS=25
+EMAIL_AGENT_DEEPSEEK_TIMEOUT_SECONDS=10
 EMAIL_AGENT_DEEPSEEK_OUTPUT_MODE=model_led
 ```
 
@@ -187,7 +187,7 @@ DeepSeek's current official documentation states that disk context caching is en
 ## 12. Acceptance Criteria
 
 1. `EMAIL_AGENT_LLM_PROVIDER=deepseek` with a backend key calls the official DeepSeek OpenAI-compatible Chat Completions API using `deepseek-v4-flash`, `response_format={"type":"json_object"}`, `stream=false`, explicit non-thinking mode, bounded `max_tokens`, and no automatic SDK retry.
-2. The provider receives the remaining backend response budget, never more than 25 seconds, and the request is cancellable even when the remote service sends keep-alive data.
+2. The provider receives the remaining backend response budget, never more than 10 seconds, and the request is cancellable even when the remote service sends keep-alive data.
 3. Missing key, authentication/balance/rate/server errors, timeout, empty content, non-success finish reason, malformed JSON, schema failure, or language failure returns a valid rule fallback without leaking provider details.
 4. The remote request contains the bounded current visible thread and bounded supported-attachment extraction required for useful analysis, including business identifiers and dates, but no attachment binary/base64, URL, cookie/authorization/token, local path, active content, or unbounded source text. Canary tests prove both the positive and negative boundaries.
 5. A versioned internal DeepSeek envelope carries request-local evidence/source IDs and model-led fields, then maps into the unchanged public response only after validation.
@@ -197,8 +197,8 @@ DeepSeek's current official documentation states that disk context caching is en
 9. DeepSeek cannot alter backend attachment availability/status, add nonexistent sources, set `needs_human_review=false`, trigger mailbox operations, or create an unsupported/unconditional price, delivery, payment, contract, quality, completion, or legal claim in any model-led field.
 10. Existing current-message click gating remains intact. No mailbox-wide or pre-click collection is introduced. Persistent UI text discloses remote processing before the click when the remote route may be used.
 11. The provider is disabled by default; `deepseek` is primary only when explicitly configured, and Ollama is not attempted after DeepSeek failure.
-12. The browser extension and local debug page no longer abort a normal provider attempt at 15 seconds. Documentation identifies 35 seconds as the POST wait after resource collection, not a strict click total.
-13. The 32-second backend target is explicitly cooperative and starts immediately before request-body read, in the documented `start -> read -> api` order; body-read time therefore consumes that target. Parser/OCR and provider stages have hard cancellable deadlines; bounded synchronous storage uses before/after checks. SQLite uses one 0.5-second cumulative lock/INSERT/commit stage, a 0.25-second response floor, recomputed busy timeouts, rollback on save error, and connection quarantine on rollback failure.
+12. The browser extension and local debug page use the exact 15-second POST wait after resource collection; it is not a strict click total.
+13. The 13-second backend target is explicitly cooperative and starts immediately before request-body read, in the documented `start -> read -> api` order; body-read time therefore consumes that target. Parser/OCR and provider stages have hard cancellable deadlines; bounded synchronous storage uses before/after checks. SQLite uses one 0.5-second cumulative lock/INSERT/commit stage, a 0.25-second response floor, recomputed busy timeouts, rollback on save error, and connection quarantine on rollback failure.
 14. Public API/schema and SQLite persistence remain backward compatible; ephemeral expanded model context is never persisted.
 15. Focused tests, full Python suite, frontend JavaScript syntax checks, architecture/static/mechanical guards, maintenance scan, status generation, and `git diff --check` pass.
 
@@ -271,7 +271,7 @@ Task 14 final verification evidence:
 - All seven listed node --check commands exited 0; the extension manifest JSON parse printed manifest json: OK.
 - The exact brief manifest/architecture/static guard ran 24 tests in 12.736 seconds and passed. The expanded browser static/resource-timeout/local-debug/mechanical guard ran 58 tests in 1.184 seconds and passed.
 - Explicit frontend scan found no DeepSeek/OpenAI/Ollama/Qwen/Gemma endpoint, key, SDK, environment, or direct-provider markers.
-- Current frontend constants were verified as MAX_ANALYZE_TIMEOUT_MS = 35000, ANALYZE_TIMEOUT_MS = 35000, and MAX_OVERALL_RESOURCE_TIMEOUT_MS = 20000; the 35-second POST wait remains independent of the 20-second resource collection limit.
+- Current frontend constants are `MAX_ANALYZE_TIMEOUT_MS = 15000`, `ANALYZE_TIMEOUT_MS = 15000`, and `MAX_OVERALL_RESOURCE_TIMEOUT_MS = 20000`; the 15-second POST wait remains independent of the 20-second resource collection limit.
 - The post-edit Task 14 date/front-matter assertion passed. DeepSeek documentation, static, architecture, mechanical, and status-generator guards then ran 44 tests and passed.
 - git diff --check passed before this execution-record edit. Final post-edit diff and staged-snapshot evidence is recorded in .superpowers/sdd/task-14-report.md.
 

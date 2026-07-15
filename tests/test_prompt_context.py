@@ -6,7 +6,20 @@ import json
 import unittest
 
 from backend.email_agent.attachment_model_context import AttachmentModelContextItem
-from backend.email_agent.deepseek_analysis_schema import validate_deepseek_analysis_v1
+from backend.email_agent.deepseek_analysis_contract import (
+    APPROVED_EVIDENCE_PATTERNS,
+    EMPTY_LIST_FIELDS,
+    ENUM_FIELDS,
+    FIELD_TYPES,
+    MAX_SYSTEM_PROMPT_CHARACTERS,
+    OBJECT_FIELD_SETS,
+    complete_envelope_example,
+    render_analysis_contract,
+)
+from backend.email_agent.deepseek_analysis_schema import (
+    validate_deepseek_analysis_v1,
+    validate_envelope_evidence,
+)
 from backend.email_agent.prompt_context import (
     DEEPSEEK_SYSTEM_PROMPT,
     EvidenceSource,
@@ -124,15 +137,16 @@ class DeepSeekPromptContextTests(unittest.TestCase):
         )[1].split(" Produce Chinese analysis", 1)[0]
         example = json.loads(raw_example)
         self.assertIs(validate_deepseek_analysis_v1(example), example)
+        self.assertEqual(
+            validate_envelope_evidence(example, {"thread:0": object()}),
+            {"/analysis/summary": ("thread:0",)},
+        )
         analysis = example["analysis"]
         self.assertEqual(
             set(analysis["decision_brief"]["key_facts"][0]),
             {"label", "value", "source"},
         )
-        self.assertEqual(
-            set(analysis["timeline_interpretation"]["open_item_annotations"][0]),
-            {"open_item_id", "item"},
-        )
+        self.assertEqual(analysis["timeline_interpretation"]["open_item_annotations"], [])
         self.assertEqual(
             set(analysis["risk_flags"][0]),
             {"type", "level", "evidence", "recommendation"},
@@ -141,11 +155,68 @@ class DeepSeekPromptContextTests(unittest.TestCase):
             set(analysis["suggested_actions"][0]),
             {"type", "description", "owner_hint", "due_hint"},
         )
-        self.assertEqual(
-            set(example["attachment_augmentations"][0]),
-            {"source_id", "summary", "key_facts", "evidence_sources"},
-        )
+        self.assertEqual(example["attachment_augmentations"], [])
         self.assertTrue(example["field_evidence"])
+
+    def test_canonical_contract_covers_every_shape_type_enum_and_evidence_rule(self) -> None:
+        rendered = render_analysis_contract()
+        manifest = json.loads(rendered)
+
+        for object_path, fields in OBJECT_FIELD_SETS.items():
+            with self.subTest(object_path=object_path):
+                self.assertEqual(set(manifest["objects"][object_path]), set(fields))
+                for field_name in fields:
+                    field_path = (
+                        field_name
+                        if object_path == "envelope"
+                        else f"{object_path}.{field_name}"
+                    )
+                    self.assertEqual(
+                        manifest["objects"][object_path][field_name],
+                        FIELD_TYPES[field_path],
+                    )
+        for field_path, allowed in ENUM_FIELDS.items():
+            with self.subTest(enum=field_path):
+                self.assertEqual(manifest["enums"][field_path], list(allowed))
+        for pattern in APPROVED_EVIDENCE_PATTERNS:
+            with self.subTest(pattern=pattern):
+                self.assertIn(
+                    "/" + "/".join(pattern),
+                    manifest["rules"]["field_evidence_targets"],
+                )
+        for field_path in EMPTY_LIST_FIELDS:
+            self.assertIn(field_path, manifest["rules"]["empty_lists_allowed_only"])
+        self.assertIs(manifest["rules"]["no_extra_keys"], True)
+        self.assertIs(manifest["rules"]["null_allowed"], False)
+        self.assertEqual(
+            manifest["rules"]["analysis.decision_brief.next_steps"], "1..4"
+        )
+        self.assertIs(
+            manifest["rules"]["analysis.reply_draft.needs_human_review"], True
+        )
+        self.assertEqual(manifest["rules"]["source_ids"], "request_local_only")
+
+    def test_complete_example_is_fresh_deterministic_and_uses_only_thread_zero(self) -> None:
+        first = complete_envelope_example()
+        second = complete_envelope_example()
+
+        self.assertEqual(first, second)
+        self.assertIsNot(first, second)
+        first["analysis"]["summary"] = "mutated"
+        self.assertNotEqual(first, complete_envelope_example())
+        example = complete_envelope_example()
+        self.assertEqual(
+            example["analysis"]["decision_brief"]["next_steps"][0]["source"],
+            "thread:0",
+        )
+        self.assertNotIn('"source":"thread"', json.dumps(example, separators=(",", ":")))
+        self.assertNotIn("open:0", json.dumps(example))
+        self.assertNotIn("attachment:0", json.dumps(example))
+        self.assertEqual(example["attachment_augmentations"], [])
+
+    def test_contract_and_complete_system_prompt_are_deterministic_and_bounded(self) -> None:
+        self.assertEqual(render_analysis_contract(), render_analysis_contract())
+        self.assertLessEqual(len(DEEPSEEK_SYSTEM_PROMPT), MAX_SYSTEM_PROMPT_CHARACTERS)
 
     def test_context_keeps_business_facts_and_matches_registry_grounding_text(self) -> None:
         prompt, sources = build_deepseek_untrusted_context(**self.context)

@@ -1,5 +1,5 @@
 ﻿---
-last_update: 2026-07-13
+last_update: 2026-07-14
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -98,7 +98,11 @@ folder/subscription 操作。app password 只能在本地政策检查后通过 i
 
 ## 远程处理告知与外部保留风险
 
-浏览器扩展和本地调试页提供 persistent pre-click disclosure：点击 Analyze 后，若后端配置了远程 provider，current visible thread 和有界附件提取会离开本机并发送给该 provider。该告知不等于前端知道或持有 provider key，也不授权读取其他邮件、自动执行邮箱动作或后台收集。任何不允许外部处理的邮件都必须在点击前切换到 disabled/rule-only 路线。
+浏览器扩展和本地调试页必须在 Analyze 按钮前持续显示以下 exact persistent pre-click disclosure：
+
+After you click Analyze, a configured remote AI provider receives locally deidentified current visible content and, when available, bounded approved knowledge cards. Processing is not local-only, and no zero-retention guarantee is made.
+
+该告知不等于前端知道或持有 provider key，也不授权读取其他邮件、自动执行邮箱动作或后台收集。任何不允许外部处理的邮件都必须在点击前切换到 disabled/rule-only 路线。
 
 Official sources rechecked 2026-07-12：
 

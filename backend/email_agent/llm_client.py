@@ -100,7 +100,7 @@ async def _generate_with_deepseek(
     effective_timeout = min(
         timeout_seconds,
         float(config.deepseek_timeout_seconds),
-        25.0,
+        10.0,
     )
     try:
         async with asyncio.timeout(effective_timeout):

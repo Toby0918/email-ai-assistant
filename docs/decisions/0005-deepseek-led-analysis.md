@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-13
+last_update: 2026-07-14
 status: active
 owner: "@tobyWang"
 review_cycle: quarterly
@@ -70,8 +70,8 @@ An isolated unsafe or unsupported field uses deterministic field fallback. A mal
 
 ### Deadlines and persistence
 
-- Frontends wait 35 seconds for the POST after independent browser resource collection, which has its own 20-second maximum.
-- The backend calls `AnalysisBudget.start()` immediately before reading and validating the request body; the runtime order is `start -> read -> api`, so body-read time consumes the cooperative 32-second monotonic target. The same target has an 8-second hard parser/OCR process deadline, a provider maximum of 25 seconds, a provider minimum of 5 seconds, and a fixed 2-second validation/response reserve.
+- Frontends wait 15 seconds for the POST after independent browser resource collection, which has its own 20-second maximum.
+- The backend calls `AnalysisBudget.start()` immediately before reading and validating the request body; the runtime order is `start -> read -> api`, so body-read time consumes the cooperative 13-second monotonic target. The same target has an 8-second hard parser/OCR process deadline, a provider maximum/default of 10 seconds, a provider minimum of 5 seconds, and a fixed 2-second validation/response reserve.
 - Ollama request creation, connect, and complete response-body consumption share one absolute wall-clock deadline; a trickling response cannot extend the routed timeout by making incremental progress.
 - Attachment worker start and cleanup controls share the request deadline. A blocked or late start enters late-start quarantine; terminate/kill/close cleanup cannot hold the request open, and a process that starts after timeout is eventually terminated.
 - SQLite uses one 0.5-second cumulative stage for lock/INSERT/commit with a 0.25-second response floor. Busy timeouts are recomputed from the same stage deadline.

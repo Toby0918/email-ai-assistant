@@ -297,7 +297,21 @@ python -m unittest discover -s tests -p "test_static_linter_constraints.py"
 python -m unittest discover -s tests
 ```
 
-## 13. 修改规则
+## 13. Private context mechanical guards
+
+Executable constraints must enforce all of the following:
+
+- only `private_context_gate.py` may import Task 4 deidentification/residual-pattern modules from `backend.private_knowledge`;
+- only `private_knowledge_context.py` may import `backend.private_knowledge.runtime_schema`;
+- no frontend source or browser renderer may reference `runtime_cards`, `private_context`, `placeholder_mapping`, `card_id`, `snapshot_id`, `vault_id`, or a deidentification placeholder;
+- no public API or SQLite result may gain private context or knowledge-card fields;
+- DeepSeek provider output containing a placeholder, restoration/re-identification instruction, or private metadata marker is rejected before either parser runs;
+- logs and exceptions remain content-free and reuse the frozen diagnostic schema;
+- exact budget constants are 13/10/8/5/2 seconds and the frontend analysis POST wait is 15 seconds.
+
+These guards belong in `tests/test_architecture_constraints.py`, the frontend static suites, and the public response/persistence canaries. They must run with synthetic data and no network.
+
+## 14. 修改规则
 
 如果新增或修改 linter 规则，必须同步更新：
 

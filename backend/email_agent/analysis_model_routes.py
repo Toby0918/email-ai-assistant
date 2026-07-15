@@ -37,6 +37,8 @@ from .prompt_context import (
     DEEPSEEK_SYSTEM_PROMPT,
     build_deepseek_untrusted_context,
 )
+from .private_analysis_route import PrivateAnalysisRouteError, prepare_private_deepseek_prompt
+from .private_analysis_route import validate_private_provider_output
 from .thread_timeline import TimelineBuild
 
 
@@ -74,6 +76,7 @@ class AnalysisRouteContext:
     fallback: dict[str, Any]
     config: AppConfig
     budget: AnalysisBudget
+    runtime_cards: tuple[object, ...] = ()
 
 
 def route_analysis(
@@ -104,6 +107,8 @@ def route_analysis(
         failure = _AnalysisFallback(
             exc.reason_code, _llm_client_failure_stage(exc.reason_code)
         )
+    except PrivateAnalysisRouteError as exc:
+        failure = _AnalysisFallback(exc.code, exc.stage)
     except _AnalysisFallback as exc:
         failure = exc
     except Exception:
@@ -132,10 +137,12 @@ def _run_model_led(
         timeline=context.timeline, attachment_context=attachment_context,
         attachment_public_sources=mapping,
     )
+    prompt = prepare_private_deepseek_prompt(prompt, context)
     timeout = _provider_timeout(context)
     if timeout is None:
         raise _AnalysisFallback("budget_exhausted", "budget")
     raw = _generate(prompt, context, llm_generate, timeout, DEEPSEEK_SYSTEM_PROMPT)
+    validate_private_provider_output(raw)
     envelope = _run_envelope_stage(lambda: parse_deepseek_analysis_v1(raw))
     evidence = _run_stage(
         "evidence_invalid", "evidence",
@@ -171,10 +178,14 @@ def _run_conservative(
         sent_at=context.sent_at, conversation_timeline=context.timeline.public_timeline,
         attachment_insights=context.attachment_insights,
     )
+    if context.config.llm_provider == "deepseek":
+        prompt = prepare_private_deepseek_prompt(prompt, context)
     timeout = _provider_timeout(context)
     if timeout is None:
         raise _AnalysisFallback("budget_exhausted", "budget")
     raw = _generate(prompt, context, llm_generate, timeout)
+    if context.config.llm_provider == "deepseek":
+        validate_private_provider_output(raw)
     result = _run_stage(
         "public_schema_invalid", "schema",
         lambda: parse_legacy_result(raw, fallback=context.fallback),
