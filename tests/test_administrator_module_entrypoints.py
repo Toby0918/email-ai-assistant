@@ -85,6 +85,21 @@ class AdministratorModuleEntrypointTests(unittest.TestCase):
                 ):
                     self.assertIn(required, text)
 
+        brief = TASK_BRIEF.read_text(encoding="utf-8")
+        self.assertEqual(
+            re.findall(r"(?m)^## (\d+)\. ", brief),
+            [str(number) for number in range(1, 19)],
+        )
+        self.assertIn("## 2. Task type\n\n`docs`", brief)
+        self.assertIn("## 3. Current status\n\n`implemented`", brief)
+        for required_section in (
+            "## 15. Human confirmation required",
+            "## 16. Pre-execution checklist",
+            "## 17. Remote provider private-context checklist",
+            "## 18. Post-execution record",
+        ):
+            self.assertIn(required_section, brief)
+
     def test_operator_docs_use_module_entrypoints_and_stop_after_inventory(self) -> None:
         expected_by_path = {
             ROOT / "docs" / "operations" / "testing_checklist.md": (
@@ -111,6 +126,20 @@ class AdministratorModuleEntrypointTests(unittest.TestCase):
             with self.subTest(path=path):
                 for command in required_commands:
                     self.assertIn(command, text)
+                if "STOP after inventory" in required_commands:
+                    inventory_index = text.index(
+                        "python -B -m scripts.manage_mailbox_vault inventory"
+                    )
+                    stop_index = text.index("STOP after inventory")
+                    scan_index = text.index(
+                        "python -B -m scripts.manage_mailbox_vault scan"
+                    )
+                    self.assertLess(inventory_index, stop_index)
+                    self.assertLess(stop_index, scan_index)
+                    self.assertIn(
+                        "--confirm-inventory-fingerprint",
+                        text[scan_index:scan_index + 500],
+                    )
 
     def test_runnable_admin_examples_never_use_direct_script_paths(self) -> None:
         forbidden = re.compile(

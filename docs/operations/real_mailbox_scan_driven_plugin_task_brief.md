@@ -10,42 +10,72 @@ source_type: operation_guide
 
 ## 1. Task name
 
-Complete the approved real-mailbox-scan-driven plugin and DeepSeek workflow in
-six bounded implementation slices.
+Standardize administrator module entrypoints and establish the governance
+contract for the approved six-slice real-mailbox-scan-driven plugin and DeepSeek
+completion program.
 
 ## 2. Task type
 
-`feature | security | docs | test`
+`docs`
 
-## 3. Current state
+## 3. Current status
 
-Approved for offline implementation. Approval of this brief does not authorize
-a live mailbox connection, an external-vault read, a private dataset read, a
-credential entry, or a DeepSeek request.
+`implemented`
+
+Task 1 is implemented offline. This status does not authorize a live mailbox
+connection, external-vault operation, private dataset read, credential entry,
+or DeepSeek request.
 
 ## 4. Objective
 
-Finish the separately authorized administrator workflow and the normal
-click-only browser experience without combining their trust boundaries. The
-work must remain reviewable in six slices, with executable tests at every
-boundary and a final explicit stop before any live mailbox content read.
+Make all administrator tools runnable from the project root through stable
+module entrypoints, record the six approved implementation slices, and make the
+post-`inventory` human stop an executable documentation contract. Preserve the
+separation between the administrator-only mailbox workflow and the normal
+click-only browser runtime.
 
-## 5. Approved six-slice program
+## 5. Non-goals
 
-1. **Slice 1: Administrator entrypoints and governance**
-2. **Slice 2: Evaluation staging, dataset build, and interactive judge**
-3. **Slice 3: Read-only runtime knowledge snapshot bootstrap**
-4. **Slice 4: Tencent context extraction, privacy diagnostics, and rule facts**
-5. **Slice 5: Task-card extension UI**
-6. **Slice 6: Full verification, project status, and live inventory readiness**
+- Do not connect to IMAP or enter a mailbox credential.
+- Do not open an external vault or private evaluation dataset.
+- Do not call DeepSeek, OpenAI, Ollama, Qwen, Gemma, or another provider.
+- Do not implement `stage-evaluation`, evaluation dataset `build`, runtime
+  snapshot bootstrap, Tencent extension extraction, new diagnostics, rule-fact
+  behavior, or task-card UI changes.
+- Do not change the public API, SQLite schema, AI output JSON, prompts, browser
+  permissions, mailbox actions, provider defaults, or dependencies.
+- Do not regenerate `docs/operations/project_status_log.md`; that belongs to
+  Slice 6.
 
-Each slice stops at its documented boundary. Later-slice work is not pulled
-forward merely because an interface already exists.
+## 6. Background and references
 
-## 6. Administrator entrypoint contract
+The repository already contains isolated mailbox-ingest, private-knowledge, and
+private-evaluation packages. The user approved a six-slice completion program
+and explicitly authorized work on `master`, while retaining a separate live
+authorization gate.
 
-Operators run the administrator tools from the project root only through these
-module entrypoints:
+Binding references:
+
+- `AGENTS.md`
+- `docs/operations/project_status_log.md`
+- `docs/constraints/tooling_constraints.md`
+- `docs/constraints/architecture_constraints.md`
+- `docs/constraints/linter_constraints.md`
+- `docs/operations/authorized_mailbox_ingest_task_brief.md`
+- `docs/decisions/0006-authorized-mailbox-ingest-and-private-knowledge.md`
+- `docs/templates/agent_task_brief_template.md`
+- `docs/superpowers/plans/2026-07-15-real-mailbox-scan-driven-plugin-deepseek-completion.md`
+
+## 7. Scope
+
+Task 1 adds or updates only:
+
+- administrator module-entrypoint subprocess and documentation tests;
+- the tracked six-slice task brief and implementation plan;
+- testing, deployment, and private-evaluation operator documentation;
+- the existing rollout-closeout documentation contract.
+
+The administrator entrypoints are exactly:
 
 ```text
 python -B -m scripts.manage_mailbox_vault ...
@@ -53,96 +83,238 @@ python -B -m scripts.manage_private_knowledge ...
 python -B -m scripts.evaluate_private_deepseek ...
 ```
 
-Text that names a `scripts/manage_*.py` file as an architecture boundary may
-remain. Runnable operator examples must use the module forms above so imports
-do not depend on an ambient `PYTHONPATH`.
+Architecture prose may still name a `scripts/manage_*.py` file. Runnable
+operator examples must use the module forms above and must not rely on an
+ambient `PYTHONPATH`.
 
-## 7. Mailbox authorization boundary
+## 8. Technical approach
 
-The mailbox exception remains an administrator-only, manual, default-off
-workflow for one authorized account at fixed `imap.exmail.qq.com:993`, with TLS
-certificate verification and a rolling 24-month window. Its transport remains
-read-only: `LIST`, `EXAMINE`, `UID SEARCH`, and bounded `UID FETCH` with
-`BODY.PEEK`. It has no schedule, background poller, browser entrypoint, normal
-backend route, SMTP path, flag mutation, or arbitrary IMAP command.
+### Slice 1: Administrator entrypoints and governance
 
-The operator sequence is two phase. `inventory` returns only content-free
-counts, sizes, opaque folder metadata, UIDVALIDITY, date scope, and an
-inventory fingerprint. The run must stop there. `scan` is a later live action
-and requires an operator to review and repeat the unchanged fingerprint through
-`--confirm-inventory-fingerprint`.
+Prove all three module entrypoints reach their parsers from the project root
+without `PYTHONPATH`, standardize operator examples, and lock the inventory stop
+gate in tests and docs.
 
-Plan approval is not the live gate. The separate live credential and fingerprint gate
-requires fresh local authorization, interactive credential entry after local
-preflight, review of the content-free inventory, and explicit confirmation of
-the unchanged fingerprint. Credentials are never command-line, environment,
-`.env`, log, report, test, or repository input.
+### Slice 2: Evaluation staging, dataset build, and interactive judge
 
-## 8. Data handling and privacy
+Later work adds the separately reviewed evaluation handoff, bounded encrypted
+dataset build, and local non-serialized interactive judge. It is not part of
+Task 1.
 
-The binding rule is: **no raw mail to Codex, DeepSeek, Git, or public SQLite**.
-Raw or identifying mailbox content may exist only in the authorized encrypted
-project-external vault. It must not enter docs, tests, fixtures, logs, reports,
-status files, maintenance output, public API responses, or browser storage.
+### Slice 3: Read-only runtime knowledge snapshot bootstrap
 
-Only locally deidentified, residual-clean, independently reviewed knowledge or
-evaluation data may cross into its later isolated workflow. DeepSeek remains
-disabled by default, and automated verification uses synthetic data and fake
-clients only.
+Later work adds fail-closed, read-only runtime snapshot bootstrap with immutable
+empty-card fallback. It is not part of Task 1.
 
-## 9. Current slice scope
+### Slice 4: Tencent context extraction, privacy diagnostics, and rule facts
 
-Slice 1 may:
+Later work adds only the approved click-scoped Tencent context, content-free
+diagnostics, and deterministic rule facts. It is not part of Task 1.
 
-- add this tracked task brief and the matching tracked implementation plan;
-- add a subprocess contract for the three module entrypoints from the project
-  root with `PYTHONPATH` absent;
-- standardize testing, deployment, and evaluator operator examples on module
-  entrypoints;
-- make the post-`inventory` human stop explicit.
+### Slice 5: Task-card extension UI
 
-Slice 1 must not implement `stage-evaluation`, evaluation dataset `build`, the
-runtime snapshot bootstrap, Tencent extension extraction, new diagnostics,
-rule-fact behavior, or task-card UI changes.
+Later work adds the human-reviewed task-card presentation without mailbox
+actions or permission expansion. It is not part of Task 1.
 
-## 10. Interfaces and storage
+### Slice 6: Full verification, project status, and live inventory readiness
 
-- Database change: none.
-- Public API change: none.
-- AI output JSON change: none.
-- Prompt change: none.
-- Dependency change: none.
-- Live credential or content access: none.
+Later work performs full offline verification, regenerates project status, and
+stops before live credential entry. Readiness never implies `scan` approval.
 
-## 11. Acceptance criteria
+Across all slices, the mailbox exception remains manual, administrator-only,
+default-off, limited to one authorized account at fixed
+`imap.exmail.qq.com:993`, verified TLS, and a rolling 24-month window. Transport
+remains read-only: `LIST`, `EXAMINE`, `UID SEARCH`, and bounded `UID FETCH` with
+`BODY.PEEK`. There is no schedule, background poller, SMTP, flag mutation,
+arbitrary IMAP command, browser mailbox scan, or normal-backend mailbox route.
 
-1. All three module entrypoints reach their parser from the project root with
-   no `PYTHONPATH` dependency.
-2. The evaluator invalid-argument probe returns only fixed
-   `argument_invalid` JSON and does not invoke help, a provider, or a dataset.
-3. Runnable administrator examples use the three approved module entrypoints.
-4. Operator docs say `STOP after inventory` before fingerprint-confirmed scan.
-5. This brief and the implementation plan include valid YAML front matter and
-   the six approved slices.
-6. Focused entrypoint, documentation, architecture, static, and closeout guards
-   pass offline, and `git diff --check` is clean.
+The binding content rule is **no raw mail to Codex, DeepSeek, Git, or public SQLite**.
+Raw or identifying content may exist only in the authorized encrypted,
+project-external vault and must not enter repository artifacts or public output.
 
-## 12. Test plan
+## 9. Data structures and interface changes
+
+### Database changes
+
+None.
+
+### API changes
+
+None.
+
+### AI output JSON changes
+
+None.
+
+### Prompt changes
+
+None.
+
+### Operator interface changes
+
+Documentation and tests standardize runnable commands on the three module
+entrypoints listed in Section 7. Existing CLI commands and arguments are
+unchanged.
+
+## 10. Security and privacy checklist
+
+- [x] Task 1 adds no mailbox connection, credential entry, vault operation, or
+  private dataset operation.
+- [x] No automatic send, delete, archive, move, forward, reply, scan, or model
+  action is added.
+- [x] No API key, mailbox credential, token, raw message, private identifier, or
+  real attachment is added to Git, docs, tests, logs, or public SQLite.
+- [x] The administrator workflow remains one-account, fixed-endpoint,
+  rolling-24-month, manual, and default-off.
+- [x] `inventory` remains content-free and precedes any bounded content scan.
+- [x] `scan` still requires the unchanged inventory fingerprint through
+  `--confirm-inventory-fingerprint`.
+- [x] Automated Task 1 tests use parser-only subprocesses and synthetic/static
+  contracts; they do not call a provider or mailbox.
+- [x] Later live operation still requires the separate live credential and fingerprint gate.
+
+## 11. Prompt injection protection
+
+Task 1 does not change a prompt, parser, analysis request, or model path. The
+existing protections remain binding:
+
+- mailbox subject, body, headers, filenames, and attachment text are untrusted
+  data rather than system instructions;
+- no instruction embedded in mailbox content is executed;
+- system prompts, credentials, other messages, vault material, private mappings,
+  and provider configuration are not disclosed;
+- generated text cannot automatically commit the user to price, delivery,
+  payment, contract, quality, or legal terms.
+
+## 12. Acceptance criteria
+
+1. All three module entrypoints reach their parser from the project root after
+   `PYTHONPATH` is removed.
+2. The two management CLIs expose parser help without accessing IMAP or a vault.
+3. The evaluator invalid-command probe returns only fixed
+   `{"code": "argument_invalid", "ok": false}` JSON and does not use a help,
+   dataset, credential, judge, or provider path.
+4. Runnable administrator examples use only the approved module entrypoints.
+5. Each relevant operator document orders the gate as module `inventory`, then
+   `STOP after inventory`, then fingerprint-confirmed module `scan`.
+6. This brief contains all 18 filled sections with one task type and a canonical
+   current status.
+7. Documentation/front-matter, architecture, mailbox-transport, static, and
+   focused Task 1 guards pass offline; `git diff --check` is clean.
+
+## 13. Test plan
 
 - Run the focused administrator module-entrypoint contract.
+- Run the focused ordering-hardening test after reviewer-requested coverage is
+  added; because the documents are already correct, record it as hardening and
+  do not claim a RED cycle.
 - Run rollout-closeout and documentation/front-matter guards.
 - Run architecture, mailbox-transport, and static-linter guards.
-- Run only offline tests; do not connect to IMAP, open a vault, read a private
-  dataset, prompt for a real credential, or call a model provider.
+- Keep `EMAIL_AGENT_LLM_PROVIDER=disabled` and
+  `EMAIL_AGENT_DEEPSEEK_OUTPUT_MODE=conservative` during verification.
+- Do not rerun the whole-workspace maintenance scan in this review fix because
+  it would reopen the known ignored SQLite artifact; use no mailbox, vault,
+  dataset, or provider action.
 
-## 13. Rollback
+## 14. Rollback plan
 
-Revert the Slice 1 commit. No data migration, vault mutation, runtime
-configuration change, credential cleanup, or provider rollback is required.
+Revert the Task 1 commits. No database migration, vault mutation, credential
+cleanup, runtime configuration rollback, provider rollback, or browser rollback
+is required because Task 1 changes only docs and tests.
 
-## 14. Human confirmation still required
+## 15. Human confirmation required
 
-After all six slices pass offline verification, a local operator must separately
-authorize live readiness. The first allowed live action is inventory only. The
-operator must then stop, review the content-free result, and explicitly approve
-the unchanged fingerprint before any scan.
+- [x] The user approved the six-slice implementation program.
+- [x] The user explicitly authorized Task 1 work on `master`.
+- [x] The user confirmed the reviewer-requested ordering hardening.
+- [ ] Before any live action, a local operator must provide separate written
+  authorization, validate one account and the external encrypted storage
+  controls, and approve credential entry.
+- [ ] The first separately authorized live action is `inventory` only.
+- [ ] After `inventory`, the operator must stop, review the content-free result,
+  and explicitly confirm the unchanged fingerprint before any `scan`.
+
+No unresolved human decision remains for the offline Task 1 implementation.
+
+## 16. Pre-execution checklist
+
+- [x] Read `AGENTS.md`.
+- [x] Read `docs/operations/project_status_log.md`.
+- [x] Read the active tooling, architecture, and linter constraints.
+- [x] Read the task-brief template and relevant mailbox governance documents.
+- [x] Confirmed the Task 1 objective, non-goals, exact files, and stop boundary.
+- [x] Confirmed no new dependency or runtime implementation is required.
+- [x] Confirmed tests must be offline and use only parser/static/synthetic paths.
+- [x] Confirmed no live mailbox, external vault, private dataset, credential, or
+  provider action is authorized.
+
+## 17. Remote provider private-context checklist
+
+Task 1 does not change remote AI input or runtime knowledge. These existing
+constraints were checked and remain unchanged:
+
+- [x] Provider remains disabled by default; DeepSeek output mode remains
+  conservative by default.
+- [x] Every remote path retains the single backend-only deidentification and
+  residual-scan gate.
+- [x] `runtime_cards` remains an immutable empty tuple by default and accepts
+  only verified `RuntimeKnowledgeCard` values.
+- [x] No environment, path, key, bootstrap, vault, DPAPI, BitLocker, or frontend
+  field crosses the runtime seam.
+- [x] Knowledge rendering remains identifier-free, deterministic, at most eight
+  cards, and at most 4,000 characters.
+- [x] Resolver and mapping remain closed before the provider call and cannot
+  reach provider, parser, API, SQLite, logs, or exceptions.
+- [x] Provider-output placeholders, restoration hints, and private metadata
+  markers remain rejected before parsing.
+- [x] Public API, SQLite, frontend renderer, and diagnostic schema remain
+  unchanged.
+- [x] Privacy and budget failures retain the existing fixed safety and budget
+  diagnostics.
+- [x] Backend/provider/parser/minimum/reserve/frontend budgets remain exactly
+  `13/10/8/5/2/15` seconds.
+- [x] Persistent pre-click disclosure remains unchanged.
+- [x] Verification remains offline and does not call a live provider, mailbox,
+  vault, DPAPI, or BitLocker operation.
+
+## 18. Post-execution record
+
+Actual tracked Task 1 files:
+
+- `docs/operations/deployment_notes.md`
+- `docs/operations/private_deepseek_evaluation.md`
+- `docs/operations/real_mailbox_scan_driven_plugin_task_brief.md`
+- `docs/operations/testing_checklist.md`
+- `docs/superpowers/plans/2026-07-15-real-mailbox-scan-driven-plugin-deepseek-completion.md`
+- `tests/test_administrator_module_entrypoints.py`
+- `tests/test_rollout_closeout_contracts.py`
+
+Recorded verification before review hardening:
+
+- focused Task 1 and closeout contracts: 9 tests passed;
+- documentation, architecture, static, and mailbox-transport guards: 57 tests
+  passed;
+- full offline suite under disabled/conservative settings: 1,050 tests passed
+  with one expected platform skip;
+- Task 1 file-scoped content-free leakage scan: `total=0`;
+- committed diff check: clean.
+
+Reviewer-requested hardening verification:
+
+- the ordering-focused test passed: one test, `OK`;
+- the full focused Task 1, closeout, documentation/front-matter, architecture,
+  static, and mailbox-transport guard command passed: 57 tests, `OK`;
+- no RED cycle is claimed for this hardening because the reviewed operator
+  documents were already correctly ordered.
+
+The automated whole-workspace maintenance scanner opened the pre-existing
+ignored `outputs/email_agent.sqlite3` read-only and returned only the aggregate
+finding `public_sqlite / LEAK_PRIVATE_IDENTIFIER count=244`. No human manually
+inspected its rows or matched values, and the artifact was not modified, copied,
+staged, or committed. It must be separately isolated or disposed of by the
+local operator before any real mailbox operation; Task 1 did not perform that
+state-changing action.
+
+Uncompleted work is exactly Slices 2 through 6. Continue only after Task 1
+review approval, preserve module entrypoints, and retain the separate live
+credential and fingerprint gate.
