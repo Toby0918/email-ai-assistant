@@ -69,6 +69,21 @@ class RepoUtilsTests(unittest.TestCase):
 
         self.assertEqual(files, {"backend/app.py"})
 
+    def test_iter_project_files_skips_nested_git_worktree_roots(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            kept = root / "backend" / "app.py"
+            kept.parent.mkdir()
+            kept.write_text("", encoding="utf-8")
+            for directory in (".worktrees", "worktrees"):
+                nested = root / directory / "feature" / "private_fixture.py"
+                nested.parent.mkdir(parents=True)
+                nested.write_text("", encoding="utf-8")
+
+            files = {path.relative_to(root).as_posix() for path in iter_project_files(root)}
+
+        self.assertEqual(files, {"backend/app.py"})
+
     def test_iter_python_files_skips_default_ignored_directories(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)

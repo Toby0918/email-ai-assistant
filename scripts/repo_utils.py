@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import fnmatch
+import os
 import re
 from pathlib import Path
 from typing import Iterable
@@ -11,7 +12,7 @@ from typing import Iterable
 # Shared scan defaults keep tests and maintenance scripts aligned.
 DEFAULT_IGNORED_DIRS = {
     ".git", ".venv", "venv", "__pycache__", ".pytest_cache",
-    ".mypy_cache", "node_modules", "dist", "build", "outputs",
+    ".mypy_cache", ".worktrees", "worktrees", "node_modules", "dist", "build", "outputs",
 }
 
 TEXT_SUFFIXES = {
@@ -89,28 +90,22 @@ def read_text(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="ignore")
 
 
-def iter_project_files(root: Path, ignored_dirs: Iterable[str] = DEFAULT_IGNORED_DIRS) -> list[Path]:
-    files: list[Path] = []
+def _walk_project_files(root: Path, ignored_dirs: Iterable[str]) -> Iterable[Path]:
     ignored = set(ignored_dirs)
-    for path in root.rglob("*"):
-        if not path.is_file():
-            continue
-        if any(part in ignored for part in path.parts):
-            continue
-        files.append(path)
-    return files
+    for current, directories, filenames in os.walk(root, topdown=True, followlinks=False):
+        directories[:] = sorted(name for name in directories if name not in ignored)
+        for filename in sorted(filenames):
+            yield Path(current) / filename
+
+
+def iter_project_files(root: Path, ignored_dirs: Iterable[str] = DEFAULT_IGNORED_DIRS) -> list[Path]:
+    return list(_walk_project_files(root, ignored_dirs))
 
 
 def iter_python_files(base: Path, ignored_dirs: Iterable[str] = DEFAULT_IGNORED_DIRS) -> list[Path]:
     if not base.exists():
         return []
-    files: list[Path] = []
-    ignored = set(ignored_dirs)
-    for path in base.rglob("*.py"):
-        if any(part in ignored for part in path.parts):
-            continue
-        files.append(path)
-    return files
+    return [path for path in _walk_project_files(base, ignored_dirs) if path.suffix == ".py"]
 
 
 def is_text_file(path: Path, text_suffixes: Iterable[str] = TEXT_SUFFIXES) -> bool:
