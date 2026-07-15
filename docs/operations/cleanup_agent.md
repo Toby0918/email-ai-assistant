@@ -1,5 +1,5 @@
 ---
-last_update: 2026-06-29
+last_update: 2026-07-15
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -137,3 +137,12 @@ docs/constraints/mechanical_rule_translation.md
 tests/
 .github/workflows/agent_guardrails.yml
 ```
+
+## 9. Repository leakage finding boundary
+
+`scripts/maintenance_scan.py` 会调用只读 repository leakage guard。该 guard 只
+扫描 Git tracked 文件以及仓库内明确的日志、测试输出、公开 SQLite fixture 和
+生成状态，不打开项目外 vault 或 `.pkeval`。报告只允许
+`repository_leakage` category、固定 code、粗粒度 scope 和 count；不得包含
+matched text、真实标识、secret、具体路径或异常文本。任何 finding 都是 high，
+需要人工 `incident stop`；Cleanup Agent 不得自动删除、改写或复制命中内容。

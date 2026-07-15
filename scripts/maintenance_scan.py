@@ -31,6 +31,10 @@ try:
         parse_front_matter,
         read_text,
     )
+    from scripts.repository_leakage_scan import (
+        LeakageFinding,
+        scan_repository as scan_repository_for_leakage,
+    )
 except ModuleNotFoundError:
     from repo_utils import (
         FORBIDDEN_REPO_FILE_NAMES,
@@ -43,6 +47,10 @@ except ModuleNotFoundError:
         load_gitignore_patterns,
         parse_front_matter,
         read_text,
+    )
+    from repository_leakage_scan import (
+        LeakageFinding,
+        scan_repository as scan_repository_for_leakage,
     )
 
 
@@ -214,6 +222,23 @@ def scan_docs_metadata_and_staleness() -> list[Finding]:
     return findings
 
 
+def scan_repository_leakage(
+    *, scan=scan_repository_for_leakage,
+) -> list[Finding]:
+    """Convert aggregate leakage codes without exposing source content or paths."""
+    findings: list[Finding] = []
+    for item in scan():
+        findings.append(Finding(
+            "high",
+            "repository_leakage",
+            f"[{item.scope}]",
+            f"code={item.code} count={item.count}",
+            "Stop release and inspect the named scope locally without copying content.",
+            "docs/operations/testing_checklist.md",
+        ))
+    return findings
+
+
 def collect_findings() -> list[Finding]:
     # Scans are read-only: collect independent findings, then render a report.
     findings: list[Finding] = []
@@ -222,6 +247,7 @@ def collect_findings() -> list[Finding]:
     findings.extend(scan_backend_function_lengths())
     findings.extend(scan_todo_fixme())
     findings.extend(scan_docs_metadata_and_staleness())
+    findings.extend(scan_repository_leakage())
     return findings
 
 

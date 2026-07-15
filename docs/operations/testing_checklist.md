@@ -1,6 +1,6 @@
 ﻿---
-last_update: 2026-07-11
-status: draft
+last_update: 2026-07-15
+status: active
 owner: "@tobyWang"
 review_cycle: monthly
 source_type: operation_guide
@@ -85,5 +85,60 @@ git diff --cached --name-status
 
 - 自动化单元测试、约束检查、JavaScript 语法检查和合成附件/线程样例属于本仓库内可执行验证。
 - 真实 Tencent Exmail 邮件 smoke test **未在本任务执行**。它仍是用户在单独授权、确认最小范围并准备测试邮件后的外部验证项；不得把自动化或合成结果描述为真实邮箱验证。
+
+## Authorized private-analysis offline closeout
+
+以下步骤分为“自动离线发布门”和“后续管理员现场操作”。自动测试只执行
+第一部分；不得为了验证本仓库而连接真实邮箱、打开外置 vault、读取私有
+`.pkeval`、调用 DeepSeek、探测 DPAPI/BitLocker 或输入真实密钥。
+
+### Automated offline release gate
+
+在项目根目录设置 `EMAIL_AGENT_LLM_PROVIDER=disabled` 后执行：
+
+```powershell
+python -B -m unittest tests.test_repository_leakage_scan tests.test_rollout_closeout_contracts tests.test_maintenance_scan tests.test_generate_project_status
+python -B scripts/evaluate_deepseek_analysis.py
+python -B -m unittest discover -s tests
+python -B scripts/generate_project_status.py --output docs/operations/project_status_log.md
+python -B scripts/maintenance_scan.py --fail-on-high
+git diff --check
+```
+
+`scripts/maintenance_scan.py` 集成只读 `repository_leakage_scan`。其泄漏结果
+只允许固定 code、粗粒度 scope 和 count；不得回显 matched text、真实标识、
+密钥或具体文件路径，也不得自动删除或改写文件。范围只限 Git tracked 文件及
+仓库内明确的日志、测试输出、公开 SQLite fixture 和生成状态日志；不得打开
+项目外 vault 或私有 `.pkeval`。
+
+### Separately authorized administrator runbook
+
+以下命令只是现场顺序合同，不属于自动验证，也不能被定时任务调用。每次真实
+操作前都需要本地书面授权、单一账号、外置 NTFS + BitLocker To Go 证据及独立
+恢复介质：
+
+1. `manage_mailbox_vault.py init` 初始化外置分析快照与分离的恢复封装。
+2. `manage_mailbox_vault.py inventory` 只生成 content-free 清单和 fingerprint。
+3. 人工核对后，`manage_mailbox_vault.py scan --confirm-inventory-fingerprint <fingerprint>`
+   才能读取固定 24 个月窗口的正文。
+4. attachment approval 必须由业务与隐私双审清单明确选中，随后才可运行
+   `manage_mailbox_vault.py attachments`；总数不得超过 `50`，并继续执行
+   10 MiB 单文件和 25 MiB 单会话上限。
+5. 使用 `manage_mailbox_vault.py verify` 做完整性检查；按授权使用
+   `manage_mailbox_vault.py purge-expired`、`manage_mailbox_vault.py revoke`
+   或 crash-recoverable `manage_mailbox_vault.py rewrap-recovery`。
+6. `manage_private_knowledge.py import-candidate` 后按顺序完成业务、隐私及必要的
+   责任人审批，再运行 `manage_private_knowledge.py approve` 和
+   `manage_private_knowledge.py publish`。拒绝、过期、deprecate 或 revoke 后重新
+   发布；签名/密钥/文件无效时正常服务必须退回 generic rule fallback。
+7. `evaluate_private_deepseek.py verify` 只做本地预检。真实 `run` 默认因
+   `human_judge_unavailable` 阻断；只有另行批准并提供不序列化样本的本地人工
+   judge adapter 后，才能执行 20-case gate、剩余 180 Flash 和批准的 40-case
+   paired comparison。结果永不自动切换生产模型。
+
+任一步出现授权范围变化、UIDVALIDITY/fingerprint 变化、flags 变化、残留身份、
+vault/签名/密钥错误、schema/safety/grounding 违规、p95 超限、泄漏 finding 或
+不可解释的计数时，立即 incident stop；保持 provider disabled，保全内容无关
+错误码和计数，并由本地负责人决定恢复或撤销。
 
 

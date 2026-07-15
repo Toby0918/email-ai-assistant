@@ -61,6 +61,25 @@ source_type: operation_guide
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("# Cleanup Agent Report", result.stdout)
 
+    def test_leakage_findings_are_content_free(self) -> None:
+        module = load_script_module(SCRIPT, "maintenance_scan_leakage")
+        synthetic = module.LeakageFinding(
+            code="LEAK_SECRET_VALUE",
+            scope="test_output",
+            count=2,
+        )
+
+        findings = module.scan_repository_leakage(scan=lambda: (synthetic,))
+        report = module.render_report(findings)
+
+        self.assertEqual(len(findings), 1)
+        self.assertEqual(findings[0].path, "[test_output]")
+        self.assertEqual(findings[0].category, "repository_leakage")
+        self.assertIn("LEAK_SECRET_VALUE", report)
+        self.assertIn("count=2", report)
+        self.assertNotIn("secret", report.lower().replace("leak_secret_value", ""))
+        self.assertNotIn("matched", report.lower())
+
 
 if __name__ == "__main__":
     unittest.main()

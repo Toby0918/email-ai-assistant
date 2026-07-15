@@ -55,7 +55,7 @@ class GenerateProjectStatusTests(unittest.TestCase):
 
         if (ROOT / "tests" / "fixtures" / "sample_emails.json").exists():
             expected_stage = (
-                "authorized_private_ingest_build"
+                "authorized_private_analysis_offline_ready"
                 if (
                     ROOT
                     / "docs"
@@ -70,7 +70,7 @@ class GenerateProjectStatusTests(unittest.TestCase):
         module = load_script_module(SCRIPT, "generate_project_status")
         report = module.build_project_status()
 
-        self.assertIn("| Current stage | authorized_private_ingest_build |", report)
+        self.assertIn("| Current stage | authorized_private_analysis_offline_ready |", report)
         self.assertIn("administrator-only CLI", report)
         self.assertIn("one authorized account", report)
         self.assertIn("rolling 24-month window", report)
@@ -86,7 +86,8 @@ class GenerateProjectStatusTests(unittest.TestCase):
         self.assertIn("`docs/decisions/0006-authorized-mailbox-ingest-and-private-knowledge.md`", report)
         self.assertIn("`tests/test_mailbox_transport_constraints.py`", report)
         self.assertIn("Keep `EMAIL_AGENT_LLM_PROVIDER=disabled`", report)
-        self.assertIn("synthetic fakes and injected probes only", report)
+        self.assertIn("repository leakage scan", report)
+        self.assertIn("human_judge_unavailable", report)
         self.assertIn("Do not connect to a mailbox or run DeepSeek", report)
 
     def test_status_log_uses_stable_head_reference(self) -> None:
@@ -109,7 +110,8 @@ class GenerateProjectStatusTests(unittest.TestCase):
             / "authorized_mailbox_ingest_task_brief.md"
         ).exists():
             self.assertIn("Keep `EMAIL_AGENT_LLM_PROVIDER=disabled`", report)
-            self.assertIn("synthetic fakes and injected probes only", report)
+            self.assertIn("offline completion does not authorize live operation", report)
+            self.assertIn("content-free repository leakage scan", report)
             return
 
         self.assertIn("运行完整测试和维护扫描", report)

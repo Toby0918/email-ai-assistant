@@ -1,5 +1,5 @@
 ---
-last_update: 2026-06-29
+last_update: 2026-07-15
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -130,6 +130,7 @@ Category 只能使用：
 - linter_failure
 - architecture_failure
 - security_hygiene
+- repository_leakage
 - other
 
 ## Proposed Cleanup Tasks

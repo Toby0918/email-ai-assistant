@@ -1,5 +1,5 @@
 ---
-last_update: 2026-06-30
+last_update: 2026-07-15
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -241,3 +241,33 @@ email-ai-assistant/
 ## 第一阶段建议
 
 第一阶段当前以本地调试页面完成“用户点击按钮后分析当前邮件”的闭环。第二阶段 Tencent Exmail 浏览器扩展原型已落地；其他正式企业邮箱前端路线应在后续单独确认后再落地。
+
+## Isolated private-analysis structure
+
+下面三个 package 与日常浏览器路径隔离：
+
+```text
+backend/mailbox_ingest/
+backend/private_knowledge/
+backend/private_evaluation/
+
+scripts/manage_mailbox_vault.py
+scripts/manage_private_knowledge.py
+scripts/evaluate_private_deepseek.py
+scripts/repository_leakage_scan.py
+```
+
+- `backend/mailbox_ingest/` 只可被 `scripts/manage_mailbox_vault.py` 导入，负责
+  固定只读 IMAP、授权/fingerprint、外置加密 vault、附件第二遍和恢复封装。
+- `backend/private_knowledge/` 负责本地去标识、residual scan、严格知识卡、独立
+  authority lifecycle 和签名只读 runtime snapshot；它不读取邮箱或 raw vault。
+- `backend/private_evaluation/` 负责项目外 `.pkeval` 的严格 schema、确定性选择、
+  顺序零重试 runner 和 aggregate-only report；只有专用 CLI 可在全部本地门通过后
+  lazy-create provider client。
+- `scripts/repository_leakage_scan.py` 只扫描仓库内明确 scope，并只输出固定 code、
+  scope 和 count。它不打开项目外 vault/private dataset，也不自动修改文件。
+
+`backend/email_agent/` 只通过狭窄的已验证 runtime-card seam 使用不可变知识卡；
+它没有 vault、authority、DPAPI、BitLocker 或 mailbox access。`frontend/` 仍仅在
+用户点击后读取当前可见邮件，公开 HTTP/SQLite/renderer schema 没有因为上述
+管理员工具而扩大。

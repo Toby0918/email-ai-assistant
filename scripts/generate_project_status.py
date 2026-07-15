@@ -42,6 +42,7 @@ KEY_FILES = [
     "backend/email_agent/exporter.py",
     "backend/email_agent/api.py",
     "backend/email_agent/server.py",
+    "backend/email_agent/private_context_gate.py",
     "frontend/local_debug_page/index.html",
     "frontend/local_debug_page/app.js",
     "frontend/local_debug_page/styles.css",
@@ -58,6 +59,9 @@ KEY_FILES = [
     "docs/constraints/mechanical_rule_translation.md",
     "docs/decisions/0006-authorized-mailbox-ingest-and-private-knowledge.md",
     "docs/operations/authorized_mailbox_ingest_task_brief.md",
+    "docs/operations/deepseek_analysis_contract_alignment_task_brief.md",
+    "docs/operations/private_deepseek_evaluation_task_brief.md",
+    "docs/operations/private_mailbox_rollout_closeout_task_brief.md",
     "docs/operations/project_status_log.md",
     "docs/operations/project_status_log_guide.md",
     "docs/operations/agents_project_status_snippet.md",
@@ -75,9 +79,12 @@ KEY_FILES = [
     "docs/templates/cleanup_task_template.md",
     "scripts/repo_utils.py",
     "scripts/maintenance_scan.py",
+    "scripts/repository_leakage_scan.py",
     "scripts/generate_project_status.py",
     "scripts/run_local_debug.py",
     "scripts/manage_local_service.py",
+    "scripts/manage_mailbox_vault.py",
+    "scripts/evaluate_private_deepseek.py",
     "start_local_service.cmd",
     "stop_local_service.cmd",
     "restart_local_service.cmd",
@@ -100,6 +107,8 @@ KEY_FILES = [
     "tests/test_mailbox_transport_constraints.py",
     "tests/test_maintenance_scan.py",
     "tests/test_generate_project_status.py",
+    "tests/test_repository_leakage_scan.py",
+    "tests/test_rollout_closeout_contracts.py",
     "tests/test_email_cleaner.py",
     "tests/test_analyzer.py",
     "tests/test_api.py",
@@ -131,6 +140,7 @@ GUARDRAILS = [
     ("CI guardrails", ".github/workflows/agent_guardrails.yml"),
     ("Cleanup automation", "docs/operations/cleanup_agent_codex.md"),
     ("Maintenance scan", "scripts/maintenance_scan.py"),
+    ("Repository leakage scan", "scripts/repository_leakage_scan.py"),
     ("Agent task brief", "docs/templates/agent_task_brief_template.md"),
     (
         "Authorized mailbox ingest boundary",
@@ -145,6 +155,15 @@ AUTHORIZED_PRIVATE_INGEST_FILES = {
     "docs/superpowers/plans/2026-07-14-mailbox-vault.md",
     "docs/superpowers/plans/2026-07-14-private-knowledge.md",
     "docs/superpowers/plans/2026-07-14-private-deepseek-evaluation.md",
+}
+
+AUTHORIZED_PRIVATE_READY_FILES = {
+    "backend/email_agent/private_context_gate.py",
+    "scripts/manage_mailbox_vault.py",
+    "scripts/evaluate_private_deepseek.py",
+    "scripts/repository_leakage_scan.py",
+    "docs/operations/private_deepseek_evaluation_task_brief.md",
+    "docs/operations/private_mailbox_rollout_closeout_task_brief.md",
 }
 
 HARD_BOUNDARIES = [
@@ -214,6 +233,8 @@ def count_docs_by_status() -> dict[str, int]:
 
 def infer_stage(files: Sequence[FileStatus]) -> str:
     existing = {item.path for item in files if item.exists}
+    if AUTHORIZED_PRIVATE_READY_FILES.issubset(existing):
+        return "authorized_private_analysis_offline_ready"
     if AUTHORIZED_PRIVATE_INGEST_FILES.issubset(existing):
         return "authorized_private_ingest_build"
     local_eval_files = {
@@ -271,7 +292,15 @@ def render_boundaries() -> str:
 
 
 def render_next_steps(stage: str) -> str:
-    if stage == "authorized_private_ingest_build":
+    if stage == "authorized_private_analysis_offline_ready":
+        steps = [
+            "Keep `EMAIL_AGENT_LLM_PROVIDER=disabled`; offline completion does not authorize live operation.",
+            "Do not connect to a mailbox or run DeepSeek without a separate operator authorization after offline gates pass.",
+            "Keep private evaluation blocked by default with `human_judge_unavailable`; the evaluator does not switch production models.",
+            "If the signed private-knowledge snapshot is missing or invalid, preserve generic rule fallback.",
+            "Run the content-free repository leakage scan and complete local human review before any release.",
+        ]
+    elif stage == "authorized_private_ingest_build":
         steps = [
             "Keep `EMAIL_AGENT_LLM_PROVIDER=disabled` during implementation and automated verification.",
             "Implement later plan tasks with synthetic fakes and injected probes only.",
@@ -339,7 +368,11 @@ source_type: operation_guide
 
 本项目是企业邮箱中的 AI 辅助窗口。正常产品只做“用户点击按钮后分析当前打开邮件”，不做全邮箱扫描、不自动发送邮件、不删除邮件或归档邮件。
 
-Separately authorized exception: the `administrator-only CLI` may import one authorized account within a rolling 24-month window after explicit inventory fingerprint confirmation. The browser extension and normal runtime remain click-only and cannot scan a mailbox. The exception has no schedule, browser hook, normal-backend route, or automatic model call.
+Separately authorized exception: the `administrator-only CLI remains default-off` and may import one authorized account within a rolling 24-month window only after explicit inventory fingerprint confirmation. The browser extension and normal runtime remain click-only and cannot scan a mailbox. The exception has no schedule, browser hook, normal-backend route, or automatic model call.
+
+The private-knowledge snapshot is verified and read-only; an invalid or missing private-knowledge snapshot returns generic rule fallback. DeepSeek outbound content remains locally deidentified with browser/backend/provider/minimum budgets of `15/13/10/5` seconds. Private evaluation is blocked by `human_judge_unavailable` by default and does not switch production models.
+
+The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器扩展, with current-message collection only after an explicit user click.
 
 ## Guardrails Established
 

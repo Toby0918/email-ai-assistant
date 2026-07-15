@@ -1,6 +1,6 @@
 ﻿---
-last_update: 2026-07-14
-status: draft
+last_update: 2026-07-15
+status: active
 owner: "@tobyWang"
 review_cycle: monthly
 source_type: operation_guide
@@ -92,5 +92,59 @@ Get-Content outputs\local_debug_service.log -Tail 30 | Select-String 'event=anal
 - 日志脱敏策略。
 - 人工审核流程。
 - 用户执行真实 Tencent Exmail smoke validation 的授权、匿名测试邮件和验收记录。
+
+## Separately authorized administrator workflow
+
+离线实现完成不等于批准真实运行。`scripts/manage_mailbox_vault.py` 是唯一允许
+导入邮箱的管理员入口，并且 remains default-off、不可调度、不可由浏览器或
+normal backend 调用。现场顺序必须是 `init`、content-free `inventory`、人工
+fingerprint confirmation、`scan`、经 attachment approval 的第二遍
+`attachments`（最多 50 个）、`verify`，再按保留/撤销决定执行
+`purge-expired`、`revoke` 或 `rewrap-recovery`。
+
+外置 vault 是分析快照，`not a legal archive`，也有 `no automatic second backup`。
+恢复密钥只恢复解锁能力，不能恢复损坏或丢失的数据。Python 删除临时明文不构成
+SSD/flash 物理安全擦除。Windows volume/reparse/path-race 检查只提供
+`best-effort` 进程内缓解，不声明对同用户权限攻击者的绝对防护或跨介质原子性。
+
+## Private knowledge publication and rollback
+
+Candidate 只可接收本地脱敏且 residual-clean 的加密批次。知识晋升要求证据阈值、
+business/privacy `dual approval`，以及价格、付款、合同、质量和法律规则的责任人
+审批。发布只生成项目外、加密、签名、只读 snapshot。snapshot 缺失、过期、
+签名/解密失败时，日常分析必须使用 `generic rule fallback`，不得把 authority
+repository、key path 或 raw vault 接入正常服务。
+
+回滚知识时先撤下 runtime snapshot 访问并确认规则兜底，再在 authority CLI 中
+deprecate/revoke 对应卡片并发布新的已审核 snapshot。不得编辑已发布密文或把
+真实派生文本复制到 Git、issue、日志或状态报告。
+
+## DeepSeek privacy, evaluation, and rollback
+
+DeepSeek 的交互预算固定为 browser `15` 秒、backend `13` 秒、provider 最多
+`10` 秒、最少剩余 `5` 秒；解析预算为 `8` 秒并保留 `2` 秒 response margin。
+远程提供方只接收本地脱敏后的当前可见内容和有界批准知识，提示不得承诺
+`zero-retention`。provider 默认 disabled，输出模式默认 conservative，单次调用、
+零重试、JSON-only、thinking disabled、`max_tokens=2400` 和人工审核保持不变。
+
+私有评估默认在构造 client 前返回 `human_judge_unavailable`。真实评估必须另行
+提供本地、不序列化样本的人工 judge 和独立操作批准。20-case gate 任一
+schema/safety/grounding/privacy/serialization 违规或 p95 超过 12 秒即停止；通过后
+才允许剩余 180 Flash 和批准的 40-case paired comparison。候选结论仅报告
+聚合指标，`no automatic production model switch`。
+
+DeepSeek rollback：设置 `EMAIL_AGENT_LLM_PROVIDER=disabled` 并重启后端；撤下
+private snapshot 访问以确认 generic rule fallback；不删除 vault、不更改邮箱，
+也不把 provider output 写入诊断。点击前披露必须继续说明远程提供方接收本地
+脱敏内容，且不得声称 local-only 或 zero-retention。
+
+## Incident stop
+
+以下任一情况触发 `incident stop`：授权/账号/日期范围改变，inventory
+fingerprint 或 UIDVALIDITY 改变，flags 前后不一致，TLS/BitLocker/NTFS 证据失败，
+路径/reparse 复核失败，身份残留，密钥/签名/完整性错误，模型 schema/safety/
+grounding 违规，延迟门失败，或 repository leakage finding 非零。立即停止当前
+操作、保持 provider disabled、只记录固定 code/scope/count，并交由业务与
+隐私/安全负责人决定恢复、重做审批或撤销；不得自动重试、自动删除或扩大扫描。
 
 

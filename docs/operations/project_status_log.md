@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-14
+last_update: 2026-07-15
 status: active
 owner: "@tobyWang"
 review_cycle: weekly
@@ -15,8 +15,8 @@ source_type: operation_guide
 
 | Field | Value |
 |---|---|
-| Generated on | 2026-07-14 |
-| Current stage | authorized_private_ingest_build |
+| Generated on | 2026-07-15 |
+| Current stage | authorized_private_analysis_offline_ready |
 | Git branch | codex/authorized-mailbox-ingest |
 | Git HEAD reference | Run `git rev-parse --short HEAD` in this workspace |
 | Working tree status | Run `git status --short --ignored` in this workspace |
@@ -25,7 +25,11 @@ source_type: operation_guide
 
 本项目是企业邮箱中的 AI 辅助窗口。正常产品只做“用户点击按钮后分析当前打开邮件”，不做全邮箱扫描、不自动发送邮件、不删除邮件或归档邮件。
 
-Separately authorized exception: the `administrator-only CLI` may import one authorized account within a rolling 24-month window after explicit inventory fingerprint confirmation. The browser extension and normal runtime remain click-only and cannot scan a mailbox. The exception has no schedule, browser hook, normal-backend route, or automatic model call.
+Separately authorized exception: the `administrator-only CLI remains default-off` and may import one authorized account within a rolling 24-month window only after explicit inventory fingerprint confirmation. The browser extension and normal runtime remain click-only and cannot scan a mailbox. The exception has no schedule, browser hook, normal-backend route, or automatic model call.
+
+The private-knowledge snapshot is verified and read-only; an invalid or missing private-knowledge snapshot returns generic rule fallback. DeepSeek outbound content remains locally deidentified with browser/backend/provider/minimum budgets of `15/13/10/5` seconds. Private evaluation is blocked by `human_judge_unavailable` by default and does not switch production models.
+
+The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器扩展, with current-message collection only after an explicit user click.
 
 ## Guardrails Established
 
@@ -39,6 +43,7 @@ Separately authorized exception: the `administrator-only CLI` may import one aut
 | `CI guardrails: .github/workflows/agent_guardrails.yml` | yes |
 | `Cleanup automation: docs/operations/cleanup_agent_codex.md` | yes |
 | `Maintenance scan: scripts/maintenance_scan.py` | yes |
+| `Repository leakage scan: scripts/repository_leakage_scan.py` | yes |
 | `Agent task brief: docs/templates/agent_task_brief_template.md` | yes |
 | `Authorized mailbox ingest boundary: docs/operations/authorized_mailbox_ingest_task_brief.md` | yes |
 
@@ -65,6 +70,7 @@ Separately authorized exception: the `administrator-only CLI` may import one aut
 | `backend/email_agent/exporter.py` | yes |
 | `backend/email_agent/api.py` | yes |
 | `backend/email_agent/server.py` | yes |
+| `backend/email_agent/private_context_gate.py` | yes |
 | `frontend/local_debug_page/index.html` | yes |
 | `frontend/local_debug_page/app.js` | yes |
 | `frontend/local_debug_page/styles.css` | yes |
@@ -81,6 +87,9 @@ Separately authorized exception: the `administrator-only CLI` may import one aut
 | `docs/constraints/mechanical_rule_translation.md` | yes |
 | `docs/decisions/0006-authorized-mailbox-ingest-and-private-knowledge.md` | yes |
 | `docs/operations/authorized_mailbox_ingest_task_brief.md` | yes |
+| `docs/operations/deepseek_analysis_contract_alignment_task_brief.md` | yes |
+| `docs/operations/private_deepseek_evaluation_task_brief.md` | yes |
+| `docs/operations/private_mailbox_rollout_closeout_task_brief.md` | yes |
 | `docs/operations/project_status_log.md` | yes |
 | `docs/operations/project_status_log_guide.md` | yes |
 | `docs/operations/agents_project_status_snippet.md` | yes |
@@ -98,9 +107,12 @@ Separately authorized exception: the `administrator-only CLI` may import one aut
 | `docs/templates/cleanup_task_template.md` | yes |
 | `scripts/repo_utils.py` | yes |
 | `scripts/maintenance_scan.py` | yes |
+| `scripts/repository_leakage_scan.py` | yes |
 | `scripts/generate_project_status.py` | yes |
 | `scripts/run_local_debug.py` | yes |
 | `scripts/manage_local_service.py` | yes |
+| `scripts/manage_mailbox_vault.py` | yes |
+| `scripts/evaluate_private_deepseek.py` | yes |
 | `start_local_service.cmd` | yes |
 | `stop_local_service.cmd` | yes |
 | `restart_local_service.cmd` | yes |
@@ -123,6 +135,8 @@ Separately authorized exception: the `administrator-only CLI` may import one aut
 | `tests/test_mailbox_transport_constraints.py` | yes |
 | `tests/test_maintenance_scan.py` | yes |
 | `tests/test_generate_project_status.py` | yes |
+| `tests/test_repository_leakage_scan.py` | yes |
+| `tests/test_rollout_closeout_contracts.py` | yes |
 | `tests/test_email_cleaner.py` | yes |
 | `tests/test_analyzer.py` | yes |
 | `tests/test_api.py` | yes |
@@ -150,17 +164,18 @@ Separately authorized exception: the `administrator-only CLI` may import one aut
 
 | Status | Count |
 |---|---:|
-| active | 80 |
-| draft | 29 |
+| active | 89 |
+| draft | 24 |
 | deprecated | 0 |
 | missing_front_matter | 0 |
 
 ## Recommended Next Steps
 
-1. Keep `EMAIL_AGENT_LLM_PROVIDER=disabled` during implementation and automated verification.
-2. Implement later plan tasks with synthetic fakes and injected probes only.
-3. Do not connect to a mailbox or run DeepSeek without a separate operator authorization after offline gates pass.
-4. Preserve the click-only current-message Tencent Exmail Chrome / Edge 浏览器扩展 and normal runtime boundary.
+1. Keep `EMAIL_AGENT_LLM_PROVIDER=disabled`; offline completion does not authorize live operation.
+2. Do not connect to a mailbox or run DeepSeek without a separate operator authorization after offline gates pass.
+3. Keep private evaluation blocked by default with `human_judge_unavailable`; the evaluator does not switch production models.
+4. If the signed private-knowledge snapshot is missing or invalid, preserve generic rule fallback.
+5. Run the content-free repository leakage scan and complete local human review before any release.
 
 ## Do Not Touch Boundaries
 

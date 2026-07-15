@@ -1,6 +1,6 @@
 ﻿---
-last_update: 2026-07-11
-status: draft
+last_update: 2026-07-15
+status: active
 owner: "@tobyWang"
 review_cycle: monthly
 source_type: product_spec
@@ -57,9 +57,9 @@ source_type: product_spec
 - 已形成可重复执行的 release checklist、rollback 步骤和 staged-snapshot 检查。
 - 继续禁止自动发送、删除、归档、移动、转发或回复邮件。
 
-## 阶段 3：单独授权的私有导入构建
+## 阶段 3：单独授权的私有分析离线就绪
 
-- 当前状态标识为 `authorized_private_ingest_build`；先建立治理、静态约束和离线测试，再实现任何 live operation。
+- 当前状态标识为 `authorized_private_analysis_offline_ready`；offline completion does not equal live authorization。管理员 mailbox、private dataset、人工 judge 和 DeepSeek 仍需分别批准并由本地操作者启动。
 - 仅允许管理员手动运行 `scripts/manage_mailbox_vault.py`，处理一个授权账号、固定 `imap.exmail.qq.com:993` 和滚动 24 个日历月。
 - inventory 先输出 content-free fingerprint；scan 必须显式确认同一 fingerprint。
 - 原始分析快照使用项目外的 NTFS BitLocker vault、逐记录 AES-256-GCM、当前用户 DPAPI envelope 和分离的 offline recovery envelope。
