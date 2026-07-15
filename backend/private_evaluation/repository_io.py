@@ -76,8 +76,13 @@ def replace_bounded_checked(
         if _identity(stage, regular=True) != stage_opened:
             _unavailable()
         if require_absent:
-            _publish_new(stage, target, stage_opened)
-            return
+            try:
+                _publish_new(stage, target, stage_opened)
+                return
+            except BaseException:
+                if _optional_identity(target) == stage_opened:
+                    return
+                raise
         os.replace(stage, target)
         stage = None
         hook("write_after_replace", target)

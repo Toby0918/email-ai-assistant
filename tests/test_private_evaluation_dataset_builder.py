@@ -322,6 +322,39 @@ class PrivateEvaluationDatasetBuilderTests(unittest.TestCase):
             self.assertEqual(loaded, dataset)
             self.assertEqual(tuple(path.parent.glob(".*.tmp")), ())
 
+    def test_create_only_success_survives_interrupt_after_publish_helper(self) -> None:
+        builder = _load_builder(self)
+        write_new = _load_new_writer(self)
+        dataset = builder.build_evaluation_dataset(stage_value())
+        key = bytearray(b"H" * 32)
+        real_publish = repository_io._publish_new
+        helper_returned = False
+
+        def publish_then_interrupt(stage, target, expected) -> None:
+            nonlocal helper_returned
+            real_publish(stage, target, expected)
+            helper_returned = True
+            raise KeyboardInterrupt("synthetic-post-helper-interrupt")
+
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary).resolve() / "dataset.pkeval"
+            with patch(
+                "backend.private_evaluation.repository._validate_external_dataset_path",
+                return_value=path,
+            ), patch(
+                "backend.private_evaluation.repository_io._publish_new",
+                side_effect=publish_then_interrupt,
+            ):
+                try:
+                    write_new(path, dataset, key)
+                except KeyboardInterrupt:
+                    self.fail("committed write was interrupted after helper return")
+                loaded = read_encrypted_dataset(path, key)
+
+            self.assertTrue(helper_returned)
+            self.assertEqual(loaded, dataset)
+            self.assertEqual(tuple(path.parent.glob(".*.tmp")), ())
+
     def test_create_only_temp_cleanup_failure_cannot_change_committed_success(self) -> None:
         builder = _load_builder(self)
         write_new = _load_new_writer(self)
