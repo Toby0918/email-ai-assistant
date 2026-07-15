@@ -103,6 +103,24 @@ fingerprint confirmation、`scan`、经 attachment approval 的第二遍
 `attachments`（最多 50 个）、`verify`，再按保留/撤销决定执行
 `purge-expired`、`revoke` 或 `rewrap-recovery`。
 
+所有现场命令都从项目根目录使用 module entrypoint。先只运行：
+
+```powershell
+python -B -m scripts.manage_mailbox_vault init --vault $VaultRoot --authorization-id $AuthorizationId --account $Account --recovery-key $RecoveryKey
+python -B -m scripts.manage_mailbox_vault inventory --vault $VaultRoot --authorization-id $AuthorizationId --account $Account
+```
+
+**STOP after inventory.** 只有本地负责人审核 content-free inventory 并另行确认
+未变化的 fingerprint 后，才可运行：
+
+```powershell
+python -B -m scripts.manage_mailbox_vault scan --vault $VaultRoot --authorization-id $AuthorizationId --account $Account --confirm-inventory-fingerprint $Fingerprint
+```
+
+后续知识和评估入口同样固定为 `python -B -m scripts.manage_private_knowledge`
+和 `python -B -m scripts.evaluate_private_deepseek`；不得依赖 `PYTHONPATH` 或直接按
+文件路径执行这些管理员 CLI。
+
 外置 vault 是分析快照，`not a legal archive`，也有 `no automatic second backup`。
 恢复密钥只恢复解锁能力，不能恢复损坏或丢失的数据。Python 删除临时明文不构成
 SSD/flash 物理安全擦除。Windows volume/reparse/path-race 检查只提供

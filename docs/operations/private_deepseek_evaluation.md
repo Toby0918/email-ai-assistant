@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-14
+last_update: 2026-07-15
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -160,8 +160,8 @@ atomic same-directory replacement.
 ## CLI
 
 ```text
-evaluate_private_deepseek.py verify --dataset <external.pkeval>
-evaluate_private_deepseek.py run --dataset <external.pkeval> \
+python -B -m scripts.evaluate_private_deepseek verify --dataset <external.pkeval>
+python -B -m scripts.evaluate_private_deepseek run --dataset <external.pkeval> \
   --report <aggregate.json> \
   --confirm-private-evaluation I_CONFIRM_200_FLASH_40_PRO
 ```

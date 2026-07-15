@@ -117,21 +117,43 @@ git diff --check
 操作前都需要本地书面授权、单一账号、外置 NTFS + BitLocker To Go 证据及独立
 恢复介质：
 
-1. `manage_mailbox_vault.py init` 初始化外置分析快照与分离的恢复封装。
-2. `manage_mailbox_vault.py inventory` 只生成 content-free 清单和 fingerprint。
-3. 人工核对后，`manage_mailbox_vault.py scan --confirm-inventory-fingerprint <fingerprint>`
-   才能读取固定 24 个月窗口的正文。
+1. `python -B -m scripts.manage_mailbox_vault init --vault $VaultRoot
+   --authorization-id $AuthorizationId --account $Account --recovery-key $RecoveryKey`
+   初始化外置分析快照与分离的恢复封装。
+2. `python -B -m scripts.manage_mailbox_vault inventory --vault $VaultRoot
+   --authorization-id $AuthorizationId --account $Account` 只生成 content-free
+   清单和 fingerprint。
+3. **STOP after inventory.** 人工核对 content-free 结果并另行确认相同 fingerprint
+   后，才可运行 `python -B -m scripts.manage_mailbox_vault scan --vault $VaultRoot
+   --authorization-id $AuthorizationId --account $Account
+   --confirm-inventory-fingerprint $Fingerprint` 读取固定 24 个月窗口的正文。
 4. attachment approval 必须由业务与隐私双审清单明确选中，随后才可运行
-   `manage_mailbox_vault.py attachments`；总数不得超过 `50`，并继续执行
-   10 MiB 单文件和 25 MiB 单会话上限。
-5. 使用 `manage_mailbox_vault.py verify` 做完整性检查；按授权使用
-   `manage_mailbox_vault.py purge-expired`、`manage_mailbox_vault.py revoke`
-   或 crash-recoverable `manage_mailbox_vault.py rewrap-recovery`。
-6. `manage_private_knowledge.py import-candidate` 后按顺序完成业务、隐私及必要的
-   责任人审批，再运行 `manage_private_knowledge.py approve` 和
-   `manage_private_knowledge.py publish`。拒绝、过期、deprecate 或 revoke 后重新
-   发布；签名/密钥/文件无效时正常服务必须退回 generic rule fallback。
-7. `evaluate_private_deepseek.py verify` 只做本地预检。真实 `run` 默认因
+   `python -B -m scripts.manage_mailbox_vault attachments --vault $VaultRoot
+   --authorization-id $AuthorizationId --account $Account --manifest $AttachmentManifest`；
+   总数不得超过 `50`，并继续执行 10 MiB 单文件和 25 MiB 单会话上限。
+5. 使用 `python -B -m scripts.manage_mailbox_vault verify --vault $VaultRoot
+   --authorization-id $AuthorizationId --account $Account` 做完整性检查；按授权使用
+   `python -B -m scripts.manage_mailbox_vault purge-expired --vault $VaultRoot
+   --authorization-id $AuthorizationId --account $Account`、
+   `python -B -m scripts.manage_mailbox_vault revoke --vault $VaultRoot
+   --authorization-id $AuthorizationId --account $Account --confirm $RevokeConfirmation`
+   或 crash-recoverable `python -B -m scripts.manage_mailbox_vault rewrap-recovery
+   --vault $VaultRoot --authorization-id $AuthorizationId --account $Account
+   --current-recovery-key $RecoveryKey --new-recovery-key $NewRecoveryKey
+   --confirm $RewrapConfirmation`。
+6. `python -B -m scripts.manage_private_knowledge import-candidate
+   --authority-root $AuthorityRoot --authority-id $AuthorityId --batch-root $BatchRoot
+   --batch-id $BatchId --candidate-id $CandidateId` 后按顺序完成业务、隐私及必要的
+   责任人审批，再运行 `python -B -m scripts.manage_private_knowledge approve
+   --authority-root $AuthorityRoot --authority-id $AuthorityId --card-id $CardId` 和
+   `python -B -m scripts.manage_private_knowledge publish --authority-root $AuthorityRoot
+   --authority-id $AuthorityId --snapshot $Snapshot --snapshot-id $SnapshotId`。拒绝、
+   过期、deprecate 或 revoke 后重新发布；签名/密钥/文件无效时正常服务必须退回
+   generic rule fallback。
+7. `python -B -m scripts.evaluate_private_deepseek verify --dataset $Dataset` 只做本地
+   预检。真实 `python -B -m scripts.evaluate_private_deepseek run --dataset $Dataset
+   --report $AggregateReport --confirm-private-evaluation I_CONFIRM_200_FLASH_40_PRO`
+   默认因
    `human_judge_unavailable` 阻断；只有另行批准并提供不序列化样本的本地人工
    judge adapter 后，才能执行 20-case gate、剩余 180 Flash 和批准的 40-case
    paired comparison。结果永不自动切换生产模型。
