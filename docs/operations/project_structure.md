@@ -264,6 +264,12 @@ scripts/repository_leakage_scan.py
 - `backend/private_evaluation/` 负责项目外 `.pkeval` 的严格 schema、确定性选择、
   顺序零重试 runner 和 aggregate-only report；只有专用 CLI 可在全部本地门通过后
   lazy-create provider client。
+- `backend/private_evaluation/staging_contract.py`、`staging.py` 和
+  `staging_repository.py` 只支持管理员 `stage-evaluation`：验证 exactly 200 条
+  `StageEvaluationSelectionV1` 绑定、one record at a time cleanup，并以 hidden
+  interactive base64 key 写入独立 `.pkevalstage`。该密文与 `.pkeval` 使用 distinct
+  magic, purpose, and namespace；成功只返回 `evaluation_stage_complete`，且 no
+  mailbox app password、provider、network、SQLite 或 normal-runtime integration。
 - `scripts/repository_leakage_scan.py` 只扫描仓库内明确 scope，并只输出固定 code、
   scope 和 count。它不打开项目外 vault/private dataset，也不自动修改文件。
 

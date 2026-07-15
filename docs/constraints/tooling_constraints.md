@@ -543,6 +543,17 @@ Agent 每次开始任务前，必须确认：
   provider, external drive, or network service.
 - Aggregate reports are JSON written by an allowlisted serializer with finite
   numbers and atomic same-directory replacement. They are not a sample export.
+- The local-only `stage-evaluation` command is not in `NETWORK_COMMANDS`, requests
+  no mailbox app password, and binds exactly 200 reviewed records from
+  `StageEvaluationSelectionV1`. It opens one record at a time, closes raw text and
+  the restoration mapping before the next record, and writes only `.pkevalstage`.
+- The staging/evaluation key is exactly 32 bytes decoded from hidden interactive
+  base64 input. It has no flag, environment, `.env`, path, stdout, log, repr, or
+  persistence surface, and mutable copies are wiped.
+- `.pkevalstage` uses AES-256-GCM with distinct magic, purpose, and namespace from
+  `.pkeval` and every private-knowledge/raw-vault store. It is bounded, atomically
+  replaced, reparse-rejecting, and external to project, OneDrive, temp, raw vault,
+  and other stores. Success is only `evaluation_stage_complete` with 200/0 counts.
 
 ## 14. 执行后检查
 

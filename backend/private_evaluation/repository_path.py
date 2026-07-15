@@ -12,6 +12,7 @@ from .errors import PrivateEvaluationError
 
 _OTHER_STORE_SUFFIXES = frozenset({
     ".pkauth", ".pkcand", ".pkimpt", ".pksnap", ".pkkey", ".pkstage",
+    ".pkevalstage",
 })
 _OTHER_STORE_MARKERS = frozenset({
     "authority-keys.pkenv", "candidate-key.pkenv", "snapshot-key.pkenv",
@@ -22,8 +23,12 @@ _MAX_DESCENDANT_DEPTH = 16
 
 
 def _validate_external_dataset_path(value: Path) -> Path:
+    return _validate_external_private_path(value, ".pkeval")
+
+
+def _validate_external_private_path(value: Path, suffix: str) -> Path:
     path = Path(value)
-    if not path.is_absolute() or path.suffix != ".pkeval":
+    if not path.is_absolute() or path.suffix != suffix:
         _unavailable()
     try:
         _reject_reparse(path)
@@ -40,6 +45,7 @@ def _validate_external_dataset_path(value: Path) -> Path:
         or (resolved.exists() and not resolved.is_file())
         or _inside_raw_vault(resolved)
         or _overlaps_other_store(resolved)
+        or (suffix == ".pkevalstage" and _overlaps_evaluation_dataset(resolved))
     ):
         _unavailable()
     return resolved
@@ -78,6 +84,17 @@ def _overlaps_other_store(path: Path) -> bool:
                 if entry != path and _is_private_marker(entry):
                     return True
         return _descendant_has_marker(path.parent, _is_private_marker)
+    except OSError:
+        _unavailable()
+
+
+def _overlaps_evaluation_dataset(path: Path) -> bool:
+    try:
+        for parent in (path.parent, *path.parents):
+            for entry in _entries(parent):
+                if entry != path and _is_evaluation_dataset(entry):
+                    return True
+        return _descendant_has_marker(path.parent, _is_evaluation_dataset)
     except OSError:
         _unavailable()
 
@@ -134,6 +151,15 @@ def _is_private_marker(path: Path) -> bool:
         path.suffix.casefold() in _OTHER_STORE_SUFFIXES
         or path.name.casefold() in _OTHER_STORE_MARKERS
     )
+
+
+def _is_evaluation_dataset(path: Path) -> bool:
+    if path.suffix.casefold() != ".pkeval":
+        return False
+    metadata = path.lstat()
+    if _is_reparse(metadata) or not stat.S_ISREG(metadata.st_mode):
+        _unavailable()
+    return True
 
 
 def _is_reparse(metadata: os.stat_result) -> bool:

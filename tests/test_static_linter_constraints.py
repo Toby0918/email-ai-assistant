@@ -183,6 +183,49 @@ class StaticLinterConstraintTests(unittest.TestCase):
             private_plan,
         )
 
+    def test_raw_vault_to_evaluation_stage_handoff_is_narrowly_documented(self) -> None:
+        governance_paths = (
+            ROOT / "AGENTS.md",
+            ROOT / "docs" / "constraints" / "tooling_constraints.md",
+            ROOT / "docs" / "constraints" / "architecture_constraints.md",
+            ROOT / "docs" / "constraints" / "linter_constraints.md",
+            ROOT / "docs" / "operations" / "authorized_mailbox_ingest_task_brief.md",
+            ROOT / "docs" / "operations" / "private_deepseek_evaluation.md",
+            ROOT / "docs" / "operations" / "project_structure.md",
+        )
+        for path in governance_paths:
+            text = " ".join(read_text(path).split())
+            for marker in ("`stage-evaluation`", "`.pkevalstage`", "200"):
+                with self.subTest(path=path, marker=marker):
+                    self.assertIn(marker, text)
+
+        combined = " ".join(
+            " ".join(read_text(path).split()) for path in governance_paths
+        )
+        for marker in (
+            "one record at a time",
+            "hidden interactive base64",
+            "`evaluation_stage_complete`",
+            "only `scripts/manage_mailbox_vault.py` and "
+            "`scripts/evaluate_private_deepseek.py`",
+            "no mailbox app password",
+            "distinct magic, purpose, and namespace",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, combined)
+
+        operator_paths = (
+            ROOT / "docs" / "operations" / "testing_checklist.md",
+            ROOT / "docs" / "operations" / "deployment_notes.md",
+            ROOT / "docs" / "operations" / "private_deepseek_evaluation.md",
+        )
+        command = (
+            "python -B -m scripts.manage_mailbox_vault stage-evaluation"
+        )
+        for path in operator_paths:
+            with self.subTest(path=path, marker=command):
+                self.assertIn(command, " ".join(read_text(path).split()))
+
     def test_authorized_mailbox_exception_is_narrowly_documented(self) -> None:
         governance_markers = {
             ROOT / "AGENTS.md": (

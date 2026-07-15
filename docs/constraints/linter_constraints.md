@@ -326,7 +326,19 @@ These guards belong in `tests/test_architecture_constraints.py`, the frontend st
 Executable checks must enforce that `backend/private_evaluation/` cannot import
 mailbox ingest, raw-vault/private-knowledge stores, SQLite, OpenAI SDK, IMAP, SMTP,
 or frontend code. Normal runtime and frontend files cannot reference that package;
-only `scripts/evaluate_private_deepseek.py` is an allowlisted bridge.
+only `scripts/manage_mailbox_vault.py` and `scripts/evaluate_private_deepseek.py`
+are allowlisted bridges. The mailbox CLI may import only the evaluation
+`staging`, `staging_contract`, and `staging_repository` modules for local
+`stage-evaluation`; it must not import the runner, provider, final-dataset reader,
+metrics, reporting, or selection path.
+
+Mechanical checks must keep `stage-evaluation` outside `NETWORK_COMMANDS`, require
+exactly 200 unique reviewed record/case bindings, one record at a time cleanup,
+hidden interactive base64 key input with no mailbox app password, and exact
+`.pkevalstage` suffix. The stage frame has distinct magic, purpose, and namespace
+from `.pkeval`; public success is only `evaluation_stage_complete` with 200/0
+counts, while repr/errors/output contain no IDs, paths, text, matches, keys, or
+exception detail.
 
 The evaluation CLI must expose only the frozen `verify` and `run` surfaces. It
 must not accept model, endpoint, key, key-file, prompt, case-count, threshold,

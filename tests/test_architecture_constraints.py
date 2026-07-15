@@ -126,40 +126,103 @@ def _mailbox_import_boundary_script_paths(
     ]
 
 
+_PRIVATE_EVALUATION_ALLOWED_BACKEND_IMPORTS = frozenset({
+    "backend.email_agent.analysis_budget",
+    "backend.email_agent.analysis_schema",
+    "backend.email_agent.deepseek_analysis_schema",
+    "backend.email_agent.model_grounding",
+    "backend.email_agent.model_result_safety",
+    "backend.email_agent.model_text_safety",
+    "backend.email_agent.private_context_gate",
+    "backend.email_agent.prompt_context",
+    "backend.email_agent.rule_analyzer",
+    "backend.email_agent.thread_timeline",
+    "backend.private_knowledge.deidentifier",
+    "backend.private_knowledge.entity_patterns",
+    "backend.private_knowledge.residual_scanner",
+})
+_PRIVATE_EVALUATION_FORBIDDEN_IMPORT_ROOTS = frozenset({
+    "aiohttp", "anthropic", "frontend", "http", "httpx", "imaplib",
+    "ollama", "openai", "requests", "smtplib", "socket", "sqlite3", "urllib",
+})
+
+
+def _private_evaluation_backend_imports_are_allowed(imports: set[str]) -> bool:
+    return all(
+        not module.startswith("backend.")
+        or module in _PRIVATE_EVALUATION_ALLOWED_BACKEND_IMPORTS
+        for module in imports
+    )
+
+
 class ArchitectureConstraintTests(unittest.TestCase):
-    def test_private_evaluation_is_isolated_and_cli_is_the_only_lazy_provider_bridge(self) -> None:
+    def test_private_evaluation_backend_import_policy_rejects_new_runtime_and_store_bridges(self) -> None:
+        self.assertTrue(_private_evaluation_backend_imports_are_allowed({
+            "backend.email_agent.analysis_schema",
+            "backend.private_knowledge.residual_scanner",
+        }))
+        for forbidden in (
+            "backend.email_agent.llm_client",
+            "backend.mailbox_ingest.knowledge_stage_source",
+            "backend.private_knowledge.atomic_ciphertext",
+            "backend.private_knowledge.candidate_imports",
+            "backend.private_knowledge.storage_policy",
+            "backend.private_knowledge.staging",
+        ):
+            with self.subTest(forbidden=forbidden):
+                self.assertFalse(
+                    _private_evaluation_backend_imports_are_allowed({forbidden})
+                )
+
+    def test_private_evaluation_is_isolated_with_exactly_two_narrow_cli_bridges(self) -> None:
         package = ROOT / "backend" / "private_evaluation"
-        forbidden_roots = {"sqlite3", "openai", "imaplib", "smtplib"}
-        forbidden_modules = {
-            "backend.mailbox_ingest",
-            "backend.private_knowledge.repository",
-            "backend.private_knowledge.review",
-            "backend.private_knowledge.key_store",
-            "backend.private_knowledge.snapshot",
-            "backend.private_knowledge.runtime_loader",
-        }
         for path in package.rglob("*.py"):
             imports = parse_import_modules(path)
             with self.subTest(path=path):
-                self.assertTrue(parse_import_roots(path).isdisjoint(forbidden_roots))
-                self.assertTrue(imports.isdisjoint(forbidden_modules))
+                self.assertTrue(
+                    parse_import_roots(path).isdisjoint(
+                        _PRIVATE_EVALUATION_FORBIDDEN_IMPORT_ROOTS
+                    )
+                )
+                self.assertTrue(
+                    _private_evaluation_backend_imports_are_allowed(imports)
+                )
                 self.assertNotIn("backend.mailbox_ingest", read_text(path))
 
-        allowed = (ROOT / "scripts" / "evaluate_private_deepseek.py").resolve()
+        evaluator = (ROOT / "scripts" / "evaluate_private_deepseek.py").resolve()
+        staging_cli = (ROOT / "scripts" / "manage_mailbox_vault.py").resolve()
+        allowed = {evaluator, staging_cli}
         paths = list((ROOT / "backend").rglob("*.py"))
         paths.extend((ROOT / "scripts").rglob("*.py"))
         paths.extend(path for path in (ROOT / "frontend").rglob("*") if path.is_file())
         for path in paths:
-            if path.resolve() == allowed or package in path.parents:
+            if path.resolve() in allowed or package in path.parents:
                 continue
             with self.subTest(path=path, direction="runtime-to-evaluation"):
                 self.assertNotIn("backend.private_evaluation", read_text(path))
 
-        script = read_text(allowed)
+        script = read_text(evaluator)
         self.assertNotIn("from openai", script)
         self.assertIn("def _live_client_factory", script)
+        stage_imports = {
+            module
+            for module in parse_import_modules(staging_cli)
+            if module.startswith("backend.private_evaluation")
+        }
+        self.assertEqual(
+            stage_imports,
+            {
+                "backend.private_evaluation.staging",
+                "backend.private_evaluation.staging_contract",
+                "backend.private_evaluation.staging_repository",
+            },
+        )
         architecture = read_text(ROOT / "docs" / "constraints" / "architecture_constraints.md")
         self.assertIn("private evaluation package is offline and aggregate-only", architecture)
+        self.assertIn(
+            "scripts/manage_mailbox_vault.py -> backend.private_evaluation staging only",
+            architecture,
+        )
 
     def test_private_knowledge_package_isolated_from_mailbox_and_normal_runtime(self) -> None:
         private_package = ROOT / "backend" / "private_knowledge"

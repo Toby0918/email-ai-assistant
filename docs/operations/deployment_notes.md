@@ -121,6 +121,20 @@ python -B -m scripts.manage_mailbox_vault scan --vault $VaultRoot --authorizatio
 和 `python -B -m scripts.evaluate_private_deepseek`；不得依赖 `PYTHONPATH` 或直接按
 文件路径执行这些管理员 CLI。
 
+经单独业务/隐私审核的 `StageEvaluationSelectionV1` 必须 exactly 200 条、未过期，
+且每条只绑定 raw record ID 与 UUIDv4 case ID/production metadata。之后管理员才可
+运行：
+
+```powershell
+python -B -m scripts.manage_mailbox_vault stage-evaluation --vault $VaultRoot --authorization-id $AuthorizationId --account $Account --selection-manifest $EvaluationSelection --staging-dataset $EvaluationStage
+```
+
+`$EvaluationStage` 必须是外部 `.pkevalstage`；command 使用 hidden interactive
+base64 key、no mailbox app password、one record at a time cleanup，并以 distinct
+magic, purpose, and namespace 写密文。成功只允许 `evaluation_stage_complete` 与
+200/0 counts。它不运行 provider、不生成最终 `.pkeval`、不暴露 case/record ID、
+path、text、mapping 或 exception detail。
+
 外置 vault 是分析快照，`not a legal archive`，也有 `no automatic second backup`。
 恢复密钥只恢复解锁能力，不能恢复损坏或丢失的数据。Python 删除临时明文不构成
 SSD/flash 物理安全擦除。Windows volume/reparse/path-race 检查只提供

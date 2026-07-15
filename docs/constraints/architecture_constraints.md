@@ -83,6 +83,7 @@ llm_client.py -> config.py
 database.py -> config.py
 scripts/manage_mailbox_vault.py -> backend.mailbox_ingest
 scripts/manage_mailbox_vault.py -> backend.private_knowledge
+scripts/manage_mailbox_vault.py -> backend.private_evaluation staging only
 ```
 
 禁止反向依赖：
@@ -144,8 +145,17 @@ knowledge repositories or review/key/snapshot services, frontend code, SQLite,
 OpenAI SDK, IMAP, or SMTP. Normal backend runtime, frontend code, local servers,
 cleanup jobs, and scheduled workflows must not import it.
 
-Only `scripts/evaluate_private_deepseek.py` may bridge the private evaluation
-package to the existing backend DeepSeek provider. That bridge is lazy: dataset
+Only `scripts/manage_mailbox_vault.py` and `scripts/evaluate_private_deepseek.py`
+may bridge the private evaluation package. The mailbox CLI bridge is limited to
+the local `stage-evaluation` contract/repository: a strict
+`StageEvaluationSelectionV1` binds exactly 200 reviewed raw record IDs to unique
+case IDs, processes one record at a time, releases raw text and mapping before the
+next record, and writes only external `.pkevalstage` with distinct magic, purpose,
+and namespace. It is not a provider bridge, is not in `NETWORK_COMMANDS`, requests
+no mailbox app password, and returns only fixed codes/counts including
+`evaluation_stage_complete`.
+
+The evaluator bridge to the existing backend DeepSeek provider is lazy: dataset
 decryption, schema validation, deterministic selection, the exact operator
 confirmation, provider configuration validation, and availability of the injected
 synchronous human-usefulness judge must all succeed before a provider client is

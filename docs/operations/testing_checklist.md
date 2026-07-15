@@ -131,7 +131,15 @@ git diff --check
    `python -B -m scripts.manage_mailbox_vault attachments --vault $VaultRoot
    --authorization-id $AuthorizationId --account $Account --manifest $AttachmentManifest`；
    总数不得超过 `50`，并继续执行 10 MiB 单文件和 25 MiB 单会话上限。
-5. 使用 `python -B -m scripts.manage_mailbox_vault verify --vault $VaultRoot
+5. 只有另行审核的 `StageEvaluationSelectionV1` 已严格绑定 exactly 200 条且本地
+   staging/evaluation key 已准备由 hidden getpass 输入时，才可运行
+   `python -B -m scripts.manage_mailbox_vault stage-evaluation --vault $VaultRoot
+   --authorization-id $AuthorizationId --account $Account
+   --selection-manifest $EvaluationSelection
+   --staging-dataset $EvaluationStage`。`$EvaluationStage` 必须是项目、OneDrive、
+   temp、raw vault 和其他 private store 之外的 `.pkevalstage`；命令请求 no mailbox
+   app password，成功只输出 `evaluation_stage_complete` 和 200/0 counts。
+6. 使用 `python -B -m scripts.manage_mailbox_vault verify --vault $VaultRoot
    --authorization-id $AuthorizationId --account $Account` 做完整性检查；按授权使用
    `python -B -m scripts.manage_mailbox_vault purge-expired --vault $VaultRoot
    --authorization-id $AuthorizationId --account $Account`、
@@ -141,7 +149,7 @@ git diff --check
    --vault $VaultRoot --authorization-id $AuthorizationId --account $Account
    --current-recovery-key $RecoveryKey --new-recovery-key $NewRecoveryKey
    --confirm $RewrapConfirmation`。
-6. `python -B -m scripts.manage_private_knowledge import-candidate
+7. `python -B -m scripts.manage_private_knowledge import-candidate
    --authority-root $AuthorityRoot --authority-id $AuthorityId --batch-root $BatchRoot
    --batch-id $BatchId --candidate-id $CandidateId` 后按顺序完成业务、隐私及必要的
    责任人审批，再运行 `python -B -m scripts.manage_private_knowledge approve
@@ -150,7 +158,7 @@ git diff --check
    --authority-id $AuthorityId --snapshot $Snapshot --snapshot-id $SnapshotId`。拒绝、
    过期、deprecate 或 revoke 后重新发布；签名/密钥/文件无效时正常服务必须退回
    generic rule fallback。
-7. `python -B -m scripts.evaluate_private_deepseek verify --dataset $Dataset` 只做本地
+8. `python -B -m scripts.evaluate_private_deepseek verify --dataset $Dataset` 只做本地
    预检。真实 `python -B -m scripts.evaluate_private_deepseek run --dataset $Dataset
    --report $AggregateReport --confirm-private-evaluation I_CONFIRM_200_FLASH_40_PRO`
    默认因

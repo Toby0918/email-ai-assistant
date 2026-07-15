@@ -65,6 +65,18 @@ fingerprint。
 进入项目、OneDrive 和系统临时目录之外的外部加密 vault；Codex、DeepSeek、
 Git、日志、public SQLite、测试和状态报告都不得读取或保存原始或可识别内容。
 
+同一管理员 CLI 还允许一个本地、非网络 `stage-evaluation` handoff。它只接受
+严格双审的 `StageEvaluationSelectionV1`，把 exactly 200 个唯一 raw record ID
+绑定到唯一 UUIDv4 case ID，并且 one record at a time 解密、结构化本地去标识、
+residual scan，再释放 raw plaintext 和 restoration mapping 后处理下一条。它使用
+hidden interactive base64 evaluation key（no mailbox app password），只写项目、
+OneDrive、temp、raw vault 和其他 private store 之外的独立 `.pkevalstage` 密文；
+该格式与最终 `.pkeval` 使用 distinct magic, purpose, and namespace。成功公开输出
+只有 `evaluation_stage_complete` 和 200/0 counts；失败只有固定 code/count，绝不
+包含 record/case ID、path、text、matched value 或 exception detail。only
+`scripts/manage_mailbox_vault.py` and `scripts/evaluate_private_deepseek.py` 可桥接
+private-evaluation staging surface；后者和 normal runtime 永不读取 raw vault。
+
 详细授权、vault、知识审核和评估边界见：
 
 - `docs/operations/authorized_mailbox_ingest_task_brief.md`

@@ -36,6 +36,17 @@ from backend.private_knowledge.staging_contract import (
     load_stage_selection_manifest,
 )
 from backend.private_knowledge.storage_policy import validate_stage_storage
+from backend.private_evaluation.staging import (
+    execute_stage_evaluation_command, load_stage_evaluation_key as _load_stage_evaluation_key,
+)
+from backend.private_evaluation.staging_contract import (
+    StageEvaluationResult,
+    public_stage_error_code as _stage_evaluation_error_code,
+)
+from backend.private_evaluation.staging_repository import (
+    _validate_external_stage_path,
+    write_encrypted_stage,
+)
 
 
 NETWORK_COMMANDS = frozenset({"inventory", "scan", "attachments"})
@@ -44,6 +55,7 @@ COMMANDS = (
     "revoke", "rewrap-recovery",
 )
 STAGE_COMMAND = "stage-knowledge"
+STAGE_EVALUATION_COMMAND = "stage-evaluation"
 _FINGERPRINT = re.compile(r"^[0-9a-f]{64}$")
 _SAFE_CODES = frozenset(
     {
@@ -67,7 +79,7 @@ class _ArgumentFailure(Exception):
 def build_parser() -> argparse.ArgumentParser:
     parser = _SafeParser(prog="manage_mailbox_vault.py")
     commands = parser.add_subparsers(dest="command", required=True)
-    for command in (*COMMANDS, STAGE_COMMAND):
+    for command in (*COMMANDS, STAGE_COMMAND, STAGE_EVALUATION_COMMAND):
         subparser = commands.add_parser(command)
         _add_common_arguments(subparser)
         if command == "init":
@@ -91,6 +103,9 @@ def build_parser() -> argparse.ArgumentParser:
         elif command == STAGE_COMMAND:
             subparser.add_argument("--selection-manifest", type=Path, required=True)
             subparser.add_argument("--candidate-batch-root", type=Path, required=True)
+        elif command == STAGE_EVALUATION_COMMAND:
+            subparser.add_argument("--selection-manifest", type=Path, required=True)
+            subparser.add_argument("--staging-dataset", type=Path, required=True)
     return parser
 
 
@@ -105,6 +120,7 @@ def run_cli(
     *,
     dependencies: CliDependencies | None = None,
     stage_runner: Callable[[argparse.Namespace], StageKnowledgeResult] | None = None,
+    stage_evaluation_runner: Callable[[argparse.Namespace], StageEvaluationResult] | None = None,
 ) -> int:
     try:
         arguments = build_parser().parse_args(argv)
@@ -130,6 +146,17 @@ def run_cli(
             return 0 if result.code == "stage_complete" else 2
         except Exception:
             emit({"ok": False, "code": "internal_error"})
+            return 2
+    if arguments.command == STAGE_EVALUATION_COMMAND:
+        emit = dependencies.emit if dependencies is not None else _default_emit
+        try:
+            result = (stage_evaluation_runner or _default_stage_evaluation_runner)(arguments)
+            if not isinstance(result, StageEvaluationResult):
+                raise ValueError
+            emit(result.to_dict())
+            return 0 if result.code == "evaluation_stage_complete" else 2
+        except Exception as error:
+            emit({"ok": False, "code": _stage_evaluation_error_code(error)})
             return 2
     selected = dependencies if dependencies is not None else _default_dependencies()
     operation: PreparedOperation | None = None
@@ -171,6 +198,7 @@ def _validate_local_arguments(arguments: argparse.Namespace) -> None:
     for name in (
         "recovery_key", "manifest", "current_recovery_key", "new_recovery_key",
         "selection_manifest", "candidate_batch_root",
+        "staging_dataset",
     ):
         value = getattr(arguments, name, None)
         if value is not None and not value.is_absolute():
@@ -282,6 +310,21 @@ def _default_stage_runner(arguments: argparse.Namespace) -> StageKnowledgeResult
         arguments,
         source_factory=open_knowledge_stage_source,
         protector_factory=CurrentUserDpapiProtector,
+        current_time=lambda: datetime.now(timezone.utc).replace(microsecond=0),
+        epoch_clock=lambda: int(time.time()),
+        project_root=Path(__file__).resolve().parents[1],
+    )
+
+
+def _default_stage_evaluation_runner(arguments: argparse.Namespace) -> StageEvaluationResult:
+    from backend.mailbox_ingest.knowledge_stage_source import open_knowledge_stage_source
+
+    return execute_stage_evaluation_command(
+        arguments,
+        source_factory=open_knowledge_stage_source,
+        key_loader=_load_stage_evaluation_key,
+        stage_writer=write_encrypted_stage,
+        path_validator=_validate_external_stage_path,
         current_time=lambda: datetime.now(timezone.utc).replace(microsecond=0),
         epoch_clock=lambda: int(time.time()),
         project_root=Path(__file__).resolve().parents[1],
