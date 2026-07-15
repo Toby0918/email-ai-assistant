@@ -137,6 +137,25 @@ repository, lifecycle review, candidate store, deidentifier, key store,
 publisher, CLI service, SQLite, or any write helper. Failure returns an empty
 immutable card set so normal generic rules continue.
 
+The private evaluation package is offline and aggregate-only. It is a separate
+administrator domain that reads only an independently encrypted, project-external
+`.pkeval` dataset. It must not import mailbox ingest, the raw vault, private
+knowledge repositories or review/key/snapshot services, frontend code, SQLite,
+OpenAI SDK, IMAP, or SMTP. Normal backend runtime, frontend code, local servers,
+cleanup jobs, and scheduled workflows must not import it.
+
+Only `scripts/evaluate_private_deepseek.py` may bridge the private evaluation
+package to the existing backend DeepSeek provider. That bridge is lazy: dataset
+decryption, schema validation, deterministic selection, the exact operator
+confirmation, provider configuration validation, and availability of the injected
+synchronous human-usefulness judge must all succeed before a provider client is
+imported or constructed. `verify` is strictly local and never imports or creates a
+provider client. Automated tests use injected fake clients, keep the provider
+disabled, and perform no network, mailbox, vault, DPAPI, BitLocker, or external-drive
+operation. Evaluation reports contain only the fixed aggregate schema and fixed
+error codes; they never contain cases, prompts, responses, identifiers, paths,
+timestamps, sources, samples, or matched text.
+
 ## Authorized mailbox transport policy
 
 Importer endpoint 固定为 `imap.exmail.qq.com:993` 并验证 TLS certificate。

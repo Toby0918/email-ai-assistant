@@ -311,6 +311,24 @@ Executable constraints must enforce all of the following:
 
 These guards belong in `tests/test_architecture_constraints.py`, the frontend static suites, and the public response/persistence canaries. They must run with synthetic data and no network.
 
+### Private evaluation mechanical guards
+
+Executable checks must enforce that `backend/private_evaluation/` cannot import
+mailbox ingest, raw-vault/private-knowledge stores, SQLite, OpenAI SDK, IMAP, SMTP,
+or frontend code. Normal runtime and frontend files cannot reference that package;
+only `scripts/evaluate_private_deepseek.py` is an allowlisted bridge.
+
+The evaluation CLI must expose only the frozen `verify` and `run` surfaces. It
+must not accept model, endpoint, key, key-file, prompt, case-count, threshold,
+retry, stream, batch, force, or production-switch overrides. Provider construction
+must remain a lazy function reached only after local validation, exact confirmation,
+provider configuration, and human-judge availability checks. Static and unit tests
+must run offline with the provider disabled.
+
+The aggregate serializer must reject unknown keys/codes, boolean counts, non-finite
+numbers, arbitrary strings, and nested sample-like fields. Errors, repr, stdout,
+stderr, test output, and maintenance output must remain content-free.
+
 ## 14. 修改规则
 
 如果新增或修改 linter 规则，必须同步更新：

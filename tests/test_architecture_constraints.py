@@ -127,6 +127,40 @@ def _mailbox_import_boundary_script_paths(
 
 
 class ArchitectureConstraintTests(unittest.TestCase):
+    def test_private_evaluation_is_isolated_and_cli_is_the_only_lazy_provider_bridge(self) -> None:
+        package = ROOT / "backend" / "private_evaluation"
+        forbidden_roots = {"sqlite3", "openai", "imaplib", "smtplib"}
+        forbidden_modules = {
+            "backend.mailbox_ingest",
+            "backend.private_knowledge.repository",
+            "backend.private_knowledge.review",
+            "backend.private_knowledge.key_store",
+            "backend.private_knowledge.snapshot",
+            "backend.private_knowledge.runtime_loader",
+        }
+        for path in package.rglob("*.py"):
+            imports = parse_import_modules(path)
+            with self.subTest(path=path):
+                self.assertTrue(parse_import_roots(path).isdisjoint(forbidden_roots))
+                self.assertTrue(imports.isdisjoint(forbidden_modules))
+                self.assertNotIn("backend.mailbox_ingest", read_text(path))
+
+        allowed = (ROOT / "scripts" / "evaluate_private_deepseek.py").resolve()
+        paths = list((ROOT / "backend").rglob("*.py"))
+        paths.extend((ROOT / "scripts").rglob("*.py"))
+        paths.extend(path for path in (ROOT / "frontend").rglob("*") if path.is_file())
+        for path in paths:
+            if path.resolve() == allowed or package in path.parents:
+                continue
+            with self.subTest(path=path, direction="runtime-to-evaluation"):
+                self.assertNotIn("backend.private_evaluation", read_text(path))
+
+        script = read_text(allowed)
+        self.assertNotIn("from openai", script)
+        self.assertIn("def _live_client_factory", script)
+        architecture = read_text(ROOT / "docs" / "constraints" / "architecture_constraints.md")
+        self.assertIn("private evaluation package is offline and aggregate-only", architecture)
+
     def test_private_knowledge_package_isolated_from_mailbox_and_normal_runtime(self) -> None:
         private_package = ROOT / "backend" / "private_knowledge"
         forbidden_imports = {"imaplib", "smtplib", "openai"}

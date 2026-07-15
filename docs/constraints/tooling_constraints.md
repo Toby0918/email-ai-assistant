@@ -529,6 +529,21 @@ Agent 每次开始任务前，必须确认：
 - Automated tests, the 50-case evaluator, static checks, and maintenance scan remain offline: no live provider, mailbox, vault, DPAPI, or BitLocker access.
 - Task 5 must not regenerate `docs/operations/project_status_log.md`; that regeneration is reserved for the later integration task.
 
+### Private evaluation tooling
+
+- `backend/private_evaluation/` uses only the pinned project cryptography stack,
+  standard-library JSON/path primitives, and existing production validation gates.
+- The package must not add a mailbox, vault, SQLite, provider-SDK, IMAP, SMTP,
+  DPAPI, BitLocker, browser, or HTTP dependency.
+- `scripts/evaluate_private_deepseek.py verify` is local-only. The `run` path may
+  lazily use the existing backend DeepSeek provider only after all local preflight
+  gates and the injected human judge are available.
+- Tests use synthetic encrypted datasets and fake clients with
+  `EMAIL_AGENT_LLM_PROVIDER=disabled`; they never load a real key, account, dataset,
+  provider, external drive, or network service.
+- Aggregate reports are JSON written by an allowlisted serializer with finite
+  numbers and atomic same-directory replacement. They are not a sample export.
+
 ## 14. 执行后检查
 
 Agent 每次完成任务后，必须确认：
