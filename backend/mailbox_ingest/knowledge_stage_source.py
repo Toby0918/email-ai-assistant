@@ -20,6 +20,10 @@ from .vault_access import open_mailbox_vault
 
 
 _RECORD_ID = re.compile(r"^[0-9a-f]{32}$")
+_ORGANIZATION_DISPLAY = re.compile(
+    r"(?i)(?:\b(?:ltd|limited|llc|inc|corp|corporation|company|gmbh|plc)\.?$|"
+    r"(?:有限公司|股份有限公司|集团|公司)$)"
+)
 _FIELDS = {
     "schema_version", "scope", "fingerprint", "opaque_folder_id", "mailbox",
     "uidvalidity", "uid", "internal_date", "expires_at_utc", "header_b64",
@@ -30,9 +34,16 @@ _FIELDS = {
 class RawStageRecord:
     __slots__ = ("text", "context")
 
-    def __init__(self, text: str, people: list[str]) -> None:
+    def __init__(
+        self,
+        text: str,
+        people: list[str],
+        organizations: list[str],
+    ) -> None:
+        if not _valid_identity_list(people) or not _valid_identity_list(organizations):
+            raise VaultError("stage_record_invalid")
         self.text = text
-        self.context = {"people": people, "organizations": []}
+        self.context = {"people": people, "organizations": organizations}
 
     def close(self) -> None:
         self.text = ""
@@ -107,7 +118,7 @@ class MailboxKnowledgeStageSource:
             if sum(map(len, (header, *bodies))) > 25 * 1024 * 1024:
                 raise ValueError
             message = BytesParser(policy=policy.default).parsebytes(header)
-            people, addresses = _header_identities(message)
+            people, organizations, addresses = _header_identities(message)
             self._counterparties.update(
                 address.rsplit("@", 1)[-1].casefold()
                 for address in addresses
@@ -120,7 +131,7 @@ class MailboxKnowledgeStageSource:
                 + [item.decode("utf-8", errors="replace") for item in bodies]
                 + filenames
             )
-            return RawStageRecord(text, people)
+            return RawStageRecord(text, people, organizations)
         except (ValueError, TypeError, KeyError, UnicodeError, json.JSONDecodeError):
             raise VaultError("stage_record_invalid") from None
 
@@ -186,14 +197,32 @@ def _validate_record(value: object, scope: str, start: datetime, end: datetime) 
         raise ValueError
 
 
-def _header_identities(message: object) -> tuple[list[str], list[str]]:
+def _header_identities(
+    message: object,
+) -> tuple[list[str], list[str], list[str]]:
     values: list[str] = []
     for name in ("from", "to", "cc", "reply-to"):
         values.extend(str(item) for item in message.get_all(name, []))
     pairs = getaddresses(values)
-    people = sorted({name.strip() for name, _address in pairs if 1 <= len(name.strip()) <= 200})
+    names = {name.strip() for name, _address in pairs if 1 <= len(name.strip()) <= 200}
+    organizations = sorted(name for name in names if _ORGANIZATION_DISPLAY.search(name))
+    people = sorted(names - set(organizations))
     addresses = [address for _name, address in pairs]
-    return people, addresses
+    return people, organizations, addresses
+
+
+def _valid_identity_list(values: object) -> bool:
+    return (
+        isinstance(values, list)
+        and len(values) <= 100
+        and all(
+            isinstance(value, str)
+            and 1 <= len(value.strip()) <= 200
+            and "\r" not in value
+            and "\n" not in value
+            for value in values
+        )
+    )
 
 
 def _thread_key(message: object, fallback: str) -> str:

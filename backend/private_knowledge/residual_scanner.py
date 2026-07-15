@@ -5,7 +5,12 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-from .entity_patterns import AMBIGUOUS_CONTROLS, PATTERNS, PLACEHOLDER
+from .entity_patterns import (
+    AMBIGUOUS_CONTROLS,
+    IDENTITY_LIKE_PATTERNS,
+    PATTERNS,
+    PLACEHOLDER,
+)
 from .errors import PrivateKnowledgeError
 
 
@@ -28,6 +33,10 @@ def scan_residuals(deidentified: object) -> tuple[ResidualFinding, ...]:
     if AMBIGUOUS_CONTROLS.search(scrubbed):
         counts["residual_ambiguous_control"] = 1
     for kind, pattern in PATTERNS:
+        count = sum(1 for _match in pattern.finditer(scrubbed))
+        if count:
+            counts[f"residual_{kind.lower()}"] = count
+    for kind, pattern in IDENTITY_LIKE_PATTERNS:
         count = sum(1 for _match in pattern.finditer(scrubbed))
         if count:
             counts[f"residual_{kind.lower()}"] = count

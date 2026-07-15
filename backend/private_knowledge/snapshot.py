@@ -85,10 +85,15 @@ def _eligible_cards(
     for card in cards:
         if not isinstance(card, KnowledgeCardV1):
             raise PrivateKnowledgeError("snapshot_schema_invalid")
-        due = card.lifecycle[3]
-        if (card.lifecycle[0] == "approved" and due is not None
-                and now < _parse_time(due) and now < _parse_time(card.lifecycle[2])):
-            result.append(card)
+        try:
+            validated = KnowledgeCardV1.from_mapping(card.to_mapping())
+            due = validated.lifecycle[3]
+            if (validated.lifecycle[0] == "approved" and due is not None
+                    and now < _parse_time(due)
+                    and now < _parse_time(validated.lifecycle[2])):
+                result.append(validated)
+        except (PrivateKnowledgeError, AttributeError, IndexError, TypeError, ValueError):
+            raise PrivateKnowledgeError("snapshot_schema_invalid") from None
     if len({card.card_id for card in result}) != len(result):
         raise PrivateKnowledgeError("snapshot_schema_invalid")
     return tuple(sorted(result, key=lambda item: item.card_id))

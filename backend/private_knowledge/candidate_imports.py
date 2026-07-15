@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
@@ -22,18 +23,26 @@ _PURPOSE = b"imported-candidates/v1"
 @dataclass(frozen=True, slots=True, repr=False)
 class ImportedCandidate:
     candidate_id: str
-    text: str
+    support_texts: tuple[str, ...]
     evidence: tuple[str, str]
+    expires_at: str
 
     def __post_init__(self) -> None:
-        DetachedCandidate(self.candidate_id, self.text)
+        DetachedCandidate(self.candidate_id, self.support_texts, self.evidence)
         if (not isinstance(self.evidence, tuple) or len(self.evidence) != 2
                 or self.evidence[0] not in CONVERSATION_BUCKETS
                 or self.evidence[1] not in COUNTERPARTY_BUCKETS):
             raise PrivateKnowledgeError("candidate_import_invalid")
+        _parse_expiry(self.expires_at)
 
     def __repr__(self) -> str:
-        return f"ImportedCandidate(candidate_id={self.candidate_id!r}, text=<redacted>)"
+        return (
+            f"ImportedCandidate(candidate_id={self.candidate_id!r}, "
+            "support_texts=<redacted>, evidence=<redacted>)"
+        )
+
+    def is_expired(self, now: datetime) -> bool:
+        return now >= _parse_expiry(self.expires_at)
 
 
 class ImportedCandidateStore:
@@ -56,7 +65,10 @@ class ImportedCandidateStore:
         if not isinstance(candidate, ImportedCandidate):
             raise PrivateKnowledgeError("candidate_import_invalid")
         def mutate(values: dict[str, ImportedCandidate]) -> None:
-            if candidate.candidate_id in values:
+            existing = values.get(candidate.candidate_id)
+            if existing == candidate:
+                return
+            if existing is not None:
                 raise PrivateKnowledgeError("candidate_exists")
             values[candidate.candidate_id] = candidate
         self._mutate(mutate)
@@ -71,6 +83,10 @@ class ImportedCandidateStore:
                 raise PrivateKnowledgeError("candidate_missing")
         self._mutate(mutate)
 
+    def discard(self, candidate_id: str) -> None:
+        validate_uuid4(candidate_id, "candidate_id_invalid")
+        self._mutate(lambda values: values.pop(candidate_id, None))
+
     def _mutate(self, callback: Callable[[dict[str, ImportedCandidate]], None]) -> None:
         with exclusive_lock(self._root, ".candidate-imports.lock", error_code="candidate_import_locked"):
             values = self._load()
@@ -78,9 +94,11 @@ class ImportedCandidateStore:
             self._write({
                 "format_version": 1, "authority_id": self._authority_id,
                 "candidates": [
-                    {"candidate_id": item.candidate_id, "text": item.text,
+                    {"candidate_id": item.candidate_id,
+                     "support_texts": list(item.support_texts),
                      "evidence": {"conversation_bucket": item.evidence[0],
-                                  "counterparty_bucket": item.evidence[1]}}
+                                  "counterparty_bucket": item.evidence[1]},
+                     "expires_at": item.expires_at}
                     for item in (values[key] for key in sorted(values))
                 ],
             })
@@ -122,14 +140,30 @@ class ImportedCandidateStore:
 
 def _decode_item(value: object) -> ImportedCandidate:
     if (not isinstance(value, dict)
-            or set(value) != {"candidate_id", "text", "evidence"}
+            or set(value) != {
+                "candidate_id", "support_texts", "evidence", "expires_at"
+            }
+            or not isinstance(value["support_texts"], list)
             or not isinstance(value["evidence"], dict)
             or set(value["evidence"]) != {
                 "conversation_bucket", "counterparty_bucket"
             }):
         raise ValueError
     return ImportedCandidate(
-        value["candidate_id"], value["text"],
+        value["candidate_id"], tuple(value["support_texts"]),
         (value["evidence"]["conversation_bucket"],
          value["evidence"]["counterparty_bucket"]),
+        value["expires_at"],
     )
+
+
+def _parse_expiry(value: object) -> datetime:
+    if not isinstance(value, str) or not value.endswith("Z"):
+        raise PrivateKnowledgeError("candidate_import_invalid")
+    try:
+        parsed = datetime.fromisoformat(value[:-1] + "+00:00")
+    except ValueError:
+        raise PrivateKnowledgeError("candidate_import_invalid") from None
+    if parsed.microsecond:
+        raise PrivateKnowledgeError("candidate_import_invalid")
+    return parsed

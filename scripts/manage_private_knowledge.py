@@ -27,7 +27,8 @@ _ACTOR = re.compile(r"^actor-[a-z0-9-]{3,80}$")
 _SAFE_ERROR_CODES = {
     "argument_invalid", "internal_error",
     "card_missing", "candidate_missing", "transition_invalid",
-    "candidate_expired", "evidence_insufficient", "approval_incomplete",
+    "candidate_expired", "candidate_batch_expired", "candidate_not_expired",
+    "evidence_insufficient", "approval_incomplete",
     "owner_approval_required", "actor_not_distinct", "snapshot_write_failed",
 }
 

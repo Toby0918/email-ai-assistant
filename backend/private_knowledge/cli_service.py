@@ -6,6 +6,7 @@ import argparse
 import json
 import os
 import stat
+import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Callable
@@ -93,19 +94,27 @@ class PrivateKnowledgeCommandService:
         batch_root = Path(arguments.batch_root)
         self._validate_storage(authority, batch_root)
         with open_candidate_key(batch_root, self._protector) as candidate_key:
-            evidence, candidates = CandidateBatchStore(
-                batch_root, candidate_key, batch_id=arguments.batch_id
-            ).read_with_evidence()
-        selected = next(
-            (item for item in candidates if item.candidate_id == arguments.candidate_id),
-            None,
-        )
-        if selected is None:
-            raise PrivateKnowledgeError("candidate_missing")
-        with open_authority_keys(authority, self._protector) as keys:
-            ImportedCandidateStore(
-                authority, keys.authority_key, authority_id=arguments.authority_id
-            ).add(ImportedCandidate(selected.candidate_id, selected.text, evidence))
+            batch = CandidateBatchStore(
+                batch_root, candidate_key, batch_id=arguments.batch_id,
+                clock=self._clock,
+            )
+            expires_at, candidates = batch.read_with_expiry()
+            selected = next(
+                (item for item in candidates
+                 if item.candidate_id == arguments.candidate_id),
+                None,
+            )
+            if selected is None or selected.evidence is None:
+                raise PrivateKnowledgeError("candidate_missing")
+            with open_authority_keys(authority, self._protector) as keys:
+                ImportedCandidateStore(
+                    authority, keys.authority_key,
+                    authority_id=arguments.authority_id,
+                ).add(ImportedCandidate(
+                    selected.candidate_id, selected.support_texts,
+                    selected.evidence, expires_at,
+                ))
+            batch.discard(selected.candidate_id)
         return PrivateCliResult("candidate_imported", selected.candidate_id, 1)
 
     def _create(self, arguments: argparse.Namespace) -> PrivateCliResult:
@@ -119,11 +128,14 @@ class PrivateKnowledgeCommandService:
             candidate = imports.get(arguments.candidate_id)
             if candidate is None:
                 raise PrivateKnowledgeError("candidate_missing")
+            if candidate.is_expired(self._now()):
+                imports.discard(candidate.candidate_id)
+                raise PrivateKnowledgeError("candidate_expired")
             card = _card_from_proposal(candidate, proposal, self._now())
             validate_non_verbatim(
                 {"generic_rule": card.generic_rule,
                  "safe_reply_guidance": card.safe_reply_guidance},
-                [candidate.text],
+                candidate.support_texts,
             )
             review = self._review(authority, arguments.authority_id, keys.authority_key)
             review.create_candidate(card)
@@ -143,7 +155,16 @@ class PrivateKnowledgeCommandService:
         return self._review_action(arguments, "approve")
 
     def _reject(self, arguments: argparse.Namespace) -> PrivateCliResult:
-        return self._review_action(arguments, "reject")
+        authority = Path(arguments.authority_root)
+        self._validate_storage(authority)
+        with open_authority_keys(authority, self._protector) as keys:
+            ImportedCandidateStore(
+                authority, keys.authority_key, authority_id=arguments.authority_id
+            ).discard(arguments.card_id)
+            self._review(
+                authority, arguments.authority_id, keys.authority_key
+            ).reject(arguments.card_id)
+        return PrivateCliResult("reject_complete", arguments.card_id, 1)
 
     def _deprecate(self, arguments: argparse.Namespace) -> PrivateCliResult:
         return self._review_action(arguments, "deprecate")
@@ -155,6 +176,14 @@ class PrivateKnowledgeCommandService:
         authority = Path(arguments.authority_root)
         self._validate_storage(authority)
         with open_authority_keys(authority, self._protector) as keys:
+            imports = ImportedCandidateStore(
+                authority, keys.authority_key, authority_id=arguments.authority_id
+            )
+            imported = imports.get(arguments.card_id)
+            if imported is not None:
+                if not imported.is_expired(self._now()):
+                    raise PrivateKnowledgeError("candidate_not_expired")
+                imports.discard(arguments.card_id)
             review = self._review(authority, arguments.authority_id, keys.authority_key)
             review.expire_candidate(arguments.card_id)
         return PrivateCliResult("candidate_expired", arguments.card_id, 1)
@@ -237,7 +266,7 @@ def _card_from_proposal(
                                 "card_version": 1},
                    "business": None, "privacy": None, "owner": None},
         "lifecycle": {"status": "candidate", "created_at": _time(now),
-                      "expires_at": _time(now + timedelta(days=30)),
+                      "expires_at": candidate.expires_at,
                       "review_due_at": None},
     }
     return KnowledgeCardV1.from_mapping(mapping)
@@ -260,6 +289,7 @@ def _read_proposal(path: Path) -> dict[str, object]:
 
 def _forbidden_roots(*roots: Path) -> tuple[Path, ...]:
     values = [Path(root).resolve() for root in roots]
+    values.append(Path(tempfile.gettempdir()).resolve())
     one_drive = os.environ.get("OneDrive")
     if one_drive:
         values.append(Path(one_drive).resolve())

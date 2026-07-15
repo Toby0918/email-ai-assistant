@@ -24,10 +24,14 @@ from backend.mailbox_ingest.service_models import (
 )
 from backend.private_knowledge.deidentifier import deidentify_private_text
 from backend.private_knowledge.key_store import open_candidate_key
-from backend.private_knowledge.repository import CandidateBatchStore
+from backend.private_knowledge.repository import CandidateBatchStore, DetachedCandidate
+from backend.private_knowledge.candidate_retention import (
+    purge_expired_candidate_batches,
+)
 from backend.private_knowledge.residual_scanner import scan_residuals
 from backend.private_knowledge.staging import stage_knowledge
 from backend.private_knowledge.staging_contract import (
+    CandidateBatchReceipt,
     StageKnowledgeResult,
     load_stage_selection_manifest,
 )
@@ -226,6 +230,10 @@ def execute_stage_knowledge_command(
     with candidate_key_loader(
         Path(arguments.candidate_batch_root), protector_factory()
     ) as candidate_key:
+        purge_expired_candidate_batches(
+            Path(arguments.candidate_batch_root), candidate_key,
+            clock=current_time,
+        )
         with source_factory(
             Path(arguments.vault),
             authorization_id=arguments.authorization_id,
@@ -238,10 +246,17 @@ def execute_stage_knowledge_command(
             clock=epoch_clock,
         ) as source:
             def write(candidates: tuple[object, ...]) -> object:
-                return CandidateBatchStore(
+                bound = tuple(
+                    DetachedCandidate(
+                        item.candidate_id, item.support_texts, source.evidence
+                    )
+                    for item in candidates
+                )
+                candidate_ids = CandidateBatchStore(
                     Path(arguments.candidate_batch_root), candidate_key,
-                    batch_id=batch_id, evidence=source.evidence,
-                ).write(candidates)
+                    batch_id=batch_id, clock=current_time,
+                ).write(bound)
+                return CandidateBatchReceipt(batch_id, candidate_ids)
 
             return stage_knowledge(
                 selected,

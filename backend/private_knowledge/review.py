@@ -32,7 +32,9 @@ class KnowledgeReviewService:
             raise PrivateKnowledgeError("candidate_invalid")
         created = _parse_time(card.lifecycle[1])
         expires = _parse_time(card.lifecycle[2])
-        if expires - created != timedelta(days=30) or self._now() >= expires:
+        remaining = expires - created
+        if (not timedelta(0) < remaining <= timedelta(days=30)
+                or self._now() >= expires):
             raise PrivateKnowledgeError("candidate_expired")
         if card.lifecycle[3] is not None or any(card.review[index] for index in (1, 2, 3)):
             raise PrivateKnowledgeError("candidate_invalid")
@@ -62,7 +64,11 @@ class KnowledgeReviewService:
         if len({item.actor_ref for item in (creator, business, privacy, owner) if item}) < (4 if owner else 3):
             raise PrivateKnowledgeError("actor_not_distinct")
         now = self._now()
-        due = now + timedelta(days=90)
+        reviewed_at = max(
+            _parse_time(item.approved_at)
+            for item in (business, privacy, owner) if item is not None
+        )
+        due = min(now + timedelta(days=90), reviewed_at + timedelta(days=90))
         mapping = card.to_mapping()
         mapping["lifecycle"] = {
             "status": "approved", "created_at": card.lifecycle[1],
@@ -71,6 +77,9 @@ class KnowledgeReviewService:
         return self._replace(mapping)
 
     def reject(self, card_id: str) -> None:
+        card = self._repository.get(card_id)
+        if card is None:
+            return
         self._candidate(card_id)
         self._repository.delete(card_id)
 
@@ -84,7 +93,9 @@ class KnowledgeReviewService:
         return tuple(expired)
 
     def expire_candidate(self, card_id: str) -> None:
-        card = self._existing(card_id)
+        card = self._repository.get(card_id)
+        if card is None:
+            return
         if (card.lifecycle[0] != "candidate"
                 or self._now() < _parse_time(card.lifecycle[2])):
             raise PrivateKnowledgeError("candidate_not_expired")

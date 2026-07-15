@@ -90,12 +90,30 @@ def load_stage_selection_manifest(
     return selected
 
 
+@dataclass(frozen=True, slots=True, repr=False)
+class CandidateBatchReceipt:
+    batch_id: str = field(repr=False)
+    candidate_ids: tuple[str, ...] = field(repr=False)
+
+    def __post_init__(self) -> None:
+        if (not isinstance(self.candidate_ids, tuple)
+                or not 1 <= len(self.candidate_ids) <= 200):
+            raise PrivateKnowledgeError("stage_result_invalid")
+        _uuid4(self.batch_id, "stage_result_invalid")
+        for value in self.candidate_ids:
+            _uuid4(value, "stage_result_invalid")
+
+    def __repr__(self) -> str:
+        return "CandidateBatchReceipt(<redacted>)"
+
+
 @dataclass(frozen=True, slots=True)
 class StageKnowledgeResult:
     code: str
     accepted_count: int
     rejected_count: int
     candidate_ids: tuple[str, ...] = field(repr=False)
+    batch_id: str | None = field(default=None, repr=False)
 
     def __post_init__(self) -> None:
         allowed = {"stage_complete", "stage_residual_blocked", "stage_callback_failed"}
@@ -105,7 +123,14 @@ class StageKnowledgeResult:
                 or not isinstance(self.candidate_ids, tuple)):
             raise PrivateKnowledgeError("stage_result_invalid")
         for value in self.candidate_ids:
-            _uuid4(value)
+            _uuid4(value, "stage_result_invalid")
+        success = self.code == "stage_complete"
+        if (success and (self.batch_id is None or not self.candidate_ids)):
+            raise PrivateKnowledgeError("stage_result_invalid")
+        if not success and (self.batch_id is not None or self.candidate_ids):
+            raise PrivateKnowledgeError("stage_result_invalid")
+        if self.batch_id is not None:
+            _uuid4(self.batch_id, "stage_result_invalid")
 
     def to_dict(self) -> dict[str, object]:
         return {
@@ -113,6 +138,7 @@ class StageKnowledgeResult:
             "accepted_count": self.accepted_count,
             "rejected_count": self.rejected_count,
             "candidate_ids": list(self.candidate_ids),
+            "batch_id": self.batch_id,
         }
 
 
@@ -153,13 +179,13 @@ def _fingerprint(value: object) -> str:
     return value
 
 
-def _uuid4(value: object) -> str:
+def _uuid4(value: object, code: str = "stage_selection_invalid") -> str:
     if not isinstance(value, str):
-        raise PrivateKnowledgeError("stage_selection_invalid")
+        raise PrivateKnowledgeError(code)
     try:
         parsed = uuid.UUID(value)
     except (ValueError, AttributeError):
-        raise PrivateKnowledgeError("stage_selection_invalid") from None
+        raise PrivateKnowledgeError(code) from None
     if str(parsed) != value or parsed.version != 4:
-        raise PrivateKnowledgeError("stage_selection_invalid")
+        raise PrivateKnowledgeError(code)
     return value

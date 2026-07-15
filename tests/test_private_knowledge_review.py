@@ -17,6 +17,9 @@ from backend.private_knowledge.repository import (
     DetachedCandidate,
 )
 from backend.private_knowledge.review import KnowledgeReviewService
+from backend.private_knowledge.candidate_retention import (
+    purge_expired_candidate_batches,
+)
 from backend.private_knowledge.schema import KnowledgeCardV1
 from tests.test_knowledge_card_schema import valid_card
 
@@ -135,9 +138,83 @@ class PrivateKnowledgeReviewTests(unittest.TestCase):
         self.clock.value = datetime(2026, 8, 13, 13, tzinfo=UTC)
 
         self.review.expire_candidate(selected.card_id)
+        self.review.expire_candidate(selected.card_id)
 
         self.assertIsNone(self.repository.get(selected.card_id))
         self.assertIsNotNone(self.repository.get(unrelated.card_id))
+
+    def test_candidate_batch_expires_after_thirty_days_without_touching_neighbors(self) -> None:
+        now = datetime(2026, 7, 14, 13, tzinfo=UTC)
+        clock = MutableClock(now)
+        candidate_root = self.root / "candidate"
+        first = CandidateBatchStore(
+            candidate_root, b"C" * 32, batch_id=str(uuid.uuid4()), clock=clock
+        )
+        adjacent = CandidateBatchStore(
+            candidate_root, b"C" * 32, batch_id=str(uuid.uuid4()), clock=clock
+        )
+        first.write((DetachedCandidate(
+            str(uuid.uuid4()), ("Synthetic support.",), ("1", "1")
+        ),))
+        adjacent.write((DetachedCandidate(
+            str(uuid.uuid4()), ("Adjacent synthetic support.",), ("1", "1")
+        ),))
+        raw_sentinel = self.root / "raw-vault-record.bin"
+        raw_sentinel.write_bytes(b"raw-sentinel")
+
+        clock.value = now + timedelta(days=30)
+        with self.assertRaisesRegex(PrivateKnowledgeError, "candidate_batch_expired"):
+            first.read()
+
+        self.assertFalse(first.path.exists())
+        self.assertTrue(adjacent.path.exists())
+        self.assertEqual(raw_sentinel.read_bytes(), b"raw-sentinel")
+
+    def test_candidate_discard_reencrypts_neighbors_and_deletes_empty_batch(self) -> None:
+        first = DetachedCandidate(
+            str(uuid.uuid4()), ("First synthetic support.",), ("1", "1")
+        )
+        second = DetachedCandidate(
+            str(uuid.uuid4()), ("Second synthetic support.",), ("3-5", "2-3")
+        )
+        store = CandidateBatchStore(
+            self.root / "candidate", b"C" * 32, batch_id=str(uuid.uuid4())
+        )
+        store.write((first, second))
+
+        store.discard(first.candidate_id)
+        self.assertEqual(store.read(), (second,))
+        store.discard(second.candidate_id)
+        store.discard(second.candidate_id)
+
+        self.assertFalse(store.path.exists())
+
+    def test_bounded_retention_purge_removes_only_expired_candidate_batches(self) -> None:
+        start = datetime(2026, 7, 14, 13, tzinfo=UTC)
+        old = CandidateBatchStore(
+            self.root / "candidate", b"C" * 32, batch_id=str(uuid.uuid4()),
+            clock=lambda: start,
+        )
+        current = CandidateBatchStore(
+            self.root / "candidate", b"C" * 32, batch_id=str(uuid.uuid4()),
+            clock=lambda: start + timedelta(days=1),
+        )
+        for store, text in ((old, "Old support."), (current, "Current support.")):
+            store.write((DetachedCandidate(
+                str(uuid.uuid4()), (text,), ("1", "1")
+            ),))
+        raw_sentinel = self.root / "raw-vault-record.bin"
+        raw_sentinel.write_bytes(b"raw-sentinel")
+
+        removed = purge_expired_candidate_batches(
+            self.root / "candidate", b"C" * 32,
+            clock=lambda: start + timedelta(days=30),
+        )
+
+        self.assertEqual(removed, 1)
+        self.assertFalse(old.path.exists())
+        self.assertTrue(current.path.exists())
+        self.assertEqual(raw_sentinel.read_bytes(), b"raw-sentinel")
 
     def test_authority_state_is_encrypted_authenticated_atomic_and_not_candidate_namespace(self) -> None:
         card = card_with()
@@ -157,7 +234,9 @@ class PrivateKnowledgeReviewTests(unittest.TestCase):
         batch = CandidateBatchStore(
             self.root / "candidate", b"C" * 32, batch_id=batch_id
         )
-        candidate = DetachedCandidate(str(uuid.uuid4()), "<PERSON_1> requested status.")
+        candidate = DetachedCandidate(
+            str(uuid.uuid4()), ("<PERSON_1> requested status.",), ("1", "1")
+        )
         batch.write((candidate,))
         batch_bytes = batch.path.read_bytes()
         self.assertTrue(batch_bytes.startswith(CANDIDATE_MAGIC))
@@ -178,6 +257,26 @@ class PrivateKnowledgeReviewTests(unittest.TestCase):
             crashing.delete(card.card_id)
         self.assertEqual(self.repository.get(card.card_id), card)
 
+    def test_candidate_batch_binds_evidence_to_each_support_bundle(self) -> None:
+        batch_id = str(uuid.uuid4())
+        first = DetachedCandidate(
+            str(uuid.uuid4()), ("A synthetic delivery request.",), ("1", "1")
+        )
+        second = DetachedCandidate(
+            str(uuid.uuid4()),
+            ("Synthetic support one.", "Synthetic support two."),
+            ("3-5", "2-3"),
+        )
+        store = CandidateBatchStore(
+            self.root / "candidate", b"C" * 32, batch_id=batch_id
+        )
+
+        store.write((first, second))
+        loaded = store.read()
+
+        self.assertEqual(loaded[0].evidence, ("1", "1"))
+        self.assertEqual(loaded[1].evidence, ("3-5", "2-3"))
+        self.assertEqual(loaded[1].support_texts, second.support_texts)
 
 if __name__ == "__main__":
     unittest.main()

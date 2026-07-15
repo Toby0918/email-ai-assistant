@@ -276,7 +276,7 @@ def render_next_steps(stage: str) -> str:
             "Keep `EMAIL_AGENT_LLM_PROVIDER=disabled` during implementation and automated verification.",
             "Implement later plan tasks with synthetic fakes and injected probes only.",
             "Do not connect to a mailbox or run DeepSeek without a separate operator authorization after offline gates pass.",
-            "Preserve the click-only current-message browser extension and normal runtime boundary.",
+            "Preserve the click-only current-message Tencent Exmail Chrome / Edge 浏览器扩展 and normal runtime boundary.",
         ]
     elif stage in {"agent_handoff_guardrails", "guardrails_setup"}:
         steps = [

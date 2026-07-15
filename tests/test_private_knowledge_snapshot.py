@@ -5,8 +5,10 @@ from __future__ import annotations
 import tempfile
 import unittest
 import uuid
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
+from unittest.mock import patch
 
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
@@ -14,6 +16,7 @@ from backend.private_knowledge.errors import PrivateKnowledgeError
 from backend.private_knowledge.runtime_loader import load_runtime_knowledge
 from backend.private_knowledge.schema import KnowledgeCardV1
 from backend.private_knowledge.snapshot import publish_runtime_snapshot
+from backend.private_knowledge.snapshot_path import validate_snapshot_path
 from tests.test_knowledge_card_schema import valid_card
 
 
@@ -138,6 +141,65 @@ class PrivateKnowledgeSnapshotTests(unittest.TestCase):
                 now=self.now,
                 forbidden_roots=(self.root, forbidden),
             )
+
+    def test_default_path_policy_rejects_temp_onedrive_and_raw_vault(self) -> None:
+        with self.assertRaisesRegex(PrivateKnowledgeError, "snapshot_path_invalid"):
+            validate_snapshot_path(self.target)
+        with self.assertRaisesRegex(PrivateKnowledgeError, "snapshot_path_invalid"):
+            validate_snapshot_path(
+                Path("C:/External/OneDrive - Synthetic/runtime/knowledge.pksnap")
+            )
+
+        vault = self.root / "synthetic-vault"
+        marker = vault / "keys" / "recovery-state.json"
+        marker.parent.mkdir(parents=True)
+        marker.write_text("{}", encoding="utf-8")
+        with patch(
+            "backend.private_knowledge.snapshot_path.tempfile.gettempdir",
+            return_value="C:/Synthetic-System-Temp",
+        ):
+            with self.assertRaisesRegex(
+                PrivateKnowledgeError, "snapshot_path_invalid"
+            ):
+                validate_snapshot_path(vault / "runtime" / "knowledge.pksnap")
+
+        candidate = self.root / "candidate-store"
+        candidate.mkdir()
+        (candidate / "candidate-key.pkenv").write_bytes(b"synthetic-marker")
+        with patch(
+            "backend.private_knowledge.snapshot_path.tempfile.gettempdir",
+            return_value="C:/Synthetic-System-Temp",
+        ):
+            with self.assertRaisesRegex(
+                PrivateKnowledgeError, "snapshot_path_invalid"
+            ):
+                validate_snapshot_path(
+                    candidate / "runtime" / "knowledge.pksnap"
+                )
+
+    def test_publication_revalidates_approved_reviews_after_factory_bypass(self) -> None:
+        valid = approved_card()
+        invalid_reviews = replace(
+            valid,
+            review=(valid.review[0], None, None, None),
+        )
+        invalid_shape = replace(valid, applicability=("general",))  # type: ignore[arg-type]
+
+        for invalid in (invalid_reviews, invalid_shape):
+            with self.subTest(invalid=invalid), self.assertRaisesRegex(
+                PrivateKnowledgeError, "snapshot_schema_invalid"
+            ):
+                publish_runtime_snapshot(
+                    self.target,
+                    (invalid,),
+                    authority_id=self.authority_id,
+                    snapshot_id=self.snapshot_id,
+                    encryption_key=self.key,
+                    signing_private_key=self.signing,
+                    now=self.now,
+                    path_validator=self.allow_path,
+                )
+        self.assertFalse(self.target.exists())
 
 
 if __name__ == "__main__":

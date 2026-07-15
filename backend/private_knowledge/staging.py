@@ -6,7 +6,11 @@ import uuid
 from typing import Callable
 
 from .repository import DetachedCandidate
-from .staging_contract import StageKnowledgeResult, StageKnowledgeSelection
+from .staging_contract import (
+    CandidateBatchReceipt,
+    StageKnowledgeResult,
+    StageKnowledgeSelection,
+)
 
 
 def stage_knowledge(
@@ -20,7 +24,7 @@ def stage_knowledge(
     ],
 ) -> StageKnowledgeResult:
     selected = StageKnowledgeSelection.from_value(selection)
-    candidates: list[DetachedCandidate] = []
+    support_texts: list[str] = []
     try:
         for record_id in selected.record_ids:
             with read_one_record(record_id) as raw:
@@ -37,14 +41,19 @@ def stage_knowledge(
                             "stage_residual_blocked", 0,
                             len(selected.record_ids), (),
                         )
-                    candidates.append(
-                        DetachedCandidate(str(uuid.uuid4()), deidentified.text)
-                    )
+                    support_texts.append(deidentified.text)
+        candidates = (
+            DetachedCandidate(str(uuid.uuid4()), tuple(support_texts)),
+        )
         candidate_ids = tuple(item.candidate_id for item in candidates)
         written = write_encrypted_candidate_batch(tuple(candidates))
-        if tuple(written) != candidate_ids:
+        if (not isinstance(written, CandidateBatchReceipt)
+                or written.candidate_ids != candidate_ids):
             raise ValueError
-        return StageKnowledgeResult("stage_complete", len(candidates), 0, candidate_ids)
+        return StageKnowledgeResult(
+            "stage_complete", len(selected.record_ids), 0, candidate_ids,
+            written.batch_id,
+        )
     except Exception:
         return StageKnowledgeResult(
             "stage_callback_failed", 0, len(selected.record_ids), ()

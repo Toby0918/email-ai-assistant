@@ -16,14 +16,16 @@ source_type: operation_guide
 | Field | Value |
 |---|---|
 | Generated on | 2026-07-14 |
-| Current stage | local_eval_mvp |
-| Git branch | master |
+| Current stage | authorized_private_ingest_build |
+| Git branch | codex/authorized-mailbox-ingest |
 | Git HEAD reference | Run `git rev-parse --short HEAD` in this workspace |
 | Working tree status | Run `git status --short --ignored` in this workspace |
 
 ## Project Summary
 
-本项目是企业邮箱中的 AI 辅助窗口。第一阶段只做“用户点击按钮后分析当前打开邮件”，不做全邮箱扫描、不自动发送邮件、不删除邮件、不归档邮件、不接入真实邮箱账号。
+本项目是企业邮箱中的 AI 辅助窗口。正常产品只做“用户点击按钮后分析当前打开邮件”，不做全邮箱扫描、不自动发送邮件、不删除邮件或归档邮件。
+
+Separately authorized exception: the `administrator-only CLI` may import one authorized account within a rolling 24-month window after explicit inventory fingerprint confirmation. The browser extension and normal runtime remain click-only and cannot scan a mailbox. The exception has no schedule, browser hook, normal-backend route, or automatic model call.
 
 ## Guardrails Established
 
@@ -38,6 +40,7 @@ source_type: operation_guide
 | `Cleanup automation: docs/operations/cleanup_agent_codex.md` | yes |
 | `Maintenance scan: scripts/maintenance_scan.py` | yes |
 | `Agent task brief: docs/templates/agent_task_brief_template.md` | yes |
+| `Authorized mailbox ingest boundary: docs/operations/authorized_mailbox_ingest_task_brief.md` | yes |
 
 ## Key File Status
 
@@ -76,6 +79,8 @@ source_type: operation_guide
 | `docs/constraints/architecture_constraints.md` | yes |
 | `docs/constraints/linter_constraints.md` | yes |
 | `docs/constraints/mechanical_rule_translation.md` | yes |
+| `docs/decisions/0006-authorized-mailbox-ingest-and-private-knowledge.md` | yes |
+| `docs/operations/authorized_mailbox_ingest_task_brief.md` | yes |
 | `docs/operations/project_status_log.md` | yes |
 | `docs/operations/project_status_log_guide.md` | yes |
 | `docs/operations/agents_project_status_snippet.md` | yes |
@@ -85,6 +90,10 @@ source_type: operation_guide
 | `docs/operations/documentation_rules.md` | yes |
 | `docs/operations/first_version_task_brief.md` | yes |
 | `docs/operations/tencent_exmail_browser_extension_task_brief.md` | yes |
+| `docs/superpowers/plans/2026-07-14-authorized-mailbox-ingest-knowledge-deepseek.md` | yes |
+| `docs/superpowers/plans/2026-07-14-mailbox-vault.md` | yes |
+| `docs/superpowers/plans/2026-07-14-private-knowledge.md` | yes |
+| `docs/superpowers/plans/2026-07-14-private-deepseek-evaluation.md` | yes |
 | `docs/templates/agent_task_brief_template.md` | yes |
 | `docs/templates/cleanup_task_template.md` | yes |
 | `scripts/repo_utils.py` | yes |
@@ -111,6 +120,7 @@ source_type: operation_guide
 | `tests/test_architecture_constraints.py` | yes |
 | `tests/test_static_linter_constraints.py` | yes |
 | `tests/test_mechanical_rule_constraints.py` | yes |
+| `tests/test_mailbox_transport_constraints.py` | yes |
 | `tests/test_maintenance_scan.py` | yes |
 | `tests/test_generate_project_status.py` | yes |
 | `tests/test_email_cleaner.py` | yes |
@@ -140,26 +150,26 @@ source_type: operation_guide
 
 | Status | Count |
 |---|---:|
-| active | 72 |
-| draft | 27 |
+| active | 80 |
+| draft | 29 |
 | deprecated | 0 |
 | missing_front_matter | 0 |
 
 ## Recommended Next Steps
 
-1. 运行完整测试和维护扫描。
-2. 用虚构样例手动试用本地调试页面。
-3. 提供 GitHub 远程地址后推送第一阶段项目。
-4. 继续验证 Tencent Exmail Chrome / Edge 浏览器扩展原型；Outlook Add-in 和 Google Workspace Add-on 保持后续单独确认。
+1. Keep `EMAIL_AGENT_LLM_PROVIDER=disabled` during implementation and automated verification.
+2. Implement later plan tasks with synthetic fakes and injected probes only.
+3. Do not connect to a mailbox or run DeepSeek without a separate operator authorization after offline gates pass.
+4. Preserve the click-only current-message Tencent Exmail Chrome / Edge 浏览器扩展 and normal runtime boundary.
 
 ## Do Not Touch Boundaries
 
-- 不接入真实邮箱账号。
-- 不读取真实邮箱数据。
+- 浏览器扩展和正常运行时不接入真实邮箱账号；唯一例外是管理员手动运行的单账户只读导入 CLI。
+- 浏览器扩展和正常运行时不读取真实邮箱数据；管理员 CLI 只处理授权范围并先确认 inventory fingerprint。
 - 不自动发送邮件。
 - 不自动删除邮件。
 - 不自动归档邮件。
-- 不自动扫描所有邮件。
+- 浏览器扩展和正常运行时不自动扫描所有邮件；管理员 CLI 没有 schedule、后台轮询或自动模型推理。
 - 不把 OpenAI API key 放入前端。
 - 不新增依赖，除非先更新约束文档并获得确认。
 - 不放宽任何测试、linter 或架构约束。

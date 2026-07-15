@@ -8,7 +8,11 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-from backend.private_knowledge.cli_service import PrivateKnowledgeCommandService
+from backend.private_knowledge.candidate_imports import ImportedCandidate
+from backend.private_knowledge.cli_service import (
+    PrivateKnowledgeCommandService,
+    _card_from_proposal,
+)
 from backend.private_knowledge.key_store import open_candidate_key
 from backend.private_knowledge.repository import CandidateBatchStore, DetachedCandidate
 from scripts.manage_private_knowledge import (
@@ -94,6 +98,36 @@ class ManagePrivateKnowledgeTests(unittest.TestCase):
                 )
                 self.assertNotIn("dispatch", events)
 
+    def test_candidate_creation_inherits_original_batch_expiry(self) -> None:
+        candidate = ImportedCandidate(
+            str(uuid.uuid4()), ("Synthetic support text.",), ("3-5", "2-3"),
+            "2026-08-13T13:00:00Z",
+        )
+        proposal = {
+            "schema_version": "KnowledgeProposalV1", "rule_type": "action",
+            "language": "en",
+            "applicability": {
+                "accountability": "general", "direction": "inbound",
+                "categories": ["order_followup"],
+            },
+            "generic_rule": "Verify progress before preparing a response.",
+            "normalized_signals": ["delivery_status"],
+            "enum_mapping": {
+                "priorities": ["normal"], "categories": ["order_followup"],
+                "risks": ["delivery_risk"], "actions": ["check_delivery"],
+            },
+            "safe_reply_guidance": "Acknowledge without promising a date.",
+            "creator_actor_ref": "actor-creator-001",
+            "privacy_checked_at": "2026-08-12T13:00:00Z",
+        }
+
+        card = _card_from_proposal(
+            candidate, proposal,
+            datetime(2026, 8, 12, 13, tzinfo=timezone.utc),
+        )
+
+        self.assertEqual(card.lifecycle[2], candidate.expires_at)
+
     def test_errors_and_results_are_fixed_and_never_include_exception_text(self) -> None:
         events: list[object] = []
         dependencies = PrivateCliDependencies(
@@ -133,10 +167,13 @@ class ManagePrivateKnowledgeTests(unittest.TestCase):
         with open_candidate_key(candidate_root, Protector()) as candidate_key:
             CandidateBatchStore(
                 candidate_root, candidate_key, batch_id=batch_id,
-                evidence=("3-5", "2-3"),
+                clock=lambda: datetime(
+                    2026, 7, 14, 13, tzinfo=timezone.utc
+                ),
             ).write((DetachedCandidate(
                 candidate_id,
-                "A placeholder asks for current delivery status.",
+                ("A placeholder asks for current delivery status.",),
+                ("3-5", "2-3"),
             ),))
 
         import_argv = [
@@ -146,6 +183,9 @@ class ManagePrivateKnowledgeTests(unittest.TestCase):
             "--candidate-id", candidate_id,
         ]
         self.assertEqual(run_cli(import_argv, dependencies=dependencies), 0)
+        self.assertFalse(
+            (candidate_root / f"batch-{batch_id}.pkcand").exists()
+        )
         proposal = self.root / "proposal.json"
         proposal.write_text(
             """{
@@ -191,6 +231,53 @@ class ManagePrivateKnowledgeTests(unittest.TestCase):
         self.assertEqual(run_cli(publish_argv, dependencies=dependencies), 0)
         self.assertTrue((self.root / "runtime" / "knowledge.pksnap").is_file())
         self.assertTrue(all(set(item) <= {"ok", "code", "count", "item_id"} for item in emitted))
+
+    def test_reject_imported_candidate_is_immediate_idempotent_and_isolated(self) -> None:
+        class Protector:
+            def protect(self, value: bytes) -> bytes:
+                return b"P" + value[::-1]
+
+            def unprotect(self, value: bytes) -> bytes:
+                return value[1:][::-1]
+
+        candidate_root = self.root / "candidate"
+        service = PrivateKnowledgeCommandService(
+            protector=Protector(),
+            clock=lambda: datetime(2026, 7, 14, 13, tzinfo=timezone.utc),
+            project_root=Path("C:/synthetic-project"),
+            storage_path_validator=lambda *_paths: None,
+        )
+        emitted: list[dict[str, object]] = []
+        dependencies = PrivateCliDependencies(service.dispatch, emitted.append)
+        self.assertEqual(run_cli(self._argv("init"), dependencies=dependencies), 0)
+        candidate_id = str(uuid.uuid4())
+        batch_id = str(uuid.uuid4())
+        with open_candidate_key(candidate_root, Protector()) as key:
+            CandidateBatchStore(
+                candidate_root, key, batch_id=batch_id,
+                clock=lambda: datetime(2026, 7, 14, 13, tzinfo=timezone.utc),
+            ).write((DetachedCandidate(
+                candidate_id, ("Synthetic reviewed support.",), ("3-5", "2-3")
+            ),))
+        raw_sentinel = self.root / "raw-vault-record.bin"
+        raw_sentinel.write_bytes(b"raw-sentinel")
+        import_argv = [
+            "import-candidate", "--authority-root", str(self.root / "authority"),
+            "--authority-id", self.authority_id,
+            "--batch-root", str(candidate_root), "--batch-id", batch_id,
+            "--candidate-id", candidate_id,
+        ]
+        reject_argv = [
+            "reject", "--authority-root", str(self.root / "authority"),
+            "--authority-id", self.authority_id, "--card-id", candidate_id,
+        ]
+
+        self.assertEqual(run_cli(import_argv, dependencies=dependencies), 0)
+        self.assertEqual(run_cli(reject_argv, dependencies=dependencies), 0)
+        self.assertEqual(run_cli(reject_argv, dependencies=dependencies), 0)
+
+        self.assertFalse((candidate_root / f"batch-{batch_id}.pkcand").exists())
+        self.assertEqual(raw_sentinel.read_bytes(), b"raw-sentinel")
 
 
 if __name__ == "__main__":

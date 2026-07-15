@@ -4,42 +4,19 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 
 from .atomic_ciphertext import exclusive_lock, read_ciphertext, replace_ciphertext
+from .candidate_batch import CANDIDATE_MAGIC, CandidateBatchStore, DetachedCandidate
 from .crypto_frames import decrypt_frame, encrypt_frame, validate_uuid4
 from .errors import PrivateKnowledgeError
-from .residual_scanner import scan_residuals
-from .schema import (
-    CONVERSATION_BUCKETS,
-    COUNTERPARTY_BUCKETS,
-    KnowledgeCardV1,
-)
+from .schema import KnowledgeCardV1
 
 
 AUTHORITY_MAGIC = b"PKAUTH01"
-CANDIDATE_MAGIC = b"PKCAND01"
 _AUTHORITY_PURPOSE = b"authority-state/v1"
-_CANDIDATE_PURPOSE = b"candidate-batch/v1"
 _MAX_STATE = 8 * 1024 * 1024
-
-
-@dataclass(frozen=True, slots=True, repr=False)
-class DetachedCandidate:
-    candidate_id: str
-    text: str
-
-    def __post_init__(self) -> None:
-        validate_uuid4(self.candidate_id, "candidate_invalid")
-        if not isinstance(self.text, str) or not 1 <= len(self.text) <= 2_000_000:
-            raise PrivateKnowledgeError("candidate_invalid")
-        if scan_residuals(self.text):
-            raise PrivateKnowledgeError("candidate_residual")
-
-    def __repr__(self) -> str:
-        return f"DetachedCandidate(candidate_id={self.candidate_id!r}, text=<redacted>)"
 
 
 class AuthorityRepository:
@@ -152,87 +129,6 @@ class AuthorityRepository:
             self._path, frame, error_code="repository_write_failed",
             crash_hook=self._crash_hook,
         )
-
-
-class CandidateBatchStore:
-    def __init__(self, root: Path, master_key: bytes | bytearray, *, batch_id: str,
-                 evidence: tuple[str, str] = ("1", "1"),
-                 rng: Callable[[int], bytes] = os.urandom) -> None:
-        self._root = _absolute_root(root)
-        self._key = bytes(master_key)
-        if len(self._key) != 32:
-            raise PrivateKnowledgeError("private_key_invalid")
-        self.batch_id = validate_uuid4(batch_id, "batch_invalid")
-        if (not isinstance(evidence, tuple) or len(evidence) != 2
-                or evidence[0] not in CONVERSATION_BUCKETS
-                or evidence[1] not in COUNTERPARTY_BUCKETS):
-            raise PrivateKnowledgeError("candidate_batch_invalid")
-        self.evidence = evidence
-        self._rng = rng
-        self.path = self._root / f"batch-{self.batch_id}.pkcand"
-
-    def write(self, candidates: tuple[DetachedCandidate, ...]) -> tuple[str, ...]:
-        if not isinstance(candidates, tuple) or not 1 <= len(candidates) <= 200:
-            raise PrivateKnowledgeError("candidate_batch_invalid")
-        if not all(isinstance(item, DetachedCandidate) for item in candidates):
-            raise PrivateKnowledgeError("candidate_batch_invalid")
-        if len({item.candidate_id for item in candidates}) != len(candidates):
-            raise PrivateKnowledgeError("candidate_batch_invalid")
-        payload = json.dumps(
-            {"format_version": 1, "batch_id": self.batch_id,
-             "evidence": {"conversation_bucket": self.evidence[0],
-                          "counterparty_bucket": self.evidence[1]},
-             "candidates": [{"candidate_id": item.candidate_id, "text": item.text}
-                            for item in candidates]},
-            sort_keys=True, separators=(",", ":"), ensure_ascii=False,
-        ).encode("utf-8")
-        frame = encrypt_frame(
-            payload, magic=CANDIDATE_MAGIC, purpose=_CANDIDATE_PURPOSE,
-            namespace_id=self.batch_id, master_key=self._key, rng=self._rng,
-        )
-        replace_ciphertext(self.path, frame, error_code="candidate_write_failed")
-        return tuple(item.candidate_id for item in candidates)
-
-    def read(self) -> tuple[DetachedCandidate, ...]:
-        return self.read_with_evidence()[1]
-
-    def read_with_evidence(
-        self,
-    ) -> tuple[tuple[str, str], tuple[DetachedCandidate, ...]]:
-        frame = read_ciphertext(
-            self.path, maximum=_MAX_STATE, code="candidate_read_failed"
-        )
-        plaintext = decrypt_frame(
-            frame, magic=CANDIDATE_MAGIC, purpose=_CANDIDATE_PURPOSE,
-            namespace_id=self.batch_id, master_key=self._key,
-            error_code="candidate_authentication_failed",
-        )
-        try:
-            state = json.loads(plaintext.decode("utf-8"))
-            if (not isinstance(state, dict)
-                    or set(state) != {"format_version", "batch_id", "evidence", "candidates"}
-                    or state["format_version"] != 1 or state["batch_id"] != self.batch_id
-                    or not isinstance(state["candidates"], list)
-                    or not isinstance(state["evidence"], dict)
-                    or set(state["evidence"]) != {
-                        "conversation_bucket", "counterparty_bucket"
-                    }):
-                raise ValueError
-            evidence = (
-                state["evidence"]["conversation_bucket"],
-                state["evidence"]["counterparty_bucket"],
-            )
-            if (evidence[0] not in CONVERSATION_BUCKETS
-                    or evidence[1] not in COUNTERPARTY_BUCKETS):
-                raise ValueError
-            result = tuple(DetachedCandidate(**item) for item in state["candidates"])
-        except (UnicodeDecodeError, json.JSONDecodeError, TypeError, ValueError):
-            raise PrivateKnowledgeError("candidate_schema_invalid") from None
-        if not 1 <= len(result) <= 200:
-            raise PrivateKnowledgeError("candidate_schema_invalid")
-        return evidence, result
-
-
 def _absolute_root(value: Path) -> Path:
     path = Path(value)
     if not path.is_absolute():

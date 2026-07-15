@@ -10,9 +10,28 @@ PLACEHOLDER = re.compile(r"<[A-Z_]+_[1-9][0-9]*>")
 AMBIGUOUS_CONTROLS = re.compile(r"[\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]")
 
 _PROMPT = re.compile(
-    r"(?im)^[^\r\n.!?]*(?:ignore\s+(?:all\s+)?previous\s+instructions|"
+    r"(?i)(?:ignore\s+(?:all\s+)?previous\s+instructions|"
     r"system\s+prompt|reveal\s+(?:the\s+)?prompt|"
-    r"忽略.{0,12}(?:指令|提示词)|你现在是)[^\r\n.!?]*(?:[.!?]|$)"
+    r"忽略[^\r\n.!?。！？]{0,12}(?:指令|提示词)|你现在是)"
+    r"[^\r\n.!?。！？]*(?:[.!?。！？]|$)"
+)
+
+IDENTITY_LIKE_PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
+    (
+        "PERSON_LIKE",
+        re.compile(
+            r"\b[A-Z][a-z]{1,30}(?:[-'][A-Z][a-z]{1,30})?\s+"
+            r"[A-Z][a-z]{1,30}(?:[-'][A-Z][a-z]{1,30})?\b"
+        ),
+    ),
+    (
+        "ORGANIZATION_LIKE",
+        re.compile(
+            r"(?i)\b(?:[a-z][a-z0-9&'-]*\s+){1,6}"
+            r"(?:ltd|limited|llc|inc|corp|corporation|company|gmbh|plc)\.?\b"
+            r"|[一-鿿]{2,}(?:有限公司|股份有限公司|集团|公司)"
+        ),
+    ),
 )
 
 PATTERNS: tuple[tuple[str, re.Pattern[str]], ...] = (
@@ -51,7 +70,9 @@ def iter_context_patterns(context: object) -> Iterable[tuple[str, re.Pattern[str
             raise TypeError
         normalized: list[str] = []
         for value in values:
-            if not isinstance(value, str) or not 1 <= len(value.strip()) <= 200:
+            if (not isinstance(value, str) or not 1 <= len(value.strip()) <= 200
+                    or "\n" in value or "\r" in value
+                    or AMBIGUOUS_CONTROLS.search(value) or PLACEHOLDER.search(value)):
                 raise TypeError
             normalized.append(value.strip())
         for value in sorted(set(normalized), key=len, reverse=True):

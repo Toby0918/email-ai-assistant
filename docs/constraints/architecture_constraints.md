@@ -191,8 +191,11 @@ random record IDs, decrypts one record at a time, runs the local
 private-knowledge deidentifier and residual scanner in memory, releases raw
 plaintext and the ephemeral mapping before the next record, and writes only an
 encrypted deidentified candidate batch under a separate knowledge namespace.
-Its result and all output, logs, receipts, and errors contain only candidate
-IDs, counts, and fixed codes, never raw record IDs, text, mapping,
+One reviewed support set becomes one candidate with evidence bound to that exact
+set. Its result and all output, logs, receipts, and errors contain only candidate
+IDs, counts, and fixed codes within candidate output; the same content-free
+receipt also carries the random batch ID required by the next explicit command.
+They never contain raw record IDs, text, mapping,
 paths, locators, or identifying values. `scripts/manage_private_knowledge.py`,
 Codex, DeepSeek, normal runtime, and automated tests never import or read the raw
 vault.

@@ -16,8 +16,10 @@ from backend.mailbox_ingest.scan_record import encode_scan_record
 from backend.private_knowledge.deidentifier import deidentify_private_text
 from backend.private_knowledge.errors import PrivateKnowledgeError
 from backend.private_knowledge.key_store import SecretBytes
+from backend.private_knowledge.cli_service import PrivateKnowledgeCommandService
 from backend.private_knowledge.repository import CandidateBatchStore
 from backend.private_knowledge.residual_scanner import ResidualFinding, scan_residuals
+from backend.private_knowledge.staging_contract import CandidateBatchReceipt
 from scripts.manage_mailbox_vault import (
     COMMANDS,
     StageKnowledgeResult,
@@ -146,16 +148,18 @@ class StageKnowledgeTests(unittest.TestCase):
                 project_root=Path("C:/synthetic-project"),
             )
 
+            self.assertEqual(result.batch_id, batch_id)
             batch = CandidateBatchStore(
-                root / "candidate", key, batch_id=batch_id
+                root / "candidate", key, batch_id=result.batch_id
             )
             ciphertext = batch.path.read_bytes()
-            evidence, candidates = batch.read_with_evidence()
+            candidates = batch.read()
 
         self.assertEqual(result.code, "stage_complete")
+        self.assertEqual(result.to_dict()["batch_id"], batch_id)
         self.assertTrue(source.closed)
         self.assertEqual(source.assert_record, record_id)
-        self.assertEqual(evidence, ("3-5", "2-3"))
+        self.assertEqual(candidates[0].evidence, ("3-5", "2-3"))
         self.assertNotIn(b"Alex Example", ciphertext)
         self.assertIn("<PERSON_1>", candidates[0].text)
         self.assertEqual(calls[0]["expected_vault_id"], selection([record_id])["vault_id"])
@@ -187,6 +191,67 @@ class StageKnowledgeTests(unittest.TestCase):
                     project_root=Path("C:/synthetic-project"),
                 )
             self.assertEqual(calls, [])
+
+    def test_stage_receipt_drives_real_synthetic_import_without_file_enumeration(self) -> None:
+        class Protector:
+            def protect(self, value: bytes) -> bytes:
+                return b"P" + value[::-1]
+
+            def unprotect(self, value: bytes) -> bytes:
+                return value[1:][::-1]
+
+        class Source:
+            evidence = ("3-5", "2-3")
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *_args):
+                return None
+
+            def read_one_record(self, _record_id: str):
+                return RawRecord("Alex Example requested status.", LiveState())
+
+        now = datetime(2026, 7, 14, 13, tzinfo=timezone.utc)
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            candidate_root = root / "candidate"
+            authority_root = root / "authority"
+            authority_id = str(uuid.uuid4())
+            service = PrivateKnowledgeCommandService(
+                protector=Protector(), clock=lambda: now,
+                project_root=Path("C:/synthetic-project"),
+                storage_path_validator=lambda *_paths: None,
+            )
+            service.dispatch(argparse.Namespace(
+                command="init", authority_root=authority_root,
+                candidate_root=candidate_root, authority_id=authority_id,
+            ))
+            manifest = root / "selection.json"
+            manifest.write_text(
+                json.dumps(selection(["f" * 32])), encoding="utf-8"
+            )
+            result = execute_stage_knowledge_command(
+                argparse.Namespace(
+                    vault=root / "raw-vault", authorization_id="AUTH-STAGE-1",
+                    account="one@example.test", selection_manifest=manifest,
+                    candidate_batch_root=candidate_root,
+                ),
+                source_factory=lambda *_args, **_kwargs: Source(),
+                protector_factory=Protector,
+                path_validator=lambda *_args: None,
+                current_time=lambda: now,
+                epoch_clock=lambda: 1_752_500_000,
+                project_root=Path("C:/synthetic-project"),
+            )
+
+            imported = service.dispatch(argparse.Namespace(
+                command="import-candidate", authority_root=authority_root,
+                authority_id=authority_id, batch_root=candidate_root,
+                batch_id=result.batch_id, candidate_id=result.candidate_ids[0],
+            ))
+
+        self.assertEqual(imported.code, "candidate_imported")
 
     def test_injected_vault_source_validates_scope_window_and_releases_plaintext(self) -> None:
         vault_id = "11111111-2222-4333-8444-555555555555"
@@ -242,6 +307,52 @@ class StageKnowledgeTests(unittest.TestCase):
             self.assertEqual(source.evidence, ("1", "1"))
         self.assertTrue(opened.closed)
 
+    def test_vault_source_separates_validated_header_organizations_from_people(self) -> None:
+        vault_id = "11111111-2222-4333-8444-555555555555"
+        scope = "a" * 64
+        record_id = "a" * 32
+        payload = encode_scan_record(
+            scope=scope, fingerprint="b" * 64, opaque_folder_id="c" * 64,
+            mailbox="INBOX", uidvalidity=1, uid=8,
+            internal_date=datetime(2025, 7, 14, tzinfo=timezone.utc),
+            expires_at_utc=1_800_000_000,
+            header=(
+                b"From: Example Trading Ltd. <sales@partner.example>\r\n"
+                b"To: Internal User <one@example.test>\r\n"
+                b"Message-ID: <synthetic-2@partner.example>\r\n\r\n"
+            ),
+            bodies=(b"Please confirm current status.",), attachments=(),
+            candidate_id_factory=lambda: "d" * 32,
+        )
+
+        opened = type("Opened", (), {
+            "identity": type("Identity", (), {"vault_id": vault_id})(),
+            "vault": type("Vault", (), {
+                "get_record": staticmethod(lambda _selected: SecretBuffer(payload))
+            })(),
+            "require_authorization_scope": lambda self, *_args: type(
+                "Scope", (), {"opaque_scope_id": scope}
+            )(),
+            "close": lambda self: None,
+        })()
+        source = open_knowledge_stage_source(
+            Path("E:/synthetic-vault"), authorization_id="AUTH-STAGE-1",
+            account="one@example.test", expected_vault_id=vault_id,
+            expected_scope=scope,
+            window_start=datetime(2024, 7, 14, tzinfo=timezone.utc),
+            window_end=datetime(2026, 7, 14, tzinfo=timezone.utc),
+            project_root=Path("C:/synthetic-project"),
+            validate_existing=lambda *_args: object(),
+            dpapi_factory=lambda: object(), opener=lambda *_args, **_kwargs: opened,
+            clock=lambda: 1_750_000_000,
+        )
+
+        with source, source.read_one_record(record_id) as raw:
+            self.assertEqual(raw.context["people"], ["Internal User"])
+            self.assertEqual(
+                raw.context["organizations"], ["Example Trading Ltd."]
+            )
+
     def test_one_at_a_time_release_then_encrypted_candidate_only_write(self) -> None:
         state = LiveState()
         state.raw = state.mapping = state.max_raw = state.max_mapping = 0
@@ -251,13 +362,18 @@ class StageKnowledgeTests(unittest.TestCase):
             record_ids[1]: "Alex Example requested a reply.",
         }
         writes: list[object] = []
+        batch_id = str(uuid.uuid4())
 
         def writer(candidates):
             self.assertEqual((state.raw, state.mapping), (0, 0))
             self.assertTrue(all(not hasattr(item, "raw_id") for item in candidates))
+            self.assertEqual(len(candidates), 1)
+            self.assertEqual(len(candidates[0].support_texts), 2)
             self.assertNotIn("Alex Example", repr(candidates))
             writes.append(candidates)
-            return tuple(item.candidate_id for item in candidates)
+            return CandidateBatchReceipt(
+                batch_id, tuple(item.candidate_id for item in candidates)
+            )
 
         result = stage_knowledge(
             selection(record_ids),
@@ -274,6 +390,8 @@ class StageKnowledgeTests(unittest.TestCase):
         rendered = repr(result)
         self.assertNotIn(record_ids[0], rendered)
         self.assertNotIn("Alex Example", rendered)
+        self.assertNotIn(batch_id, rendered)
+        self.assertNotIn(result.candidate_ids[0], rendered)
 
     def test_any_residual_blocks_all_writes_and_callback_errors_are_fixed(self) -> None:
         record_ids = ["3" * 32, "4" * 32]
@@ -295,6 +413,7 @@ class StageKnowledgeTests(unittest.TestCase):
             write_encrypted_candidate_batch=lambda value: writes.append(value),
         )
         self.assertEqual(blocked, StageKnowledgeResult("stage_residual_blocked", 0, 2, ()))
+        self.assertIsNone(blocked.to_dict()["batch_id"])
         self.assertEqual(writes, [])
         self.assertEqual((state.raw, state.mapping), (0, 0))
 
@@ -348,7 +467,9 @@ class StageKnowledgeTests(unittest.TestCase):
             batch = root / "candidate"
             manifest.write_text("{}", encoding="utf-8")
             events: list[object] = []
-            expected = StageKnowledgeResult("stage_complete", 1, 0, (str(uuid.uuid4()),))
+            expected = StageKnowledgeResult(
+                "stage_complete", 1, 0, (str(uuid.uuid4()),), str(uuid.uuid4())
+            )
             argv = [
                 "stage-knowledge", "--vault", str(root / "vault"),
                 "--authorization-id", "AUTH-STAGE-1",

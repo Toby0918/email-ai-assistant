@@ -50,13 +50,17 @@ inventory_request, product_specification, complaint_signal
 
 `conversation_bucket` 只能是 `1`、`2`、`3-5`、`6-10`、`11+`；
 `counterparty_bucket` 只能是 `1`、`2-3`、`4-10`、`11+`。批准默认要求至少
-`3-5` 会话区间和 `2-3` 交易对手区间。区间由本地 staging 计算，CLI 不接受
-操作者输入的证据计数或阈值覆盖。
+`3-5` 会话区间和 `2-3` 交易对手区间。每个区间必须绑定到该规则实际复核的
+`support_texts` 集合，不能继承批次内其他候选的汇总证据。一个经复核的支持集合
+只生成一个候选；区间由本地 staging 对该集合计算，CLI 不接受操作者输入的证据
+计数或阈值覆盖。`validate_non_verbatim` 必须检查同一个支持集合。
 
 每个审批 exact keys 为 `actor_ref`、`role`、`approved_at`、`card_version`。
 creator、business、privacy 必须由不同 actor 完成；price、payment、contract、
-quality、legal 还要求独立 accountable owner。候选 30 天过期，批准卡片最多
-90 天复核一次；deprecated 或 revoked 卡片不得进入运行时快照。
+quality、legal 还要求独立 accountable owner。审批角色和 `card_version` 必须与
+卡片绑定，schema 与 publisher 都会重新校验这些跨字段不变量、最低证据区间和
+不超过 90 天的复核期限。候选及其加密支持材料从原 staging 时间起最多保留 30
+天；`create` 不得重置到期时间。deprecated 或 revoked 卡片不得进入运行时快照。
 
 ## 禁止内容
 
