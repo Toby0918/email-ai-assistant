@@ -31,6 +31,16 @@ source sample.
 - The absolute file path must be outside the project, OneDrive and system temp,
   contain no reparse component, and not overlap a raw vault or another private
   store. The key has no CLI/env argument and is wiped from a mutable copy.
+- Dataset reads use a bounded descriptor and no-follow flags where the platform
+  supports them. Reads and staged atomic writes revalidate the original and
+  resolved path, reparse state, parent identity, and target identity before and
+  after the sensitive operation. On Windows these pre/post identity checks are
+  an in-process best-effort mitigation; the project does not claim absolute
+  protection against an actor with the same user privileges who can race kernel
+  namespace operations.
+- Descendant marker discovery reads directory metadata only, never file content;
+  a reparse point, inaccessible entry, depth/entry bound, or metadata error fails
+  closed instead of weakening raw-vault/private-store separation.
 
 The dataset contains exactly the keys `schema_version`, `dataset_namespace`, and
 `cases`, with 200 to 1000 unique cases. Each `PrivateEvaluationCaseV1` contains

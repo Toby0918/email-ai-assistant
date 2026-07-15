@@ -16,6 +16,7 @@ from backend.private_evaluation.runner import (
     FLASH_MODEL,
     PRO_MODEL,
     UsefulnessJudgeView,
+    _attempt_case,
     run_private_evaluation,
 )
 from backend.private_evaluation.schema import EvaluationDatasetV1
@@ -147,20 +148,36 @@ class PrivateEvaluationRunnerTests(unittest.TestCase):
         chosen = selection()
         flash = FakeClient(outputs_for(chosen.selected))
         pro = FakeClient(outputs_for(chosen.paired))
-        for refusal, code in (
-            (PrivateContextFallbackCode.SAFETY, "privacy_violation"),
-            (PrivateContextFallbackCode.BUDGET, "provider_error"),
+        for refusal, internal_code, internal_stage, public_code in (
+            (
+                PrivateContextFallbackCode.SAFETY,
+                "safety_rejected_all", "safety", "privacy_violation",
+            ),
+            (
+                PrivateContextFallbackCode.BUDGET,
+                "budget_exhausted", "budget", "latency_gate_failed",
+            ),
         ):
-            with self.subTest(refusal=refusal), patch(
-                "backend.private_evaluation.runner.build_private_model_context",
-                return_value=refusal,
-            ):
-                report = run_private_evaluation(
-                    chosen, flash_client=flash, pro_client=pro,
-                    usefulness_judge=lambda _view: True,
-                )
+            with self.subTest(refusal=refusal):
+                with patch(
+                    "backend.private_evaluation.runner.build_private_model_context",
+                    return_value=refusal,
+                ):
+                    attempt = _attempt_case(chosen.selected[0], FLASH_MODEL, flash, ())
+                    report = run_private_evaluation(
+                        chosen, flash_client=flash, pro_client=pro,
+                        usefulness_judge=lambda _view: True,
+                    )
+                self.assertEqual(attempt.error_code, public_code)
+                self.assertEqual(getattr(attempt, "fallback_code", None), internal_code)
+                self.assertEqual(getattr(attempt, "fallback_stage", None), internal_stage)
+                self.assertNotIn(internal_code, repr(attempt))
+                self.assertNotIn(internal_stage, repr(attempt))
                 self.assertEqual(report.status_code, "gate_stopped")
-                self.assertEqual(report.error_code_counts, {code: 1})
+                self.assertEqual(report.error_code_counts, {public_code: 1})
+                serialized = json.dumps(report.to_mapping(), sort_keys=True)
+                self.assertNotIn(internal_code, serialized)
+                self.assertNotIn(internal_stage, serialized)
         self.assertEqual((len(flash.calls), len(pro.calls)), (0, 0))
 
     def test_gate_stops_immediately_for_privacy_schema_safety_grounding_and_judge(self) -> None:

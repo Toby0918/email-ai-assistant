@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 import time
-from collections import Counter
-from dataclasses import dataclass, field
 from typing import Callable
 
 from backend.email_agent.analysis_budget import AnalysisBudget
@@ -28,43 +26,12 @@ from backend.email_agent.prompt_context import DEEPSEEK_SYSTEM_PROMPT
 from .case_context import build_case_context, provider_prose_is_safe
 from .metrics import ScoredOutcome, compute_model_metrics, flash_accepted, nearest_rank_p95, pro_qualifies
 from .reporting import FLASH_MODEL, PRO_MODEL, AggregateReport, make_report
+from .runner_values import UsefulnessJudgeView, _Attempt, _RunState
 from .schema import DeidentifiedEmailV1, EvaluationCaseV1, PrivateEvaluationError
 from .selection import EvaluationSelection
 
 
 _clock = time.monotonic
-
-
-@dataclass(frozen=True, slots=True, repr=False)
-class UsefulnessJudgeView:
-    input_subject: str = field(repr=False)
-    input_thread_text: str = field(repr=False)
-    analysis_summary: str = field(repr=False)
-    reply_subject: str = field(repr=False)
-    reply_body: str = field(repr=False)
-    category: str
-    risk_types: tuple[str, ...]
-    action_types: tuple[str, ...]
-
-
-@dataclass(frozen=True, slots=True, repr=False)
-class _Attempt:
-    public: dict[str, object] = field(repr=False)
-    latency: float
-    provider_called: bool
-    schema_success: bool
-    error_code: str | None
-    unsafe: bool = False
-    unsupported: bool = False
-
-
-@dataclass(slots=True, repr=False)
-class _RunState:
-    errors: Counter[str] = field(default_factory=Counter, repr=False)
-    flash_results: dict[EvaluationCaseV1, ScoredOutcome] = field(default_factory=dict, repr=False)
-    pro_results: list[ScoredOutcome] = field(default_factory=list, repr=False)
-    flash_attempted: int = 0
-    pro_attempted: int = 0
 
 
 def run_private_evaluation(
@@ -198,10 +165,10 @@ def _attempt_case(case, model, client, runtime_cards) -> _Attempt:
     private = build_private_model_context(
         PrivateModelRequest(context.prompt, ()), context.fallback, runtime_cards, budget
     )
-    if private is PrivateContextFallbackCode.SAFETY:
-        return _failed(context.fallback, started, False, False, "privacy_violation")
-    if not isinstance(private, PrivateModelContext):
-        return _failed(context.fallback, started, False, False, "provider_error")
+    refusal = _private_refusal(context.fallback, started, private)
+    if refusal is not None:
+        return refusal
+    assert isinstance(private, PrivateModelContext)
     try:
         raw = client(
             private.text, system_prompt=DEEPSEEK_SYSTEM_PROMPT, model=model,
@@ -239,10 +206,34 @@ def _attempt_case(case, model, client, runtime_cards) -> _Attempt:
     return _Attempt(merged.analysis, _latency(started), True, True, None)
 
 
-def _failed(fallback, started, called, schema, code, *, unsafe=False, unsupported=False):
+def _private_refusal(fallback, started, private):
+    values = {
+        PrivateContextFallbackCode.SAFETY: (
+            "privacy_violation", "safety_rejected_all", "safety",
+        ),
+        PrivateContextFallbackCode.BUDGET: (
+            "latency_gate_failed", "budget_exhausted", "budget",
+        ),
+    }
+    if isinstance(private, PrivateModelContext):
+        return None
+    public, internal, stage = values.get(
+        private, ("provider_error", None, None)
+    )
+    return _failed(
+        fallback, started, False, False, public,
+        fallback_code=internal, fallback_stage=stage,
+    )
+
+
+def _failed(
+    fallback, started, called, schema, code, *, unsafe=False, unsupported=False,
+    fallback_code=None, fallback_stage=None,
+):
     return _Attempt(
         fallback, _latency(started), called, schema, code,
         unsafe=unsafe, unsupported=unsupported,
+        fallback_code=fallback_code, fallback_stage=fallback_stage,
     )
 
 

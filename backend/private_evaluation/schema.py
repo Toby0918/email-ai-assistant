@@ -198,7 +198,8 @@ def _approvals(value: object, revision: int) -> CaseApprovalsV1:
 
 def _approval(value: object, role: str, revision: int) -> ApprovalV1:
     data = _mapping(value, _APPROVAL_VALUE_FIELDS)
-    if data["role"] != role or data["case_revision"] != revision:
+    case_revision = _positive_int(data["case_revision"])
+    if data["role"] != role or case_revision != revision:
         _invalid()
     approved_at = _text(data["approved_at"], 40)
     try:
@@ -207,7 +208,7 @@ def _approval(value: object, role: str, revision: int) -> ApprovalV1:
         _invalid()
     if parsed.tzinfo is None:
         _invalid()
-    return ApprovalV1(_uuid4(data["actor_ref"]), role, approved_at, revision)
+    return ApprovalV1(_uuid4(data["actor_ref"]), role, approved_at, case_revision)
 
 
 def _stratum(value: object) -> EvaluationStratumV1:

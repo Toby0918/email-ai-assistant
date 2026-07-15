@@ -4,9 +4,7 @@ from __future__ import annotations
 
 import json
 import os
-import stat
 import struct
-import tempfile
 import uuid
 from pathlib import Path
 
@@ -16,6 +14,13 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 from .schema import EvaluationDatasetV1, PrivateEvaluationError
+from .repository_io import read_bounded_checked, replace_bounded_checked
+from .repository_path import (
+    _inside_raw_vault,
+    _overlaps_other_store,
+    _reject_reparse,
+    _validate_external_dataset_path,
+)
 
 
 DATASET_MAGIC = b"PKEVAL01"
@@ -25,25 +30,14 @@ NONCE_SIZE = 12
 TAG_SIZE = 16
 _VERSION = 1
 _HEADER = struct.Struct(">8sB16sQ")
-_OTHER_STORE_SUFFIXES = frozenset({
-    ".pkauth", ".pkcand", ".pkimpt", ".pksnap", ".pkkey", ".pkstage",
-})
-_OTHER_STORE_MARKERS = frozenset({
-    "authority-keys.pkenv", "candidate-key.pkenv", "snapshot-key.pkenv",
-    "candidate-store.pkcand", "candidate-import.pkimpt",
-})
-
-
 def read_encrypted_dataset(path: Path, key: bytes | bytearray) -> EvaluationDatasetV1:
-    target = _validate_external_dataset_path(path)
+    original = Path(path)
     key_copy = _copy_key(key)
     try:
-        try:
-            frame = target.read_bytes()
-        except FileNotFoundError:
-            raise PrivateEvaluationError("dataset_unavailable") from None
-        except OSError:
-            raise PrivateEvaluationError("dataset_unavailable") from None
+        frame = read_bounded_checked(
+            original, MAX_DATASET_BYTES, _validate_external_dataset_path,
+            _test_race_hook,
+        )
         payload, namespace = _decrypt(frame, key_copy)
         try:
             decoded = json.loads(payload.decode("utf-8"))
@@ -64,7 +58,7 @@ def write_encrypted_dataset(
     dataset: EvaluationDatasetV1,
     key: bytes | bytearray,
 ) -> None:
-    target = _validate_external_dataset_path(path)
+    original = Path(path)
     if not isinstance(dataset, EvaluationDatasetV1):
         raise PrivateEvaluationError("dataset_schema_invalid")
     validated = EvaluationDatasetV1.from_mapping(dataset.to_mapping())
@@ -74,7 +68,10 @@ def write_encrypted_dataset(
         frame = _encrypt(payload, validated.dataset_namespace, key_copy)
         if len(frame) > MAX_DATASET_BYTES:
             raise PrivateEvaluationError("dataset_schema_invalid")
-        _atomic_write(target, frame)
+        replace_bounded_checked(
+            original, frame, MAX_DATASET_BYTES, _validate_external_dataset_path,
+            _test_race_hook,
+        )
     finally:
         _wipe(key_copy)
 
@@ -166,85 +163,6 @@ def _wipe(value: bytearray) -> None:
         value[index] = 0
 
 
-def _atomic_write(path: Path, payload: bytes) -> None:
-    temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with temporary.open("xb") as stream:
-            stream.write(payload)
-            stream.flush()
-            os.fsync(stream.fileno())
-        os.replace(temporary, path)
-    except OSError:
-        raise PrivateEvaluationError("dataset_unavailable") from None
-    finally:
-        try:
-            temporary.unlink(missing_ok=True)
-        except OSError:
-            pass
-
-
-def _validate_external_dataset_path(value: Path) -> Path:
-    path = Path(value)
-    if not path.is_absolute() or path.suffix != ".pkeval":
-        raise PrivateEvaluationError("dataset_unavailable")
-    try:
-        _reject_reparse(path)
-        resolved = path.resolve(strict=False)
-        _reject_reparse(resolved)
-    except (OSError, RuntimeError):
-        raise PrivateEvaluationError("dataset_unavailable") from None
-    project = Path(__file__).resolve().parents[2]
-    temporary = Path(tempfile.gettempdir()).resolve()
-    forbidden = (project, temporary)
-    if (
-        any(resolved == root or root in resolved.parents for root in forbidden)
-        or any(
-            part.casefold().startswith("onedrive")
-            for part in (*path.parts, *resolved.parts)
-        )
-        or (resolved.exists() and not resolved.is_file())
-        or _inside_raw_vault(resolved)
-        or _overlaps_other_store(resolved)
-    ):
-        raise PrivateEvaluationError("dataset_unavailable")
-    return resolved
-
-
-def _reject_reparse(path: Path) -> None:
-    for component in (path, *path.parents):
-        try:
-            metadata = component.lstat()
-        except FileNotFoundError:
-            continue
-        reparse = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400)
-        if stat.S_ISLNK(metadata.st_mode) or getattr(metadata, "st_file_attributes", 0) & reparse:
-            raise PrivateEvaluationError("dataset_unavailable")
-
-
-def _inside_raw_vault(path: Path) -> bool:
-    try:
-        return any(
-            (parent / "vault-index.sqlite3").exists()
-            or (parent / "keys" / "recovery-state.json").exists()
-            for parent in (path.parent, *path.parents)
-        )
-    except OSError:
-        raise PrivateEvaluationError("dataset_unavailable") from None
-
-
-def _overlaps_other_store(path: Path) -> bool:
-    for parent in (path.parent, *path.parents):
-        try:
-            entries = tuple(parent.iterdir()) if parent.exists() else ()
-        except OSError:
-            raise PrivateEvaluationError("dataset_unavailable") from None
-        if any(
-            entry != path and (
-                entry.suffix.casefold() in _OTHER_STORE_SUFFIXES
-                or entry.name.casefold() in _OTHER_STORE_MARKERS
-            )
-            for entry in entries
-        ):
-            return True
-    return False
+def _test_race_hook(_stage: str, _path: Path) -> None:
+    """No-op seam: tests may only mutate paths; all checks still run afterward."""
+    return None

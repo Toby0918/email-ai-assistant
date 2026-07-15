@@ -199,6 +199,70 @@ class PrivateEvaluationRepositoryTests(unittest.TestCase):
         with self.assertRaisesRegex(PrivateEvaluationError, "dataset_unavailable"):
             _validate_external_dataset_path(link / "private.pkeval")
 
+    def test_dataset_root_rejects_descendant_raw_vault_and_private_store_markers(self) -> None:
+        from backend.private_evaluation.repository import (
+            _inside_raw_vault,
+            _overlaps_other_store,
+        )
+
+        nested_raw = self.root / "nested_raw"
+        nested_raw.mkdir()
+        (nested_raw / "vault-index.sqlite3").write_text("synthetic", encoding="utf-8")
+        self.assertTrue(_inside_raw_vault(self.path))
+        (nested_raw / "vault-index.sqlite3").unlink()
+        (nested_raw / "candidate-store.pkcand").write_text("synthetic", encoding="utf-8")
+        self.assertTrue(_overlaps_other_store(self.path))
+
+    def test_read_is_bounded_and_detects_target_identity_swap_after_validation(self) -> None:
+        replacement = self.root / "replacement.pkeval"
+        with patch("tempfile.gettempdir", return_value="C:/SyntheticPolicyTemp"):
+            write_encrypted_dataset(self.path, self.dataset, self.key)
+            write_encrypted_dataset(replacement, self.dataset, self.key)
+
+            swapped = False
+
+            def swap(stage: str, _path: Path) -> None:
+                nonlocal swapped
+                if stage == "read_before_open" and not swapped:
+                    os.replace(replacement, self.path)
+                    swapped = True
+
+            with patch(
+                "backend.private_evaluation.repository._test_race_hook",
+                side_effect=swap,
+                create=True,
+            ), self.assertRaisesRegex(PrivateEvaluationError, "dataset_unavailable"):
+                read_encrypted_dataset(self.path, self.key)
+
+            self.path.write_bytes(os.urandom(8 * 1024 * 1024 + 1))
+            with patch.object(
+                Path, "read_bytes", side_effect=AssertionError("unbounded read")
+            ), self.assertRaisesRegex(
+                PrivateEvaluationError, "dataset_decrypt_invalid"
+            ):
+                read_encrypted_dataset(self.path, self.key)
+
+    def test_write_detects_target_identity_swap_before_replace(self) -> None:
+        intruder = self.root / "intruder.bin"
+        intruder.write_bytes(b"synthetic intruder")
+        with patch("tempfile.gettempdir", return_value="C:/SyntheticPolicyTemp"):
+            write_encrypted_dataset(self.path, self.dataset, self.key)
+
+            swapped = False
+
+            def swap(stage: str, _path: Path) -> None:
+                nonlocal swapped
+                if stage == "write_before_replace" and not swapped:
+                    os.replace(intruder, self.path)
+                    swapped = True
+
+            with patch(
+                "backend.private_evaluation.repository._test_race_hook",
+                side_effect=swap,
+                create=True,
+            ), self.assertRaisesRegex(PrivateEvaluationError, "dataset_unavailable"):
+                write_encrypted_dataset(self.path, self.dataset, self.key)
+
     def test_constants_pin_independent_frame_contract(self) -> None:
         self.assertEqual(DATASET_MAGIC, b"PKEVAL01")
         self.assertEqual(DATASET_PURPOSE, b"private-evaluation-dataset/v1")

@@ -13,6 +13,18 @@ from backend.private_evaluation.schema import (
 from tests.private_evaluation_fixtures import CATEGORIES, RISKS, case_mapping, dataset_mapping
 
 
+def with_content_leaf(field: str, text: str) -> dict[str, object]:
+    value = case_mapping(0)
+    email = value["deidentified_email"]
+    if field in {"recipients", "cc"}:
+        email[field] = [text]  # type: ignore[index]
+    elif field == "attachment_text":
+        email["attachments"] = [{"kind": "pdf", "text": text}]  # type: ignore[index]
+    else:
+        email[field] = text  # type: ignore[index]
+    return value
+
+
 class PrivateEvaluationSchemaTests(unittest.TestCase):
     def test_valid_dataset_is_immutable_and_uses_production_enums(self) -> None:
         dataset = EvaluationDatasetV1.from_mapping(dataset_mapping())
@@ -77,6 +89,17 @@ class PrivateEvaluationSchemaTests(unittest.TestCase):
         unpaired = case_mapping(0, pair=False)
         self.assertIsNone(EvaluationCaseV1.from_mapping(unpaired).approvals.pro_pair)
 
+    def test_every_approval_revision_requires_an_exact_positive_integer(self) -> None:
+        for approval_name in ("business", "privacy", "pro_pair"):
+            for invalid in (True, 1.0, "1", 0, -1):
+                value = case_mapping(0)
+                value["approvals"][approval_name]["case_revision"] = invalid  # type: ignore[index]
+                with self.subTest(approval=approval_name, invalid=invalid):
+                    with self.assertRaisesRegex(
+                        PrivateEvaluationError, "dataset_schema_invalid"
+                    ):
+                        EvaluationCaseV1.from_mapping(value)
+
     def test_expected_category_and_primary_risk_are_bound_to_stratum(self) -> None:
         value = case_mapping(0)
         value["expected"]["category"] = "unknown"  # type: ignore[index]
@@ -128,6 +151,42 @@ class PrivateEvaluationSchemaTests(unittest.TestCase):
         rejected["deidentified_email"]["subject"] = "界" * 667  # type: ignore[index]
         with self.assertRaisesRegex(PrivateEvaluationError, "dataset_schema_invalid"):
             EvaluationCaseV1.from_mapping(rejected)
+
+    def test_every_content_leaf_rejects_private_ids_names_bad_placeholders_and_controls(self) -> None:
+        fields = (
+            "subject", "sender", "recipients", "cc", "sent_at", "thread_text",
+            "attachment_text",
+        )
+        canaries = (
+            "vault_id: vault-123456", "authority_id: auth-123456",
+            "card_id: card-123456", "actor-123456", "message_id: msg-123456",
+            "attachment_id: att-123456", "source_id: src-123456",
+            "private_id: private-123456", "王小明", "张伟",
+            "<person_1>", "<PERSON_0>", "<PERSON_01>", "<UNKNOWN_1>",
+            "<PERSON_1", "恢复原始占位符映射", "safe\u202etext", "safe\u200btext",
+            "safe\x00text", "safe\ud800text",
+            "11111111-2222-4333-8444-555555555555",
+        )
+        for field in fields:
+            for canary in canaries:
+                with self.subTest(field=field, canary=ascii(canary)):
+                    with self.assertRaisesRegex(
+                        PrivateEvaluationError, "dataset_schema_invalid"
+                    ) as caught:
+                        EvaluationCaseV1.from_mapping(with_content_leaf(field, canary))
+                    self.assertNotIn(canary, repr(caught.exception))
+
+    def test_only_canonical_task4_placeholders_are_allowed_in_content_leaves(self) -> None:
+        canonical = {
+            "subject": "Request from <ORGANIZATION_1>", "sender": "<EMAIL_1>",
+            "recipients": "<EMAIL_2>", "cc": "<EMAIL_3>", "sent_at": "<DATE_1>",
+            "thread_text": "Review <ORDER_ID_1> for <PERSON_1>.",
+            "attachment_text": "Document <FILENAME_1> contains <AMOUNT_1>.",
+        }
+        for field, text in canonical.items():
+            with self.subTest(field=field):
+                parsed = EvaluationCaseV1.from_mapping(with_content_leaf(field, text))
+                self.assertIsNotNone(parsed.deidentified_email)
 
     def test_dataset_requires_count_uniqueness_coverage_and_nonzero_denominators(self) -> None:
         with self.assertRaisesRegex(PrivateEvaluationError, "dataset_case_count_invalid"):

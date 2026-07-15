@@ -195,6 +195,15 @@ class PrivateEvaluationMetricTests(unittest.TestCase):
             with self.subTest(change=change):
                 self.assertFalse(pro_qualifies(flash, accepted_metrics(**change)))
 
+    def test_pro_quality_delta_uses_the_exact_point_zero_five_boundary(self) -> None:
+        flash = accepted_metrics(quality_score=0.0)
+        below = math.nextafter(0.05, 0.0)
+        exact = 0.05
+        above = math.nextafter(0.05, math.inf)
+        self.assertFalse(pro_qualifies(flash, accepted_metrics(quality_score=below)))
+        self.assertTrue(pro_qualifies(flash, accepted_metrics(quality_score=exact)))
+        self.assertTrue(pro_qualifies(flash, accepted_metrics(quality_score=above)))
+
 
 if __name__ == "__main__":
     unittest.main()
