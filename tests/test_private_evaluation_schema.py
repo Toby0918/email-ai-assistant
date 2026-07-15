@@ -163,7 +163,9 @@ class PrivateEvaluationSchemaTests(unittest.TestCase):
             "attachment_id: att-123456", "source_id: src-123456",
             "private_id: private-123456", "王小明", "张伟",
             "<person_1>", "<PERSON_0>", "<PERSON_01>", "<UNKNOWN_1>",
-            "<PERSON_1", "恢复原始占位符映射", "safe\u202etext", "safe\u200btext",
+            "<PERSON_1", "<<PERSON_1>>", "<PERSON_1>>", "<<PERSON_1>",
+            "prefix <PERSON_1>> suffix", "<PERSON_1><", "><PERSON_1>",
+            "恢复原始占位符映射", "safe\u202etext", "safe\u200btext",
             "safe\x00text", "safe\ud800text",
             "11111111-2222-4333-8444-555555555555",
         )

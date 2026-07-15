@@ -65,7 +65,7 @@ def _evaluation_content_safe(text: str) -> bool:
         if parsed is None or parsed.group(1) not in _TASK4_PLACEHOLDER_TYPES:
             return False
     scrubbed = _CANONICAL_PLACEHOLDER.sub(" ", text)
-    if _PLACEHOLDER_FRAGMENT.search(scrubbed):
+    if "<" in scrubbed or ">" in scrubbed or _PLACEHOLDER_FRAGMENT.search(scrubbed):
         return False
     if _PRIVATE_IDENTIFIER.search(scrubbed) or _RESTORATION_HINT.search(scrubbed):
         return False
