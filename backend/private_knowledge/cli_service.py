@@ -77,10 +77,10 @@ class PrivateKnowledgeCommandService:
         with open_authority_keys(authority, self._protector) as keys:
             AuthorityRepository(
                 authority, keys.authority_key, authority_id=arguments.authority_id
-            ).initialize()
+            ).initialize(resume_empty=True)
             ImportedCandidateStore(
                 authority, keys.authority_key, authority_id=arguments.authority_id
-            ).initialize()
+            ).initialize(resume_empty=True)
         return PrivateCliResult("private_knowledge_initialized")
 
     def _import_candidate(self, arguments: argparse.Namespace) -> PrivateCliResult:

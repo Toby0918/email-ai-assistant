@@ -54,9 +54,11 @@ class ImportedCandidateStore:
         self._rng = rng
         self._path = self._root / "candidate-imports.pkimpt"
 
-    def initialize(self) -> None:
+    def initialize(self, *, resume_empty: bool = False) -> None:
         with exclusive_lock(self._root, ".candidate-imports.lock", error_code="candidate_import_locked"):
             if self._path.exists():
+                if resume_empty and not self._load():
+                    return
                 raise PrivateKnowledgeError("candidate_import_exists")
             self._write({"format_version": 1, "authority_id": self._authority_id,
                          "candidates": []})

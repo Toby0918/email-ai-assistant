@@ -38,9 +38,11 @@ class AuthorityRepository:
         self._crash_hook = crash_hook
         self._path = self._root / "authority.pkauth"
 
-    def initialize(self) -> None:
+    def initialize(self, *, resume_empty: bool = False) -> None:
         with exclusive_lock(self._root, ".authority.lock", error_code="repository_locked"):
             if self._path.exists():
+                if resume_empty and not self._load_cards():
+                    return
                 raise PrivateKnowledgeError("repository_exists")
             self._write({"format_version": 1, "authority_id": self.authority_id, "cards": []})
 

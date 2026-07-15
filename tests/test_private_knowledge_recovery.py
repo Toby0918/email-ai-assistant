@@ -251,6 +251,31 @@ class PrivateKnowledgeRecoveryTests(unittest.TestCase):
         self.assertFalse((authority / "authority-keys.pkenv").exists())
         self.assertEqual(candidate_path.read_bytes(), tampered)
 
+    def test_cli_init_resumes_after_import_store_initialization_failure(self) -> None:
+        authority = self.root / "state-recovery-authority"
+        candidate = self.root / "state-recovery-candidate"
+        arguments = argparse.Namespace(
+            command="init", authority_root=authority,
+            candidate_root=candidate, authority_id=str(uuid.uuid4()),
+        )
+
+        with patch.object(
+            ImportedCandidateStore,
+            "initialize",
+            side_effect=PrivateKnowledgeError("candidate_import_write_failed"),
+        ), self.assertRaisesRegex(
+            PrivateKnowledgeError, "candidate_import_write_failed"
+        ):
+            self.service.dispatch(arguments)
+
+        self.assertTrue((authority / "authority.pkauth").is_file())
+        self.assertFalse((authority / "candidate-imports.pkimpt").exists())
+
+        result = self.service.dispatch(arguments)
+
+        self.assertEqual(result.code, "private_knowledge_initialized")
+        self.assertTrue((authority / "candidate-imports.pkimpt").is_file())
+
 
 if __name__ == "__main__":
     unittest.main()
