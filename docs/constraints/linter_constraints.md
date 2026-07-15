@@ -350,16 +350,42 @@ containing package and apply a positive import allowlist to all modules, not onl
 `backend.*` names. Unlisted standard-library/network modules such as `ftplib` and
 relative escapes into mailbox ingest must fail.
 
-The evaluation CLI must expose only the frozen `verify` and `run` surfaces. It
-must not accept model, endpoint, key, key-file, prompt, case-count, threshold,
-retry, stream, batch, force, or production-switch overrides. Provider construction
-must remain a lazy function reached only after local validation, exact confirmation,
-provider configuration, and human-judge availability checks. Static and unit tests
-must run offline with the provider disabled.
+The evaluation CLI must expose only the fixed `build`, `verify`, and `run`
+surfaces. It must not accept model, endpoint, key, key-file, namespace, prompt,
+case-count, threshold, retry, stream, batch, force/overwrite, transcript,
+export/save/output, or production-switch overrides. `--interactive-judge` is
+valid only for `run`; without it the command returns fixed
+`human_judge_unavailable`. Provider construction must remain a lazy function
+reached only after exact confirmation, real local stdin/stdout TTY, fixed exact-y
+readiness acknowledgement, hidden key,
+dataset decrypt/schema/selection, local judge construction and provider
+configuration. Static and unit tests must run offline with the provider disabled.
+
+Mechanical tests must keep `dataset_builder.py` limited to `EvaluationStageV1`
+and final schema construction, require a fresh UUIDv4 namespace, exact 200/full
+strata/current dual approval/40 Pro validation, and exercise create-only target,
+separate-directory, reparse, race and no-partial-write behavior. The same
+operator-supplied 32-byte key may cross the stage/final handoff only in the
+evaluator CLI; stage/final magic, purpose, namespace and nonce remain distinct.
+
+`terminal_judge.py` must import only the fixed error, `UsefulnessJudgeView`, and
+the pure terminal-text safety predicate. It must never reference
+`EvaluationCaseV1`, case/actor/dataset IDs, raw
+provider JSON, paths, keys, namespaces, approvals, mappings, JSON/filesystem/log
+writers or transcript storage. ESC, C0/C1, bidi/format and other terminal controls
+must fail before rendering. A fixed exact-y readiness read happens before the hidden
+key and clients; the adapter then accepts one exact lowercase `y`/`n` per case;
+invalid input, EOF or terminal failure stops before the next provider call with
+fixed `human_judge_failed`.
 
 The aggregate serializer must reject unknown keys/codes, boolean counts, non-finite
 numbers, arbitrary strings, and nested sample-like fields. Errors, repr, stdout,
 stderr, test output, and maintenance output must remain content-free.
+The sole stdout exception is the explicit real local TTY judge display of the
+already-deidentified input and production-gated public output. The program writes
+no transcript and cannot prevent external terminal capture. Only the aggregate-only
+report persists; exact 20 Flash + 180 Flash / 40 Pro, zero retry, and no automatic
+production model switch remain mechanically pinned.
 
 ## 14. 修改规则
 

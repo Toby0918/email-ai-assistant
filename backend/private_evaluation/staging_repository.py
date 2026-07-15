@@ -6,7 +6,6 @@ import json
 import os
 import struct
 import uuid
-from dataclasses import dataclass, field
 from pathlib import Path
 
 from cryptography.exceptions import InvalidTag
@@ -18,6 +17,7 @@ from .errors import PrivateEvaluationError
 from .repository_io import read_bounded_checked, replace_bounded_checked
 from .repository_path import _validate_external_private_path
 from .schema import EvaluationCaseV1
+from .staging_values import EvaluationStageV1
 
 
 STAGE_MAGIC = b"PKESTG01"
@@ -27,41 +27,6 @@ NONCE_SIZE = 12
 TAG_SIZE = 16
 _VERSION = 1
 _HEADER = struct.Struct(">8sB16sQ")
-_STAGE_FIELDS = frozenset({"schema_version", "stage_namespace", "cases"})
-
-
-@dataclass(frozen=True, slots=True, repr=False)
-class EvaluationStageV1:
-    schema_version: str
-    stage_namespace: str
-    cases: tuple[EvaluationCaseV1, ...] = field(repr=False)
-
-    @classmethod
-    def from_mapping(cls, value: object) -> EvaluationStageV1:
-        if type(value) is not dict or set(value) != _STAGE_FIELDS:
-            _schema_invalid()
-        if value["schema_version"] != "PrivateEvaluationStageV1":
-            _schema_invalid()
-        namespace = _uuid4(value["stage_namespace"])
-        raw_cases = value["cases"]
-        if type(raw_cases) is not list or len(raw_cases) != 200:
-            _schema_invalid()
-        try:
-            cases = tuple(EvaluationCaseV1.from_mapping(item) for item in raw_cases)
-        except PrivateEvaluationError:
-            _schema_invalid()
-        if len({case.case_id for case in cases}) != 200:
-            _schema_invalid()
-        return cls("PrivateEvaluationStageV1", namespace, cases)
-
-    def to_mapping(self) -> dict[str, object]:
-        return {
-            "schema_version": self.schema_version,
-            "stage_namespace": self.stage_namespace,
-            "cases": [case.to_mapping() for case in self.cases],
-        }
-
-
 def read_encrypted_stage(
     path: Path,
     key: bytes | bytearray,
@@ -216,18 +181,6 @@ def _copy_key(value: bytes | bytearray) -> bytearray:
     if not isinstance(value, (bytes, bytearray)) or len(value) != 32:
         raise PrivateEvaluationError("evaluation_key_unavailable")
     return bytearray(value)
-
-
-def _uuid4(value: object) -> str:
-    if type(value) is not str:
-        _schema_invalid()
-    try:
-        parsed = uuid.UUID(value)
-    except (ValueError, AttributeError):
-        _schema_invalid()
-    if str(parsed) != value or parsed.version != 4:
-        _schema_invalid()
-    return value
 
 
 def _wipe(value: bytearray) -> None:

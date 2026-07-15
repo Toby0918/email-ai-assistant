@@ -10,6 +10,7 @@ from backend.private_knowledge.entity_patterns import PATTERNS
 from backend.private_knowledge.residual_scanner import scan_residuals
 
 from .errors import PrivateEvaluationError
+from .terminal_text_safety import terminal_text_is_safe
 
 
 _UUID_TEXT = re.compile(
@@ -52,7 +53,7 @@ def enum_tuple(value: object, allowed: frozenset[str], maximum: int) -> tuple[st
 def safe_text(value: object, maximum: int) -> str:
     text = text_value(value, maximum)
     if (
-        "\x00" in text or _UUID_TEXT.search(text)
+        not terminal_text_is_safe(text) or _UUID_TEXT.search(text)
         or not _evaluation_content_safe(text) or scan_residuals(text)
     ):
         invalid()

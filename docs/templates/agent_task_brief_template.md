@@ -242,7 +242,23 @@ handoff.
 [ ] Verification is synthetic/offline and does not open a real mailbox, vault, provider, DPAPI, BitLocker or ignored SQLite file.
 ```
 
-## 19. 执行后记录
+## 19. Final dataset build and interactive judge checklist
+
+Before closing a task that changes the stage-to-final evaluator or local judge,
+also complete this checklist:
+
+```text
+[ ] `build` accepts only `EvaluationStageV1`, revalidates exactly 200 cases, all strata, dual approvals, and at least 40 Pro approvals.
+[ ] `.pkevalstage` and `.pkeval` use fresh distinct UUIDv4 namespaces, magic, HKDF purpose and random nonce under the same operator-supplied 32-byte hidden key.
+[ ] Final output uses atomic no-clobber create-only publication in a separate external directory; rollback unlinks only the exact published identity and never a competitor; the stage is never auto-deleted.
+[ ] Build/verify create no provider, judge, network, transcript, log or per-case output.
+[ ] Run gate order is explicit interactive flag, exact confirmation, real local TTY, fixed exact-y readiness, hidden key, dataset validation/selection, provider configuration, client construction, calls.
+[ ] The adapter receives only `UsefulnessJudgeView`, rejects terminal control/format characters, accepts one exact y/n, and terminal failure stops before the next provider call.
+[ ] Only the aggregate report persists; behavior remains 20 Flash + 180 Flash / 40 Pro, zero retry, and no automatic production model switch.
+[ ] The implementation creates no transcript and documents that it cannot prevent external terminal capture.
+```
+
+## 20. 执行后记录
 
 任务完成后填写。
 

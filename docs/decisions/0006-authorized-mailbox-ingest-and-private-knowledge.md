@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-14
+last_update: 2026-07-15
 status: active
 owner: "@tobyWang"
 review_cycle: quarterly
@@ -119,6 +119,30 @@ Private live evaluation stops after its first 20 cases on any schema, safety,
 grounding, serialization, or p95 latency gate failure. There is one call per
 case and no retry. Flash remains default; Pro requires an approved paired
 comparison and must improve quality without safety or latency regression.
+
+### Separate staged evaluation, final dataset, and local judging
+
+The raw-vault bridge ends at an encrypted `.pkevalstage`. The evaluator may
+decrypt only that strict `EvaluationStageV1`, revalidate exactly 200 unique cases,
+complete production strata, current business/privacy approvals and at least 40
+explicit Pro-pair approvals, then create one final `.pkeval` in a separate external
+directory. It uses the same operator-supplied 32-byte hidden key but a fresh UUIDv4
+final namespace, final-specific magic/HKDF purpose and a fresh random nonce. The
+final target uses atomic no-clobber publication and identity-checked failure cleanup;
+it never overwrites or deletes a competitor. The stage is never deleted
+automatically. Build constructs no provider or judge and makes no network call.
+
+Live usefulness judging remains default-off. `run` requires both the exact
+confirmation and explicit `--interactive-judge`, with stdin and stdout attached to
+a real local TTY and one fixed exact-y readiness acknowledgement before the hidden
+key or dataset is opened. The adapter receives
+only `UsefulnessJudgeView`, renders deidentified input plus production-gated public
+output only after rejecting terminal control/format characters, and accepts one
+exact `y` or `n`. Invalid input, EOF or terminal failure
+stops before the next provider call. The evaluator creates no transcript, per-case
+record, prompt/output export, cache or log; only the aggregate-only report persists.
+It cannot prevent external terminal capture. The fixed 20 Flash + 180 Flash / 40
+Pro sequence, zero retry and no automatic production model switch remain binding.
 
 ## Alternatives Considered
 

@@ -280,6 +280,63 @@ class StaticLinterConstraintTests(unittest.TestCase):
             with self.subTest(document="logging", marker=marker):
                 self.assertIn(marker, logging)
 
+    def test_final_dataset_build_and_interactive_judge_are_narrowly_documented(self) -> None:
+        active_paths = (
+            ROOT / "AGENTS.md",
+            ROOT / "docs" / "constraints" / "tooling_constraints.md",
+            ROOT / "docs" / "constraints" / "architecture_constraints.md",
+            ROOT / "docs" / "constraints" / "linter_constraints.md",
+            ROOT / "docs" / "decisions" / "0006-authorized-mailbox-ingest-and-private-knowledge.md",
+            ROOT / "docs" / "operations" / "private_evaluation_build_interactive_task_brief.md",
+            ROOT / "docs" / "operations" / "private_deepseek_evaluation.md",
+            ROOT / "docs" / "operations" / "testing_checklist.md",
+            ROOT / "docs" / "operations" / "deployment_notes.md",
+            ROOT / "docs" / "operations" / "project_structure.md",
+            ROOT / "docs" / "templates" / "agent_task_brief_template.md",
+            ROOT / "docs" / "conventions" / "logging.md",
+            ROOT / "docs" / "superpowers" / "plans" / "2026-07-15-real-mailbox-scan-driven-plugin-deepseek-completion.md",
+        )
+        combined = " ".join(
+            " ".join(read_text(path).split()) for path in active_paths
+        )
+        for marker in (
+            "`.pkevalstage`", "`.pkeval`", "fresh UUIDv4",
+            "same operator-supplied 32-byte", "real local TTY",
+            "`--interactive-judge`", "`UsefulnessJudgeView`",
+            "no transcript", "20 Flash", "180 Flash", "40 Pro",
+            "zero retry", "no automatic production model switch",
+            "aggregate-only", "fixed exact-y readiness",
+            "terminal control", "atomic no-clobber",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, combined)
+
+        operator_paths = (
+            ROOT / "docs" / "operations" / "private_deepseek_evaluation.md",
+            ROOT / "docs" / "operations" / "testing_checklist.md",
+            ROOT / "docs" / "operations" / "deployment_notes.md",
+        )
+        commands = (
+            "python -B -m scripts.evaluate_private_deepseek build --staging",
+            "python -B -m scripts.evaluate_private_deepseek verify --dataset",
+            "python -B -m scripts.evaluate_private_deepseek run --dataset",
+            "--interactive-judge",
+        )
+        for path in operator_paths:
+            text = " ".join(read_text(path).split())
+            for marker in commands:
+                with self.subTest(path=path, marker=marker):
+                    self.assertIn(marker, text)
+
+        constraints = " ".join(read_text(
+            ROOT / "docs" / "constraints" / "architecture_constraints.md"
+        ).split())
+        self.assertIn(
+            "parse -> interactive flag -> exact confirmation -> TTY -> readiness -> hidden key -> "
+            "dataset -> provider configuration -> client construction -> calls",
+            constraints,
+        )
+
     def test_authorized_mailbox_exception_is_narrowly_documented(self) -> None:
         governance_markers = {
             ROOT / "AGENTS.md": (

@@ -58,6 +58,24 @@ def write_encrypted_dataset(
     dataset: EvaluationDatasetV1,
     key: bytes | bytearray,
 ) -> None:
+    _write_encrypted_dataset(path, dataset, key, require_absent=False)
+
+
+def write_new_encrypted_dataset(
+    path: Path,
+    dataset: EvaluationDatasetV1,
+    key: bytes | bytearray,
+) -> None:
+    _write_encrypted_dataset(path, dataset, key, require_absent=True)
+
+
+def _write_encrypted_dataset(
+    path: Path,
+    dataset: EvaluationDatasetV1,
+    key: bytes | bytearray,
+    *,
+    require_absent: bool,
+) -> None:
     original = Path(path)
     if not isinstance(dataset, EvaluationDatasetV1):
         raise PrivateEvaluationError("dataset_schema_invalid")
@@ -70,7 +88,7 @@ def write_encrypted_dataset(
             raise PrivateEvaluationError("dataset_schema_invalid")
         replace_bounded_checked(
             original, frame, MAX_DATASET_BYTES, _validate_external_dataset_path,
-            _test_race_hook,
+            _test_race_hook, require_absent=require_absent,
         )
     finally:
         _wipe(key_copy)

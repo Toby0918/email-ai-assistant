@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-14
+last_update: 2026-07-15
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -535,9 +535,15 @@ Agent 每次开始任务前，必须确认：
   standard-library JSON/path primitives, and existing production validation gates.
 - The package must not add a mailbox, vault, SQLite, provider-SDK, IMAP, SMTP,
   DPAPI, BitLocker, browser, or HTTP dependency.
-- `scripts/evaluate_private_deepseek.py verify` is local-only. The `run` path may
-  lazily use the existing backend DeepSeek provider only after all local preflight
-  gates and the injected human judge are available.
+- `scripts/evaluate_private_deepseek.py` exposes only fixed `build`, `verify`, and
+  `run` surfaces. `build` consumes only `EvaluationStageV1`; it may use the
+  private-evaluation stage/final repositories, schema and selection code, but no
+  provider, judge, network, mailbox, raw vault, SQLite, frontend or normal runtime.
+  `verify` is local-only. `run` may lazily use the existing backend DeepSeek
+  provider only after the explicit interactive flag, exact confirmation, real
+  local TTY, fixed exact-y readiness acknowledgement, hidden key, dataset
+  decrypt/schema/select, provider configuration and
+  judge-availability gates pass.
 - Tests use synthetic encrypted datasets and fake clients with
   `EMAIL_AGENT_LLM_PROVIDER=disabled`; they never load a real key, account, dataset,
   provider, external drive, or network service.
@@ -562,6 +568,28 @@ Agent 每次开始任务前，必须确认：
   from its descendant marker scan; sibling and descendant stores still fail
   closed. Success is only `evaluation_stage_complete` with 200/0 counts, while
   parse/local validation emits only `argument_invalid`.
+- Final `build` uses the same operator-supplied 32-byte hidden key but generates a
+  fresh UUIDv4 final namespace and a fresh random nonce under `.pkeval` magic and
+  `private-evaluation-dataset/v1`. It revalidates exactly 200 unique cases, full
+  production strata, current business/privacy approvals and at least 40 explicit
+  Pro-pair approvals through `EvaluationDatasetV1` and deterministic selection.
+  The target must be a separate external directory, create-only, non-reparse and
+  race checked. Atomic no-clobber publication must not overwrite a post-validation
+  racer, and failure rollback may unlink only the exact published identity; an
+  existing target or write failure leaves no partial final file,
+  and the stage is never auto-deleted.
+- `run --interactive-judge` is the only live judge surface. stdin and stdout must
+  both be a real local TTY and complete one fixed exact-y readiness read before
+  hidden key loading. The adapter receives only `UsefulnessJudgeView`, shows
+  only deidentified subject/thread and production-gated public summary/category/
+  risk/action/draft fields, rejects terminal control/format characters before
+  rendering, and accepts one exact `y` or `n`. Invalid input, EOF or
+  terminal failure becomes fixed `human_judge_failed` and stops before the next
+  provider call. The program creates no transcript, prompt/output sample, cache,
+  temp file or per-case persistence; it cannot prevent external terminal capture.
+- Provider behavior remains sequential 20 Flash + 180 Flash and up to 40 approved
+  Pro comparisons, zero retry, no automatic production model switch, and
+  aggregate-only persistence.
 
 ## 14. 执行后检查
 

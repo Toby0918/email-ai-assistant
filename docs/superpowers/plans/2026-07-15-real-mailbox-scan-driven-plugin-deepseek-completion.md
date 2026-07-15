@@ -74,10 +74,18 @@ documentation contract.
 - Add the separately reviewed `stage-evaluation` handoff without granting the
   evaluator access to the raw vault.
 - Add the bounded encrypted evaluation dataset `build` path and its offline
-  validation gates.
+  validation gates. It consumes only `EvaluationStageV1`, requires exactly 200
+  cases with complete strata/dual approvals and at least 40 Pro approvals, and
+  creates a fresh UUIDv4 final namespace in a separate external directory with
+  the same operator-supplied 32-byte hidden key but distinct final crypto.
 - Add an explicit local interactive usefulness-judge adapter that remains
-  non-serialized and unavailable by default.
+  non-serialized and unavailable by default. Only `run --interactive-judge` with
+  exact confirmation, a real local TTY and a fixed exact-y readiness acknowledgement
+  may enable it; the adapter receives only `UsefulnessJudgeView`, rejects terminal
+  control/format characters, accepts one exact y/n, and creates no transcript.
 - Keep automated tests on synthetic encrypted data and fake clients.
+- Preserve 20 Flash + 180 Flash / 40 Pro, zero retry, aggregate-only persistence,
+  and no automatic production model switch.
 
 ### Stop condition
 

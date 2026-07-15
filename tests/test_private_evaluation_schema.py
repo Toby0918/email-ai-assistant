@@ -166,7 +166,8 @@ class PrivateEvaluationSchemaTests(unittest.TestCase):
             "<PERSON_1", "<<PERSON_1>>", "<PERSON_1>>", "<<PERSON_1>",
             "prefix <PERSON_1>> suffix", "<PERSON_1><", "><PERSON_1>",
             "恢复原始占位符映射", "safe\u202etext", "safe\u200btext",
-            "safe\x00text", "safe\ud800text",
+            "safe\x00text", "safe\x1b[31mtext", "safe\u009b31mtext",
+            "safe\x1b]52;c;ZXZpbA==\x07", "safe\ud800text",
             "11111111-2222-4333-8444-555555555555",
         )
         for field in fields:

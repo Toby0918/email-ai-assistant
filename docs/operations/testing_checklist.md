@@ -161,13 +161,23 @@ git diff --check
    --authority-id $AuthorityId --snapshot $Snapshot --snapshot-id $SnapshotId`。拒绝、
    过期、deprecate 或 revoke 后重新发布；签名/密钥/文件无效时正常服务必须退回
    generic rule fallback。
-8. `python -B -m scripts.evaluate_private_deepseek verify --dataset $Dataset` 只做本地
+8. 在 stage 完成后，以 same operator-supplied 32-byte hidden key 运行
+   `python -B -m scripts.evaluate_private_deepseek build --staging $EvaluationStage
+   --dataset $Dataset`。stage 与 final 必须位于独立外部目录；final 使用 fresh UUIDv4
+   namespace 和 distinct final magic/purpose/nonce，create-only 且不自动删除 stage。
+   Build revalidates exactly 200/full strata/current dual approval/at least 40 Pro，
+   并创建 zero provider/judge/network/transcript。
+9. `python -B -m scripts.evaluate_private_deepseek verify --dataset $Dataset` 只做本地
    预检。真实 `python -B -m scripts.evaluate_private_deepseek run --dataset $Dataset
-   --report $AggregateReport --confirm-private-evaluation I_CONFIRM_200_FLASH_40_PRO`
-   默认因
-   `human_judge_unavailable` 阻断；只有另行批准并提供不序列化样本的本地人工
-   judge adapter 后，才能执行 20-case gate、剩余 180 Flash 和批准的 40-case
-   paired comparison。结果永不自动切换生产模型。
+   --report $AggregateReport --confirm-private-evaluation I_CONFIRM_200_FLASH_40_PRO
+   --interactive-judge` 还要求 stdin/stdout 均为 real local TTY；缺少该 flag 时固定
+   `human_judge_unavailable`。TTY 后必须先完成 fixed exact-y readiness；EOF/cancel/
+   invalid readiness 在 key/client 前固定失败。adapter 只接收
+   `UsefulnessJudgeView`、拒绝 ESC/C0/C1/bidi/format controls、每 case 一次 exact y/n；
+   invalid/EOF/terminal failure 在下一次
+   provider call 前固定为 `human_judge_failed`。程序 no transcript，但不能阻止外部
+   terminal capture。只有 aggregate-only report 持久化；仍是 20 Flash + 180 Flash /
+   40 Pro、zero retry 和 no automatic production model switch。
 
 任一步出现授权范围变化、UIDVALIDITY/fingerprint 变化、flags 变化、残留身份、
 vault/签名/密钥错误、schema/safety/grounding 违规、p95 超限、泄漏 finding 或

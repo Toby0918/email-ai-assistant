@@ -138,6 +138,21 @@ magic, purpose, and namespace 写密文。成功只允许 `evaluation_stage_comp
 200/0 counts。它不运行 provider、不生成最终 `.pkeval`、不暴露 case/record ID、
 path、text、mapping 或 exception detail。
 
+在独立外部目录准备 final target 后，管理员才可使用 same operator-supplied
+32-byte hidden key 构建 final dataset：
+
+```powershell
+python -B -m scripts.evaluate_private_deepseek build --staging $EvaluationStage --dataset $Dataset
+python -B -m scripts.evaluate_private_deepseek verify --dataset $Dataset
+```
+
+`build` 只接受 `EvaluationStageV1`，重新验证 exactly 200/full strata/current
+business+privacy approvals/at least 40 Pro approvals，并生成 fresh UUIDv4 final
+namespace、distinct final magic/purpose/nonce。target 使用 atomic no-clobber
+create-only publication 和 exact-identity failure cleanup；existing target、
+path/reparse/race/write failure 均不得留下 partial final 或删除 competitor，stage 不自动删除。Build 和
+verify 创建 zero provider/judge/network/transcript/log。
+
 外置 vault 是分析快照，`not a legal archive`，也有 `no automatic second backup`。
 恢复密钥只恢复解锁能力，不能恢复损坏或丢失的数据。Python 删除临时明文不构成
 SSD/flash 物理安全擦除。Windows volume/reparse/path-race 检查只提供
@@ -163,11 +178,22 @@ DeepSeek 的交互预算固定为 browser `15` 秒、backend `13` 秒、provider
 `zero-retention`。provider 默认 disabled，输出模式默认 conservative，单次调用、
 零重试、JSON-only、thinking disabled、`max_tokens=2400` 和人工审核保持不变。
 
-私有评估默认在构造 client 前返回 `human_judge_unavailable`。真实评估必须另行
-提供本地、不序列化样本的人工 judge 和独立操作批准。20-case gate 任一
-schema/safety/grounding/privacy/serialization 违规或 p95 超过 12 秒即停止；通过后
-才允许剩余 180 Flash 和批准的 40-case paired comparison。候选结论仅报告
-聚合指标，`no automatic production model switch`。
+私有评估缺少显式 `--interactive-judge` 时在构造 client 前返回
+`human_judge_unavailable`。另行批准的真实命令是：
+
+```powershell
+python -B -m scripts.evaluate_private_deepseek run --dataset $Dataset --report $AggregateReport --confirm-private-evaluation I_CONFIRM_200_FLASH_40_PRO --interactive-judge
+```
+
+stdin/stdout 必须都是 real local TTY，并在 hidden key 前完成 fixed exact-y readiness；
+adapter 只接收 `UsefulnessJudgeView`，拒绝 ESC/C0/C1/bidi/format controls 后才显示
+已去标识 input 与 production-gated public output，并逐 case 读取一次 exact y/n。
+invalid/EOF/terminal failure 固定为 `human_judge_failed` 且阻止下一次 provider call。
+程序 no transcript、per-case persistence、prompt/raw-output export、cache 或 log，
+但不能阻止 external terminal capture；只有 aggregate-only report 保存。20-case
+Flash gate 任一 schema/safety/grounding/privacy/serialization 违规或 p95 超过 12 秒
+即停止；通过后才允许剩余 180 Flash 和批准的 40 Pro paired comparison。全程
+zero retry，候选结论仅报告聚合指标，`no automatic production model switch`。
 
 DeepSeek rollback：设置 `EMAIL_AGENT_LLM_PROVIDER=disabled` 并重启后端；撤下
 private snapshot 访问以确认 generic rule fallback；不删除 vault、不更改邮箱，

@@ -264,6 +264,17 @@ scripts/repository_leakage_scan.py
 - `backend/private_evaluation/` 负责项目外 `.pkeval` 的严格 schema、确定性选择、
   顺序零重试 runner 和 aggregate-only report；只有专用 CLI 可在全部本地门通过后
   lazy-create provider client。
+- `backend/private_evaluation/staging_values.py` 保存不依赖 repository/crypto/path 的
+  pure `EvaluationStageV1`；`backend/private_evaluation/dataset_builder.py` 只把该严格值
+  `EvaluationStageV1` 投影为 fresh UUIDv4 namespace 的 200-case final dataset；
+  `repository.py` 的 create-only writer 使用 same operator-supplied 32-byte key，
+  但保留 final magic/purpose/nonce separation，以 atomic no-clobber link 发布并仅按
+  exact identity 回滚，拒绝覆盖/delete competitor 和 path race，且不删除 stage。
+- `backend/private_evaluation/terminal_judge.py` 只接收 `UsefulnessJudgeView`，仅在
+  real local TTY 中显示已去标识 input 与 production-gated public output，并读取一次
+  pre-key fixed exact-y readiness，拒绝 terminal control/format chars，再逐 case 读取
+  exact `y`/`n`。它 no transcript、no file/cache/log surface；外部终端捕获不在程序
+  可控制范围内。
 - `backend/private_evaluation/staging_contract.py`、`staging.py` 和
   `staging_repository.py` 只支持管理员 `stage-evaluation`：验证 exactly 200 条
   `StageEvaluationSelectionV1` 绑定，并分别核对 authorization `scope_fingerprint`
@@ -274,6 +285,10 @@ scripts/repository_leakage_scan.py
   该密文与 `.pkeval` 使用 distinct magic, purpose, and namespace；成功只返回
   `evaluation_stage_complete`，且 no mailbox app password、provider、network、
   SQLite 或 normal-runtime integration。
+- `scripts/evaluate_private_deepseek.py` 暴露固定 `build`、`verify` 和 `run`。`build`
+  不创建 provider/judge；`run` 只有 explicit `--interactive-judge`、exact confirmation
+  和 TTY + fixed readiness gate 通过后才可继续 hidden-key/dataset/provider/client 路径，并保持 20 Flash
+  + 180 Flash / 40 Pro、zero retry 和 no automatic production model switch。
 - `scripts/repository_leakage_scan.py` 只扫描仓库内明确 scope，并只输出固定 code、
   scope 和 count。它不打开项目外 vault/private dataset，也不自动修改文件。
 

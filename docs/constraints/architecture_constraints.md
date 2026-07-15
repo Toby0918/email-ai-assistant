@@ -139,11 +139,20 @@ publisher, CLI service, SQLite, or any write helper. Failure returns an empty
 immutable card set so normal generic rules continue.
 
 The private evaluation package is offline and aggregate-only. It is a separate
-administrator domain that reads only an independently encrypted, project-external
-`.pkeval` dataset. It must not import mailbox ingest, the raw vault, private
+administrator domain that reads an independently encrypted, project-external
+`.pkevalstage` only through its stage repository and reads the resulting final
+`.pkeval` through its final repository. It must not import mailbox ingest, the raw vault, private
 knowledge repositories or review/key/snapshot services, frontend code, SQLite,
 OpenAI SDK, IMAP, or SMTP. Normal backend runtime, frontend code, local servers,
 cleanup jobs, and scheduled workflows must not import it.
+
+`staging_values.py` owns the pure `EvaluationStageV1` value contract.
+`dataset_builder.py` is a one-way pure projection from that exact value to
+`EvaluationDatasetV1`; it generates a fresh UUIDv4 final namespace and has no
+path, key, repository, provider or judge dependency. `terminal_judge.py` imports
+only the fixed evaluation error, `UsefulnessJudgeView`, and the pure terminal-text
+safety predicate; it must not import schema/case types, paths, JSON, logging,
+provider or persistence code.
 
 Only `scripts/manage_mailbox_vault.py` and `scripts/evaluate_private_deepseek.py`
 may bridge the private evaluation package. The mailbox CLI bridge is limited to
@@ -167,16 +176,33 @@ cryptography, internal evaluation, deidentification, and pure analysis modules i
 use. Any unlisted network, provider, mailbox, store, runtime, frontend, or relative
 escape import fails the mechanical guard.
 
-The evaluator bridge to the existing backend DeepSeek provider is lazy: dataset
-decryption, schema validation, deterministic selection, the exact operator
-confirmation, provider configuration validation, and availability of the injected
-synchronous human-usefulness judge must all succeed before a provider client is
-imported or constructed. `verify` is strictly local and never imports or creates a
-provider client. Automated tests use injected fake clients, keep the provider
+The evaluator exposes only fixed `build`, `verify`, and `run` commands. `build`
+uses the same operator-supplied 32-byte hidden key to decrypt one validated stage
+and create one fresh, create-only final dataset in a separate external directory.
+Create-only publication uses an atomic no-clobber same-directory link; failures
+after publication remove only the exact published identity and never a competitor;
+it revalidates exactly 200 cases, required strata/dual approvals and at least 40
+Pro approvals through final schema and selection, creates no provider or judge,
+and never deletes the stage. `verify` is strictly local and never imports or creates
+a provider client.
+
+The `run` bridge to the existing backend DeepSeek provider is lazy. Its exact gate
+order is: parse -> interactive flag -> exact confirmation -> TTY -> readiness -> hidden key -> dataset -> provider configuration -> client construction -> calls. stdin and stdout
+must both remain a real local TTY; the adapter receives only `UsefulnessJudgeView`.
+One fixed exact-y readiness acknowledgement rejects EOF/cancel/invalid input before
+key loading or client construction. ESC, C0/C1, bidi/format and other terminal
+controls are rejected before any untrusted text is rendered. Invalid per-case input,
+EOF or terminal failure maps to `human_judge_failed` and prevents
+the next provider call. Automated tests use injected fake clients, keep the provider
 disabled, and perform no network, mailbox, vault, DPAPI, BitLocker, or external-drive
 operation. Evaluation reports contain only the fixed aggregate schema and fixed
 error codes; they never contain cases, prompts, responses, identifiers, paths,
 timestamps, sources, samples, or matched text.
+
+Neither build nor run creates a transcript, per-case file, prompt/output export,
+cache, log or resume state. Only the aggregate report persists. External terminal
+capture cannot be prevented by the program. Runner behavior remains sequential
+20 Flash + 180 Flash / 40 Pro, zero retry, and no automatic production model switch.
 
 ## Authorized mailbox transport policy
 

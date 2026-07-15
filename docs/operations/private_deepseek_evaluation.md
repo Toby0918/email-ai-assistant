@@ -60,6 +60,32 @@ bridge the evaluation package: the former may use only staging modules and is th
 only raw-vault reader; the latter reads only a separately built final `.pkeval`
 and never imports or reads the raw vault.
 
+## Stage to final dataset build
+
+```text
+python -B -m scripts.evaluate_private_deepseek build --staging <external.pkevalstage> --dataset <external.pkeval>
+```
+
+`build` prompts once for the same operator-supplied 32-byte base64 key through
+hidden `getpass`. It has no key flag, environment, `.env`, key-file, namespace,
+force or overwrite surface. It decrypts only `EvaluationStageV1`, revalidates
+exactly 200 unique cases, full category/language/direction/risk strata, current
+business/privacy approvals, and at least 40 explicit Pro-pair approvals through
+`EvaluationDatasetV1` plus deterministic selection.
+
+The final dataset gets a fresh UUIDv4 `dataset_namespace`; it never reuses the
+stage namespace. The final frame keeps `.pkeval` magic and
+`private-evaluation-dataset/v1`, with a fresh random nonce, so stage/final magic,
+HKDF purpose, namespace and nonce remain distinct even though the master key is
+the same. The final target must be in a separate project/OneDrive/temp/raw-vault/
+private-store-external directory, must not exist, and passes bounded descriptor,
+reparse, parent/target identity and race checks. Failure leaves no partial final
+file and never deletes the stage.
+
+Build constructs zero provider clients and zero judge, performs zero network
+calls, writes zero logs/transcripts/per-case files, and succeeds only with the
+fixed identifier-free `dataset_built` / 200 result.
+
 ## Encrypted dataset
 
 - Suffix: `.pkeval`; schema: `PrivateEvaluationDatasetV1`.
@@ -130,11 +156,22 @@ schema, evidence, grounding, model-text safety, public merge and public-schema
 predicates. Inputs containing placeholders remain idempotent; provider outputs
 containing placeholders or private markers fail privacy.
 
-The injected synchronous local usefulness judge receives only repr-hidden
-in-memory views and returns a boolean. The default live CLI has no judge adapter
-and returns `human_judge_unavailable` before any provider client is constructed.
-Provider and judge exceptions map to fixed codes; their text is not logged,
-serialized or included in repr.
+The synchronous local usefulness judge receives only repr-hidden
+`UsefulnessJudgeView` and returns a boolean. The default live CLI returns
+`human_judge_unavailable` before key or client construction unless the operator
+supplies `--interactive-judge`, the exact confirmation, real local TTY stdin and
+stdout, and one fixed exact-y readiness acknowledgement before key loading. The
+adapter rejects ESC, C0/C1, bidi/format and other terminal controls before it
+displays deidentified subject/thread and the
+production-gated public summary/category/risk/action/draft fields, then reads one
+exact lowercase `y` or `n`. Invalid input, EOF or terminal failure maps to fixed
+`human_judge_failed` and stops before the next provider call. Provider and judge
+exception text is not logged, serialized or included in repr.
+
+The program creates no transcript, prompt/provider-output export, per-case JSON,
+verdict file, cache or resume state. Only the aggregate report persists. It cannot
+prevent external terminal or operating-system capture, so the real local TTY is a
+private operator surface.
 
 ## Gates and metrics
 
@@ -203,15 +240,26 @@ atomic same-directory replacement.
 ## CLI
 
 ```text
+python -B -m scripts.evaluate_private_deepseek build --staging <external.pkevalstage> --dataset <external.pkeval>
 python -B -m scripts.evaluate_private_deepseek verify --dataset <external.pkeval>
 python -B -m scripts.evaluate_private_deepseek run --dataset <external.pkeval> \
   --report <aggregate.json> \
-  --confirm-private-evaluation I_CONFIRM_200_FLASH_40_PRO
+  --confirm-private-evaluation I_CONFIRM_200_FLASH_40_PRO \
+  --interactive-judge
 ```
 
-There are no model, endpoint, key, prompt, case, threshold or retry overrides.
+There are no model, endpoint, key, key-file, namespace, prompt, case, threshold,
+retry, stream, batch, force/overwrite, transcript/export/save/output or
+production-switch overrides.
 Models are fixed to `deepseek-v4-flash` and `deepseek-v4-pro`; the endpoint is the
 fixed backend endpoint. `verify` never creates a client. Only the script may
 lazy-import the existing provider client factory after all local preflight. The
 live key is obtained with hidden `getpass`, decoded as exactly 32 bytes, and the
 mutable copy is wiped; invalid or missing input maps to `evaluation_key_unavailable`.
+
+The exact `run` gate order is parse, explicit interactive flag, exact confirmation,
+stdin/stdout TTY, fixed exact-y readiness acknowledgement, hidden key, dataset
+decrypt/schema/selection, provider
+configuration, client construction and calls. The runner remains sequential 20
+Flash + 180 Flash / 40 approved Pro, zero retry, no automatic production model
+switch, and aggregate-only persistence.

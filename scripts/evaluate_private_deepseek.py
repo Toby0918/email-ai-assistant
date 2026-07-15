@@ -12,6 +12,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Callable
 
+from backend.private_evaluation.dataset_builder import build_evaluation_dataset
 from backend.private_evaluation.errors import PrivateEvaluationError
 from backend.private_evaluation.reporting import (
     FLASH_MODEL,
@@ -19,13 +20,26 @@ from backend.private_evaluation.reporting import (
     AggregateReport,
     write_aggregate_report,
 )
-from backend.private_evaluation.repository import read_encrypted_dataset
+from backend.private_evaluation.repository import (
+    read_encrypted_dataset,
+    write_new_encrypted_dataset,
+)
 from backend.private_evaluation.runner import run_private_evaluation
+from backend.private_evaluation.runner_values import UsefulnessJudgeView
 from backend.private_evaluation.schema import EvaluationDatasetV1
 from backend.private_evaluation.selection import (
     EvaluationSelection,
     derive_selection_key,
     select_private_cases,
+)
+from backend.private_evaluation.staging_repository import (
+    read_encrypted_stage,
+)
+from backend.private_evaluation.staging_values import EvaluationStageV1
+from backend.private_evaluation.terminal_judge import (
+    make_interactive_judge,
+    require_terminal_readiness,
+    terminal_streams_available,
 )
 
 
@@ -40,11 +54,16 @@ class _SafeParser(argparse.ArgumentParser):
 @dataclass(frozen=True, slots=True, repr=False)
 class EvaluationCliDependencies:
     key_loader: Callable[[], bytearray]
+    read_stage: Callable[[Path, bytearray], EvaluationStageV1]
+    build_dataset: Callable[[EvaluationStageV1], EvaluationDatasetV1]
+    write_dataset: Callable[[Path, EvaluationDatasetV1, bytearray], None]
     read_dataset: Callable[[Path, bytearray], EvaluationDatasetV1]
     derive_selection_key: Callable[[bytearray, str], bytes]
     select_cases: Callable[[EvaluationDatasetV1, bytes | bytearray], EvaluationSelection]
+    terminal_available: Callable[[], bool]
+    readiness_check: Callable[[], None]
+    judge_factory: Callable[[], Callable[[UsefulnessJudgeView], bool] | None]
     provider_configured: Callable[[], bool]
-    usefulness_judge: Callable[[object], bool] | None
     client_factory: Callable[[str], Callable[..., str]]
     report_writer: Callable[[AggregateReport, Path], None]
     emit: Callable[[dict[str, object]], None]
@@ -58,12 +77,19 @@ def run_cli(
     deps = dependencies or _default_dependencies()
     try:
         arguments = _parser().parse_args(argv)
+        if arguments.command == "build":
+            dataset = _build_dataset_command(arguments, deps)
+            deps.emit({"ok": True, "code": "dataset_built", "case_count": len(dataset.cases)})
+            return 0
+        if arguments.command == "run":
+            _authorize_interactive_run(arguments, deps)
         dataset, selection = _local_preflight(Path(arguments.dataset), deps)
         if arguments.command == "verify":
             deps.emit({"ok": True, "code": "dataset_verified", "case_count": len(dataset.cases)})
             return 0
-        _authorize_run(arguments, deps)
-        report = _evaluate(selection, deps)
+        judge = _load_judge(deps)
+        _require_provider(deps)
+        report = _evaluate(selection, judge, deps)
         deps.report_writer(report, Path(arguments.report))
         deps.emit({
             "ok": True, "status_code": report.status_code,
@@ -81,13 +107,38 @@ def run_cli(
 def _parser() -> _SafeParser:
     parser = _SafeParser(add_help=False, allow_abbrev=False)
     commands = parser.add_subparsers(dest="command", required=True)
+    build = commands.add_parser("build", add_help=False, allow_abbrev=False)
+    build.add_argument("--staging", required=True)
+    build.add_argument("--dataset", required=True)
     verify = commands.add_parser("verify", add_help=False, allow_abbrev=False)
     verify.add_argument("--dataset", required=True)
     run = commands.add_parser("run", add_help=False, allow_abbrev=False)
     run.add_argument("--dataset", required=True)
     run.add_argument("--report", required=True)
-    run.add_argument("--confirm-private-evaluation", required=True)
+    run.add_argument("--confirm-private-evaluation")
+    run.add_argument("--interactive-judge", action="store_true")
     return parser
+
+
+def _build_dataset_command(
+    arguments: argparse.Namespace,
+    deps: EvaluationCliDependencies,
+) -> EvaluationDatasetV1:
+    master: bytearray | None = None
+    selection_key: bytearray | None = None
+    try:
+        master = _load_key(deps)
+        stage = deps.read_stage(Path(arguments.staging), master)
+        dataset = deps.build_dataset(stage)
+        selection_key = bytearray(
+            deps.derive_selection_key(master, dataset.dataset_namespace)
+        )
+        deps.select_cases(dataset, selection_key)
+        deps.write_dataset(Path(arguments.dataset), dataset, master)
+        return dataset
+    finally:
+        _wipe(selection_key)
+        _wipe(master)
 
 
 def _local_preflight(
@@ -96,9 +147,7 @@ def _local_preflight(
     master: bytearray | None = None
     selection_key: bytearray | None = None
     try:
-        master = deps.key_loader()
-        if type(master) is not bytearray or len(master) != 32:
-            raise PrivateEvaluationError("evaluation_key_unavailable")
+        master = _load_key(deps)
         dataset = deps.read_dataset(path, master)
         selection_key = bytearray(
             deps.derive_selection_key(master, dataset.dataset_namespace)
@@ -110,20 +159,67 @@ def _local_preflight(
         _wipe(master)
 
 
-def _authorize_run(arguments: argparse.Namespace, deps: EvaluationCliDependencies) -> None:
+def _load_key(deps: EvaluationCliDependencies) -> bytearray:
+    try:
+        key = deps.key_loader()
+    except PrivateEvaluationError:
+        raise
+    except (Exception, KeyboardInterrupt):
+        raise PrivateEvaluationError("evaluation_key_unavailable") from None
+    if type(key) is not bytearray or len(key) != 32:
+        _wipe(key if type(key) is bytearray else None)
+        raise PrivateEvaluationError("evaluation_key_unavailable")
+    return key
+
+
+def _authorize_interactive_run(
+    arguments: argparse.Namespace,
+    deps: EvaluationCliDependencies,
+) -> None:
+    if arguments.interactive_judge is not True:
+        raise PrivateEvaluationError("human_judge_unavailable")
     if arguments.confirm_private_evaluation != CONFIRMATION:
         raise PrivateEvaluationError("operator_confirmation_required")
+    try:
+        available = deps.terminal_available()
+    except Exception:
+        available = False
+    if available is not True:
+        raise PrivateEvaluationError("human_judge_unavailable")
+    try:
+        deps.readiness_check()
+    except PrivateEvaluationError:
+        raise
+    except (Exception, KeyboardInterrupt):
+        raise PrivateEvaluationError("human_judge_failed") from None
+
+
+def _load_judge(
+    deps: EvaluationCliDependencies,
+) -> Callable[[UsefulnessJudgeView], bool]:
+    try:
+        judge = deps.judge_factory()
+    except Exception:
+        judge = None
+    if not callable(judge):
+        raise PrivateEvaluationError("human_judge_unavailable")
+    return judge
+
+
+def _require_provider(deps: EvaluationCliDependencies) -> None:
     try:
         configured = deps.provider_configured()
     except Exception:
         configured = False
     if configured is not True:
         raise PrivateEvaluationError("provider_configuration_unavailable")
-    if not callable(deps.usefulness_judge):
-        raise PrivateEvaluationError("human_judge_unavailable")
 
 
-def _evaluate(selection: EvaluationSelection, deps: EvaluationCliDependencies) -> AggregateReport:
+def _evaluate(
+    selection: EvaluationSelection,
+    judge: Callable[[UsefulnessJudgeView], bool],
+    deps: EvaluationCliDependencies,
+) -> AggregateReport:
     try:
         flash = deps.client_factory(FLASH_MODEL)
         pro = deps.client_factory(PRO_MODEL)
@@ -131,7 +227,7 @@ def _evaluate(selection: EvaluationSelection, deps: EvaluationCliDependencies) -
         raise PrivateEvaluationError("provider_configuration_unavailable") from None
     report = run_private_evaluation(
         selection, flash_client=flash, pro_client=pro,
-        usefulness_judge=deps.usefulness_judge,
+        usefulness_judge=judge,
     )
     return AggregateReport.from_mapping(report.to_mapping())
 
@@ -144,7 +240,10 @@ def _load_live_key(*, getpass_fn: Callable[[str], str] = getpass.getpass) -> byt
         if len(decoded) != 32:
             raise ValueError
         return bytearray(decoded)
-    except (UnicodeError, ValueError, binascii.Error):
+    except (
+        UnicodeError, ValueError, binascii.Error, EOFError, OSError,
+        KeyboardInterrupt,
+    ):
         raise PrivateEvaluationError("evaluation_key_unavailable") from None
     finally:
         encoded = ""
@@ -197,12 +296,29 @@ def _validate_live_options(model: str, options: dict[str, object]) -> None:
 
 def _default_dependencies() -> EvaluationCliDependencies:
     return EvaluationCliDependencies(
-        key_loader=_load_live_key, read_dataset=read_encrypted_dataset,
+        key_loader=_load_live_key, read_stage=read_encrypted_stage,
+        build_dataset=build_evaluation_dataset,
+        write_dataset=write_new_encrypted_dataset,
+        read_dataset=read_encrypted_dataset,
         derive_selection_key=derive_selection_key, select_cases=select_private_cases,
-        provider_configured=_provider_configured, usefulness_judge=None,
+        terminal_available=_terminal_available, readiness_check=_readiness_check,
+        judge_factory=_judge_factory,
+        provider_configured=_provider_configured,
         client_factory=_live_client_factory, report_writer=write_aggregate_report,
         emit=_emit_json,
     )
+
+
+def _terminal_available() -> bool:
+    return terminal_streams_available(sys.stdin, sys.stdout)
+
+
+def _readiness_check() -> None:
+    require_terminal_readiness(sys.stdin, sys.stdout)
+
+
+def _judge_factory() -> Callable[[UsefulnessJudgeView], bool]:
+    return make_interactive_judge(sys.stdin, sys.stdout)
 
 
 def _emit_json(value: dict[str, object]) -> None:
@@ -217,6 +333,8 @@ def _public_error_code(code: object) -> str:
         "dataset_strata_incomplete", "pair_approval_insufficient",
         "provider_configuration_unavailable", "human_judge_unavailable",
         "human_judge_failed", "aggregate_serialization_violation",
+        "evaluation_stage_unavailable", "evaluation_stage_decrypt_invalid",
+        "evaluation_stage_schema_invalid",
     }
     return code if type(code) is str and code in allowed else "dataset_unavailable"
 

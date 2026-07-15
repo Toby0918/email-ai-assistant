@@ -81,6 +81,22 @@ OneDrive、temp、raw vault 和其他 private store 之外的独立 `.pkevalstag
 `scripts/manage_mailbox_vault.py` and `scripts/evaluate_private_deepseek.py` 可桥接
 private-evaluation staging surface；后者和 normal runtime 永不读取 raw vault。
 
+`scripts.evaluate_private_deepseek build` 只能读取上述 `.pkevalstage`，使用 same
+operator-supplied 32-byte hidden key 在不同目录创建一个新的 `.pkeval`。最终 dataset
+必须重新验证 exactly 200 条、完整 strata、business/privacy 双审和至少 40 条显式
+Pro-pair approval，并使用 fresh UUIDv4 namespace、独立 magic/HKDF purpose 和随机
+nonce；不得覆盖既有文件、自动删除 stage、创建 provider/judge 或发起网络调用。
+
+真实私有评估仍默认不可用。只有 `run` 同时收到 exact confirmation 和显式
+`--interactive-judge`，stdin/stdout 都是 real local TTY，并完成一次 fixed exact-y
+readiness acknowledgement 后，才可隐藏读取 key、
+解密和选择 dataset、验证 provider 配置并创建 client。终端 adapter 只接收
+`UsefulnessJudgeView`，逐 case 显示已去标识 input 和 production-gated public output，
+只接受一次 exact `y`/`n`。已去标识和 public terminal text 必须拒绝 ESC、C0/C1、
+bidi/format 等 terminal controls。程序 no transcript、no per-case persistence、no retry、
+no automatic production model switch，只保存 aggregate-only report；但不能阻止
+操作系统或外部终端工具自行捕获屏幕内容。
+
 详细授权、vault、知识审核和评估边界见：
 
 - `docs/operations/authorized_mailbox_ingest_task_brief.md`

@@ -211,4 +211,21 @@ authorization data, ciphertext, command arguments or dynamic error text. These
 rules apply at every configured logging level and to both expected and unexpected
 failures.
 
+## 9. Final dataset build and interactive judge are not logging
+
+`scripts.evaluate_private_deepseek build` and `verify` write zero log records and
+emit only their fixed identifier-free JSON result. `build` never prints the stage
+or final path, namespace, key, case/actor ID, deidentified text, ciphertext or
+exception detail. It creates no provider or judge.
+
+The explicit `run --interactive-judge` real local TTY first emits one fixed
+identifier-free exact-y readiness prompt before hidden key loading. Its display is an operator UI,
+not a diagnostic or transcript. Its adapter receives only `UsefulnessJudgeView`
+and may display only the already-deidentified subject/thread plus production-gated
+public summary/category/risk/action/draft fields after terminal control/format
+characters are rejected. It writes no transcript, prompt,
+raw provider JSON, per-case verdict, cache or log. Only the aggregate-only report
+persists. The program cannot prevent external terminal or operating-system capture;
+operators must treat the terminal as a private surface.
+
 预期的 provider/validation fallback 路径不得使用 `logger.exception`，不得插值 `raw exception`，也不得设置 `exc_info=True`。自动测试仅使用合成对象并拦截 provider client；Automated verification does not call DeepSeek.

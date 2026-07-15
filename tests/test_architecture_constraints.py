@@ -152,7 +152,7 @@ _PRIVATE_EVALUATION_ALLOWED_IMPORTS = frozenset({
     "__future__", "argparse", "base64", "binascii", "collections",
     "dataclasses", "datetime", "decimal", "getpass", "hashlib", "hmac",
     "json", "math", "os", "pathlib", "re", "stat", "struct", "tempfile",
-    "time", "types", "typing", "uuid",
+    "time", "types", "typing", "unicodedata", "uuid",
     "cryptography.exceptions",
     "cryptography.hazmat.primitives",
     "cryptography.hazmat.primitives.ciphers.aead",
@@ -168,6 +168,7 @@ _PRIVATE_EVALUATION_ALLOWED_IMPORTS = frozenset({
     "backend.email_agent.rule_analyzer",
     "backend.email_agent.thread_timeline",
     "backend.private_evaluation.case_context",
+    "backend.private_evaluation.dataset_builder",
     "backend.private_evaluation.errors",
     "backend.private_evaluation.metrics",
     "backend.private_evaluation.reporting",
@@ -179,6 +180,10 @@ _PRIVATE_EVALUATION_ALLOWED_IMPORTS = frozenset({
     "backend.private_evaluation.schema_values",
     "backend.private_evaluation.selection",
     "backend.private_evaluation.staging_contract",
+    "backend.private_evaluation.staging_repository",
+    "backend.private_evaluation.staging_values",
+    "backend.private_evaluation.terminal_judge",
+    "backend.private_evaluation.terminal_text_safety",
     "backend.private_knowledge.deidentifier",
     "backend.private_knowledge.entity_patterns",
     "backend.private_knowledge.residual_scanner",
@@ -190,6 +195,67 @@ def _private_evaluation_imports_are_allowed(imports: set[str]) -> bool:
 
 
 class ArchitectureConstraintTests(unittest.TestCase):
+    def test_private_evaluation_builder_and_tty_judge_are_one_way_isolated(self) -> None:
+        package = ROOT / "backend" / "private_evaluation"
+        builder = package / "dataset_builder.py"
+        stage_values = package / "staging_values.py"
+        terminal = package / "terminal_judge.py"
+        terminal_text = package / "terminal_text_safety.py"
+        self.assertTrue(builder.is_file(), "dataset builder module is missing")
+        self.assertTrue(stage_values.is_file(), "pure stage values module is missing")
+        self.assertTrue(terminal.is_file(), "terminal judge module is missing")
+        self.assertTrue(terminal_text.is_file(), "terminal text safety module is missing")
+
+        builder_imports = parse_import_modules(builder)
+        self.assertTrue(
+            builder_imports.issubset({
+                "__future__", "uuid", "backend.private_evaluation.errors",
+                "backend.private_evaluation.schema",
+                "backend.private_evaluation.staging_values",
+            }),
+            sorted(builder_imports),
+        )
+        self.assertNotIn("staging_repository", read_text(builder))
+        self.assertTrue(
+            parse_import_modules(stage_values).issubset({
+                "__future__", "dataclasses", "uuid",
+                "backend.private_evaluation.errors",
+                "backend.private_evaluation.schema",
+            })
+        )
+        terminal_imports = parse_import_modules(terminal)
+        self.assertTrue(
+            terminal_imports.issubset({
+                "__future__", "typing", "backend.private_evaluation.errors",
+                "backend.private_evaluation.runner_values",
+                "backend.private_evaluation.terminal_text_safety",
+            }),
+            sorted(terminal_imports),
+        )
+        self.assertNotIn("EvaluationCaseV1", read_text(terminal))
+        self.assertNotIn("pathlib", read_text(terminal))
+        self.assertNotIn("json", read_text(terminal))
+        self.assertNotIn("logging", read_text(terminal))
+        self.assertTrue(
+            parse_import_modules(terminal_text).issubset({
+                "__future__", "unicodedata",
+            })
+        )
+
+        evaluator = read_text(ROOT / "scripts" / "evaluate_private_deepseek.py")
+        for marker in (
+            'add_parser("build"', '"--staging"', '"--interactive-judge"',
+            "terminal_streams_available", "make_interactive_judge",
+            "write_new_encrypted_dataset",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, evaluator)
+        for forbidden in (
+            '"--transcript"', '"--export"', '"--save"', '"--output"',
+            '"--force"', '"--overwrite"', '"--key"', '"--key-file"',
+        ):
+            self.assertNotIn(forbidden, evaluator)
+
     def test_private_evaluation_import_policy_canonicalizes_relative_imports(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             probe = Path(temporary) / "probe.py"

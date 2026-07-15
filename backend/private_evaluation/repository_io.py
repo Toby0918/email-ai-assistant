@@ -57,46 +57,77 @@ def read_bounded_checked(
 
 
 def replace_bounded_checked(
-    original: Path,
-    payload: bytes,
-    maximum: int,
-    validate: Callable[[Path], Path],
-    hook: Callable[[str, Path], None],
+    original: Path, payload: bytes, maximum: int,
+    validate: Callable[[Path], Path], hook: Callable[[str, Path], None],
+    *, require_absent: bool = False,
 ) -> None:
     stage: Path | None = None
-    descriptor = -1
+    target: Path | None = None
+    published: _Identity | None = None
+    complete = False
     try:
         if type(payload) is not bytes or len(payload) > maximum:
             _unavailable()
         target = validate(original)
         parent_before = _identity(target.parent, directory=True)
         target_before = _optional_identity(target)
-        stage = target.with_name(f".{target.name}.{uuid.uuid4().hex}.tmp")
-        descriptor = os.open(stage, _write_flags(), 0o600)
-        _write_all(descriptor, payload)
-        os.fsync(descriptor)
-        stage_opened = _from_stat(os.fstat(descriptor), regular=True)
-        os.close(descriptor)
-        descriptor = -1
-        if stage_opened.size != len(payload):
+        if require_absent and target_before is not None:
             _unavailable()
+        stage, stage_opened = _write_stage(target, payload)
         hook("write_before_replace", target)
         _revalidate(original, target, parent_before, target_before, validate)
         if _identity(stage, regular=True) != stage_opened:
             _unavailable()
-        os.replace(stage, target)
-        stage = None
+        if require_absent:
+            os.link(stage, target, follow_symlinks=False)
+            published = stage_opened
+        else:
+            os.replace(stage, target)
+            stage = None
         hook("write_after_replace", target)
         _revalidate(original, target, parent_before, stage_opened, validate)
         _sync_directory(target.parent)
+        if require_absent:
+            stage.unlink()
+            stage = None
+            _sync_directory(target.parent)
+        complete = True
     except PrivateEvaluationError:
         raise
     except Exception:
         _unavailable()
     finally:
-        if descriptor >= 0:
-            os.close(descriptor)
+        if not complete and target is not None and published is not None:
+            _unlink_if_identity(target, published)
         if stage is not None:
+            try:
+                stage.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+
+def _write_stage(target: Path, payload: bytes) -> tuple[Path, _Identity]:
+    stage = target.with_name(f".{target.name}.{uuid.uuid4().hex}.tmp")
+    descriptor = -1
+    keep = False
+    try:
+        descriptor = os.open(stage, _write_flags(), 0o600)
+        _write_all(descriptor, payload)
+        os.fsync(descriptor)
+        opened = _from_stat(os.fstat(descriptor), regular=True)
+        if opened.size != len(payload):
+            _unavailable()
+        os.close(descriptor)
+        descriptor = -1
+        keep = True
+        return stage, opened
+    finally:
+        if descriptor >= 0:
+            try:
+                os.close(descriptor)
+            except OSError:
+                pass
+        if not keep:
             try:
                 stage.unlink(missing_ok=True)
             except OSError:
@@ -118,6 +149,14 @@ def _same_node(left: _Identity, right: _Identity) -> bool:
     ) == (
         right.device, right.inode, stat.S_IFMT(right.mode)
     )
+
+
+def _unlink_if_identity(path: Path, expected: _Identity) -> None:
+    try:
+        if _optional_identity(path) == expected:
+            path.unlink()
+    except (OSError, PrivateEvaluationError):
+        pass
 
 
 def _identity(path: Path, *, regular: bool = False, directory: bool = False) -> _Identity:
