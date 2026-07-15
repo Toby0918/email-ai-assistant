@@ -90,6 +90,9 @@ class ResourceLimitationVerticalContractTests(unittest.TestCase):
             with patch(
                 "backend.email_agent.api._store_attachments_or_degrade",
                 return_value=(stored_attachments, [operational]),
+            ), patch(
+                "backend.email_agent.analyzer.PARSER_MAX_SECONDS",
+                30.0,
             ):
                 with patch.dict(os.environ, {"EMAIL_AGENT_LLM_PROVIDER": "disabled"}):
                     response = handle_analyze_current_email(request_payload, config=config)
