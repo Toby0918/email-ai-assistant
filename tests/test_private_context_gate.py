@@ -111,6 +111,16 @@ class PrivateContextGateTests(unittest.TestCase):
                     "",
                 ),
             ),
+            (
+                ThreadSource(
+                    "thread:0",
+                    "Alice <SecretAlias>",
+                    "",
+                    "",
+                    "",
+                    "",
+                ),
+            ),
         )
         for sources in cases:
             with self.subTest(source_type=type(sources[0]).__name__):

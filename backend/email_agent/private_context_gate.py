@@ -185,6 +185,7 @@ def _display_names(value: str) -> tuple[str, ...] | None:
     candidate = value.strip()
     if not candidate:
         return ()
+    bracketed = "<" in candidate or ">" in candidate
     if candidate.count("<") != candidate.count(">"):
         return None
     try:
@@ -197,6 +198,8 @@ def _display_names(value: str) -> tuple[str, ...] | None:
     for name, address in parsed:
         display = name.strip()
         mailbox = address.strip()
+        if bracketed and _HEADER_EMAIL.fullmatch(mailbox) is None:
+            return None
         if "@" in mailbox and _HEADER_EMAIL.fullmatch(mailbox) is None:
             return None
         if not display and mailbox and "@" not in mailbox:
