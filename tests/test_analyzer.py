@@ -129,7 +129,7 @@ class AnalyzerTests(unittest.TestCase):
             result = analyze_current_email(
                 {
                     "subject": "Internal follow-up",
-                    "from": "sales@cndlf.com",
+                    "from": "sales@company.test",
                     "body_text": "Received, we will check.",
                     "stored_attachments": [stored],
                     "thread_segments": [
@@ -374,8 +374,8 @@ class AnalyzerTests(unittest.TestCase):
                 {
                     "subject": "Delivery request",
                     "from": "customer@example.test",
-                    "to": ["sales@cndlf.com"],
-                    "cc": ["ops@cndlf.com"],
+                    "to": ["sales@company.test"],
+                    "cc": ["ops@company.test"],
                     "sent_at": "2026-07-10T12:00:00+08:00",
                     "body_text": "Please confirm delivery for PO 123456.",
                     "stored_attachments": [stored],

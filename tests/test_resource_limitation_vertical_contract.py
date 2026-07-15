@@ -335,7 +335,7 @@ class ResourceLimitationVerticalContractTests(unittest.TestCase):
               await context.EmailAssistantApi.analyzeCurrentEmail({
                 subject: "Synthetic RFQ 42",
                 from: "customer@example.test",
-                to: ["sales@cndlf.com"],
+                to: ["sales@company.test"],
                 sent_at: "2026-07-11 10:00 UTC",
                 body_text: "Please review RFQ 42 and prepare a response.",
                 attachments: [],

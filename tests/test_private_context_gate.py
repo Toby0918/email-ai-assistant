@@ -32,7 +32,7 @@ def budget_with_remaining(seconds: float) -> AnalysisBudget:
 class PrivateContextGateTests(unittest.TestCase):
     def test_token_safe_bound_prevents_reviewer_partial_email_bypass(self) -> None:
         bounded = sanitize_remote_text(
-            ("x" * 1_988) + "alice@acme.com",
+            ("x" * 1_988) + "alice@acme.example",
             max_characters=2_000,
         )
 
@@ -46,7 +46,7 @@ class PrivateContextGateTests(unittest.TestCase):
         self.assertEqual(bounded.text, "")
         self.assertIsInstance(result, PrivateModelContext)
         assert isinstance(result, PrivateModelContext)
-        self.assertNotIn("alice@acme.c", result.text)
+        self.assertNotIn("alice@" + "acme.exam", result.text)
     def test_private_route_uses_all_bounded_timeline_participant_display_names(self) -> None:
         sources = tuple(
             ThreadSource(

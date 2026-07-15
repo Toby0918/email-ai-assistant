@@ -436,7 +436,7 @@ class RuleAnalyzerTests(unittest.TestCase):
 
         result = build_rule_based_analysis(
             subject="Internal follow-up",
-            sender="sales@cndlf.com",
+            sender="sales@company.test",
             clean_body="Received, we will check.",
             attachment_insights=insights,
             conversation_timeline=timeline,

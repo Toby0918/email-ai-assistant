@@ -65,7 +65,7 @@ class DeepSeekPromptContextTests(unittest.TestCase):
                 ThreadSource(
                     "thread:0",
                     "Buyer <buyer@example.com>",
-                    "Sales <sales@cndlf.com>",
+                    "Sales <sales@company.test>",
                     "2026-07-12T09:00:00+00:00",
                     "RFQ-42 quotation request",
                     "PO 1013970520 qty 24 due 2026-07-20 USD 1,250.",
@@ -83,8 +83,8 @@ class DeepSeekPromptContextTests(unittest.TestCase):
         self.context = {
             "subject": "RFQ-42 quotation request",
             "sender": "Buyer <buyer@example.com>",
-            "recipients": ("Sales <sales@cndlf.com>",),
-            "cc": ("Ops <ops@cndlf.com>",),
+            "recipients": ("Sales <sales@company.test>",),
+            "cc": ("Ops <ops@company.test>",),
             "sent_at": "2026-07-12T09:00:00+00:00",
             "clean_body": "PO 1013970520 qty 24 due 2026-07-20 USD 1,250.",
             "timeline": self.timeline,
@@ -324,7 +324,7 @@ class DeepSeekPromptContextTests(unittest.TestCase):
                 ThreadSource(
                     "thread:0",
                     "buyer@example.com",
-                    "sales@cndlf.com",
+                    "sales@company.test",
                     "2026-07-12",
                     "Password is thread-secret",
                     "API key thread-secret-12345 | PO 1013970520",
@@ -363,7 +363,7 @@ class DeepSeekPromptContextTests(unittest.TestCase):
             ThreadSource(
                 f"thread:{index}",
                 "buyer@example.com",
-                "sales@cndlf.com",
+                "sales@company.test",
                 "2026-07-12",
                 f"Subject {index}",
                 f"BODY-{index:02d}-" + ("x" * 4_000),

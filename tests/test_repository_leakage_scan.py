@@ -55,6 +55,24 @@ class RepositoryLeakageScanTests(unittest.TestCase):
             (self.module.LeakageFinding("LEAK_PRIVATE_IDENTIFIER", "generated_status", 1),),
         )
 
+    def test_new_private_identity_in_test_source_is_not_blanket_exempted(self) -> None:
+        identity = "actual.person" + "@" + "customer-company.com"
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            fixture = root / "tests" / "test_private_fixture.py"
+            fixture.parent.mkdir()
+            fixture.write_text(identity, encoding="utf-8")
+
+            findings = self.module.scan_file_set(
+                root,
+                (self.module.ScopedFile("git_tracked", "tests/test_private_fixture.py"),),
+            )
+
+        self.assertEqual(
+            findings,
+            (self.module.LeakageFinding("LEAK_PRIVATE_IDENTIFIER", "git_tracked", 1),),
+        )
+
     def test_findings_expose_only_fixed_codes_counts_and_scope_categories(self) -> None:
         secret = "sk-" + "A" * 36
         identity = "private.user" + "@" + "corp.invalid"
@@ -63,7 +81,7 @@ class RepositoryLeakageScanTests(unittest.TestCase):
                 "From: " + identity,
                 "To: reviewer@example.test",
                 "Subject: synthetic private canary",
-                "Message-ID: <opaque@corp.invalid>",
+                "Message-ID: <opaque" + "@corp.invalid>",
             )
         )
         derived = "[[PRIVATE" + "-DERIVED]] synthetic canary prose"

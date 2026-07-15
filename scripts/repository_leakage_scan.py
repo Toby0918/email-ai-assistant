@@ -162,7 +162,7 @@ def _is_synthetic_domain(domain: str) -> bool:
     return value in _SYNTHETIC_DOMAINS or value.endswith((".test", ".example"))
 
 
-def _scan_text(text: str, *, check_identifiers: bool = True) -> Counter[str]:
+def _scan_text(text: str) -> Counter[str]:
     counts: Counter[str] = Counter()
     secret_values = [match.group(1).lower() for match in _SECRET.finditer(text)]
     counts["LEAK_SECRET_VALUE"] += sum(
@@ -171,10 +171,9 @@ def _scan_text(text: str, *, check_identifiers: bool = True) -> Counter[str]:
         for value in secret_values
     )
     counts["LEAK_SECRET_VALUE"] += len(_PEM.findall(text))
-    if check_identifiers:
-        counts["LEAK_PRIVATE_IDENTIFIER"] += sum(
-            not _is_synthetic_domain(match.group(1)) for match in _EMAIL.finditer(text)
-        )
+    counts["LEAK_PRIVATE_IDENTIFIER"] += sum(
+        not _is_synthetic_domain(match.group(1)) for match in _EMAIL.finditer(text)
+    )
     if all(pattern.search(text) for pattern in _RAW_HEADERS):
         counts["LEAK_RAW_MAIL"] += 1
     counts["LEAK_ATTACHMENT_NAME"] += text.count(_ATTACHMENT_MARKER)
@@ -235,9 +234,7 @@ def _scan_one(root: Path, item: ScopedFile) -> Counter[str]:
         text = raw.decode("utf-8-sig")
     except UnicodeDecodeError:
         return +counts
-    relative = Path(item.relative_path)
-    is_test_source = relative.suffix.lower() == ".py" and relative.parts[:1] == ("tests",)
-    counts.update(_scan_text(text, check_identifiers=not is_test_source))
+    counts.update(_scan_text(text))
     return +counts
 
 

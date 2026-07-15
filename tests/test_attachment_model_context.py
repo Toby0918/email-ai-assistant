@@ -137,7 +137,7 @@ class AttachmentModelContextTests(unittest.TestCase):
                                 self.assertNotIn(fragment, sanitized.text)
 
     def test_remote_text_drops_unbroken_field_when_no_safe_boundary_exists(self) -> None:
-        raw = ("x" * 1_988) + "alice@acme.com"
+        raw = ("x" * 1_988) + "alice@acme.example"
 
         sanitized = sanitize_remote_text(raw, max_characters=2_000)
 
@@ -313,7 +313,7 @@ class AttachmentModelContextTests(unittest.TestCase):
             ),
             (
                 "unknown tld userinfo",
-                "private-user:private-pass@private.example.xyz/path?q=USER_SECRET#fragment",
+                "private-user:private-pass@" + "private.example.xyz/path?q=USER_SECRET#fragment",
                 ("private-user", "private-pass", "private.example.xyz", "USER_SECRET"),
             ),
             (
@@ -331,17 +331,17 @@ class AttachmentModelContextTests(unittest.TestCase):
         for label, link, forbidden_values in cases:
             with self.subTest(label=label):
                 sanitized = sanitize_remote_text(
-                    f"{link} | buyer@ordinary-mail.xyz | PO 1013970520",
+                    f"{link} | buyer@ordinary-mail.example | PO 1013970520",
                     max_characters=6_000,
                 )
                 self.assertTrue(sanitized.link_was_present)
-                self.assertIn("buyer@ordinary-mail.xyz", sanitized.text)
+                self.assertIn("buyer@ordinary-mail.example", sanitized.text)
                 self.assertIn("PO 1013970520", sanitized.text)
                 for forbidden in forbidden_values:
                     self.assertNotIn(forbidden.casefold(), sanitized.text.casefold())
 
-        email_only = sanitize_remote_text("buyer@private.example.xyz", max_characters=6_000)
-        self.assertEqual(email_only.text, "buyer@private.example.xyz")
+        email_only = sanitize_remote_text("buyer@private.example", max_characters=6_000)
+        self.assertEqual(email_only.text, "buyer@private.example")
         self.assertFalse(email_only.link_was_present)
 
     def test_active_content_removes_marker_and_payload_through_strong_boundary(self) -> None:

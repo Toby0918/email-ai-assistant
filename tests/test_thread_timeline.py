@@ -31,7 +31,7 @@ class ThreadTimelineTests(unittest.TestCase):
         segments = [
             {
                 "position": "3",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "sent_at": "2026-07-10T11:00:00+00:00",
                 "body_text": "We will review both requests.",
             },
@@ -49,7 +49,7 @@ class ThreadTimelineTests(unittest.TestCase):
             },
         ]
 
-        build = build_timeline_skeleton(segments, ("cndlf.com",))
+        build = build_timeline_skeleton(segments, ("company.test",))
 
         self.assertIsInstance(build, TimelineBuild)
         self.assertTrue(ThreadSource.__dataclass_params__.frozen)
@@ -74,7 +74,7 @@ class ThreadTimelineTests(unittest.TestCase):
         self.assertNotIn("open_item_id", build.public_timeline["open_items"][0])
         self.assertNotIn("evidence_sources", build.public_timeline["open_items"][0])
         self.assertEqual(
-            build_conversation_timeline(segments, ("cndlf.com",)),
+            build_conversation_timeline(segments, ("company.test",)),
             build.public_timeline,
         )
 
@@ -82,7 +82,7 @@ class ThreadTimelineTests(unittest.TestCase):
         segments = [
             {
                 "position": "1",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "We will review the next customer request.",
             },
             {
@@ -95,7 +95,7 @@ class ThreadTimelineTests(unittest.TestCase):
             },
         ]
 
-        build = build_timeline_skeleton(segments, ("cndlf.com",))
+        build = build_timeline_skeleton(segments, ("company.test",))
 
         self.assertEqual(
             [item.open_item_id for item in build.open_items],
@@ -130,7 +130,7 @@ class ThreadTimelineTests(unittest.TestCase):
             for segment_index, start in enumerate((1, 11))
         ]
 
-        build = build_timeline_skeleton(segments, ("cndlf.com",))
+        build = build_timeline_skeleton(segments, ("company.test",))
 
         self.assertEqual(len(build.open_items), 20)
         self.assertEqual(
@@ -155,7 +155,7 @@ class ThreadTimelineTests(unittest.TestCase):
         segments = [
             {
                 "position": "1",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "timestamp_text": "2026-07-10 09:00",
                 "body_text": "We will check the request.",
             },
@@ -167,7 +167,7 @@ class ThreadTimelineTests(unittest.TestCase):
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "unresolved")
         self.assertIn("报价", result["latest_external_request"])
@@ -187,7 +187,7 @@ class ThreadTimelineTests(unittest.TestCase):
             }
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "unresolved")
         self.assertIn("PART-22", result["latest_external_request"])
@@ -212,7 +212,7 @@ class ThreadTimelineTests(unittest.TestCase):
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertIn("shipment ETA", result["latest_external_request"])
         self.assertEqual(result["confidence"], "high")
@@ -233,7 +233,7 @@ class ThreadTimelineTests(unittest.TestCase):
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertIn("shipment ETA", result["latest_external_request"])
         self.assertEqual(result["confidence"], "low")
@@ -254,7 +254,7 @@ class ThreadTimelineTests(unittest.TestCase):
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertIn("shipment ETA", result["latest_external_request"])
         self.assertEqual(result["confidence"], "low")
@@ -275,7 +275,7 @@ class ThreadTimelineTests(unittest.TestCase):
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertIn("certificate", result["latest_external_request"])
         self.assertEqual(result["confidence"], "low")
@@ -296,7 +296,7 @@ class ThreadTimelineTests(unittest.TestCase):
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertIn("certificate", result["latest_external_request"])
         self.assertEqual(result["confidence"], "low")
@@ -317,7 +317,7 @@ class ThreadTimelineTests(unittest.TestCase):
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertIn("certificate", result["latest_external_request"])
         self.assertEqual(result["confidence"], "low")
@@ -344,7 +344,7 @@ class ThreadTimelineTests(unittest.TestCase):
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertIn("quotation", result["latest_external_request"])
         self.assertIn("2条", result["previous_context"])
@@ -365,7 +365,7 @@ class ThreadTimelineTests(unittest.TestCase):
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertIn("2条", result["previous_context"])
 
@@ -384,7 +384,7 @@ class ThreadTimelineTests(unittest.TestCase):
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertIn("2条", result["previous_context"])
 
@@ -398,13 +398,13 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Support <support@CNdLf.CoM>",
+                "from": "Support <support@company.test>",
                 "timestamp_text": "2026-07-10 10:00",
                 "body_text": "Received, we will check.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "unresolved")
         self.assertIn("将跟进", result["latest_internal_commitment"])
@@ -418,7 +418,7 @@ class ThreadTimelineTests(unittest.TestCase):
             }
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "unresolved")
         self.assertEqual(result["latest_internal_commitment"], "")
@@ -432,12 +432,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "sales@cndlf.com via Buyer <buyer@example.net>",
+                "from": "sales@company.test via Buyer <buyer@example.net>",
                 "body_text": "RFQ-1 quotation completed.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "unresolved")
         self.assertEqual(len(result["open_items"]), 1)
@@ -451,12 +451,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales Team <sales@cndlf.com>",
+                "from": "Sales Team <sales@company.test>",
                 "body_text": "RFQ-2 quotation completed.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "resolved")
 
@@ -469,12 +469,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>, Ops <ops@CNDLF.COM>",
+                "from": "Sales <sales@company.test>, Ops <ops@company.test>",
                 "body_text": "RFQ-3 quotation completed.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "resolved")
 
@@ -488,13 +488,13 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "timestamp_text": "2026-07-10 11:00",
                 "body_text": "RFQ-42 quotation has been sent and the request is resolved.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "resolved")
         self.assertEqual(result["open_items"], [])
@@ -509,12 +509,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>, Buyer <buyer@example>",
+                "from": "Sales <sales@company.test>, Buyer <buyer@example>",
                 "body_text": "RFQ-6 quotation completed.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "unresolved")
         self.assertEqual(len(result["open_items"]), 1)
@@ -528,22 +528,22 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>, Alias <sales..alias@cndlf.com>",
+                "from": "Sales <sales@company.test>, Alias <sales..alias@company.test>",
                 "body_text": "RFQ-8 quotation completed.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "unresolved")
         self.assertEqual(len(result["open_items"]), 1)
 
     def test_malformed_sender_wrappers_cannot_apply_internal_outcome(self) -> None:
         malformed_senders = (
-            "Sales <sales@cndlf.com",
-            "Sales sales@cndlf.com>",
-            "Sales >sales@cndlf.com<",
-            "Sales <sales@cndlf.com>,, Ops <ops@cndlf.com>",
+            "Sales <sales@company.test",
+            "Sales sales@company.test>",
+            "Sales >sales@company.test<",
+            "Sales <sales@company.test>,, Ops <ops@company.test>",
         )
 
         for sender in malformed_senders:
@@ -563,7 +563,7 @@ class ThreadTimelineTests(unittest.TestCase):
                     },
                 ]
 
-                result = build_conversation_timeline(segments, ("cndlf.com",))
+                result = build_conversation_timeline(segments, ("company.test",))
 
                 self.assertEqual(result["current_status"], "unresolved")
                 self.assertEqual(result["confidence"], "low")
@@ -578,12 +578,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "RFQ-1 quotation is not completed.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "unresolved")
         self.assertEqual(len(result["open_items"]), 1)
@@ -597,12 +597,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "RFQ-2报价尚未完成。",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "unresolved")
 
@@ -615,12 +615,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "RFQ-3 quotation is not not completed.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "unresolved")
 
@@ -633,12 +633,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "RFQ-4 quotation completed but not delayed.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "resolved")
         self.assertEqual(result["open_items"], [])
@@ -661,12 +661,12 @@ class ThreadTimelineTests(unittest.TestCase):
                     },
                     {
                         "position": "2",
-                        "from": "Sales <sales@cndlf.com>",
+                        "from": "Sales <sales@company.test>",
                         "body_text": outcome,
                     },
                 ]
 
-                result = build_conversation_timeline(segments, ("cndlf.com",))
+                result = build_conversation_timeline(segments, ("company.test",))
 
                 self.assertEqual(result["current_status"], "unresolved")
                 self.assertEqual(len(result["open_items"]), 1)
@@ -688,12 +688,12 @@ class ThreadTimelineTests(unittest.TestCase):
                     },
                     {
                         "position": "2",
-                        "from": "Sales <sales@cndlf.com>",
+                        "from": "Sales <sales@company.test>",
                         "body_text": outcome,
                     },
                 ]
 
-                result = build_conversation_timeline(segments, ("cndlf.com",))
+                result = build_conversation_timeline(segments, ("company.test",))
 
                 self.assertEqual(result["current_status"], "unresolved")
                 self.assertIn("阻塞", result["status_reason"])
@@ -715,12 +715,12 @@ class ThreadTimelineTests(unittest.TestCase):
                     },
                     {
                         "position": "2",
-                        "from": "Sales <sales@cndlf.com>",
+                        "from": "Sales <sales@company.test>",
                         "body_text": outcome,
                     },
                 ]
 
-                result = build_conversation_timeline(segments, ("cndlf.com",))
+                result = build_conversation_timeline(segments, ("company.test",))
 
                 self.assertEqual(result["current_status"], "unresolved")
                 self.assertIn("阻塞", result["status_reason"])
@@ -735,17 +735,17 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "RFQ-1 quotation completed.",
             },
             {
                 "position": "3",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "RFQ-1 quotation pending approval.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "unresolved")
         self.assertIn("阻塞", result["status_reason"])
@@ -760,17 +760,17 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "RFQ-2 quotation pending approval.",
             },
             {
                 "position": "3",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "RFQ-2 quotation completed.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "resolved")
         self.assertEqual(result["open_items"], [])
@@ -791,13 +791,13 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "3",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "sent_at": "2026-07-10T11:00:00+00:00",
                 "body_text": "PO-202 certificate has been sent and resolved.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "partially_resolved")
         self.assertIn("RFQ-101", result["latest_external_request"])
@@ -817,12 +817,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "3",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "The request is resolved.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "unresolved")
         self.assertIn("certificate", result["latest_external_request"])
@@ -842,17 +842,17 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "3",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "RFQ-101 quotation has been sent and resolved.",
             },
             {
                 "position": "4",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "PO-202 certificate has been sent and resolved.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "resolved")
         self.assertEqual(result["open_items"], [])
@@ -866,12 +866,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "RFQ-501 quotation has been sent and resolved.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "partially_resolved")
         self.assertIn("certificate", result["latest_external_request"])
@@ -888,12 +888,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "RFQ-701 quotation completed; PART-702 certificate pending.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "partially_resolved")
         self.assertIn("PART-702", result["latest_external_request"])
@@ -908,12 +908,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "RFQ-711 quotation completed and PART-712 certificate pending.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "partially_resolved")
         self.assertIn("PART-712", result["latest_external_request"])
@@ -928,12 +928,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "RFQ-1 quotation completed, PART-2 certificate pending.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "partially_resolved")
         self.assertIn("PART-2", result["latest_external_request"])
@@ -948,12 +948,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "RFQ-1 quotation completed but PART-2 certificate pending.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "partially_resolved")
         self.assertIn("PART-2", result["latest_external_request"])
@@ -968,12 +968,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "RFQ-3报价已完成但是PART-4证书待确认。",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "partially_resolved")
         self.assertIn("PART-4", result["latest_external_request"])
@@ -988,12 +988,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "RFQ-5 quotation completed, quantity 1,000 units recorded.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "resolved")
         self.assertEqual(result["open_items"], [])
@@ -1007,12 +1007,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "RFQ-5 quotation for 1,000 units completed.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "resolved")
         self.assertEqual(result["open_items"], [])
@@ -1026,12 +1026,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "RFQ-5 quotation, as agreed, completed.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "resolved")
         self.assertEqual(result["open_items"], [])
@@ -1045,12 +1045,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "RFQ-801 quotation completed but pending approval.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "unresolved")
         self.assertIn("阻塞", result["status_reason"])
@@ -1064,12 +1064,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "RFQ-901 quotation completed.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "resolved")
         self.assertEqual(result["open_items"], [])
@@ -1086,12 +1086,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "RFQ-901 quotation completed.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "resolved")
         self.assertEqual(result["open_items"], [])
@@ -1105,12 +1105,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "RFQ-903 quotation completed.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "partially_resolved")
         self.assertIn("PART-904", result["latest_external_request"])
@@ -1124,12 +1124,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "PART-922 certificate completed.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "resolved")
         self.assertEqual(result["open_items"], [])
@@ -1143,12 +1143,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "RFQ-931 quotation completed.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "partially_resolved")
         self.assertIn("PO-932", result["latest_external_request"])
@@ -1165,12 +1165,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "RFQ-1 quotation completed.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "resolved")
         self.assertEqual(result["open_items"], [])
@@ -1187,12 +1187,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "RFQ-1 quotation completed.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "resolved")
         self.assertEqual(result["open_items"], [])
@@ -1206,12 +1206,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "RFQ-3报价已完成。",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "resolved")
         self.assertEqual(result["open_items"], [])
@@ -1225,12 +1225,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "RFQ-3 quotation completed.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "partially_resolved")
         self.assertIn("PART-4", result["latest_external_request"])
@@ -1245,13 +1245,13 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "sent_at": "2026-07-10T10:00:00+00:00",
                 "body_text": "Quotation for line 1 completed.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "partially_resolved")
         self.assertIn("line 2", result["latest_external_request"].lower())
@@ -1267,13 +1267,13 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "sent_at": "2026-07-10T10:00:00+00:00",
                 "body_text": "Line 1 completed.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "partially_resolved")
         self.assertIn("3", result["latest_external_request"])
@@ -1289,7 +1289,7 @@ class ThreadTimelineTests(unittest.TestCase):
             }
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "unresolved")
         self.assertIn("PART-602", result["latest_external_request"])
@@ -1312,13 +1312,13 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "sent_at": "2026-07-10T10:00:00+00:00",
                 "body_text": "The quotation is completed.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "unresolved")
         self.assertEqual(result["confidence"], "low")
@@ -1339,13 +1339,13 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "sent_at": "2026-07-10T10:00:00+00:00",
                 "body_text": "RFQ-240 quotation completed.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "unresolved")
         self.assertEqual(result["confidence"], "low")
@@ -1361,7 +1361,7 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "timestamp_text": "2026-07-10 10:00",
                 "body_text": "The quotation has been sent and the request is resolved.",
             },
@@ -1373,7 +1373,7 @@ class ThreadTimelineTests(unittest.TestCase):
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "partially_resolved")
         self.assertEqual(result["open_items"][0]["source"], "thread")
@@ -1382,12 +1382,12 @@ class ThreadTimelineTests(unittest.TestCase):
         segments = [
             {
                 "position": "1",
-                "header_text": "From: Buyer <buyer@example.com>\nTo: Sales <sales@cndlf.com>",
+                "header_text": "From: Buyer <buyer@example.com>\nTo: Sales <sales@company.test>",
                 "body_text": "Please provide the quotation.",
             }
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "unresolved")
         self.assertNotIn("buyer@example.com", str(result))
@@ -1403,14 +1403,14 @@ class ThreadTimelineTests(unittest.TestCase):
             {
                 "position": "2",
                 "header_text": (
-                    "From: Sales <sales@cndlf.com>, Buyer <buyer@example.net>\n"
-                    "To: Team <team@cndlf.com>"
+                    "From: Sales <sales@company.test>, Buyer <buyer@example.net>\n"
+                    "To: Team <team@company.test>"
                 ),
                 "body_text": "RFQ-9 quotation completed.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "unresolved")
         self.assertEqual(len(result["open_items"]), 1)
@@ -1427,16 +1427,16 @@ class ThreadTimelineTests(unittest.TestCase):
             {
                 "position": "2",
                 "header_text": (
-                    "From: Sales <sales@cndlf.com>\n"
+                    "From: Sales <sales@company.test>\n"
                     " , Buyer <buyer@example.com>\n"
-                    "To: Team <team@cndlf.com>"
+                    "To: Team <team@company.test>"
                 ),
                 "sent_at": "2026-07-10T10:00:00+00:00",
                 "body_text": "RFQ-30 quotation completed.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "unresolved")
         self.assertFalse(
@@ -1455,19 +1455,19 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "subject": "We will send RFQ-77 quotation",
                 "body_text": "Noted.",
             },
             {
                 "position": "3",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "subject": "RFQ-77 quotation resolved",
                 "body_text": "Done.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "resolved")
         self.assertIn("RFQ-77", result["latest_external_request"])
@@ -1483,12 +1483,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "RFQ-10 quotation completed.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "resolved")
         self.assertEqual(result["open_items"], [])
@@ -1503,12 +1503,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "Quotation completed",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "resolved")
         self.assertEqual(result["open_items"], [])
@@ -1523,12 +1523,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "PART-204 completed.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "resolved")
         self.assertEqual(result["open_items"], [])
@@ -1544,7 +1544,7 @@ class ThreadTimelineTests(unittest.TestCase):
             }
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "unresolved")
         self.assertEqual(result["open_items"][0]["due_hint"], "2026-07-20")
@@ -1561,7 +1561,7 @@ class ThreadTimelineTests(unittest.TestCase):
             }
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "unresolved")
         self.assertEqual(result["open_items"][0]["due_hint"], "2026-07-20")
@@ -1578,7 +1578,7 @@ class ThreadTimelineTests(unittest.TestCase):
             }
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "unresolved")
         self.assertEqual(result["confidence"], "low")
@@ -1594,12 +1594,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "PART-205 completed.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "unresolved")
         self.assertEqual(len(result["open_items"]), 2)
@@ -1613,12 +1613,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "Quotation completed.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "unresolved")
         self.assertEqual(len(result["open_items"]), 2)
@@ -1635,12 +1635,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "RFQ-11 quotation completed.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "unresolved")
         self.assertEqual(len(result["open_items"]), 2)
@@ -1654,7 +1654,7 @@ class ThreadTimelineTests(unittest.TestCase):
                     "body_text": "Thanks, we received your request and quotation",
                 }
             ],
-            ("cndlf.com",),
+            ("company.test",),
         )
 
         self.assertEqual(result["current_status"], "unknown")
@@ -1670,7 +1670,7 @@ class ThreadTimelineTests(unittest.TestCase):
                     "body_text": "Thanks, quotation request received.",
                 }
             ],
-            ("cndlf.com",),
+            ("company.test",),
         )
 
         self.assertEqual(result["current_status"], "unknown")
@@ -1686,7 +1686,7 @@ class ThreadTimelineTests(unittest.TestCase):
                     "body_text": "We confirm quotation received.",
                 }
             ],
-            ("cndlf.com",),
+            ("company.test",),
         )
 
         self.assertEqual(result["current_status"], "unknown")
@@ -1702,7 +1702,7 @@ class ThreadTimelineTests(unittest.TestCase):
                     "body_text": "We confirm receipt of quotation request",
                 }
             ],
-            ("cndlf.com",),
+            ("company.test",),
         )
 
         self.assertEqual(result["current_status"], "unknown")
@@ -1717,7 +1717,7 @@ class ThreadTimelineTests(unittest.TestCase):
                     "body_text": "Please note quotation request received",
                 }
             ],
-            ("cndlf.com",),
+            ("company.test",),
         )
 
         self.assertEqual(result["current_status"], "unknown")
@@ -1732,7 +1732,7 @@ class ThreadTimelineTests(unittest.TestCase):
                     "body_text": "请注意报价请求已收到。",
                 }
             ],
-            ("cndlf.com",),
+            ("company.test",),
         )
 
         self.assertEqual(result["current_status"], "unknown")
@@ -1747,7 +1747,7 @@ class ThreadTimelineTests(unittest.TestCase):
                     "body_text": "Please confirm quotation.",
                 }
             ],
-            ("cndlf.com",),
+            ("company.test",),
         )
 
         self.assertEqual(result["current_status"], "unresolved")
@@ -1762,12 +1762,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "Quotation completed.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "resolved")
         self.assertEqual(result["open_items"], [])
@@ -1781,12 +1781,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "Certificate completed.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "partially_resolved")
         self.assertIn("quotation", result["latest_external_request"].lower())
@@ -1801,12 +1801,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "Certificate completed. Shipment completed.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "partially_resolved")
         self.assertIn("quotation", result["latest_external_request"].lower())
@@ -1821,12 +1821,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "证书已完成。",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "partially_resolved")
         self.assertIn("报价", result["latest_external_request"])
@@ -1841,12 +1841,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "Quotation completed.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "resolved")
         self.assertEqual(result["open_items"], [])
@@ -1860,7 +1860,7 @@ class ThreadTimelineTests(unittest.TestCase):
                     "body_text": "We received the sample, but please confirm RFQ-2 quotation",
                 }
             ],
-            ("cndlf.com",),
+            ("company.test",),
         )
 
         self.assertEqual(result["current_status"], "unresolved")
@@ -1876,7 +1876,7 @@ class ThreadTimelineTests(unittest.TestCase):
                     "body_text": "Please note the quotation request is attached",
                 }
             ],
-            ("cndlf.com",),
+            ("company.test",),
         )
 
         self.assertEqual(result["current_status"], "unknown")
@@ -1899,7 +1899,7 @@ class ThreadTimelineTests(unittest.TestCase):
                             "body_text": phrase,
                         }
                     ],
-                    ("cndlf.com",),
+                    ("company.test",),
                 )
 
                 self.assertEqual(result["current_status"], "unknown")
@@ -1918,12 +1918,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "Certificate PART-12 completed.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "resolved")
         self.assertEqual(result["open_items"], [])
@@ -1944,7 +1944,7 @@ class ThreadTimelineTests(unittest.TestCase):
                             "body_text": phrase,
                         }
                     ],
-                    ("cndlf.com",),
+                    ("company.test",),
                 )
 
                 self.assertEqual(result["current_status"], "unknown")
@@ -1960,7 +1960,7 @@ class ThreadTimelineTests(unittest.TestCase):
                     "body_text": "Confirm quotation RFQ-1.",
                 }
             ],
-            ("cndlf.com",),
+            ("company.test",),
         )
 
         self.assertEqual(result["current_status"], "unresolved")
@@ -1978,12 +1978,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "Certificate PART-2 completed.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "resolved")
         self.assertEqual(result["open_items"], [])
@@ -1999,16 +1999,16 @@ class ThreadTimelineTests(unittest.TestCase):
         for name, body in cases.items():
             with self.subTest(name=name):
                 result = build_conversation_timeline(
-                    [{"from": "Staff <staff@cndlf.com>", "body_text": body}],
-                    ("cndlf.com",),
+                    [{"from": "Staff <staff@company.test>", "body_text": body}],
+                    ("company.test",),
                 )
 
                 self.assertEqual(result["current_status"], "unknown")
                 self.assertEqual(result["open_items"], [])
 
         commitment = build_conversation_timeline(
-            [{"from": "Staff <staff@cndlf.com>", "body_text": cases["commitment_only"]}],
-            ("cndlf.com",),
+            [{"from": "Staff <staff@company.test>", "body_text": cases["commitment_only"]}],
+            ("company.test",),
         )
         self.assertIn("将跟进", commitment["latest_internal_commitment"])
 
@@ -2020,7 +2020,7 @@ class ThreadTimelineTests(unittest.TestCase):
                     "body_text": "RFQ-900 quotation is resolved.",
                 }
             ],
-            ("cndlf.com",),
+            ("company.test",),
         )
 
         self.assertEqual(result["current_status"], "unknown")
@@ -2040,7 +2040,7 @@ class ThreadTimelineTests(unittest.TestCase):
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "unresolved")
         self.assertEqual(len(result["open_items"]), 1)
@@ -2059,7 +2059,7 @@ class ThreadTimelineTests(unittest.TestCase):
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "unresolved")
         self.assertNotIn("阻塞", result["status_reason"])
@@ -2073,12 +2073,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "A possible solution from support is completed.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "unresolved")
         self.assertNotIn("POSSIBLE", result["status_reason"].upper())
@@ -2093,12 +2093,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": "PART-204 is completed.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "resolved")
 
@@ -2112,12 +2112,12 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "body_text": f"{oversized_identifier} is completed.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "unresolved")
         self.assertEqual(len(result["open_items"]), 1)
@@ -2136,12 +2136,12 @@ class ThreadTimelineTests(unittest.TestCase):
                     },
                     {
                         "position": "2",
-                        "from": "Sales <sales@cndlf.com>",
+                        "from": "Sales <sales@company.test>",
                         "body_text": f"{malformed_id} completed.",
                     },
                 ]
 
-                result = build_conversation_timeline(segments, ("cndlf.com",))
+                result = build_conversation_timeline(segments, ("company.test",))
 
                 self.assertEqual(result["current_status"], "unresolved")
                 self.assertIn("已明确完成0项", result["status_reason"])
@@ -2157,12 +2157,12 @@ class ThreadTimelineTests(unittest.TestCase):
                     },
                     {
                         "position": "2",
-                        "from": "Sales <sales@cndlf.com>",
+                        "from": "Sales <sales@company.test>",
                         "body_text": f"{valid_id} completed.",
                     },
                 ]
 
-                result = build_conversation_timeline(segments, ("cndlf.com",))
+                result = build_conversation_timeline(segments, ("company.test",))
 
                 self.assertEqual(result["current_status"], "resolved")
                 self.assertEqual(result["open_items"], [])
@@ -2174,7 +2174,7 @@ class ThreadTimelineTests(unittest.TestCase):
                 "position": "1" * 1_000,
                 "header_text": "From: Buyer <buyer@example.com>" + ("x" * 2_000),
                 "from": "Buyer <buyer@example.com>" + ("x" * 2_000),
-                "to": "Sales <sales@cndlf.com>" + ("x" * 2_000),
+                "to": "Sales <sales@company.test>" + ("x" * 2_000),
                 "sent_at": "2026-07-10T09:00:00+00:00" + ("x" * 2_000),
                 "timestamp_text": "2026-07-10 09:00" + ("x" * 2_000),
                 "subject": "Neutral subject " + ("x" * 2_000),
@@ -2183,7 +2183,7 @@ class ThreadTimelineTests(unittest.TestCase):
             }.items()
         }
 
-        result = build_conversation_timeline([tracked], ("cndlf.com",))
+        result = build_conversation_timeline([tracked], ("company.test",))
 
         self.assertEqual(set(result), self._timeline_keys())
         for value in tracked.values():
@@ -2218,13 +2218,13 @@ class ThreadTimelineTests(unittest.TestCase):
                     },
                     {
                         "position": "2",
-                        "from": "Sales <sales@cndlf.com>",
+                        "from": "Sales <sales@company.test>",
                         "sent_at": "2026-07-10T10:00:00+00:00",
                         "body_text": "RFQ-1 quotation completed.",
                     },
                 ]
 
-                result = build_conversation_timeline(segments, ("cndlf.com",))
+                result = build_conversation_timeline(segments, ("company.test",))
 
                 self.assertEqual(result["current_status"], "unresolved")
                 self.assertEqual(result["confidence"], "low")
@@ -2244,13 +2244,13 @@ class ThreadTimelineTests(unittest.TestCase):
             },
             {
                 "position": "2",
-                "from": "Sales <sales@cndlf.com>",
+                "from": "Sales <sales@company.test>",
                 "sent_at": "2026-07-10T10:00:00+00:00",
                 "body_text": "RFQ-501 quotation completed.",
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "unresolved")
         self.assertEqual(result["confidence"], "low")
@@ -2267,7 +2267,7 @@ class ThreadTimelineTests(unittest.TestCase):
             {
                 "position": "2",
                 "from": (
-                    "Sales <sales@cndlf.com>"
+                    "Sales <sales@company.test>"
                     + (" " * 520)
                     + "Buyer <buyer@example.org>"
                 ),
@@ -2276,7 +2276,7 @@ class ThreadTimelineTests(unittest.TestCase):
             },
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "unresolved")
         self.assertEqual(result["confidence"], "low")
@@ -2284,7 +2284,7 @@ class ThreadTimelineTests(unittest.TestCase):
 
     def test_every_bounded_metadata_truncation_requires_manual_review(self) -> None:
         cases = {
-            "to": "Team <team@cndlf.com>" + ("x" * 600),
+            "to": "Team <team@company.test>" + ("x" * 600),
             "sent_at": "2026-07-10T10:00:00+00:00" + ("x" * 600),
             "timestamp_text": "2026-07-10T10:00:00+00:00" + ("x" * 600),
             "position": "1" * 20,
@@ -2294,7 +2294,7 @@ class ThreadTimelineTests(unittest.TestCase):
             with self.subTest(field=field):
                 completion = {
                     "position": "2",
-                    "from": "Sales <sales@cndlf.com>",
+                    "from": "Sales <sales@company.test>",
                     "sent_at": "2026-07-10T10:00:00+00:00",
                     "body_text": "RFQ-50 quotation completed.",
                 }
@@ -2311,7 +2311,7 @@ class ThreadTimelineTests(unittest.TestCase):
                     completion,
                 ]
 
-                result = build_conversation_timeline(segments, ("cndlf.com",))
+                result = build_conversation_timeline(segments, ("company.test",))
 
                 self.assertEqual(result["current_status"], "unresolved")
                 self.assertEqual(result["confidence"], "low")
@@ -2331,7 +2331,7 @@ class ThreadTimelineTests(unittest.TestCase):
                     },
                     {
                         "position": "2",
-                        "from": "Sales <sales@cndlf.com>",
+                        "from": "Sales <sales@company.test>",
                         "sent_at": "2026-07-10T10:00:00+00:00",
                         "body_text": "RFQ-10 quotation completed.",
                     },
@@ -2343,7 +2343,7 @@ class ThreadTimelineTests(unittest.TestCase):
                     },
                 ]
 
-                result = build_conversation_timeline(segments, ("cndlf.com",))
+                result = build_conversation_timeline(segments, ("company.test",))
 
                 self.assertEqual(result["current_status"], "unresolved")
                 self.assertEqual(result["confidence"], "low")
@@ -2359,7 +2359,7 @@ class ThreadTimelineTests(unittest.TestCase):
             }
         )
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "unknown")
         self.assertEqual(result["confidence"], "low")
@@ -2380,7 +2380,7 @@ class ThreadTimelineTests(unittest.TestCase):
                     },
                     {
                         "position": str(index * 2),
-                        "from": "Sales <sales@cndlf.com>",
+                        "from": "Sales <sales@company.test>",
                         "sent_at": "2026-07-10T09:00:00+00:00",
                         "body_text": f"{request_id} completed.",
                     },
@@ -2395,7 +2395,7 @@ class ThreadTimelineTests(unittest.TestCase):
             }
         )
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "unresolved")
         self.assertEqual(result["confidence"], "low")
@@ -2406,7 +2406,7 @@ class ThreadTimelineTests(unittest.TestCase):
         segments = [
             {
                 "position": str(index),
-                "from": "Staff <staff@cndlf.com>",
+                "from": "Staff <staff@company.test>",
                 "sent_at": "2026-07-10T09:00:00+00:00",
                 "body_text": "Thanks, received.",
             }
@@ -2421,7 +2421,7 @@ class ThreadTimelineTests(unittest.TestCase):
             }
         )
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "unknown")
         self.assertEqual(result["confidence"], "low")
@@ -2432,19 +2432,19 @@ class ThreadTimelineTests(unittest.TestCase):
         segments = [
             {
                 "position": "1",
-                "from": "Operations <ops@cndlf.com>",
+                "from": "Operations <ops@company.test>",
                 "timestamp_text": "2026-07-10 09:00",
                 "body_text": "无法确认库存，待确认后才能回复。",
             }
         ]
 
-        result = build_conversation_timeline(segments, ("cndlf.com",))
+        result = build_conversation_timeline(segments, ("company.test",))
 
         self.assertEqual(result["current_status"], "unknown")
         self.assertEqual(result["open_items"], [])
 
     def test_invalid_only_input_returns_unknown_low_confidence_contract(self) -> None:
-        result = build_conversation_timeline([None, "not a segment", {"body_text": 4}], ("cndlf.com",))
+        result = build_conversation_timeline([None, "not a segment", {"body_text": 4}], ("company.test",))
 
         self.assertEqual(
             set(result),
