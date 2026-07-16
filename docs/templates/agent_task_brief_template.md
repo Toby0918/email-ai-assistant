@@ -213,6 +213,12 @@ Complete this section whenever a task changes remote AI input, runtime knowledge
 [ ] Every remote path passes one backend-only deidentification and residual-scan gate.
 [ ] runtime_cards defaults to an immutable empty tuple and accepts only verified RuntimeKnowledgeCard values.
 [ ] No environment/path/key/bootstrap/vault/DPAPI/BitLocker/frontend field crosses the runtime seam.
+[ ] If startup snapshot loading changes, only the startup script imports the fail-closed bootstrap and it runs exactly once before server start.
+[ ] Authority-envelope and snapshot reads use bounded descriptors with original/resolved path plus pre-open/post-read parent/target identity checks; swaps, reparse points, size/read races and non-regular files fail closed.
+[ ] The checked reader exposes no write, replace, rename, unlink, remove or mkdir operation.
+[ ] Request handlers perform no DPAPI/key/filesystem/loader work; there is no reload, polling, hot update or snapshot status endpoint.
+[ ] Disabled, blank, invalid, expired, tampered or unavailable snapshot configuration yields an immutable empty tuple without path, key, ID or exception disclosure.
+[ ] Mutable `SecretBytes` are overwritten on context exit without claiming all DPAPI/cryptography/Python transient immutable copies can be wiped.
 [ ] Knowledge rendering is identifier-free, deterministic, at most 8 cards and 4,000 characters.
 [ ] Resolver/mapping is closed before the provider call and cannot reach provider/parser/API/SQLite/logs/exceptions.
 [ ] Provider output placeholders, restoration hints and private metadata markers are rejected before parsing.

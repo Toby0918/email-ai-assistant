@@ -9,22 +9,23 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Callable, Iterator
 
+from .checked_reader import read_bounded_checked, validate_read_path
 from .errors import PrivateKnowledgeError
 
 
 def read_ciphertext(path: Path, *, maximum: int, code: str) -> bytes:
-    try:
-        metadata = path.lstat()
-        if path.is_symlink() or not stat.S_ISREG(metadata.st_mode):
-            raise OSError
-        if not 1 <= metadata.st_size <= maximum:
-            raise OSError
-        value = path.read_bytes()
-    except OSError:
-        raise PrivateKnowledgeError(code) from None
-    if len(value) != metadata.st_size:
-        raise PrivateKnowledgeError(code)
-    return value
+    return read_bounded_checked(
+        Path(path),
+        maximum,
+        lambda value: validate_read_path(value, error_code=code),
+        _test_read_race_hook,
+        error_code=code,
+    )
+
+
+def _test_read_race_hook(_stage: str, _path: Path) -> None:
+    """No-op seam; tests may mutate paths and all identity checks still run."""
+    return None
 
 
 def replace_ciphertext(

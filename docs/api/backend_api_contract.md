@@ -20,6 +20,13 @@ source_type: api_contract
 - DeepSeek 的 `conservative` 与 `model_led` 路线都必须通过 backend-only private outbound gate。去标识身份上下文必须覆盖当前 sender/to/cc 和实际选入 prompt 的每个 timeline source sender/recipient；结构无效、畸形或超限时 fail closed。provider 只接收 locally deidentified plain text 和最多 8 张、合计 4,000 characters 的 identifier-free approved knowledge cards；placeholder mapping/resolver、identity source/ID、card/snapshot/vault identifier、path、URL、binary 和 restoration hint 都不得越过该门。模型 must never emit deidentification placeholder tokens，只能使用 generic references for exact identifiers and dates；backend-verified exact facts remain authoritative，并由本地确定性规则在安全合并时补回。model-authored exact identifiers and dates fall back to backend rule fields，覆盖摘要、原因、标签、Decision Brief、时间线、风险、动作、草稿和附件增强。internal deidentification tokens stay local，并在 provider 调用前确定性转换成无编号通用语义；随后执行 post-conversion residual scan，且 any unknown token fails closed。provider 输出在业务 parser 前先做 raw scan，再做有 size/depth/item 上限、拒绝 duplicate key 的 privacy-only JSON decode，并递归扫描 decoded keys 和 string leaves；非法 JSON 或私有标记直接完整规则回落。
 - DeepSeek 响应先解析为内部 `deepseek_analysis_v1`，再执行来源、grounding、mandatory-risk、commitment/action 和公开 schema 校验。所有 provider-authored 文本族共享 universal policy：URL/markup、工具/命令、自动邮箱动作和第一人称或被动后果性承诺均按字段回落；安全的请求、疑问、否定和人工核查措辞允许保留。公开响应仍只有本页列出的字段。
 
+### Backend-only private knowledge startup contract
+
+- 私有知识默认关闭；只有显式 `EMAIL_AGENT_PRIVATE_KNOWLEDGE_ENABLED=true` 和两个安全外部绝对路径通过门禁时，服务启动入口才尝试一次 DPAPI/key/snapshot load。
+- 成功只产生内存中的 immutable verified-card tuple，并沿 server/API 内部参数进入 analyzer。HTTP payload 中同名或相似字段全部忽略，不能覆盖内部 tuple。
+- disabled、blank、missing、expired、tampered、signature/decrypt/schema/path/DPAPI/clock failure 全部等价于 empty tuple 和普通规则路径。没有公开错误、状态或元数据。
+- 每个请求不访问 DPAPI、authority、snapshot、loader 或 filesystem；没有 reload、polling、hot update 或 snapshot status endpoint。公开请求/响应、health、SQLite 和 diagnostics 字段集合不变。
+
 ### Backend-only diagnostic boundary
 
 Rule fallback remains a successful public analysis response. 公开结果继续使用既有 `ok=true`、完整 `analysis`、`saved_id` 和 `analysis_engine.source=rule_fallback`；本地诊断不会把它改成错误响应。

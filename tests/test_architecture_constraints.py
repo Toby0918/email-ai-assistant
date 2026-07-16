@@ -428,6 +428,62 @@ class ArchitectureConstraintTests(unittest.TestCase):
             linter,
         )
 
+    def test_runtime_bootstrap_is_the_only_normal_startup_key_bridge(self) -> None:
+        bootstrap = ROOT / "backend" / "private_knowledge" / "runtime_bootstrap.py"
+        self.assertTrue(bootstrap.is_file())
+        text = read_text(bootstrap)
+        self.assertNotIn("backend.email_agent", text)
+        self.assertNotIn("logging", text)
+        self.assertNotIn("print(", text)
+
+        allowed = (ROOT / "scripts" / "run_local_debug.py").resolve()
+        observed = []
+        for path in [*(ROOT / "backend").rglob("*.py"), *(ROOT / "scripts").rglob("*.py")]:
+            if "backend.private_knowledge.runtime_bootstrap" in parse_import_modules(path):
+                observed.append(path.resolve())
+        self.assertEqual(observed, [allowed])
+
+        architecture = read_text(
+            ROOT / "docs" / "constraints" / "architecture_constraints.md"
+        )
+        self.assertIn("startup-only runtime bootstrap", architecture)
+        self.assertIn("no reload, polling, hot update, or status endpoint", architecture)
+
+    def test_private_knowledge_runtime_reads_are_descriptor_bound(self) -> None:
+        package = ROOT / "backend" / "private_knowledge"
+        checked = package / "checked_reader.py"
+        snapshot_reader = package / "read_only_file.py"
+        ciphertext = package / "atomic_ciphertext.py"
+
+        self.assertTrue(checked.is_file())
+        self.assertIn(
+            "backend.private_knowledge.checked_reader",
+            parse_import_modules(snapshot_reader),
+        )
+        self.assertIn(
+            "backend.private_knowledge.checked_reader",
+            parse_import_modules(ciphertext),
+        )
+        self.assertTrue({"open", "fstat", "read", "lstat", "close"}.issubset(
+            parse_called_names(checked)
+        ))
+        self.assertFalse({
+            "write", "replace", "rename", "unlink", "remove", "rmdir", "mkdir",
+        }.intersection(parse_called_names(checked)))
+        self.assertIn("O_NOFOLLOW", read_text(checked))
+
+        architecture = read_text(
+            ROOT / "docs" / "constraints" / "architecture_constraints.md"
+        )
+        self.assertIn(
+            "pre-open and post-read descriptor identity checks",
+            " ".join(architecture.split()),
+        )
+        security = read_text(
+            ROOT / "docs" / "security" / "private_knowledge_handling.md"
+        )
+        self.assertIn("transient immutable plaintext bytes", " ".join(security.split()))
+
     def test_remote_exact_fact_boundaries_share_one_canonical_recognizer(self) -> None:
         consumers = (
             ROOT / "backend" / "private_knowledge" / "entity_patterns.py",

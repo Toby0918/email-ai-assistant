@@ -103,8 +103,10 @@ Task 1.
 
 ### Slice 3: Read-only runtime knowledge snapshot bootstrap
 
-Later work adds fail-closed, read-only runtime snapshot bootstrap with immutable
-empty-card fallback. It is not part of Task 1.
+This slice adds a fail-closed, startup-only read-only runtime snapshot bootstrap
+with immutable empty-card fallback. It remains disabled by default, runs once
+before server start, and exposes no reload, polling, hot update, or status
+endpoint. It does not expand Task 1 mailbox access or public schemas.
 
 ### Slice 4: Tencent context extraction, privacy diagnostics, and rule facts
 

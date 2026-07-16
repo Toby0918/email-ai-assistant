@@ -172,6 +172,25 @@ repository、key path 或 raw vault 接入正常服务。
 deprecate/revoke 对应卡片并发布新的已审核 snapshot。不得编辑已发布密文或把
 真实派生文本复制到 Git、issue、日志或状态报告。
 
+生产启用前，在后端受控环境设置以下值并重启服务；两个路径必须为项目、OneDrive、
+系统 temp、raw vault 和其他 private store 外的绝对路径：
+
+```text
+EMAIL_AGENT_PRIVATE_KNOWLEDGE_ENABLED=true
+EMAIL_AGENT_PRIVATE_KNOWLEDGE_AUTHORITY_ROOT=<external authority root>
+EMAIL_AGENT_PRIVATE_KNOWLEDGE_SNAPSHOT_PATH=<external .pksnap path>
+```
+
+启动顺序固定为 config -> logging -> one-shot bootstrap -> server。加载失败不会阻止
+服务，也不会暴露详情，而是使用 empty card tuple 和 generic rule fallback。服务
+不会 reload/poll/hot-update snapshot，也没有状态 endpoint；发布或撤下 snapshot、
+变更配置后必须重启。紧急回滚设置 enabled 为 `false` 并重启，随后由管理员 CLI
+在隔离边界内验证 authority/snapshot；不要把路径、ID、异常或密钥复制到日志。
+启动读取会以 descriptor 核对 authority envelope 与 snapshot 的 open 前后路径和
+文件 identity；若部署工具在同一时刻替换或追加文件，本次启动会固定码 fail closed，
+应完成发布后再明确重启，不要增加 retry 或热更新。可变 key buffer 会在 context
+退出时覆盖，但不声称能覆盖 DPAPI/cryptography/Python 产生的全部 immutable 副本。
+
 ## DeepSeek privacy, evaluation, and rollback
 
 DeepSeek 的交互预算固定为 browser `15` 秒、backend `13` 秒、provider 最多

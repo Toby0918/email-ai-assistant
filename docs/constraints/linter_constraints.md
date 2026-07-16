@@ -303,6 +303,12 @@ Executable constraints must enforce all of the following:
 
 - only `private_context_gate.py` may import Task 4 deidentification/residual-pattern modules from `backend.private_knowledge`;
 - only `private_knowledge_context.py` may import `backend.private_knowledge.runtime_schema`;
+- only `scripts/run_local_debug.py` may import `backend.private_knowledge.runtime_bootstrap`; the bootstrap must not import `backend.email_agent`, logging, SQLite, frontend, mailbox ingest, provider, polling, reload or write helpers;
+- authority-envelope and runtime-snapshot reads must route through `backend.private_knowledge.checked_reader`; it may use descriptor read/open/stat/close operations but no write, replace, rename, unlink, remove or mkdir operation;
+- descriptor reads must compare pre-open and post-read parent/target identity and revalidate original/resolved paths; race failures expose only fixed codes;
+- private-knowledge configuration paths must remain backend-only and hidden from repr, HTTP, SQLite, frontend, logs, health/status and exceptions;
+- runtime bootstrap occurs at most once before server start; request handlers may receive only the already-loaded immutable tuple and must never access DPAPI, keys, files, loaders or bootstrap state;
+- key-context cleanup means best-effort overwrite of mutable `SecretBytes`; guards and docs must not claim that DPAPI, cryptography or Python transient immutable bytes can all be wiped;
 - no frontend source or browser renderer may reference `runtime_cards`, `private_context`, `placeholder_mapping`, `card_id`, `snapshot_id`, `vault_id`, or a deidentification placeholder;
 - no public API or SQLite result may gain private context or knowledge-card fields;
 - DeepSeek provider output containing a placeholder, restoration/re-identification instruction, or private metadata marker is rejected before either parser runs;

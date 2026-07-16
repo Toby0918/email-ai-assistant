@@ -38,18 +38,40 @@ class ApiTests(unittest.TestCase):
         with TemporaryDirectory() as directory:
             config = replace(load_config(dotenv_path=None), attachment_temp_dir=directory)
             budget = AnalysisBudget.start(clock=lambda: 0.0)
+            runtime_cards = (object(),)
             with patch(
                 "backend.email_agent.api.analyze_current_email",
                 return_value={"summary": "ok"},
             ) as analyze:
                 response = handle_analyze_current_email(
-                    {"user_confirmed": True}, config=config, budget=budget
+                    {"user_confirmed": True}, config=config, budget=budget,
+                    runtime_cards=runtime_cards,
                 )
 
         self.assertTrue(response["ok"])
         self.assertIs(analyze.call_args.kwargs["config"], config)
         self.assertIs(analyze.call_args.kwargs["budget"], budget)
+        self.assertIs(analyze.call_args.kwargs["runtime_cards"], runtime_cards)
         self.assertEqual(len(analyze.call_args.args), 1)
+
+    def test_payload_runtime_cards_cannot_override_internal_cards(self) -> None:
+        trusted = (object(),)
+        with patch(
+            "backend.email_agent.api.analyze_current_email",
+            return_value={"summary": "safe"},
+        ) as analyze:
+            response = handle_analyze_current_email(
+                {
+                    "user_confirmed": True,
+                    "runtime_cards": ["PRIVATE_PAYLOAD_CARD"],
+                },
+                config=load_config(dotenv_path=None),
+                runtime_cards=trusted,
+            )
+
+        self.assertTrue(response["ok"])
+        self.assertIs(analyze.call_args.kwargs["runtime_cards"], trusted)
+        self.assertNotIn("PRIVATE_PAYLOAD_CARD", str(response))
 
     def test_injected_analyzer_remains_exactly_one_positional_argument(self) -> None:
         calls: list[dict[str, object]] = []

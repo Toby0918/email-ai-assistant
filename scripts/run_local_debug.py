@@ -14,6 +14,7 @@ if str(ROOT) not in sys.path:
 from backend.email_agent.config import load_config
 from backend.email_agent.logging_config import configure_logging
 from backend.email_agent.server import run_server, validate_local_server_host
+from backend.private_knowledge.runtime_bootstrap import load_configured_runtime_cards
 
 
 def parse_args() -> argparse.Namespace:
@@ -32,7 +33,19 @@ def main() -> int:
         config.log_level,
         log_file=ROOT / "outputs" / "local_debug_service.log",
     )
-    run_server(host=host, port=args.port, database_path=args.database)
+    runtime_cards = load_configured_runtime_cards(
+        enabled=config.private_knowledge_enabled,
+        authority_root=config.private_knowledge_authority_root,
+        snapshot_path=config.private_knowledge_snapshot_path,
+        project_root=ROOT,
+    )
+    run_server(
+        host=host,
+        port=args.port,
+        database_path=args.database,
+        config=config,
+        runtime_cards=runtime_cards,
+    )
     return 0
 
 

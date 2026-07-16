@@ -63,7 +63,7 @@ AGENTS.md
 | python-docx | 1.2.0 | 后端提取受限 DOCX 段落和表格文本 | 不运行嵌入式活动内容 |
 | Pillow | 12.3.0 | 后端检查图片并为 OCR 准备输入 | 不在前端处理图片内容 |
 | pytesseract | 0.3.13 | 后端可选 OCR | Tesseract 缺失时仅降级 OCR，不能阻断规则兜底 |
-| cryptography | 49.0.0 | 仅用于单独授权的项目外 vault AES-256-GCM 和 Ed25519；Task 2 在依赖 RED 测试后加入精确 pin | 不用于普通邮件 runtime，不替代 BitLocker/DPAPI，不允许更高版本或其他 crypto package |
+| cryptography | 49.0.0 | 用于单独授权的项目外 vault/私有知识 AES-256-GCM、Ed25519，以及 startup-only 只读知识快照验证/解密 | 不用于请求期密钥或文件访问，不替代 BitLocker/DPAPI，不允许更高版本或其他 crypto package |
 
 本地 Ollama/Qwen/Gemma 属于后端运行环境能力，不是新增 Python 依赖。`EMAIL_AGENT_OLLAMA_MODEL` 默认是 `qwen3.6:latest`，可选择 `gemma4`；调用失败或输出无效时必须回落到本地规则分析器。`EMAIL_AGENT_OLLAMA_BASE_URL` 只能使用 `localhost` 或字面 loopback IP，不得包含 userinfo，不得指向远程 HTTP(S) 主机；远程 provider 需要单独架构批准和隐私评审。
 
@@ -118,6 +118,12 @@ Vault crypto 只可在 Task 2 dependency tests 先 RED 后加入精确
 injected probes 测试，使非 Windows CI import/collect 不访问 host。Recovery
 rewrap 必须使用 crash-recoverable staged activation/reconciliation，不得声称
 cross-volume atomicity。
+
+私有知识 normal-service 例外仅限 startup-only read path：显式启用后由
+`scripts/run_local_debug.py` 调用一次 fail-closed bootstrap，通过 CurrentUser DPAPI
+短暂打开 authority envelope、验证并解密一个外部只读 snapshot。请求处理、health、
+SQLite、frontend、diagnostics 和 background work 不得调用 crypto、DPAPI 或 snapshot
+reader；不得 reload、poll、hot-update 或暴露 snapshot status。
 
 本地邮件分析 HTTP 服务沿用 Python 标准库 `ThreadingHTTPServer`，不得为 Host/Content-Type 门禁新增 HTTP 框架。服务 bind 只支持 `localhost` 或字面 IPv4 `127.0.0.0/8`；分析 POST 必须在读 body 前校验单一 loopback Host 和单一 JSON media type。
 
@@ -526,6 +532,8 @@ Agent 每次开始任务前，必须确认：
 - The shared analysis budget is exactly 13 seconds. Parser/OCR keeps the hard 8-second deadline; provider timeout is capped at 10 seconds with a 10-second DeepSeek default, a 5-second minimum usable window, and a 2-second response/validation reserve.
 - Browser extension and local debug analysis POST waits are exactly 15 seconds. Visible-resource collection remains a separate cumulative 20-second deadline.
 - The analyzer seam is keyword-only `runtime_cards=()`. It must be an immutable tuple, defaults empty, and accepts only verified `RuntimeKnowledgeCard` objects. It must not read environment variables, paths, keys, bootstrap state, vault state, DPAPI/BitLocker state, or frontend fields.
+- Startup authority-envelope and snapshot reads use a bounded descriptor reader with original/resolved path, parent/target identity, pre-open/post-read `fstat`, reparse and exact-size checks. It performs no write and maps races to fixed fail-closed codes.
+- Mutable `SecretBytes` are overwritten on key-context exit, but tooling must not claim all transient immutable bytes created by DPAPI, decoding, cryptography or Python are wipeable.
 - Automated tests, the 50-case evaluator, static checks, and maintenance scan remain offline: no live provider, mailbox, vault, DPAPI, or BitLocker access.
 - Task 5 must not regenerate `docs/operations/project_status_log.md`; that regeneration is reserved for the later integration task.
 

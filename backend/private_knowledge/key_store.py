@@ -98,7 +98,7 @@ def initialize_private_keys(
 
 
 def open_authority_keys(root: Path, protector: KeyProtector) -> AuthorityKeyMaterial:
-    payload = _unprotect(_root(root) / _AUTHORITY_FILE, "authority", protector)
+    payload = _unprotect(_read_root(root) / _AUTHORITY_FILE, "authority", protector)
     if len(payload) != len(_AUTHORITY_MAGIC) + 96 or not payload.startswith(_AUTHORITY_MAGIC):
         raise PrivateKnowledgeError("key_envelope_invalid")
     offset = len(_AUTHORITY_MAGIC)
@@ -199,3 +199,11 @@ def _root(value: Path) -> Path:
     if not path.is_absolute():
         raise PrivateKnowledgeError("path_invalid")
     return path.resolve()
+
+
+def _read_root(value: Path) -> Path:
+    """Keep the configured alias intact for descriptor path revalidation."""
+    path = Path(value)
+    if not path.is_absolute():
+        raise PrivateKnowledgeError("path_invalid")
+    return path

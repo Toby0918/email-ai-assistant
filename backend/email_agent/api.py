@@ -26,6 +26,7 @@ def handle_analyze_current_email(
     config: AppConfig | None = None,
     *,
     budget: AnalysisBudget | None = None,
+    runtime_cards: tuple[object, ...] = (),
 ) -> dict[str, Any]:
     # First phase requires an explicit user click before any analysis runs.
     if payload.get("user_confirmed") is not True:
@@ -54,7 +55,10 @@ def handle_analyze_current_email(
             analyzer(analysis_payload)
             if analyzer is not None
             else analyze_current_email(
-                analysis_payload, config=current_config, budget=current_budget
+                analysis_payload,
+                config=current_config,
+                budget=current_budget,
+                runtime_cards=runtime_cards if type(runtime_cards) is tuple else (),
             )
         )
         return {

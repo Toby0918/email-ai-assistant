@@ -98,6 +98,86 @@ class PrintCallVisitor(ast.NodeVisitor):
 
 
 class StaticLinterConstraintTests(unittest.TestCase):
+    def test_private_knowledge_checked_reader_has_no_write_surface(self) -> None:
+        package = ROOT / "backend" / "private_knowledge"
+        checked = package / "checked_reader.py"
+        reader_tree = ast.parse(read_text(checked))
+        called = {
+            node.func.attr if isinstance(node.func, ast.Attribute) else node.func.id
+            for node in ast.walk(reader_tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, (ast.Attribute, ast.Name))
+        }
+        self.assertFalse({
+            "write", "replace", "rename", "unlink", "remove", "rmdir", "mkdir",
+        }.intersection(called))
+
+        for name in ("read_only_file.py", "atomic_ciphertext.py"):
+            tree = ast.parse(read_text(package / name))
+            imports_checked_reader = any(
+                isinstance(node, ast.ImportFrom)
+                and node.level == 1
+                and node.module == "checked_reader"
+                for node in ast.walk(tree)
+            )
+            with self.subTest(name=name):
+                self.assertTrue(imports_checked_reader)
+
+        linter = " ".join(read_text(
+            ROOT / "docs" / "constraints" / "linter_constraints.md"
+        ).split())
+        self.assertIn("pre-open and post-read parent/target identity", linter)
+        self.assertIn("transient immutable bytes", linter)
+
+    def test_private_knowledge_bootstrap_is_startup_only_and_request_free(self) -> None:
+        bootstrap = ROOT / "backend" / "private_knowledge" / "runtime_bootstrap.py"
+        startup = ROOT / "scripts" / "run_local_debug.py"
+        server = ROOT / "backend" / "email_agent" / "server.py"
+        api = ROOT / "backend" / "email_agent" / "api.py"
+
+        bootstrap_text = read_text(bootstrap)
+        bootstrap_tree = ast.parse(bootstrap_text)
+        imported = {
+            alias.name
+            for node in ast.walk(bootstrap_tree)
+            if isinstance(node, ast.Import)
+            for alias in node.names
+        }
+        imported.update(
+            node.module
+            for node in ast.walk(bootstrap_tree)
+            if isinstance(node, ast.ImportFrom) and node.module
+        )
+        for forbidden in (
+            "backend.email_agent", "sqlite3", "imaplib", "smtplib", "logging",
+        ):
+            with self.subTest(forbidden=forbidden):
+                self.assertFalse(any(
+                    module == forbidden or module.startswith(f"{forbidden}.")
+                    for module in imported
+                ))
+
+        startup_text = read_text(startup)
+        self.assertEqual(startup_text.count("load_configured_runtime_cards("), 1)
+        self.assertLess(startup_text.index("configure_logging("), startup_text.index(
+            "load_configured_runtime_cards("
+        ))
+        self.assertLess(startup_text.index("load_configured_runtime_cards("), startup_text.index(
+            "run_server("
+        ))
+
+        request_text = read_text(server) + read_text(api)
+        for forbidden in (
+            "runtime_bootstrap", "load_runtime_knowledge", "open_authority_keys",
+            "CurrentUserDpapiProtector", "EMAIL_AGENT_PRIVATE_KNOWLEDGE_",
+        ):
+            with self.subTest(request_forbidden=forbidden):
+                self.assertNotIn(forbidden, request_text)
+
+        linter = read_text(ROOT / "docs" / "constraints" / "linter_constraints.md")
+        self.assertIn("only `scripts/run_local_debug.py` may import", linter)
+        self.assertIn("runtime bootstrap occurs at most once before server start", linter)
+
     def test_raw_vault_to_knowledge_handoff_is_narrowly_documented(self) -> None:
         governance_paths = (
             ROOT

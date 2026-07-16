@@ -42,11 +42,13 @@ class EmailAssistantServer(ThreadingHTTPServer):
         address: tuple[str, int],
         database_path: str | None = None,
         config: AppConfig | None = None,
+        runtime_cards: tuple[object, ...] = (),
     ) -> None:
         super().__init__(address, EmailAssistantHandler)
         self.database = connect(database_path)
         self.database_lock = threading.Lock()
         self.attachment_config = config or load_config()
+        self.runtime_cards = runtime_cards if type(runtime_cards) is tuple else ()
         initialize_schema(self.database)
 
 
@@ -82,7 +84,10 @@ class EmailAssistantHandler(BaseHTTPRequestHandler):
         budget = AnalysisBudget.start()
         payload = self._read_json()
         response = handle_analyze_current_email(
-            payload, config=self.server.attachment_config, budget=budget
+            payload,
+            config=self.server.attachment_config,
+            budget=budget,
+            runtime_cards=self.server.runtime_cards,
         )
         if response.get("ok"):
             saved_id = self._save_result(
@@ -209,9 +214,13 @@ def create_server(
     port: int = 8765,
     database_path: str | None = None,
     config: AppConfig | None = None,
+    runtime_cards: tuple[object, ...] = (),
 ) -> EmailAssistantServer:
     bind_host = validate_local_server_host(host)
-    return EmailAssistantServer((bind_host, port), database_path=database_path, config=config)
+    return EmailAssistantServer(
+        (bind_host, port), database_path=database_path, config=config,
+        runtime_cards=runtime_cards,
+    )
 
 
 def _persistence_error() -> dict[str, Any]:
@@ -224,8 +233,20 @@ def _persistence_error() -> dict[str, Any]:
     }
 
 
-def run_server(host: str = "127.0.0.1", port: int = 8765, database_path: str | None = None) -> None:
-    server = create_server(host=host, port=port, database_path=database_path)
+def run_server(
+    host: str = "127.0.0.1",
+    port: int = 8765,
+    database_path: str | None = None,
+    config: AppConfig | None = None,
+    runtime_cards: tuple[object, ...] = (),
+) -> None:
+    server = create_server(
+        host=host,
+        port=port,
+        database_path=database_path,
+        config=config,
+        runtime_cards=runtime_cards,
+    )
     try:
         server.serve_forever()
     finally:

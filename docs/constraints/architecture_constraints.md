@@ -138,6 +138,31 @@ repository, lifecycle review, candidate store, deidentifier, key store,
 publisher, CLI service, SQLite, or any write helper. Failure returns an empty
 immutable card set so normal generic rules continue.
 
+Both the authority envelope and runtime snapshot use pre-open and post-read
+descriptor identity checks. The shared reader validates the original and
+resolved paths, rejects reparse components, captures parent and target identity,
+opens with `O_RDONLY | O_BINARY | O_NOFOLLOW` where available, compares `fstat`
+with the pre-open target, performs one bounded descriptor read, then repeats
+descriptor, original/resolved-path, parent and target checks. A swap, append,
+size change, reparse point, non-regular file or short/oversized read fails closed
+with a fixed code. These checks narrow same-user namespace races but do not claim
+an absolute namespace lock on every supported filesystem.
+
+The only normal-service key bridge is the `startup-only runtime bootstrap` in
+`backend.private_knowledge.runtime_bootstrap`, imported only by
+`scripts/run_local_debug.py`. Startup loads configuration, configures logging,
+attempts one fail-closed DPAPI/key/snapshot load, and injects the resulting
+immutable tuple into the server. There is `no reload, polling, hot update, or status endpoint`.
+Request handlers, `backend.email_agent`, frontend code, SQLite and public HTTP
+must never read the authority repository, paths, keys, snapshot metadata, or
+bootstrap status. Any bootstrap failure produces `()` with no content-bearing
+log or exception detail.
+Mutable `SecretBytes` key buffers are wiped when their shortest-lived context
+closes. DPAPI, envelope decoding, cryptography and Python may still create
+transient immutable plaintext bytes that cannot be overwritten in place; the
+bootstrap therefore promises no all-copy or physical-memory secure erase and
+must not add an extra immutable signing-seed copy.
+
 The private evaluation package is offline and aggregate-only. It is a separate
 administrator domain that reads an independently encrypted, project-external
 `.pkevalstage` only through its stage repository and reads the resulting final
@@ -368,6 +393,11 @@ backend.email_agent.private_knowledge_context -> backend.private_knowledge.runti
 No other `backend.email_agent` module may import `backend.private_knowledge`. The renderer may import only `runtime_schema`; it must not import the repository, loader, vault, mailbox ingest, key store, snapshot, CLI, review, candidate-import, filesystem, or environment layers.
 
 `runtime_cards=()` is an immutable backend-only seam. The private context, deidentified prompt, resolver/mapping, card identifiers, selection metadata, and card count are transient implementation details. They must never change the public API, SQLite schema or stored JSON, browser renderer, log record, exception, or fallback diagnostics schema.
+
+The startup script may pass only the already-loaded tuple through
+`run_server`/`create_server`/`EmailAssistantServer`/API to that seam. Payload
+fields cannot supply or replace runtime cards, and no request may call DPAPI,
+open a snapshot, or invoke the runtime loader.
 
 `backend.exact_fact_patterns` is the canonical exact-fact recognizer for the
 outbound deidentifier, provider-authored output gate, and grounding validator.

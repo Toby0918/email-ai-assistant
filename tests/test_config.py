@@ -54,6 +54,47 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config.deepseek_timeout_seconds, 10)
         self.assertEqual(config.deepseek_output_mode, "conservative")
 
+    def test_private_knowledge_defaults_disabled_and_only_explicit_true_enables(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            default = load_config(dotenv_path=None)
+        self.assertFalse(default.private_knowledge_enabled)
+        self.assertEqual(default.private_knowledge_authority_root, "")
+        self.assertEqual(default.private_knowledge_snapshot_path, "")
+
+        for raw, expected in (
+            ("true", True), (" TRUE ", True), ("false", False),
+            ("1", False), ("yes", False), ("on", False), ("", False),
+        ):
+            with self.subTest(raw=raw), patch.dict(
+                os.environ,
+                {"EMAIL_AGENT_PRIVATE_KNOWLEDGE_ENABLED": raw},
+                clear=True,
+            ):
+                self.assertIs(load_config(dotenv_path=None).private_knowledge_enabled, expected)
+
+    def test_private_knowledge_paths_are_backend_only_and_hidden_from_repr(self) -> None:
+        authority = "D:/Private/Authority"
+        snapshot = "E:/Private/Runtime/knowledge.pksnap"
+        with patch.dict(
+            os.environ,
+            {
+                "EMAIL_AGENT_PRIVATE_KNOWLEDGE_ENABLED": "true",
+                "EMAIL_AGENT_PRIVATE_KNOWLEDGE_AUTHORITY_ROOT": authority,
+                "EMAIL_AGENT_PRIVATE_KNOWLEDGE_SNAPSHOT_PATH": snapshot,
+            },
+            clear=True,
+        ):
+            config = load_config(dotenv_path=None)
+
+        self.assertTrue(config.private_knowledge_enabled)
+        self.assertEqual(config.private_knowledge_authority_root, authority)
+        self.assertEqual(config.private_knowledge_snapshot_path, snapshot)
+        rendered = repr(config)
+        self.assertNotIn(authority, rendered)
+        self.assertNotIn(snapshot, rendered)
+        self.assertNotIn("private_knowledge_authority_root", rendered)
+        self.assertNotIn("private_knowledge_snapshot_path", rendered)
+
     def test_deepseek_key_does_not_fall_back_to_openai_key(self) -> None:
         with patch.dict(os.environ, {"OPENAI_API_KEY": "synthetic-openai"}, clear=True):
             config = load_config(dotenv_path=None)
@@ -135,6 +176,9 @@ class ConfigTests(unittest.TestCase):
         self.assertIn("EMAIL_AGENT_LOG_LEVEL=", sample)
         self.assertIn("EMAIL_AGENT_LLM_PROVIDER=", sample)
         self.assertIn("EMAIL_AGENT_OLLAMA_MODEL=", sample)
+        self.assertIn("EMAIL_AGENT_PRIVATE_KNOWLEDGE_ENABLED=false", sample)
+        self.assertIn("EMAIL_AGENT_PRIVATE_KNOWLEDGE_AUTHORITY_ROOT=", sample)
+        self.assertIn("EMAIL_AGENT_PRIVATE_KNOWLEDGE_SNAPSHOT_PATH=", sample)
         self.assertNotIn("EMAIL_AI_DB_PATH", sample)
         self.assertNotIn("EMAIL_AI_LOG_LEVEL", sample)
 

@@ -21,6 +21,7 @@ class RunLocalDebugTests(unittest.TestCase):
     def test_main_configures_file_logging_before_server_start(self) -> None:
         args = SimpleNamespace(host="127.0.0.1", port=8765, database=None)
         config = load_config(dotenv_path=None)
+        runtime_cards = (object(),)
         manager = MagicMock()
 
         with (
@@ -29,9 +30,16 @@ class RunLocalDebugTests(unittest.TestCase):
                 run_local_debug, "load_config", return_value=config, create=True
             ) as config_loader,
             patch.object(run_local_debug, "configure_logging", create=True) as configure,
+            patch.object(
+                run_local_debug,
+                "load_configured_runtime_cards",
+                return_value=runtime_cards,
+                create=True,
+            ) as bootstrap,
             patch.object(run_local_debug, "run_server") as run_server,
         ):
             manager.attach_mock(configure, "configure")
+            manager.attach_mock(bootstrap, "bootstrap")
             manager.attach_mock(run_server, "run_server")
             result = run_local_debug.main()
 
@@ -48,8 +56,15 @@ class RunLocalDebugTests(unittest.TestCase):
                         / "local_debug_service.log"
                     ),
                 ),
+                call.bootstrap(
+                    enabled=config.private_knowledge_enabled,
+                    authority_root=config.private_knowledge_authority_root,
+                    snapshot_path=config.private_knowledge_snapshot_path,
+                    project_root=run_local_debug.ROOT,
+                ),
                 call.run_server(
-                    host="127.0.0.1", port=8765, database_path=None
+                    host="127.0.0.1", port=8765, database_path=None,
+                    config=config, runtime_cards=runtime_cards,
                 ),
             ],
         )

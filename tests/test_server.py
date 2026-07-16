@@ -143,6 +143,7 @@ class ServerTests(unittest.TestCase):
         handler.server = SimpleNamespace(
             server_port=8765,
             attachment_config=load_config(dotenv_path=None),
+            runtime_cards=(),
         )
         handler.rfile = Mock()
         handler.rfile.read.return_value = body
@@ -211,6 +212,18 @@ class ServerTests(unittest.TestCase):
         self.assertEqual(events, ["start", "read", "api"])
         start.assert_called_once_with()
         self.assertIs(analyze.call_args.kwargs["budget"], budget)
+        self.assertIs(analyze.call_args.kwargs["runtime_cards"], handler.server.runtime_cards)
+
+    def test_server_reuses_startup_cards_without_loading_per_request(self) -> None:
+        cards = (object(),)
+        server = create_server(
+            host="127.0.0.1", port=0, database_path=":memory:",
+            runtime_cards=cards,
+        )
+        self.addCleanup(server.server_close)
+        self.addCleanup(server.database.close)
+
+        self.assertIs(server.runtime_cards, cards)
 
     def test_same_budget_object_reaches_persistence(self) -> None:
         handler = self._direct_handler()

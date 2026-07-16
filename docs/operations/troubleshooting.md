@@ -26,6 +26,21 @@ source_type: operation_guide
 - 调用 `GET /api/health`。
 - 检查前端 API 地址配置。
 
+## 私有知识未生效
+
+- 先确认 `EMAIL_AGENT_PRIVATE_KNOWLEDGE_ENABLED` 是精确布尔语义 `true`，两个路径
+  均为无首尾空格的外部绝对路径，并在变更后重启服务。
+- Authority root、`.pksnap`、当前 Windows 用户 DPAPI、签名、解密、schema、有效期
+  或 clock 任一失败都会安全退回空知识集；这是正常 fail-closed 行为，公开 API、
+  health、SQLite 和日志不会说明具体失败项。
+- 若部署时同时替换/追加 authority envelope 或 `.pksnap`，descriptor identity 门会把
+  swap/size/read race 固定码 fail closed；先完成原子发布，再明确重启服务，不要增加
+  retry、polling 或热更新。
+- 不要通过 HTTP、浏览器、调试日志或请求 payload 探测 snapshot。使用隔离的管理员
+  CLI 在本地验证已发布 snapshot 和权限；不要打印路径、ID、key 或异常原文。
+- 排障期间可设置 `EMAIL_AGENT_PRIVATE_KNOWLEDGE_ENABLED=false` 并重启，以确认
+  generic rule fallback 正常。禁止增加 retry、reload、polling、hot update 或状态接口。
+
 ## 分析失败
 
 - 检查邮件正文是否为空。

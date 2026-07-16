@@ -261,6 +261,13 @@ scripts/repository_leakage_scan.py
   固定只读 IMAP、授权/fingerprint、外置加密 vault、附件第二遍和恢复封装。
 - `backend/private_knowledge/` 负责本地去标识、residual scan、严格知识卡、独立
   authority lifecycle 和签名只读 runtime snapshot；它不读取邮箱或 raw vault。
+- `backend/private_knowledge/checked_reader.py` 是 authority envelope 与 snapshot 的
+  共享只读 descriptor 边界；它有界读取并在 open 前后核对路径和 parent/target
+  identity，不提供 write/replace/delete 接口。
+- `backend/private_knowledge/runtime_bootstrap.py` 仅由
+  `scripts/run_local_debug.py` 在 logging 配置后、server 启动前调用一次。它 fail closed
+  为 immutable empty tuple；请求期、`backend.email_agent`、frontend、health、SQLite
+  和后台任务不访问 DPAPI、authority、snapshot 或 loader，也没有 reload/poll/hot update。
 - `backend/private_evaluation/` 负责项目外 `.pkeval` 的严格 schema、确定性选择、
   顺序零重试 runner 和 aggregate-only report；只有专用 CLI 可在全部本地门通过后
   lazy-create provider client。
@@ -295,6 +302,7 @@ scripts/repository_leakage_scan.py
   scope 和 count。它不打开项目外 vault/private dataset，也不自动修改文件。
 
 `backend/email_agent/` 只通过狭窄的已验证 runtime-card seam 使用不可变知识卡；
-它没有 vault、authority、DPAPI、BitLocker 或 mailbox access。`frontend/` 仍仅在
+它只接收启动入口已加载的 tuple，没有 vault、authority、DPAPI、BitLocker、
+snapshot filesystem 或 mailbox access。`frontend/` 仍仅在
 用户点击后读取当前可见邮件，公开 HTTP/SQLite/renderer schema 没有因为上述
 管理员工具而扩大。

@@ -84,6 +84,18 @@ folder/subscription 操作。app password 只能在本地政策检查后通过 i
 - Authority repository 和 runtime snapshot 使用与 raw vault 分离的 key 和
   namespace。Runtime 只读验证 signature/encryption/lifecycle；missing/invalid/
   expired/tampered snapshot 返回 empty card set。
+- 私有知识默认关闭。只有显式 `EMAIL_AGENT_PRIVATE_KNOWLEDGE_ENABLED=true` 且两个
+  项目/OneDrive/temp/raw-vault/private-store 外的绝对路径通过验证时，服务启动入口
+  才通过 CurrentUser DPAPI 一次性打开 key envelope 并验证/解密 snapshot。所有失败
+  静默返回 empty card set；路径、key、snapshot/card ID 和失败详情不进入 HTTP、
+  SQLite、frontend、health/status、日志或异常。
+- 启动后只缓存不可变已批准卡片。请求期没有 DPAPI、文件、loader、reload、polling
+  或 hot update；新 snapshot 只有在明确重启后才可能生效。
+- Authority envelope 和 snapshot 只通过有界 descriptor reader 读取，并在 open 前后
+  核对 original/resolved path、parent/target identity、`fstat`、size 和 reparse 状态；
+  竞态或身份变化固定码 fail closed。退出 key context 会覆盖可变 `SecretBytes`，但
+  DPAPI、解码、cryptography 或 Python 可能产生无法原地覆盖的短暂 immutable bytes，
+  因此不承诺所有副本或物理内存安全擦除。
 
 ## AI 处理
 

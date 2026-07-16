@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 try:
@@ -34,6 +34,9 @@ class AppConfig:
     deepseek_model: str = "deepseek-v4-flash"
     deepseek_timeout_seconds: int = 10
     deepseek_output_mode: str = "conservative"
+    private_knowledge_enabled: bool = False
+    private_knowledge_authority_root: str = field(default="", repr=False)
+    private_knowledge_snapshot_path: str = field(default="", repr=False)
 
 
 def load_config(dotenv_path: str | Path | None = DEFAULT_DOTENV_PATH) -> AppConfig:
@@ -60,6 +63,15 @@ def load_config(dotenv_path: str | Path | None = DEFAULT_DOTENV_PATH) -> AppConf
         attachment_max_file_bytes=_int_env("EMAIL_AGENT_ATTACHMENT_MAX_FILE_BYTES", 10 * 1024 * 1024),
         attachment_max_total_bytes=_int_env("EMAIL_AGENT_ATTACHMENT_MAX_TOTAL_BYTES", 25 * 1024 * 1024),
         internal_email_domains=_csv_env("EMAIL_AGENT_INTERNAL_EMAIL_DOMAINS", ("cndlf.com",)),
+        private_knowledge_enabled=_true_env(
+            "EMAIL_AGENT_PRIVATE_KNOWLEDGE_ENABLED"
+        ),
+        private_knowledge_authority_root=os.getenv(
+            "EMAIL_AGENT_PRIVATE_KNOWLEDGE_AUTHORITY_ROOT", ""
+        ),
+        private_knowledge_snapshot_path=os.getenv(
+            "EMAIL_AGENT_PRIVATE_KNOWLEDGE_SNAPSHOT_PATH", ""
+        ),
     )
 
 
@@ -84,6 +96,11 @@ def _csv_env(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
         return default
     values = tuple(value.strip().lower() for value in raw.split(",") if value.strip())
     return values or default
+
+
+def _true_env(name: str) -> bool:
+    raw = os.getenv(name)
+    return isinstance(raw, str) and raw.strip().casefold() == "true"
 
 
 def _load_backend_dotenv(dotenv_path: Path) -> None:
