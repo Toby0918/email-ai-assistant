@@ -12,6 +12,80 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class RolloutCloseoutContractTests(unittest.TestCase):
+    def test_public_analysis_engine_context_metadata_contract_is_documented(self) -> None:
+        schema = (ROOT / "docs" / "data" / "analysis_result_schema.md").read_text(
+            encoding="utf-8"
+        )
+        api = (ROOT / "docs" / "api" / "backend_api_contract.md").read_text(
+            encoding="utf-8"
+        )
+
+        for text in (schema, api):
+            with self.subTest(document="schema" if text is schema else "api"):
+                self.assertIn("analysis_engine.context_scope", text)
+                self.assertIn("analysis_engine.context_limited", text)
+                self.assertIn("current_only | relevant_history", text)
+                self.assertIn("both absent or both present", text)
+                self.assertIn("no extra keys", text)
+
+    def test_private_model_context_policy_is_documented(self) -> None:
+        paths = (
+            ROOT / "docs" / "security" / "privacy_rules.md",
+            ROOT / "docs" / "security" / "email_data_handling.md",
+            ROOT / "docs" / "decisions" / "0005-deepseek-led-analysis.md",
+        )
+        combined = "\n".join(path.read_text(encoding="utf-8") for path in paths)
+
+        for required in (
+            "current-first",
+            "relevant_history",
+            "downgrades to `current_only`",
+            "zero provider calls",
+            "per-value deidentification",
+            "local exact-fact merge",
+            "full deterministic timeline",
+        ):
+            with self.subTest(required=required):
+                self.assertIn(required, combined)
+
+    def test_frontend_task_card_contract_is_documented(self) -> None:
+        paths = (
+            ROOT / "docs" / "api" / "frontend_backend_flow.md",
+            ROOT / "docs" / "operations" / "testing_checklist.md",
+            ROOT / "docs" / "operations" / "deployment_notes.md",
+        )
+        combined = "\n".join(path.read_text(encoding="utf-8") for path in paths)
+
+        for required in (
+            "task card",
+            "closed native `<details>`",
+            "未使用 DeepSeek：本次结果由本地规则生成。",
+            "render_analysis.js",
+            "analysis_components.css",
+            "0.2.3",
+        ):
+            with self.subTest(required=required):
+                self.assertIn(required, combined)
+
+    def test_real_mailbox_runbook_keeps_separate_live_gates(self) -> None:
+        paths = (
+            ROOT / "docs" / "operations" / "testing_checklist.md",
+            ROOT / "docs" / "operations" / "deployment_notes.md",
+            ROOT / "docs" / "operations" / "authorized_mailbox_ingest_task_brief.md",
+        )
+        combined = "\n".join(path.read_text(encoding="utf-8") for path in paths)
+
+        for required in (
+            "python -B -m scripts.manage_mailbox_vault inventory",
+            "python -B -m scripts.manage_mailbox_vault scan",
+            "STOP after inventory",
+            "no credentials are supplied to Codex",
+            "no automatic mailbox scan",
+            "separate operator confirmations",
+        ):
+            with self.subTest(required=required):
+                self.assertIn(required, combined)
+
     def test_generated_status_describes_offline_ready_fail_closed_state(self) -> None:
         module = load_script_module(
             ROOT / "scripts" / "generate_project_status.py",

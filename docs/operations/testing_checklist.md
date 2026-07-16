@@ -36,10 +36,13 @@ source_type: operation_guide
 - Verify message-scoped selected-text fallback works only for user-selected email content in the currently opened Tencent Exmail message.
 - Verify local backend unavailable state is readable.
 - Verify the extension does not send, delete, archive, move, or reply to mail.
-- Confirm unpacked extension version `0.2.2`, and click `Reload` after updating its files.
+- Confirm unpacked extension version `0.2.3`, and click `Reload` after updating its files.
 - Verify only image, PDF, XLSX, and DOCX resources visibly associated with the opened message are eligible after the click.
 - Verify the configured bounds: 5 files, 10 MiB per file, and 25 MiB total.
 - If Tesseract is unavailable, verify image OCR degrades to metadata-only while email-body/rule analysis continues.
+- At 320px width, verify the task card shows conclusion, current request, next step, key facts, and must-check items before any detail section.
+- Verify history, attachments, risk rationale, extra actions, and technical information are closed native `<details>` on first render.
+- Verify extension and local debug use shared `render_analysis.js` plus `analysis_components.css`, and rule fallback shows exactly `未使用 DeepSeek：本次结果由本地规则生成。`.
 
 ## 安全检查
 
@@ -116,6 +119,10 @@ git diff --check
 以下命令只是现场顺序合同，不属于自动验证，也不能被定时任务调用。每次真实
 操作前都需要本地书面授权、单一账号、外置 NTFS + BitLocker To Go 证据及独立
 恢复介质：
+
+邮箱扫描、私有评估和生产 DeepSeek API 启用需要 separate operator confirmations；
+no credentials are supplied to Codex，且浏览器、正常后端和自动化流程保持 no
+automatic mailbox scan。所有管理员入口只使用下列 `python -B -m ...` 模块命令。
 
 1. `python -B -m scripts.manage_mailbox_vault init --vault $VaultRoot
    --authorization-id $AuthorizationId --account $Account --recovery-key $RecoveryKey`

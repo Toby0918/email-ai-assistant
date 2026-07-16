@@ -53,6 +53,7 @@ Operational rollback sets `EMAIL_AGENT_LLM_PROVIDER=disabled` and restarts the b
 - The backend may send the bounded current visible thread and ephemeral sanitized attachment text. Attachment bytes/base64, URLs, cookies, authorization values, tokens, local paths, active content, and unbounded source text are excluded.
 - Natural-language credential values are removed across metadata, thread, and attachment channels even when joined by colon, equals, copula, whitespace-only separator, or quotes. Benign reset/rotation/expiry/policy statements remain available when they contain no credential value.
 - Expanded model context remains request-local and is excluded from API responses, SQLite, logs, debug output, documentation, and repository fixtures.
+- Context selection is current-first. Only safely deidentified history relevant to the current request may become `relevant_history`; a history privacy failure downgrades to `current_only`, while a current-message privacy failure produces zero provider calls. Deidentification is per-value deidentification across the current message and each selected history value.
 
 ### Model authority and safety
 
@@ -62,6 +63,7 @@ A valid model result may lead summary, priority, category, Decision Brief, timel
 - `analysis_engine` and `reply_draft.needs_human_review=true`.
 - Attachment membership, filename/type/status/limitations, and parsed-source eligibility.
 - Timeline and open-item membership/order/source/owner/due skeletons.
+- The full deterministic timeline and local exact-fact merge; the provider-selected subset cannot erase history or author exact identifiers, dates, amounts, or tracking facts.
 - Mandatory local prompt-injection, security, and commitment risks.
 - Critical-fact grounding, source membership, no mailbox actions, and no unconditional commercial/legal commitments.
 - One universal provider-text safety policy across every model-authored text family, including passive consequential claims that describe price, delivery, payment, contract, quality, or legal terms as settled. Requests, questions, negations, and review wording remain allowed.

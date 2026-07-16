@@ -107,6 +107,7 @@ folder/subscription 操作。app password 只能在本地政策检查后通过 i
 
 - 邮件正文只能从当前打开邮件、用户点击分析后进入后端。
 - 默认 `EMAIL_AGENT_LLM_PROVIDER=disabled`，DeepSeek 输出模式默认 `conservative`。只有后端同时配置 `EMAIL_AGENT_LLM_PROVIDER=deepseek` 和 `EMAIL_AGENT_DEEPSEEK_OUTPUT_MODE=model_led` 时，DeepSeek 才可主导模型字段；provider disabled、缺 key、迟到、失败或输出不安全时回落规则结果。
+- 模型上下文采用 current-first 选择：当前邮件始终是唯一必需候选，只有与当前诉求相关且通过隐私门的历史才形成 `relevant_history`。历史 privacy failure downgrades to `current_only`，不会阻止安全当前邮件继续分析；当前邮件 privacy preflight 失败则 zero provider calls。对当前邮件及每个实际选中的历史值执行 per-value deidentification，不共享原始身份映射。provider 只解释被选上下文；后端继续保留 full deterministic timeline，并在模型验证后执行 local exact-fact merge。
 - DeepSeek 路线最多进行一次 provider call，SDK retry 为 0；失败后不尝试 Ollama。立即 operational rollback 可设置 `EMAIL_AGENT_LLM_PROVIDER=disabled`，字段权限 rollback 可设置 `EMAIL_AGENT_DEEPSEEK_OUTPUT_MODE=conservative`，两者都需重启后端配置生效。
 - 后端只发送 current visible thread 以及当前可见受支持附件的有界、清洗后文本；不发送附件二进制/base64、任何 URL、cookie、authorization、token、本地路径、active content 或无界原文。
 - 私有知识路线启用后，DeepSeek 也只能接收本地去标识后的 current visible thread、去标识后的受支持附件文本和最多 8 张、合计最多 4,000 characters 的 approved cards；身份上下文覆盖当前头部和所有实际发送的 timeline sender/recipient，任何实际出站截断只允许停在完整 token 边界，无安全边界则丢弃字段。不得接收 raw vault、binary、path、URL、source locator、identity source/ID、vault ID 或 restoration map。

@@ -204,7 +204,9 @@ operator-only 日志位置、轮转上限和读取命令见 `docs/conventions/lo
     },
     "analysis_engine": {
       "source": "ai_model | rule_fallback",
-      "label": "DeepSeek V4 Flash | DeepSeek V4 Pro | Local Qwen | Rule fallback"
+      "label": "DeepSeek V4 Flash | DeepSeek V4 Pro | Local Qwen | Rule fallback",
+      "context_scope": "current_only | relevant_history",
+      "context_limited": true
     }
   },
   "saved_id": 1
@@ -234,6 +236,7 @@ operator-only 日志位置、轮转上限和读取命令见 `docs/conventions/lo
 - 保守模式只保留经过校验的摘要、优先级、分类和标签增强。DeepSeek-led 模式允许安全且有来源证据的 Decision Brief、风险、建议动作和回复草稿主导公开字段；后端仍拥有 mandatory 风险、完整时间线/开放项骨架、附件状态/限制、枚举、`needs_human_review=true`、来源成员关系、禁止邮箱动作和禁止无条件承诺等不变量。孤立违规使用 field fallback，整体结构/语言/来源/安全失败使用完整规则 fallback。
 - `analysis.conversation_timeline` 和 `analysis.attachment_insights` 由后端确定性生成；模型返回的同名字段不得覆盖它们。
 - `analysis.analysis_engine` 由后端附加，用于显示本次结果来自模型路线还是规则回退；该字段不得由前端传入或由 AI 输出决定。
+- `analysis_engine.context_scope` 与 `analysis_engine.context_limited` 是可选的成对响应元数据：both absent or both present。`context_scope` 只允许 `current_only | relevant_history`，`context_limited` 必须是 JSON boolean，并且 `analysis_engine` no extra keys。省略该对字段时保持旧客户端兼容。
 - `analysis.decision_brief` 是面向用户的决策摘要，必须说明邮件目的、当前动作、关键事实、需核查项、缺失信息和回复建议。
 - `analysis` 中的用户反馈字段使用中文；`analysis.reply_draft.subject` 和 `analysis.reply_draft.body` 保持英文。
 - 枚举值仍按 schema 使用英文，前端负责映射为中文标签显示。

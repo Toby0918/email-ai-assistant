@@ -162,6 +162,32 @@ class GenerateProjectStatusTests(unittest.TestCase):
         self.assertIn("`tests/test_browser_extension_static.py`", report)
         self.assertIn("`tests/test_browser_extension_behavior.py`", report)
 
+    def test_current_context_shared_ui_and_admin_files_are_reported_safely(self) -> None:
+        module = load_script_module(SCRIPT, "generate_project_status_current_context")
+        report = module.build_project_status()
+
+        for path in (
+            "backend/email_agent/analysis_route_support.py",
+            "backend/email_agent/frontend_assets.py",
+            "backend/email_agent/model_context_selection.py",
+            "backend/email_agent/participant_identity_aliases.py",
+            "backend/email_agent/private_provider_output_gate.py",
+            "frontend/browser_extension/content/current_message_collector.js",
+            "frontend/browser_extension/shared/analysis_components.css",
+            "scripts/manage_private_knowledge.py",
+        ):
+            with self.subTest(path=path):
+                self.assertIn(f"`{path}`", report)
+
+        for forbidden in (
+            "outputs/email_agent.sqlite3",
+            ".pkeval",
+            "DEEPSEEK_API_KEY",
+            "EMAIL_AGENT_PRIVATE_KNOWLEDGE_SNAPSHOT_PATH=",
+        ):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, report)
+
     def test_main_writes_requested_output(self) -> None:
         module = load_script_module(SCRIPT, "generate_project_status")
 

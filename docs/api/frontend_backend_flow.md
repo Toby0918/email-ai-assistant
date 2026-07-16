@@ -1,5 +1,5 @@
 ﻿---
-last_update: 2026-07-11
+last_update: 2026-07-15
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -19,7 +19,16 @@ source_type: api_contract
 7. 后端清洗正文；如后端 AI 未配置、不可用或输出无效，第一版使用本地规则分析器。
 8. 后端校验 JSON schema。
 9. 后端保存最多 14 个受限 `attachment_insights` 到 SQLite，不保存字节、路径、私有 URL、cookie 或 token。
-10. 前端展示结果：摘要、分类、风险和建议动作显示为中文，回复草稿正文保持英文。
+10. 前端通过共享 renderer 展示结果：任务结论和当前动作优先，回复草稿正文保持目标语言。
+
+## 共享结果呈现契约
+
+- Chrome / Edge extension 与 local debug page 共同使用 `frontend/browser_extension/shared/render_analysis.js` 和 `frontend/browser_extension/shared/analysis_components.css`，不得维护两套字段解释或 CSS 排版。
+- 320px 侧栏首屏以 task card 依次展示处理结论、当前诉求、下一步、关键事实和必须核查项。
+- 会话历史、附件、风险依据、更多动作和技术信息使用 closed native `<details>`，初始均为折叠状态。
+- `analysis_engine.source=rule_fallback` 时固定显示中文横幅：`未使用 DeepSeek：本次结果由本地规则生成。`；固定诊断原因可以显示，但不得把规则结果伪装为模型结果。
+- 草稿独立展示 subject、body 和人工审核原因；复制动作只复制草稿，不发送邮件。
+- 当前 unpacked extension 版本为 `0.2.3`。
 
 ## 密钥边界
 

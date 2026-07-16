@@ -88,6 +88,13 @@ commands are `init`, `inventory`, `scan`, `attachments`, `verify`,
 `purge-expired`, `revoke`, and `rewrap-recovery`. There is no scheduled job,
 automatic trigger, browser command, or normal-runtime hook.
 
+Operators invoke it only as `python -B -m scripts.manage_mailbox_vault <command>`;
+direct file execution is not an approved runbook form. Inventory review is a
+mandatory stop before scan. Live mailbox scan, private evaluation, and production
+provider activation use separate operator confirmations; no credentials are
+supplied to Codex, and there is no automatic mailbox scan from a browser, normal
+runtime, or automation path.
+
 These remain the eight core vault commands. `stage-knowledge` is a later Task 4
 handoff command implemented only in that administrator-only CLI. It accepts
 only a reviewed manifest of approved random record IDs, decrypts one record at

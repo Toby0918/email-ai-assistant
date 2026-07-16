@@ -1,5 +1,5 @@
 ﻿---
-last_update: 2026-07-14
+last_update: 2026-07-15
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -94,7 +94,9 @@ AI 分析结果必须能解析为 JSON，并至少包含以下字段。
   },
   "analysis_engine": {
     "source": "ai_model | rule_fallback",
-    "label": "DeepSeek V4 Flash | DeepSeek V4 Pro | Local Qwen | Local Gemma | OpenAI | Rule fallback"
+    "label": "DeepSeek V4 Flash | DeepSeek V4 Pro | Local Qwen | Local Gemma | OpenAI | Rule fallback",
+    "context_scope": "current_only | relevant_history",
+    "context_limited": true
   }
 }
 ```
@@ -110,6 +112,8 @@ Private outbound gate 的 `runtime_cards`、approved knowledge rendering、deide
 模型采用的 `decision_brief.key_facts` 不能替换本地事实集合。公开结果必须使用规则 fallback 中 exact、deep-copied local key facts；模型仍可在其他允许且 grounded 的字段提供增量。
 
 `analysis_engine.source` 的公开枚举保持 `ai_model | rule_fallback`。有效 DeepSeek 结果使用 `ai_model`，`label` 可显示 `DeepSeek V4 Flash` 或 `DeepSeek V4 Pro`；provider 被禁用、超时、失败或输出无效时返回完整规则结果并使用 `rule_fallback` / `Rule fallback`。
+
+`analysis_engine.context_scope` 与 `analysis_engine.context_limited` 是可选的成对扩展：both absent or both present。`context_scope` 只允许 `current_only | relevant_history`，`context_limited` 必须是 JSON boolean；为保持严格公开投影，`analysis_engine` no extra keys。旧响应可以同时省略这两个字段，现有必填字段和 SQLite 列保持不变。
 
 ## 校验规则
 
