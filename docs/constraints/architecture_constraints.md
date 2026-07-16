@@ -148,6 +148,14 @@ size change, reparse point, non-regular file or short/oversized read fails close
 with a fixed code. These checks narrow same-user namespace races but do not claim
 an absolute namespace lock on every supported filesystem.
 
+The startup bootstrap must preserve both the configured snapshot path and its
+policy-validated resolved target. The runtime loader and checked reader bind the
+original configured snapshot alias against the prevalidated target, rerun the
+full snapshot-path policy on that original alias before descriptor open and
+after the bounded read, and require the result to remain exactly equal to the
+prevalidated target. Alias replacement, reparse insertion, or target drift
+returns the empty immutable card tuple through the fixed fail-closed path.
+
 The only normal-service key bridge is the `startup-only runtime bootstrap` in
 `backend.private_knowledge.runtime_bootstrap`, imported only by
 `scripts/run_local_debug.py`. Startup loads configuration, configures logging,
@@ -398,6 +406,15 @@ The startup script may pass only the already-loaded tuple through
 `run_server`/`create_server`/`EmailAssistantServer`/API to that seam. Payload
 fields cannot supply or replace runtime cards, and no request may call DPAPI,
 open a snapshot, or invoke the runtime loader.
+
+The API copies only ordinary email-analysis input after removing all reserved
+private-knowledge payload fields before either analyzer branch. The reserved
+set is `runtime_cards`, `private_context`, `knowledge_cards`,
+`placeholder_mapping`, `card_id`, `snapshot_id`, `vault_id`,
+`private_knowledge_enabled`, `private_knowledge_authority_root`, and
+`private_knowledge_snapshot_path`. Legitimate current-email fields remain
+available to the injected or default analyzer; only the trusted startup tuple is
+added internally to the default analyzer through its keyword-only seam.
 
 `backend.exact_fact_patterns` is the canonical exact-fact recognizer for the
 outbound deidentifier, provider-authored output gate, and grounding validator.

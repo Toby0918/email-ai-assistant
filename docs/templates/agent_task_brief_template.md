@@ -212,9 +212,11 @@ Complete this section whenever a task changes remote AI input, runtime knowledge
 [ ] Provider remains disabled by default; DeepSeek output mode remains conservative by default.
 [ ] Every remote path passes one backend-only deidentification and residual-scan gate.
 [ ] runtime_cards defaults to an immutable empty tuple and accepts only verified RuntimeKnowledgeCard values.
+[ ] Untrusted request payloads lose every reserved private-knowledge field before both analyzer branches; ordinary email fields remain and only the trusted startup tuple may supply runtime_cards.
 [ ] No environment/path/key/bootstrap/vault/DPAPI/BitLocker/frontend field crosses the runtime seam.
 [ ] If startup snapshot loading changes, only the startup script imports the fail-closed bootstrap and it runs exactly once before server start.
 [ ] Authority-envelope and snapshot reads use bounded descriptors with original/resolved path plus pre-open/post-read parent/target identity checks; swaps, reparse points, size/read races and non-regular files fail closed.
+[ ] Snapshot loading preserves the original configured alias and prevalidated target, reruns the full alias policy before open and after read, and requires exact target equality.
 [ ] The checked reader exposes no write, replace, rename, unlink, remove or mkdir operation.
 [ ] Request handlers perform no DPAPI/key/filesystem/loader work; there is no reload, polling, hot update or snapshot status endpoint.
 [ ] Disabled, blank, invalid, expired, tampered or unavailable snapshot configuration yields an immutable empty tuple without path, key, ID or exception disclosure.

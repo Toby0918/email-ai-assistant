@@ -23,9 +23,10 @@ source_type: api_contract
 ### Backend-only private knowledge startup contract
 
 - 私有知识默认关闭；只有显式 `EMAIL_AGENT_PRIVATE_KNOWLEDGE_ENABLED=true` 和两个安全外部绝对路径通过门禁时，服务启动入口才尝试一次 DPAPI/key/snapshot load。
-- 成功只产生内存中的 immutable verified-card tuple，并沿 server/API 内部参数进入 analyzer。HTTP payload 中同名或相似字段全部忽略，不能覆盖内部 tuple。
+- 成功只产生内存中的 immutable verified-card tuple，并沿 server/API 内部参数进入 analyzer。API 在 injected/default 两条 analyzer 分支之前，从 untrusted HTTP payload 的副本中删除 exact reserved set：`runtime_cards`、`private_context`、`knowledge_cards`、`placeholder_mapping`、`card_id`、`snapshot_id`、`vault_id`、`private_knowledge_enabled`、`private_knowledge_authority_root`、`private_knowledge_snapshot_path`。主题、地址、正文、线程、附件等正常邮件字段继续传给 analyzer；只有内部可信 startup tuple 能通过 keyword-only `runtime_cards=` 进入 default analyzer。
 - disabled、blank、missing、expired、tampered、signature/decrypt/schema/path/DPAPI/clock failure 全部等价于 empty tuple 和普通规则路径。没有公开错误、状态或元数据。
 - 每个请求不访问 DPAPI、authority、snapshot、loader 或 filesystem；没有 reload、polling、hot update 或 snapshot status endpoint。公开请求/响应、health、SQLite 和 diagnostics 字段集合不变。
+- Bootstrap 保留 configured snapshot alias 与其 policy-prevalidated resolved target。Loader/checked reader 在 descriptor open 前和 bounded read 后都对原始 alias 重跑完整 snapshot-path validator，并要求结果仍精确等于该 target；alias/reparse/target 变化固定 fail closed，不释放知识卡。
 
 ### Backend-only diagnostic boundary
 

@@ -71,7 +71,52 @@ class ApiTests(unittest.TestCase):
 
         self.assertTrue(response["ok"])
         self.assertIs(analyze.call_args.kwargs["runtime_cards"], trusted)
+        self.assertNotIn("runtime_cards", analyze.call_args.args[0])
         self.assertNotIn("PRIVATE_PAYLOAD_CARD", str(response))
+
+    def test_injected_analyzer_cannot_receive_reserved_private_knowledge_fields(self) -> None:
+        reserved = {
+            "runtime_cards": ["ATTACKER_CARD"],
+            "private_context": {"secret": True},
+            "knowledge_cards": ["ATTACKER_KNOWLEDGE"],
+            "placeholder_mapping": {"<EMAIL_1>": "private@example.test"},
+            "card_id": "private-card-id",
+            "snapshot_id": "private-snapshot-id",
+            "vault_id": "private-vault-id",
+            "private_knowledge_enabled": True,
+            "private_knowledge_authority_root": "X:/private-authority",
+            "private_knowledge_snapshot_path": "Y:/private-snapshot.pksnap",
+        }
+        received: list[dict[str, object]] = []
+
+        def injected(payload: dict[str, object]) -> dict[str, str]:
+            received.append(payload)
+            return {"summary": "ok"}
+
+        with TemporaryDirectory() as directory:
+            config = replace(load_config(dotenv_path=None), attachment_temp_dir=directory)
+            response = handle_analyze_current_email(
+                {
+                    "user_confirmed": True,
+                    "subject": "Synthetic request",
+                    "from": "sender@example.test",
+                    "to": ["receiver@example.test"],
+                    "body_text": "Please review this request.",
+                    **reserved,
+                },
+                analyzer=injected,
+                config=config,
+            )
+
+        self.assertTrue(response["ok"])
+        self.assertEqual(len(received), 1)
+        for key in reserved:
+            with self.subTest(key=key):
+                self.assertNotIn(key, received[0])
+        self.assertEqual(received[0]["subject"], "Synthetic request")
+        self.assertEqual(received[0]["from"], "sender@example.test")
+        self.assertEqual(received[0]["to"], ["receiver@example.test"])
+        self.assertEqual(received[0]["body_text"], "Please review this request.")
 
     def test_injected_analyzer_remains_exactly_one_positional_argument(self) -> None:
         calls: list[dict[str, object]] = []

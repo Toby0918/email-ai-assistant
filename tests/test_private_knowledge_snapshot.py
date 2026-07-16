@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import tempfile
 import unittest
 import uuid
@@ -78,6 +79,43 @@ class PrivateKnowledgeSnapshotTests(unittest.TestCase):
             clock=lambda: now or self.now,
             path_validator=self.allow_path,
         )
+
+    def test_loader_accepts_prevalidated_target_for_alias_binding(self) -> None:
+        self.assertIn(
+            "prevalidated_target",
+            inspect.signature(load_runtime_knowledge).parameters,
+        )
+
+    def test_configured_alias_change_after_prevalidation_releases_no_cards(self) -> None:
+        self._publish()
+        configured_alias = self.root / "configured-alias" / "knowledge.pksnap"
+        swapped_target = self.root / "swapped-target" / "knowledge.pksnap"
+        configured_alias.parent.mkdir()
+        configured_alias.write_bytes(b"synthetic alias sentinel")
+
+        for mutation in ("redirect", "reparse_rejected"):
+            with self.subTest(mutation=mutation):
+                calls: list[Path] = []
+
+                def validator(path: Path) -> Path:
+                    calls.append(Path(path))
+                    if len(calls) < 3:
+                        return self.target
+                    if mutation == "redirect":
+                        return swapped_target
+                    raise PrivateKnowledgeError("snapshot_path_invalid")
+
+                result = load_runtime_knowledge(
+                    configured_alias,
+                    prevalidated_target=self.target,
+                    encryption_key=self.key,
+                    verification_public_key=self.signing.public_key(),
+                    clock=lambda: self.now,
+                    path_validator=validator,
+                )
+
+                self.assertEqual((result.cards, result.code), ((), "snapshot_unavailable"))
+                self.assertGreaterEqual(len(calls), 3)
 
     def test_round_trip_returns_immutable_runtime_projection_without_authority_metadata(self) -> None:
         self._publish()

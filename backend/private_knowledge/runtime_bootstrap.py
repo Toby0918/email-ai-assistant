@@ -47,13 +47,18 @@ def load_configured_runtime_cards(
         with key_opener(authority, protector_factory()) as keys:
             verification_key = private_key_factory(keys.signing_seed).public_key()
             loaded = snapshot_loader(
-                Path(target),
+                snapshot,
+                prevalidated_target=Path(target),
                 encryption_key=keys.snapshot_key,
                 verification_public_key=verification_key,
                 forbidden_roots=(project, authority),
             )
     except Exception:
         return ()
+    return _validated_cards(loaded)
+
+
+def _validated_cards(loaded: object) -> tuple[RuntimeKnowledgeCard, ...]:
     if not isinstance(loaded, RuntimeKnowledgeLoad) or loaded.code != "snapshot_loaded":
         return ()
     if type(loaded.cards) is not tuple or not all(

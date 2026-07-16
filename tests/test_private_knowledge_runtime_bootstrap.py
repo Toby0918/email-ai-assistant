@@ -166,6 +166,25 @@ class PrivateKnowledgeRuntimeBootstrapTests(unittest.TestCase):
         self.assertEqual(bytes(material.snapshot_key), b"\0" * 32)
         self.assertEqual(bytes(material.signing_seed), b"\0" * 32)
 
+    def test_loader_receives_configured_snapshot_alias_and_prevalidated_target(self) -> None:
+        material = AuthorityKeyMaterial(
+            SecretBytes(b"A" * 32),
+            SecretBytes(b"S" * 32),
+            SecretBytes(bytes(range(32))),
+        )
+        resolved = Path("F:/Resolved/Runtime/knowledge.pksnap")
+        loader = Mock(return_value=RuntimeKnowledgeLoad((), "snapshot_loaded"))
+
+        cards, _values = self._load(
+            snapshot_path_validator=Mock(return_value=resolved),
+            key_opener=Mock(return_value=material),
+            snapshot_loader=loader,
+        )
+
+        self.assertEqual(cards, ())
+        self.assertEqual(loader.call_args.args[0], Path(SNAPSHOT))
+        self.assertEqual(loader.call_args.kwargs["prevalidated_target"], resolved)
+
     def test_all_loader_and_dpapi_failures_are_silent_empty_fallbacks(self) -> None:
         fixed_codes = (
             "snapshot_missing",

@@ -20,6 +20,20 @@ from .config import AppConfig, load_config
 from .resource_limitations import OPERATIONAL_LIMITATION, project_resource_limitations
 
 
+_RESERVED_PRIVATE_PAYLOAD_FIELDS = frozenset({
+    "runtime_cards",
+    "private_context",
+    "knowledge_cards",
+    "placeholder_mapping",
+    "card_id",
+    "snapshot_id",
+    "vault_id",
+    "private_knowledge_enabled",
+    "private_knowledge_authority_root",
+    "private_knowledge_snapshot_path",
+})
+
+
 def handle_analyze_current_email(
     payload: dict[str, Any],
     analyzer: Callable[[dict[str, Any]], dict[str, Any]] | None = None,
@@ -41,7 +55,7 @@ def handle_analyze_current_email(
         stored_attachments, operational_limitations = _store_attachments_or_degrade(
             attachment_files, current_config, current_budget,
         )
-        analysis_payload = dict(payload)
+        analysis_payload = _without_reserved_private_fields(payload)
         analysis_payload.pop("attachment_files", None)
         analysis_payload["stored_attachments"] = stored_attachments
         frontend_limitations = project_resource_limitations(
@@ -74,6 +88,13 @@ def handle_analyze_current_email(
 
 def _error(code: str, message: str) -> dict[str, Any]:
     return {"ok": False, "error": {"code": code, "message": message}}
+
+
+def _without_reserved_private_fields(payload: dict[str, Any]) -> dict[str, Any]:
+    analysis_payload = dict(payload)
+    for field in _RESERVED_PRIVATE_PAYLOAD_FIELDS:
+        analysis_payload.pop(field, None)
+    return analysis_payload
 
 
 def _store_attachments_or_degrade(

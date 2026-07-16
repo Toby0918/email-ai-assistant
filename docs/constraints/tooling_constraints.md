@@ -532,7 +532,9 @@ Agent 每次开始任务前，必须确认：
 - The shared analysis budget is exactly 13 seconds. Parser/OCR keeps the hard 8-second deadline; provider timeout is capped at 10 seconds with a 10-second DeepSeek default, a 5-second minimum usable window, and a 2-second response/validation reserve.
 - Browser extension and local debug analysis POST waits are exactly 15 seconds. Visible-resource collection remains a separate cumulative 20-second deadline.
 - The analyzer seam is keyword-only `runtime_cards=()`. It must be an immutable tuple, defaults empty, and accepts only verified `RuntimeKnowledgeCard` objects. It must not read environment variables, paths, keys, bootstrap state, vault state, DPAPI/BitLocker state, or frontend fields.
+- Before either analyzer branch, the API must remove the exact reserved private-knowledge keys from the copied untrusted request. It must retain ordinary current-email fields, and only trusted startup state may supply the internal `runtime_cards=` keyword.
 - Startup authority-envelope and snapshot reads use a bounded descriptor reader with original/resolved path, parent/target identity, pre-open/post-read `fstat`, reparse and exact-size checks. It performs no write and maps races to fixed fail-closed codes.
+- Runtime snapshot bootstrap must pass both the original configured alias and its prevalidated target through the loader. The checked reader reruns the full snapshot-path validator on the alias before open and after read and requires exact target equality.
 - Mutable `SecretBytes` are overwritten on key-context exit, but tooling must not claim all transient immutable bytes created by DPAPI, decoding, cryptography or Python are wipeable.
 - Automated tests, the 50-case evaluator, static checks, and maintenance scan remain offline: no live provider, mailbox, vault, DPAPI, or BitLocker access.
 - Task 5 must not regenerate `docs/operations/project_status_log.md`; that regeneration is reserved for the later integration task.

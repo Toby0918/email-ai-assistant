@@ -308,6 +308,8 @@ Executable constraints must enforce all of the following:
 - descriptor reads must compare pre-open and post-read parent/target identity and revalidate original/resolved paths; race failures expose only fixed codes;
 - private-knowledge configuration paths must remain backend-only and hidden from repr, HTTP, SQLite, frontend, logs, health/status and exceptions;
 - runtime bootstrap occurs at most once before server start; request handlers may receive only the already-loaded immutable tuple and must never access DPAPI, keys, files, loaders or bootstrap state;
+- every untrusted request payload must have the exact reserved private-knowledge field set removed before either injected or default analyzer dispatch; ordinary email-analysis fields remain, and only the trusted startup tuple may enter the default analyzer through `runtime_cards=`;
+- runtime snapshot loading must preserve the configured alias and its prevalidated snapshot target, rerun the full snapshot-path policy on the original alias before open and after read, and fail closed unless both checks still resolve to that exact target;
 - key-context cleanup means best-effort overwrite of mutable `SecretBytes`; guards and docs must not claim that DPAPI, cryptography or Python transient immutable bytes can all be wiped;
 - no frontend source or browser renderer may reference `runtime_cards`, `private_context`, `placeholder_mapping`, `card_id`, `snapshot_id`, `vault_id`, or a deidentification placeholder;
 - no public API or SQLite result may gain private context or knowledge-card fields;

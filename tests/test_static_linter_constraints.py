@@ -177,6 +177,8 @@ class StaticLinterConstraintTests(unittest.TestCase):
         linter = read_text(ROOT / "docs" / "constraints" / "linter_constraints.md")
         self.assertIn("only `scripts/run_local_debug.py` may import", linter)
         self.assertIn("runtime bootstrap occurs at most once before server start", linter)
+        self.assertIn("untrusted request payload", linter)
+        self.assertIn("prevalidated snapshot target", linter)
 
     def test_raw_vault_to_knowledge_handoff_is_narrowly_documented(self) -> None:
         governance_paths = (

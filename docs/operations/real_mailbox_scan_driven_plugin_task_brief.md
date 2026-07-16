@@ -107,6 +107,10 @@ This slice adds a fail-closed, startup-only read-only runtime snapshot bootstrap
 with immutable empty-card fallback. It remains disabled by default, runs once
 before server start, and exposes no reload, polling, hot update, or status
 endpoint. It does not expand Task 1 mailbox access or public schemas.
+The configured snapshot alias and its prevalidated target remain separate through
+the descriptor-bound read, while reserved private-knowledge request fields are
+removed before either analyzer branch so untrusted payloads cannot reach the
+internal runtime seam.
 
 ### Slice 4: Tencent context extraction, privacy diagnostics, and rule facts
 
@@ -263,6 +267,10 @@ constraints were checked and remain unchanged:
   only verified `RuntimeKnowledgeCard` values.
 - [x] No environment, path, key, bootstrap, vault, DPAPI, BitLocker, or frontend
   field crosses the runtime seam.
+- [x] Reserved private-knowledge payload fields are removed before injected and
+  default analyzer dispatch while ordinary current-email fields remain intact.
+- [x] The original snapshot alias is revalidated against the prevalidated target
+  before descriptor open and after the bounded read.
 - [x] Knowledge rendering remains identifier-free, deterministic, at most eight
   cards, and at most 4,000 characters.
 - [x] Resolver and mapping remain closed before the provider call and cannot

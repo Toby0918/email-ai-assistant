@@ -28,15 +28,20 @@ def load_runtime_knowledge(
     *,
     encryption_key: bytes | bytearray,
     verification_public_key: Ed25519PublicKey,
+    prevalidated_target: Path | None = None,
     clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
     forbidden_roots: tuple[Path, ...] = (),
     path_validator: Callable[[Path], object] | None = None,
 ) -> RuntimeKnowledgeLoad:
-    target = _runtime_path(path, forbidden_roots, path_validator)
-    if target is None:
+    original = Path(path)
+    target = _runtime_path(original, forbidden_roots, path_validator)
+    expected = _expected_target(target, prevalidated_target)
+    if expected is None:
         return _fallback("snapshot_path_invalid")
     try:
-        frame = read_snapshot_file(target)
+        frame = _read_bound_snapshot(
+            original, expected, forbidden_roots, path_validator
+        )
         metadata, plaintext = decode_snapshot_frame(
             frame, encryption_key=encryption_key,
             verification_public_key=verification_public_key,
@@ -58,6 +63,40 @@ def load_runtime_knowledge(
     if len(cards) != metadata.card_count:
         return _fallback("snapshot_schema_invalid")
     return RuntimeKnowledgeLoad(cards, "snapshot_loaded")
+
+
+def _expected_target(
+    current: Path | None,
+    prevalidated: Path | None,
+) -> Path | None:
+    if current is None:
+        return None
+    try:
+        expected = current if prevalidated is None else Path(prevalidated)
+    except (TypeError, ValueError):
+        return None
+    if not expected.is_absolute() or current != expected:
+        return None
+    return expected
+
+
+def _read_bound_snapshot(
+    original: Path,
+    expected: Path,
+    forbidden: tuple[Path, ...],
+    validator: Callable[[Path], object] | None,
+) -> bytes:
+    def revalidate(value: Path) -> Path:
+        current = _runtime_path(value, forbidden, validator)
+        if current is None:
+            raise PrivateKnowledgeError("snapshot_unavailable")
+        return current
+
+    return read_snapshot_file(
+        original,
+        prevalidated_target=expected,
+        path_validator=revalidate,
+    )
 
 
 def _parse_payload(value: object, snapshot_id: str, authority_id: str) -> tuple[RuntimeKnowledgeCard, ...]:

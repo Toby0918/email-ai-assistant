@@ -483,6 +483,51 @@ class ArchitectureConstraintTests(unittest.TestCase):
             ROOT / "docs" / "security" / "private_knowledge_handling.md"
         )
         self.assertIn("transient immutable plaintext bytes", " ".join(security.split()))
+        for path in (
+            package / "runtime_bootstrap.py",
+            package / "runtime_loader.py",
+            package / "read_only_file.py",
+        ):
+            with self.subTest(alias_binding=path.name):
+                self.assertIn("prevalidated_target", read_text(path))
+        self.assertIn(
+            "original configured snapshot alias against the prevalidated target",
+            " ".join(architecture.split()),
+        )
+
+    def test_private_payload_metadata_is_removed_before_analyzer_dispatch(self) -> None:
+        api = ROOT / "backend" / "email_agent" / "api.py"
+        tree = ast.parse(read_text(api))
+        reserved = None
+        for node in tree.body:
+            if not isinstance(node, ast.Assign):
+                continue
+            if any(
+                isinstance(target, ast.Name)
+                and target.id == "_RESERVED_PRIVATE_PAYLOAD_FIELDS"
+                for target in node.targets
+            ):
+                reserved = set(ast.literal_eval(node.value.args[0]))
+                break
+        self.assertEqual(reserved, {
+            "runtime_cards", "private_context", "knowledge_cards",
+            "placeholder_mapping", "card_id", "snapshot_id", "vault_id",
+            "private_knowledge_enabled", "private_knowledge_authority_root",
+            "private_knowledge_snapshot_path",
+        })
+        self.assertTrue({
+            "subject", "from", "to", "cc", "sent_at", "body_text",
+            "thread_segments", "attachments", "attachment_files",
+            "resource_limitations", "user_confirmed",
+        }.isdisjoint(reserved))
+
+        architecture = " ".join(read_text(
+            ROOT / "docs" / "constraints" / "architecture_constraints.md"
+        ).split())
+        self.assertIn(
+            "reserved private-knowledge payload fields before either analyzer branch",
+            architecture,
+        )
 
     def test_remote_exact_fact_boundaries_share_one_canonical_recognizer(self) -> None:
         consumers = (

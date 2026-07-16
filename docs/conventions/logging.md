@@ -193,6 +193,11 @@ Writing handler 只接受 exact fallback-event template 和 exact built-in allow
 
 Logs must not contain API keys, prompts, email or thread content, attachment names or content, provider output, raw exception text, tracebacks, URLs, paths, or customer identifiers.
 
+Reserved private-knowledge request fields are silently removed before analyzer
+dispatch. Their names may be fixed source constants, but rejected values,
+configured aliases, prevalidated targets, keys, card/snapshot/vault identifiers,
+and path-validation details must never be logged or interpolated into exceptions.
+
 ## 8. Private evaluation staging output is not logging
 
 `stage-evaluation` writes zero log records. Its only machine-readable surface is

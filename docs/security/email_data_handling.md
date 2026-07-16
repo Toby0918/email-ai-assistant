@@ -96,6 +96,12 @@ folder/subscription 操作。app password 只能在本地政策检查后通过 i
   竞态或身份变化固定码 fail closed。退出 key context 会覆盖可变 `SecretBytes`，但
   DPAPI、解码、cryptography 或 Python 可能产生无法原地覆盖的短暂 immutable bytes，
   因此不承诺所有副本或物理内存安全擦除。
+- Snapshot 读取始终同时保留原始 configured alias 和 policy-prevalidated target；在
+  descriptor open 前与 bounded read 后对原始 alias 重跑完整路径策略，且只接受仍
+  精确解析到同一 target 的结果。
+- HTTP 请求中的私有知识、mapping、card/snapshot/vault ID、启用状态和私有路径字段
+  在 injected/default 两条 analyzer 分支前全部删除；普通邮件字段保留，可信
+  `runtime_cards` tuple 只能由启动链路内部注入。
 
 ## AI 处理
 
