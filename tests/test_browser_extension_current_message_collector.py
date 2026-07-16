@@ -274,18 +274,19 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
                 if (api.MAX_TOTAL_RESOURCE_BYTES !== 25 * 1024 * 1024) throw new Error("total limit mismatch");
               },
 
-              visible_thread_segments_are_normalized_in_page_order: () => {
+              visible_thread_segments_are_normalized_oldest_first: () => {
                 const hiddenParent = new FakeElement({
                   style: { visibility: "hidden" },
                   children: [thread("Hidden by parent")],
                 });
                 const doc = messageDocument([
-                  thread("  First   request \n needs review  ", {
-                    "data-from": "  buyer@example.test ",
-                    "data-to": " sales@example.test ",
-                    "data-sent-at": " 2026-07-10T09:00:00Z ",
-                    "data-timestamp-text": " Yesterday 09:00 ",
-                    "data-subject": " Re:  Quote ",
+                  thread([
+                    "From: sales@example.test",
+                    "Date: 2026-07-11T10:00:00Z",
+                    "To: buyer@example.test",
+                    "Subject: Re: Quote",
+                    "Second answer",
+                  ].join("\n"), {
                     "data-private-url": "https://example.invalid/private",
                     "data-token": "not-exported",
                   }),
@@ -293,18 +294,26 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
                   thread("Aria hidden", { "aria-hidden": "true" }),
                   thread("Display hidden", {}, { style: { display: "none" } }),
                   hiddenParent,
-                  thread(" Second   answer ", { "data-from": "sales@example.test" }),
+                  thread([
+                    "From: buyer@example.test",
+                    "Date: 2026-07-10T09:00:00Z",
+                    "To: sales@example.test",
+                    "Subject: Quote",
+                    "First request",
+                    "needs review",
+                  ].join("\n")),
                 ]);
                 const api = loadCollector(async () => response([]));
                 const segments = api.extractVisibleThreadSegments(doc);
                 if (segments.length !== 2) throw new Error(`unexpected segments: ${JSON.stringify(segments)}`);
-                if (segments[0].position !== 0 || segments[1].position !== 1) throw new Error("page order lost");
-                if (segments[0].body_text !== "First request needs review") throw new Error("body not normalized");
-                if (segments[0].from !== "buyer@example.test") throw new Error("sender not normalized");
+                if (segments[0].position !== 0 || segments[1].position !== 1) throw new Error("chronology lost");
+                if (segments[0].body_text !== "First request\nneeds review") throw new Error("body lines not preserved");
+                if (segments[0].from !== "buyer@example.test") throw new Error("sender not parsed");
                 if (segments[0].to !== "sales@example.test") throw new Error("recipient not normalized");
-                if (segments[0].sent_at !== "2026-07-10T09:00:00Z") throw new Error("sent_at not normalized");
-                if (segments[0].timestamp_text !== "Yesterday 09:00") throw new Error("timestamp not normalized");
-                if (segments[0].subject !== "Re: Quote") throw new Error("subject not normalized");
+                if (segments[0].sent_at !== "2026-07-10T09:00:00Z") throw new Error("sent_at not parsed");
+                if (segments[0].timestamp_text !== "2026-07-10T09:00:00Z") throw new Error("timestamp not parsed");
+                if (segments[0].subject !== "Quote") throw new Error("subject not parsed");
+                if (segments[1].from !== "sales@example.test") throw new Error("latest sender misplaced");
                 assertNoPrivateFields(segments);
               },
 
@@ -1068,8 +1077,8 @@ class BrowserExtensionCurrentMessageCollectorTests(unittest.TestCase):
     def test_load_and_thread_extraction_do_not_fetch(self) -> None:
         self.run_node_case("load_and_thread_extraction_do_not_fetch")
 
-    def test_visible_thread_segments_are_normalized_in_page_order(self) -> None:
-        self.run_node_case("visible_thread_segments_are_normalized_in_page_order")
+    def test_visible_thread_segments_are_normalized_oldest_first(self) -> None:
+        self.run_node_case("visible_thread_segments_are_normalized_oldest_first")
 
     def test_hidden_and_background_resources_are_excluded(self) -> None:
         self.run_node_case("hidden_and_background_resources_are_excluded")

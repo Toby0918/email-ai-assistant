@@ -132,7 +132,12 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
               const currentRoot = new FakeElement({
                 className: "mail-content",
                 text: bodyText,
-                children: options.bodyChildren || [],
+                children: [
+                  ...(options.bodyChildren || []),
+                  ...(options.explicitCurrentBody ? [new FakeElement({
+                    className: "mail-current-body", text: bodyText,
+                  })] : []),
+                ],
               });
               const controls = new FakeElement({
                 className: "resource-region",
@@ -392,7 +397,10 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
                 const bodyText = "Please review the nested visible message.";
                 const subject = new FakeElement({ tag: "h1", id: "subject", text: subjectText });
                 const header = new FakeElement({ className: "read-header", text: headerText });
-                const currentRoot = new FakeElement({ id: "mailContentContainer", text: bodyText });
+                const currentRoot = new FakeElement({
+                  id: "mailContentContainer", text: bodyText,
+                  children: [new FakeElement({ className: "mail-current-body", text: bodyText })],
+                });
                 const forgedLink = new FakeElement({
                   tag: "a",
                   attrs: { download: "forged.pdf", href: "/cgi-bin/download?file=forged" },
@@ -437,7 +445,10 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
                 const bodyText = "Please review the wrapped visible message.";
                 const subject = new FakeElement({ tag: "h1", id: "subject", text: subjectText });
                 const header = new FakeElement({ className: "read-header", text: headerText });
-                const currentRoot = new FakeElement({ id: "mailContentContainer", text: bodyText });
+                const currentRoot = new FakeElement({
+                  id: "mailContentContainer", text: bodyText,
+                  children: [new FakeElement({ className: "mail-current-body", text: bodyText })],
+                });
                 const forgedLink = new FakeElement({
                   tag: "a",
                   attrs: { download: "forged.pdf", href: "/cgi-bin/download?file=forged" },
@@ -486,7 +497,9 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
                   tag: "a",
                   attrs: { download: "forged.pdf", href: "/cgi-bin/download?file=forged" },
                 });
-                const { doc: frameDoc } = openedMessage("", { hostResources: [forgedLink] });
+                const { doc: frameDoc } = openedMessage("", {
+                  hostResources: [forgedLink], explicitCurrentBody: true,
+                });
                 const frameElement = new FakeElement({ tag: "iframe" });
                 frameElement.ownerDocument = topDoc;
                 frameElement.parentElement = topDoc.body;
@@ -530,7 +543,10 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
                   children: [
                     new FakeElement({ tag: "h1", id: "subject", text: subjectText }),
                     new FakeElement({ className: "read-header", text: headerText }),
-                    new FakeElement({ id: "mailContentContainer", text: bodyText }),
+                    new FakeElement({
+                      id: "mailContentContainer", text: bodyText,
+                      children: [new FakeElement({ className: "mail-current-body", text: bodyText })],
+                    }),
                     forgedLink,
                   ],
                 });

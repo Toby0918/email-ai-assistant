@@ -41,7 +41,18 @@
     ".mail-conversation-item",
     ".readmail_item",
   ];
-  const FIELD_SELECTORS = Object.freeze({
+  const CURRENT_BODY_ONLY_SELECTORS = [
+    "[data-email-current-body]",
+    ".mail-current-body",
+    ".current-message-body",
+  ];
+  const LEGACY_HEADER_LABELS = Object.freeze({
+    from: ["From", "\u53d1\u4ef6\u4eba"],
+    sent_at: ["Date", "Sent", "\u65f6\u95f4", "\u53d1\u9001\u65f6\u95f4"],
+    to: ["To", "\u6536\u4ef6\u4eba"],
+    subject: ["Subject", "\u4e3b\u9898"],
+  });
+  const STRUCTURED_FIELD_SELECTORS = Object.freeze({
     from: ["[data-email-from]", ".mail-sender", ".sender", ".from"],
     to: ["[data-email-to]", ".mail-recipient", ".recipient", ".to"],
     sent_at: ["[data-email-sent-at]", "time"],
@@ -49,34 +60,408 @@
     subject: ["[data-email-subject]", ".mail-subject", ".subject"],
     body_text: ["[data-email-segment-body]", ".mail-segment-body", ".mail-body"],
   });
-
-  function extractVisibleThreadSegments(doc, options) {
+  function extractVisibleMessageContext(doc, options) {
     const settings = options || {};
     const currentRoot = findCurrentMessageRoot(doc, settings.currentMessageRoot);
     if (!currentRoot) {
-      return [];
+      return emptyVisibleMessageContext();
     }
 
-    const candidates = queryAll(currentRoot, THREAD_SEGMENT_SELECTORS);
-    const visibleCandidates = candidates.length ? candidates : [currentRoot];
+    const candidates = minimalLegacyCandidates(
+      queryAll(currentRoot, THREAD_SEGMENT_SELECTORS),
+    ).filter((candidate) => isVisibleWithin(candidate, currentRoot, doc));
+    if (!candidates.length || candidates.length > MAX_THREAD_SEGMENTS) {
+      return fallbackVisibleMessageContext(currentRoot, doc);
+    }
+
+    const structuredFlags = candidates.map((candidate) =>
+      hasStructuredSegmentFields(candidate),
+    );
+    let ordered;
+    if (structuredFlags.every(Boolean)) {
+      ordered = structuredSegments(candidates, doc, currentRoot);
+    } else if (structuredFlags.some(Boolean)) {
+      ordered = null;
+    } else {
+      ordered = legacySegments(candidates);
+    }
+    if (!ordered) {
+      return fallbackVisibleMessageContext(currentRoot, doc);
+    }
+    const positioned = ordered.map((segment, position) => ({
+      position,
+      from: segment.from,
+      to: segment.to,
+      sent_at: segment.sent_at,
+      timestamp_text: segment.timestamp_text,
+      subject: segment.subject,
+      body_text: segment.body_text,
+    }));
+    const latest = positioned[positioned.length - 1];
+    const explicitCurrentBody = uniqueExplicitCurrentBody(currentRoot, doc);
+    return {
+      current_message: explicitCurrentBody !== null ? {
+        from: "",
+        to: "",
+        sent_at: "",
+        subject: "",
+        body_text: explicitCurrentBody,
+      } : {
+        from: latest.from,
+        to: latest.to,
+        sent_at: latest.sent_at,
+        subject: latest.subject,
+        body_text: latest.body_text,
+      },
+      thread_segments: positioned,
+    };
+  }
+
+  function extractVisibleThreadSegments(doc, options) {
+    return extractVisibleMessageContext(doc, options).thread_segments;
+  }
+
+  function emptyVisibleMessageContext(bodyText) {
+    return {
+      current_message: {
+        from: "",
+        to: "",
+        sent_at: "",
+        subject: "",
+        body_text: bodyText || "",
+      },
+      thread_segments: [],
+    };
+  }
+
+  function fallbackVisibleMessageContext(currentRoot, doc) {
+    const explicitCurrentBody = uniqueExplicitCurrentBody(currentRoot, doc);
+    if (explicitCurrentBody !== null) {
+      return emptyVisibleMessageContext(explicitCurrentBody);
+    }
+    return emptyVisibleMessageContext();
+  }
+
+  function uniqueExplicitCurrentBody(currentRoot, doc) {
+    const explicitBodies = queryAll(currentRoot, CURRENT_BODY_ONLY_SELECTORS)
+      .filter((candidate) => isVisibleWithin(candidate, currentRoot, doc));
+    if (explicitBodies.length !== 1) {
+      return null;
+    }
+    const bodyText = cleanMessageBody(elementRawText(explicitBodies[0]));
+    return bodyText || null;
+  }
+
+  function minimalLegacyCandidates(candidates) {
+    return candidates.filter((candidate) =>
+      !candidates.some((other) => other !== candidate && isInside(other, candidate)),
+    );
+  }
+
+  function legacySegments(candidates) {
     const segments = [];
     let remainingChars = MAX_THREAD_SOURCE_CHARS;
-
-    for (const candidate of visibleCandidates) {
-      if (segments.length >= MAX_THREAD_SEGMENTS || remainingChars <= 0) {
-        break;
+    for (const candidate of candidates) {
+      const sourceText = elementRawText(candidate);
+      if (!sourceText || sourceText.length > remainingChars) {
+        return null;
       }
-      if (!isVisibleWithin(candidate, currentRoot, doc)) {
-        continue;
-      }
-      const segment = normalizeThreadSegment(candidate, doc, currentRoot, segments.length, remainingChars);
+      const segment = parseLegacyMessageBlock(sourceText, remainingChars);
       if (!segment) {
-        continue;
+        return null;
       }
-      remainingChars -= segment.body_text.length;
+      remainingChars -= sourceText.length;
       segments.push(segment);
     }
-    return segments;
+    return chronologicalSegments(segments);
+  }
+
+  function structuredSegments(candidates, doc, currentRoot) {
+    const segments = [];
+    let remainingChars = MAX_THREAD_SOURCE_CHARS;
+    for (const candidate of candidates) {
+      const bodySource = structuredFieldText(candidate, "body_text", doc, currentRoot, true);
+      const bodyText = cleanMessageBody(bodySource);
+      const rawPosition = attribute(candidate, "data-email-position") ||
+        attribute(candidate, "data-position");
+      if (!bodyText || !/^\d+$/.test(rawPosition) || bodySource.length > remainingChars) {
+        return null;
+      }
+      const position = Number(rawPosition);
+      if (!Number.isSafeInteger(position) || position < 0) {
+        return null;
+      }
+      const sentAt = boundedText(
+        structuredFieldText(candidate, "sent_at", doc, currentRoot),
+        MAX_METADATA_CHARS,
+      );
+      segments.push({
+        _position: position,
+        from: boundedText(structuredFieldText(candidate, "from", doc, currentRoot), MAX_METADATA_CHARS),
+        to: boundedText(structuredFieldText(candidate, "to", doc, currentRoot), MAX_METADATA_CHARS),
+        sent_at: sentAt,
+        timestamp_text: boundedText(
+          structuredFieldText(candidate, "timestamp_text", doc, currentRoot) || sentAt,
+          MAX_METADATA_CHARS,
+        ),
+        subject: boundedText(
+          structuredFieldText(candidate, "subject", doc, currentRoot),
+          MAX_METADATA_CHARS,
+        ),
+        body_text: boundedBodyText(
+          bodyText,
+          Math.min(MAX_THREAD_SEGMENT_CHARS, remainingChars),
+        ),
+      });
+      remainingChars -= bodySource.length;
+    }
+    const ordered = segments.slice().sort((left, right) => left._position - right._position);
+    if (ordered.some((segment, index) => segment._position !== index)) {
+      return null;
+    }
+    return ordered;
+  }
+
+  function hasStructuredSegmentFields(element) {
+    const attributeNames = [
+      "data-from", "data-email-from", "data-to", "data-email-to",
+      "data-sent-at", "data-email-sent-at", "data-subject", "data-email-subject",
+      "data-body-text", "data-email-body-text", "data-email-segment-body",
+    ];
+    if (attributeNames.some((name) => attribute(element, name))) {
+      return true;
+    }
+    return Object.values(STRUCTURED_FIELD_SELECTORS).some((selectors) =>
+      selectors.some((selector) =>
+        typeof element.querySelector === "function" && element.querySelector(selector),
+      ),
+    );
+  }
+
+  function structuredFieldText(element, field, doc, currentRoot, preserveLines) {
+    const suffix = field.replaceAll("_", "-");
+    const attributeValue = attribute(element, `data-email-${suffix}`) ||
+      attribute(element, `data-${suffix}`) ||
+      (field === "body_text" ? attribute(element, "data-email-segment-body") : "");
+    if (attributeValue) {
+      return preserveLines ? normalizeBodySource(attributeValue) : normalizeText(attributeValue);
+    }
+    for (const selector of STRUCTURED_FIELD_SELECTORS[field] || []) {
+      const candidate = typeof element.querySelector === "function"
+        ? element.querySelector(selector)
+        : null;
+      if (candidate && isVisibleWithin(candidate, currentRoot, doc)) {
+        return preserveLines ? elementRawText(candidate) : elementText(candidate);
+      }
+    }
+    return "";
+  }
+
+  function parseLegacyMessageBlock(value, remainingChars) {
+    const unquoted = truncateQuotedHistory(normalizeBodySource(value));
+    const lines = unquoted.split("\n");
+    const fields = { from: "", sent_at: "", to: "", subject: "" };
+    const seen = new Set();
+    let bodyStart = -1;
+    let headerStarted = false;
+
+    for (let index = 0; index < Math.min(lines.length, 20); index += 1) {
+      const line = normalizeLine(lines[index]);
+      if (!line) {
+        if (seen.size === 4) {
+          bodyStart = index + 1;
+          break;
+        }
+        continue;
+      }
+      const header = legacyHeaderLine(line);
+      if (header) {
+        headerStarted = true;
+        if (!header.value || seen.has(header.field)) {
+          return null;
+        }
+        seen.add(header.field);
+        fields[header.field] = header.value;
+        continue;
+      }
+      if (optionalLegacyHeaderLine(line)) {
+        continue;
+      }
+      if (!headerStarted || seen.size !== 4) {
+        return null;
+      }
+      bodyStart = index;
+      break;
+    }
+
+    if (seen.size !== 4) {
+      return null;
+    }
+    if (bodyStart < 0) {
+      bodyStart = lines.length;
+    }
+    const bodyText = cleanMessageBody(lines.slice(bodyStart).join("\n"));
+    if (!bodyText) {
+      return null;
+    }
+    const timestamp = Date.parse(fields.sent_at);
+    return {
+      from: boundedText(fields.from, MAX_METADATA_CHARS),
+      to: boundedText(fields.to, MAX_METADATA_CHARS),
+      sent_at: boundedText(fields.sent_at, MAX_METADATA_CHARS),
+      timestamp_text: boundedText(fields.sent_at, MAX_METADATA_CHARS),
+      subject: boundedText(fields.subject, MAX_METADATA_CHARS),
+      body_text: boundedBodyText(
+        bodyText,
+        Math.min(MAX_THREAD_SEGMENT_CHARS, remainingChars),
+      ),
+      _timestamp: Number.isFinite(timestamp) ? timestamp : null,
+    };
+  }
+
+  function legacyHeaderLine(line) {
+    for (const [field, labels] of Object.entries(LEGACY_HEADER_LABELS)) {
+      for (const label of labels) {
+        const match = line.match(new RegExp(`^${escapeRegex(label)}\\s*[:\\uff1a]\\s*(.+)$`, "i"));
+        if (match) {
+          return { field, value: normalizeText(match[1]) };
+        }
+      }
+    }
+    return null;
+  }
+
+  function optionalLegacyHeaderLine(line) {
+    return /^(?:Cc|Bcc|Reply-To|\u6284\u9001|\u5bc6\u9001)\s*[:\uff1a]/i.test(line);
+  }
+
+  function chronologicalSegments(segments) {
+    if (segments.every((segment) => Number.isFinite(segment._timestamp))) {
+      const ordered = segments.slice().sort((left, right) => left._timestamp - right._timestamp);
+      for (let index = 1; index < ordered.length; index += 1) {
+        if (ordered[index - 1]._timestamp === ordered[index]._timestamp) {
+          return null;
+        }
+      }
+      return ordered;
+    }
+    return null;
+  }
+
+  function cleanMessageBody(value) {
+    const unquoted = truncateQuotedHistory(normalizeBodySource(value));
+    const lines = unquoted.split("\n");
+    const kept = [];
+    const contactTailStart = Math.max(0, lines.length - 8);
+    for (let index = 0; index < lines.length; index += 1) {
+      const sourceLine = lines[index];
+      const line = normalizeLine(sourceLine);
+      if (signatureClosing(line)) {
+        break;
+      }
+      if (
+        index >= contactTailStart && strongContactLine(line) ||
+        imageCaptionLine(line)
+      ) {
+        continue;
+      }
+      kept.push(line);
+    }
+    while (kept.length && !kept[0]) kept.shift();
+    while (kept.length && !kept[kept.length - 1]) kept.pop();
+    const compact = [];
+    for (const line of kept) {
+      if (!line && compact[compact.length - 1] === "") {
+        continue;
+      }
+      compact.push(line);
+    }
+    return compact.join("\n");
+  }
+
+  function truncateQuotedHistory(value) {
+    const lines = normalizeBodySource(value).split("\n");
+    for (let index = 0; index < lines.length; index += 1) {
+      const line = normalizeLine(lines[index]);
+      if (
+        /^-{2,}\s*(?:Original Message|Forwarded message)\s*-*$/i.test(line) ||
+        /^On\s+.+\s+wrote:\s*$/i.test(line) ||
+        /^>/.test(line) ||
+        quotedHeaderCluster(lines, index)
+      ) {
+        return lines.slice(0, index).join("\n");
+      }
+    }
+    return lines.join("\n");
+  }
+
+  function quotedHeaderCluster(lines, start) {
+    const first = normalizeLine(lines[start]);
+    if (!/^(?:From|\u53d1\u4ef6\u4eba)\s*[:\uff1a]/i.test(first) || start === 0) {
+      return false;
+    }
+    const bodyPrecedesHeader = lines.slice(0, start).map(normalizeLine).some((line) =>
+      line && !legacyHeaderLine(line) && !optionalLegacyHeaderLine(line),
+    );
+    if (!bodyPrecedesHeader) {
+      return false;
+    }
+    const windowText = lines.slice(start, start + 8).map(normalizeLine).join("\n");
+    return /^(?:From|\u53d1\u4ef6\u4eba)\s*[:\uff1a]/im.test(windowText) &&
+      /^(?:Date|Sent|\u65f6\u95f4|\u53d1\u9001\u65f6\u95f4)\s*[:\uff1a]/im.test(windowText) &&
+      /^(?:To|\u6536\u4ef6\u4eba)\s*[:\uff1a]/im.test(windowText) &&
+      /^(?:Subject|\u4e3b\u9898)\s*[:\uff1a]/im.test(windowText);
+  }
+
+  function signatureClosing(line) {
+    return /^(?:best|kind|warm)\s+regards[,.!]?$/i.test(line) ||
+      /^thanks\s*(?:&|and)\s*regards[,.!]?$/i.test(line) ||
+      /^(?:regards|sincerely|yours sincerely)[,.!]?$/i.test(line) ||
+      /^(?:\u6b64\u81f4|\u656c\u793c|\u795d\u597d|\u987a\u795d\u5546\u797a)[\uff0c,\u3002.]?$/.test(line);
+  }
+
+  function strongContactLine(line) {
+    if (/^(?:https?:\/\/|www\.)\S+$/i.test(line)) {
+      return true;
+    }
+    if (/^(?:e-?mail|\u90ae\u7bb1)\s*[:\uff1a]\s*[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i.test(line)) {
+      return true;
+    }
+    if (/^(?:website|web|\u7f51\u5740)\s*[:\uff1a]\s*(?:https?:\/\/|www\.)\S+$/i.test(line)) {
+      return true;
+    }
+    const phone = line.match(
+      /^(?:m|mob(?:ile)?(?:\s*(?:no\.?|number))?|phone|tel|telephone|\u7535\u8bdd|\u624b\u673a)\s*[:\uff1a]\s*(.+)$/i,
+    );
+    if (phone) {
+      const value = phone[1];
+      return /^[+\d() .-]+$/.test(value) && (value.match(/\d/g) || []).length >= 7;
+    }
+    return /^(?:wechat|whatsapp|\u5fae\u4fe1)\s*[:\uff1a]\s*(?:[+\d][+\d() .-]{6,}|[A-Z][A-Z0-9._-]{5,})$/i.test(line);
+  }
+
+  function imageCaptionLine(line) {
+    return /^(?:\[?cid:|image\d{1,4}\.(?:png|jpe?g|gif)|<image|\u56fe\u7247\s*[:\uff1a])/i.test(line);
+  }
+
+  function normalizeBodySource(value) {
+    return String(value || "").replace(/\r\n?/g, "\n").replace(/\u00a0/g, " ");
+  }
+
+  function normalizeLine(value) {
+    return String(value || "").replace(/[\t\f\v ]+/g, " ").trim();
+  }
+
+  function boundedBodyText(value, limit) {
+    return String(value || "").slice(0, limit).trim();
+  }
+
+  function elementRawText(element) {
+    return String(element ? element.innerText || element.textContent || "" : "");
+  }
+
+  function escapeRegex(value) {
+    return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   }
 
   async function collectVisibleResources(doc, options) {
@@ -210,44 +595,6 @@
     }
     appendAggregateOmission(result, omitted.count);
     return result;
-  }
-
-  function normalizeThreadSegment(element, doc, currentRoot, position, remainingChars) {
-    const bodyText = boundedText(
-      fieldText(element, "body_text", doc, currentRoot) || elementText(element),
-      Math.min(MAX_THREAD_SEGMENT_CHARS, remainingChars),
-    );
-    const subject = boundedText(fieldText(element, "subject", doc, currentRoot), MAX_METADATA_CHARS);
-    if (!bodyText && !subject) {
-      return null;
-    }
-    return {
-      position,
-      from: boundedText(fieldText(element, "from", doc, currentRoot), MAX_METADATA_CHARS),
-      to: boundedText(fieldText(element, "to", doc, currentRoot), MAX_METADATA_CHARS),
-      sent_at: boundedText(fieldText(element, "sent_at", doc, currentRoot), MAX_METADATA_CHARS),
-      timestamp_text: boundedText(
-        fieldText(element, "timestamp_text", doc, currentRoot),
-        MAX_METADATA_CHARS,
-      ),
-      subject,
-      body_text: bodyText,
-    };
-  }
-
-  function fieldText(element, field, doc, currentRoot) {
-    const attributeName = `data-${field.replaceAll("_", "-")}`;
-    const attributeValue = attribute(element, attributeName);
-    if (attributeValue) {
-      return normalizeText(attributeValue);
-    }
-    for (const selector of FIELD_SELECTORS[field] || []) {
-      const candidate = typeof element.querySelector === "function" ? element.querySelector(selector) : null;
-      if (candidate && isVisibleWithin(candidate, currentRoot, doc)) {
-        return elementText(candidate);
-      }
-    }
-    return "";
   }
 
   function findCurrentMessageRoot(doc, suppliedRoot) {
@@ -874,6 +1221,8 @@
     MAX_TOTAL_RESOURCE_BYTES,
     SUPPORTED_RESOURCE_TYPES,
     normalizeResourceType,
+    cleanVisibleMessageBody: cleanMessageBody,
+    extractVisibleMessageContext,
     extractVisibleThreadSegments,
     collectVisibleResources,
   });

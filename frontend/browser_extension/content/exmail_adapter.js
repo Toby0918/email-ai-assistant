@@ -126,7 +126,11 @@
   }
 
   function extractionContext(result, selectedDocument, currentMessageRoot) {
-    return { result, document: selectedDocument || null, currentMessageRoot: currentMessageRoot || null };
+    return {
+      result,
+      document: selectedDocument || null,
+      currentMessageRoot: currentMessageRoot || null,
+    };
   }
 
   async function collectCurrentMessageContext(extraction) {
@@ -148,13 +152,27 @@
     }
 
     try {
+      const collectionOptions = { currentMessageRoot: extraction.currentMessageRoot };
+      const messageContext = typeof collector.extractVisibleMessageContext === "function"
+        ? collector.extractVisibleMessageContext(extraction.document, collectionOptions)
+        : {
+            current_message: null,
+            thread_segments: collector.extractVisibleThreadSegments(
+              extraction.document,
+              collectionOptions,
+            ),
+          };
       payload.thread_segments = projectItems(
-        collector.extractVisibleThreadSegments(extraction.document, {
-          currentMessageRoot: extraction.currentMessageRoot,
-        }),
+        messageContext && messageContext.thread_segments,
         ["position", "from", "to", "sent_at", "timestamp_text", "subject", "body_text"],
       );
+      applyCurrentMessageContext(payload, messageContext && messageContext.current_message, {
+        preserveSelectedBody: extraction.result.source === "selected_text",
+        cleanSelectedBody: collector.cleanVisibleMessageBody,
+      });
     } catch (error) {
+      payload.thread_segments = [];
+      payload.body_text = safeCurrentBodyAfterCollectorFailure(extraction);
       payload.resource_limitations.push(
         safeResourceLimitation("resource_unavailable", "Visible thread segments could not be collected safely."),
       );
@@ -205,6 +223,52 @@
       );
     }
     return { ...extraction.result, payload };
+  }
+
+  function safeCurrentBodyAfterCollectorFailure(extraction) {
+    const explicitBodies = uniqueElements(
+      querySelectorAll(
+        extraction.currentMessageRoot,
+        "[data-email-current-body], .mail-current-body, .current-message-body",
+      ),
+    ).filter((candidate) => isVisibleElementInDocument(candidate, extraction.document));
+    if (explicitBodies.length === 1) {
+      return normalizeBodyLines(explicitBodies[0].innerText || explicitBodies[0].textContent || "");
+    }
+    return "";
+  }
+
+  function normalizeBodyLines(value) {
+    return String(value || "")
+      .replace(/\r\n?/g, "\n")
+      .split("\n")
+      .map((line) => line.replace(/[\t\f\v ]+/g, " ").trim())
+      .join("\n")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  }
+
+  function applyCurrentMessageContext(payload, currentMessage, options) {
+    if (!currentMessage || typeof currentMessage !== "object" || Array.isArray(currentMessage)) {
+      return;
+    }
+    const settings = options || {};
+    if (settings.preserveSelectedBody) {
+      if (typeof settings.cleanSelectedBody === "function") {
+        payload.body_text = String(settings.cleanSelectedBody(payload.body_text) || "");
+      }
+    } else if (Object.prototype.hasOwnProperty.call(currentMessage, "body_text")) {
+      payload.body_text = String(currentMessage.body_text || "");
+    }
+
+    const subject = normalizeText(currentMessage.subject);
+    const sender = normalizeText(currentMessage.from);
+    const sentAt = normalizeText(currentMessage.sent_at);
+    const recipients = splitRecipients(normalizeText(currentMessage.to));
+    if (subject) payload.subject = subject;
+    if (sender) payload.from = sender;
+    if (sentAt) payload.sent_at = sentAt;
+    if (recipients.length) payload.to = recipients;
   }
 
   function findVerifiedResourceContext(doc, currentMessageRoot) {
