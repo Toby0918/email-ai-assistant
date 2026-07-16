@@ -13,6 +13,19 @@ __pycache__/
 *.sqlite3
 *.token
 *.secret
+*.pkevalstage
+*.pkeval
+*.pkauth
+*.pkcand
+*.pkimpt
+*.pksnap
+*.pkkey
+*.pkstage
+*.pkenv
+*.pem
+*.key
+*.p12
+*.pfx
 
 attachments/
 outputs/

@@ -317,13 +317,12 @@ Reviewer-requested hardening verification:
 - no RED cycle is claimed for this hardening because the reviewed operator
   documents were already correctly ordered.
 
-The automated whole-workspace maintenance scanner opened the pre-existing
-ignored `outputs/email_agent.sqlite3` read-only and returned only the aggregate
-finding `public_sqlite / LEAK_PRIVATE_IDENTIFIER count=244`. No human manually
-inspected its rows or matched values, and the artifact was not modified, copied,
-staged, or committed. It must be separately isolated or disposed of by the
-local operator before any real mailbox operation; Task 1 did not perform that
-state-changing action.
+The pre-existing ignored `outputs/email_agent.sqlite3` may remain in OneDrive.
+It must remain Git-ignored and untracked and must not be uploaded.
+It must not be opened, moved, or deleted during this phase.
+Release verification must use a clean tracked-only local clone instead of
+whole-workspace scanning in this working copy; the SQLite artifact is not
+copied, staged, committed, or used by any mailbox operation.
 
 Uncompleted work is exactly Slices 2 through 6. Continue only after Task 1
 review approval, preserve module entrypoints, and retain the separate live

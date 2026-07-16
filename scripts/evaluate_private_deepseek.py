@@ -44,6 +44,11 @@ from backend.private_evaluation.terminal_judge import (
 
 
 CONFIRMATION = "I_CONFIRM_200_FLASH_40_PRO"
+_HELP_FLAGS = frozenset({"-h", "--help"})
+_PURE_HELP_FORMS = frozenset(
+    {(flag,) for flag in _HELP_FLAGS}
+    | {(command, flag) for command in ("build", "verify", "run") for flag in _HELP_FLAGS}
+)
 
 
 class _SafeParser(argparse.ArgumentParser):
@@ -76,7 +81,12 @@ def run_cli(
 ) -> int:
     deps = dependencies or _default_dependencies()
     try:
-        arguments = _parser().parse_args(argv)
+        raw_arguments = list(sys.argv[1:] if argv is None else argv)
+        if any(value in _HELP_FLAGS for value in raw_arguments) and tuple(
+            raw_arguments
+        ) not in _PURE_HELP_FORMS:
+            raise PrivateEvaluationError("argument_invalid")
+        arguments = _parser().parse_args(raw_arguments)
         if arguments.command == "build":
             dataset = _build_dataset_command(arguments, deps)
             deps.emit({"ok": True, "code": "dataset_built", "case_count": len(dataset.cases)})
@@ -105,14 +115,16 @@ def run_cli(
 
 
 def _parser() -> _SafeParser:
-    parser = _SafeParser(add_help=False, allow_abbrev=False)
+    parser = _SafeParser(
+        prog="evaluate_private_deepseek.py", allow_abbrev=False
+    )
     commands = parser.add_subparsers(dest="command", required=True)
-    build = commands.add_parser("build", add_help=False, allow_abbrev=False)
+    build = commands.add_parser("build", allow_abbrev=False)
     build.add_argument("--staging", required=True)
     build.add_argument("--dataset", required=True)
-    verify = commands.add_parser("verify", add_help=False, allow_abbrev=False)
+    verify = commands.add_parser("verify", allow_abbrev=False)
     verify.add_argument("--dataset", required=True)
-    run = commands.add_parser("run", add_help=False, allow_abbrev=False)
+    run = commands.add_parser("run", allow_abbrev=False)
     run.add_argument("--dataset", required=True)
     run.add_argument("--report", required=True)
     run.add_argument("--confirm-private-evaluation")

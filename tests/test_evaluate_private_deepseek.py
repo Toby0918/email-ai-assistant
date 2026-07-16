@@ -426,6 +426,7 @@ class PrivateEvaluationCliTests(unittest.TestCase):
 
         for arguments in (
             ["build", "--staging", str(self.stage_path), "--dataset", str(self.path), "--force"],
+            ["verify", "--dataset", str(self.path), "--model", "x", "--help"],
             ["run", "--dataset", str(self.path), "--report", str(self.report_path),
              "--confirm-private-evaluation", "I_CONFIRM_200_FLASH_40_PRO",
              "--interactive-judge", "--transcript", "x"],

@@ -662,6 +662,39 @@ class ArchitectureConstraintTests(unittest.TestCase):
                     f"Architecture guard does not reject {label}.",
                 )
 
+    def test_private_artifact_suffixes_are_ignored(self) -> None:
+        required_suffixes = (
+            ".sqlite3",
+            ".pkevalstage",
+            ".pkeval",
+            ".pkauth",
+            ".pkcand",
+            ".pkimpt",
+            ".pksnap",
+            ".pkkey",
+            ".pkstage",
+            ".pkenv",
+            ".pem",
+            ".key",
+            ".p12",
+            ".pfx",
+        )
+        missing = [
+            suffix
+            for suffix in required_suffixes
+            if not is_ignored_by_gitignore(
+                ROOT / "security-probe" / f"private-artifact{suffix}",
+                ROOT,
+                GITIGNORE_PATTERNS,
+            )
+        ]
+
+        self.assertEqual(
+            [],
+            missing,
+            f"Private artifact suffixes missing from .gitignore: {missing}",
+        )
+
     def test_forbidden_repository_files_are_not_unignored(self) -> None:
         for path in iter_project_files(ROOT):
             name = path.name.lower()

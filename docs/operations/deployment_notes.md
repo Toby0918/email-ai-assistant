@@ -101,8 +101,9 @@ Get-Content outputs\local_debug_service.log -Tail 30 | Select-String 'event=anal
 离线实现完成不等于批准真实运行。`scripts/manage_mailbox_vault.py` 是唯一允许
 导入邮箱的管理员入口，并且 remains default-off、不可调度、不可由浏览器或
 normal backend 调用。现场顺序必须是 `init`、content-free `inventory`、人工
-fingerprint confirmation、`scan`、经 attachment approval 的第二遍
-`attachments`（最多 50 个）、`verify`，再按保留/撤销决定执行
+fingerprint confirmation、`scan`、首次 `verify`、attachment approval、
+第二遍 `attachments`
+（最多 50 个）、第二次 `verify`，再按保留/撤销决定执行
 `purge-expired`、`revoke` 或 `rewrap-recovery`。
 
 Live mailbox scan、private evaluation 和 production DeepSeek API enablement 使用
@@ -121,6 +122,27 @@ python -B -m scripts.manage_mailbox_vault inventory --vault $VaultRoot --authori
 
 ```powershell
 python -B -m scripts.manage_mailbox_vault scan --vault $VaultRoot --authorization-id $AuthorizationId --account $Account --confirm-inventory-fingerprint $Fingerprint
+```
+
+`scan` 完成后必须立即做第一次完整性检查；只有固定结果中的完整性失败数为零，
+才可进入附件审批：
+
+```powershell
+python -B -m scripts.manage_mailbox_vault verify --vault $VaultRoot --authorization-id $AuthorizationId --account $Account
+```
+
+业务与隐私负责人随后只通过 opaque ID 完成代表性附件清单的 attachment approval。
+审批完成后才可运行第二遍附件读取，且总数最多 50 个：
+
+```powershell
+python -B -m scripts.manage_mailbox_vault attachments --vault $VaultRoot --authorization-id $AuthorizationId --account $Account --manifest $AttachmentManifest
+```
+
+附件读取完成后必须再次运行同一完整性命令；第二次结果中的完整性失败数也必须为
+零，否则立即 incident stop：
+
+```powershell
+python -B -m scripts.manage_mailbox_vault verify --vault $VaultRoot --authorization-id $AuthorizationId --account $Account
 ```
 
 后续知识和评估入口同样固定为 `python -B -m scripts.manage_private_knowledge`

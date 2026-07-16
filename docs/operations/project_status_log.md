@@ -60,6 +60,7 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 | `.github/workflows/cleanup_agent.yml` | yes |
 | `backend/email_agent/__init__.py` | yes |
 | `backend/email_agent/analysis_schema.py` | yes |
+| `backend/email_agent/analysis_route_support.py` | yes |
 | `backend/email_agent/config.py` | yes |
 | `backend/email_agent/logging_config.py` | yes |
 | `backend/email_agent/email_cleaner.py` | yes |
@@ -70,7 +71,11 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 | `backend/email_agent/exporter.py` | yes |
 | `backend/email_agent/api.py` | yes |
 | `backend/email_agent/server.py` | yes |
+| `backend/email_agent/frontend_assets.py` | yes |
+| `backend/email_agent/model_context_selection.py` | yes |
+| `backend/email_agent/participant_identity_aliases.py` | yes |
 | `backend/email_agent/private_context_gate.py` | yes |
+| `backend/email_agent/private_provider_output_gate.py` | yes |
 | `frontend/local_debug_page/index.html` | yes |
 | `frontend/local_debug_page/app.js` | yes |
 | `frontend/local_debug_page/styles.css` | yes |
@@ -78,9 +83,11 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 | `frontend/browser_extension/popup.html` | yes |
 | `frontend/browser_extension/popup.css` | yes |
 | `frontend/browser_extension/popup.js` | yes |
+| `frontend/browser_extension/content/current_message_collector.js` | yes |
 | `frontend/browser_extension/content/exmail_adapter.js` | yes |
 | `frontend/browser_extension/shared/api_client.js` | yes |
 | `frontend/browser_extension/shared/render_analysis.js` | yes |
+| `frontend/browser_extension/shared/analysis_components.css` | yes |
 | `docs/constraints/tooling_constraints.md` | yes |
 | `docs/constraints/architecture_constraints.md` | yes |
 | `docs/constraints/linter_constraints.md` | yes |
@@ -112,6 +119,7 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 | `scripts/run_local_debug.py` | yes |
 | `scripts/manage_local_service.py` | yes |
 | `scripts/manage_mailbox_vault.py` | yes |
+| `scripts/manage_private_knowledge.py` | yes |
 | `scripts/evaluate_private_deepseek.py` | yes |
 | `start_local_service.cmd` | yes |
 | `stop_local_service.cmd` | yes |
@@ -164,7 +172,7 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 
 | Status | Count |
 |---|---:|
-| active | 88 |
+| active | 91 |
 | draft | 24 |
 | deprecated | 1 |
 | missing_front_matter | 0 |

@@ -49,6 +49,11 @@ class AdministratorModuleEntrypointTests(unittest.TestCase):
                 "manage_private_knowledge.py",
                 "import-candidate",
             ),
+            (
+                "scripts.evaluate_private_deepseek",
+                "evaluate_private_deepseek.py",
+                "build",
+            ),
         )
         for module, program, command in help_cases:
             with self.subTest(module=module):
@@ -62,6 +67,51 @@ class AdministratorModuleEntrypointTests(unittest.TestCase):
         self.assertEqual(
             json.loads(result.stdout),
             {"ok": False, "code": "argument_invalid"},
+        )
+        self.assertEqual(result.stderr, "")
+
+    def test_private_evaluation_module_has_static_root_and_command_help(self) -> None:
+        for arguments, expected in (
+            (("--help",), ("build", "verify", "run")),
+            (("-h",), ("build", "verify", "run")),
+            (("build", "--help"), ("--staging", "--dataset")),
+            (("build", "-h"), ("--staging", "--dataset")),
+            (("verify", "--help"), ("--dataset",)),
+            (("verify", "-h"), ("--dataset",)),
+            (
+                ("run", "--help"),
+                ("--dataset", "--interactive-judge", "--confirm-private-evaluation"),
+            ),
+            (
+                ("run", "-h"),
+                ("--dataset", "--interactive-judge", "--confirm-private-evaluation"),
+            ),
+        ):
+            with self.subTest(arguments=arguments):
+                result = self._run_module(
+                    "scripts.evaluate_private_deepseek", *arguments
+                )
+                self.assertEqual(result.returncode, 0, result.stdout)
+                self.assertIn("usage: evaluate_private_deepseek.py", result.stdout)
+                for value in expected:
+                    self.assertIn(value, result.stdout)
+                self.assertEqual(result.stderr, "")
+
+    def test_private_evaluation_help_cannot_mask_forbidden_override(self) -> None:
+        result = self._run_module(
+            "scripts.evaluate_private_deepseek",
+            "verify",
+            "--dataset",
+            "C:/SyntheticExternal/private.pkeval",
+            "--model",
+            "deepseek-v4-pro",
+            "--help",
+        )
+
+        self.assertEqual(result.returncode, 2)
+        self.assertEqual(
+            result.stdout,
+            '{"code": "argument_invalid", "ok": false}\n',
         )
         self.assertEqual(result.stderr, "")
 
@@ -99,6 +149,19 @@ class AdministratorModuleEntrypointTests(unittest.TestCase):
             "## 18. Post-execution record",
         ):
             self.assertIn(required_section, brief)
+
+    def test_task_brief_preserves_allowed_ignored_sqlite_without_accessing_it(self) -> None:
+        brief = TASK_BRIEF.read_text(encoding="utf-8")
+
+        for required in (
+            "`outputs/email_agent.sqlite3` may remain in OneDrive",
+            "must remain Git-ignored and untracked",
+            "must not be uploaded",
+            "must not be opened, moved, or deleted during this phase",
+        ):
+            with self.subTest(required=required):
+                self.assertIn(required, brief)
+        self.assertNotIn("separately isolated or disposed of", brief)
 
     def test_operator_docs_use_module_entrypoints_and_stop_after_inventory(self) -> None:
         expected_by_path = {
@@ -140,6 +203,41 @@ class AdministratorModuleEntrypointTests(unittest.TestCase):
                         "--confirm-inventory-fingerprint",
                         text[scan_index:scan_index + 500],
                     )
+
+    def test_live_runbooks_verify_before_and_after_approved_attachments(self) -> None:
+        scan_command = "python -B -m scripts.manage_mailbox_vault scan"
+        verify_command = "python -B -m scripts.manage_mailbox_vault verify"
+        approval = "attachment approval"
+        attachments_command = "python -B -m scripts.manage_mailbox_vault attachments"
+        for path in (
+            ROOT / "docs" / "operations" / "testing_checklist.md",
+            ROOT / "docs" / "operations" / "deployment_notes.md",
+        ):
+            text = path.read_text(encoding="utf-8")
+            with self.subTest(path=path):
+                scan_index = text.index(scan_command)
+                verify_indexes = tuple(
+                    match.start()
+                    for match in re.finditer(re.escape(verify_command), text)
+                    if match.start() > scan_index
+                )
+                self.assertGreaterEqual(
+                    len(verify_indexes), 2,
+                    "live runbook requires one verify before and one after attachments",
+                )
+                first_verify, second_verify = verify_indexes[:2]
+                approval_index = text.find(
+                    approval, first_verify + len(verify_command)
+                )
+                attachments_index = text.find(
+                    attachments_command, approval_index + len(approval)
+                )
+                self.assertNotEqual(approval_index, -1)
+                self.assertNotEqual(attachments_index, -1)
+                self.assertLess(scan_index, first_verify)
+                self.assertLess(first_verify, approval_index)
+                self.assertLess(approval_index, attachments_index)
+                self.assertLess(attachments_index, second_verify)
 
     def test_runnable_admin_examples_never_use_direct_script_paths(self) -> None:
         forbidden = re.compile(

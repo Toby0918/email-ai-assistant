@@ -134,11 +134,19 @@ automatic mailbox scan。所有管理员入口只使用下列 `python -B -m ...`
    后，才可运行 `python -B -m scripts.manage_mailbox_vault scan --vault $VaultRoot
    --authorization-id $AuthorizationId --account $Account
    --confirm-inventory-fingerprint $Fingerprint` 读取固定 24 个月窗口的正文。
-4. attachment approval 必须由业务与隐私双审清单明确选中，随后才可运行
+4. `scan` 完成后立即运行第一次
+   `python -B -m scripts.manage_mailbox_vault verify --vault $VaultRoot
+   --authorization-id $AuthorizationId --account $Account`。只有完整性失败数为零，
+   才能进入附件审批。
+5. attachment approval 必须由业务与隐私双审清单明确选中，随后才可运行
    `python -B -m scripts.manage_mailbox_vault attachments --vault $VaultRoot
    --authorization-id $AuthorizationId --account $Account --manifest $AttachmentManifest`；
    总数不得超过 `50`，并继续执行 10 MiB 单文件和 25 MiB 单会话上限。
-5. 只有另行审核的 `StageEvaluationSelectionV1` 已严格绑定 exactly 200 条、
+6. `attachments` 完成后再次运行
+   `python -B -m scripts.manage_mailbox_vault verify --vault $VaultRoot
+   --authorization-id $AuthorizationId --account $Account`。第二次完整性失败数也必须
+   为零，否则立即 incident stop。
+7. 只有另行审核的 `StageEvaluationSelectionV1` 已严格绑定 exactly 200 条、
    authorization `scope_fingerprint` 与双审清单 `inventory_fingerprint` 分别通过，
    且本地 staging/evaluation key 已准备由 hidden getpass 输入时，才可运行
    `python -B -m scripts.manage_mailbox_vault stage-evaluation --vault $VaultRoot
@@ -149,8 +157,7 @@ automatic mailbox scan。所有管理员入口只使用下列 `python -B -m ...`
    app password。测试必须证明 handoff 使用 evaluation-only source、在 plaintext
    释放前拒绝 inventory mismatch、保持 no evidence accumulation，并在下一条前释放
    raw-derived identifiers；成功只输出 `evaluation_stage_complete` 和 200/0 counts。
-6. 使用 `python -B -m scripts.manage_mailbox_vault verify --vault $VaultRoot
-   --authorization-id $AuthorizationId --account $Account` 做完整性检查；按授权使用
+8. 按授权使用
    `python -B -m scripts.manage_mailbox_vault purge-expired --vault $VaultRoot
    --authorization-id $AuthorizationId --account $Account`、
    `python -B -m scripts.manage_mailbox_vault revoke --vault $VaultRoot
@@ -159,7 +166,7 @@ automatic mailbox scan。所有管理员入口只使用下列 `python -B -m ...`
    --vault $VaultRoot --authorization-id $AuthorizationId --account $Account
    --current-recovery-key $RecoveryKey --new-recovery-key $NewRecoveryKey
    --confirm $RewrapConfirmation`。
-7. `python -B -m scripts.manage_private_knowledge import-candidate
+9. `python -B -m scripts.manage_private_knowledge import-candidate
    --authority-root $AuthorityRoot --authority-id $AuthorityId --batch-root $BatchRoot
    --batch-id $BatchId --candidate-id $CandidateId` 后按顺序完成业务、隐私及必要的
    责任人审批，再运行 `python -B -m scripts.manage_private_knowledge approve
@@ -168,13 +175,13 @@ automatic mailbox scan。所有管理员入口只使用下列 `python -B -m ...`
    --authority-id $AuthorityId --snapshot $Snapshot --snapshot-id $SnapshotId`。拒绝、
    过期、deprecate 或 revoke 后重新发布；签名/密钥/文件无效时正常服务必须退回
    generic rule fallback。
-8. 在 stage 完成后，以 same operator-supplied 32-byte hidden key 运行
+10. 在 stage 完成后，以 same operator-supplied 32-byte hidden key 运行
    `python -B -m scripts.evaluate_private_deepseek build --staging $EvaluationStage
    --dataset $Dataset`。stage 与 final 必须位于独立外部目录；final 使用 fresh UUIDv4
    namespace 和 distinct final magic/purpose/nonce，create-only 且不自动删除 stage。
    Build revalidates exactly 200/full strata/current dual approval/at least 40 Pro，
    并创建 zero provider/judge/network/transcript。
-9. `python -B -m scripts.evaluate_private_deepseek verify --dataset $Dataset` 只做本地
+11. `python -B -m scripts.evaluate_private_deepseek verify --dataset $Dataset` 只做本地
    预检。真实 `python -B -m scripts.evaluate_private_deepseek run --dataset $Dataset
    --report $AggregateReport --confirm-private-evaluation I_CONFIRM_200_FLASH_40_PRO
    --interactive-judge` 还要求 stdin/stdout 均为 real local TTY；缺少该 flag 时固定

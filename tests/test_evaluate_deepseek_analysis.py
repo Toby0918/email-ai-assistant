@@ -162,6 +162,39 @@ class DeepSeekEvaluationTests(unittest.TestCase):
                     for insight in outcome.result["attachment_insights"]
                 ))
 
+    def test_critical_facts_are_materialized_in_rule_safe_request_context(self) -> None:
+        from scripts.deepseek_eval_replay import build_synthetic_email
+
+        date_case = evaluation_case(
+            "synthetic-date-materialization",
+            scenario="date_grounding",
+            fact="2026-08-15",
+        )
+        date_body = str(build_synthetic_email(date_case)["body_text"])
+        with self.subTest(kind="date_deadline"):
+            self.assertRegex(
+                date_body,
+                r"(?i)\b(?:by|due(?:\s+date)?|deadline)\b[^.\n]*2026-08-15",
+            )
+
+        fallback_case = evaluation_case(
+            "synthetic-fallback-materialization",
+            provider_case="malformed_json",
+            analysis_source="rule_fallback",
+            fact="SYNTHETIC-FACT-047",
+        )
+        fallback_body = str(build_synthetic_email(fallback_case)["body_text"])
+        request_sentences = [
+            sentence.strip()
+            for sentence in fallback_body.split(".")
+            if "please" in sentence.casefold()
+            and "current request" in sentence.casefold()
+        ]
+        with self.subTest(kind="fallback_request"):
+            self.assertTrue(any(
+                fallback_case["fact"] in sentence for sentence in request_sentences
+            ))
+
     def test_material_distinction_excludes_engine_tags_and_review_only_metadata(self) -> None:
         from scripts.evaluate_deepseek_analysis import _materially_distinct
 
