@@ -45,6 +45,21 @@
     reply: "准备回复",
   };
 
+  const OWNER_LABELS = {
+    sales: "销售负责人",
+    internal_sales: "销售负责人",
+    engineering: "工程负责人",
+    engineering_owner: "工程负责人",
+    quality: "质量负责人",
+    quality_owner: "质量负责人",
+    finance: "财务负责人",
+    operations: "运营负责人",
+    internal_follow_up: "跟进负责人",
+    "采购/工程负责人": "采购/工程负责人",
+  };
+
+  const FALLBACK_BANNER = "未使用 DeepSeek：本次结果由本地规则生成。";
+
   const TIMELINE_STATUS_LABELS = {
     resolved: "已解决",
     partially_resolved: "部分解决",
@@ -74,9 +89,10 @@
   const ATTACHMENT_POSIX_PATH_MARKER_PATTERN = /(^|[\s="'(=：])\/[A-Za-z0-9._-]/;
 
   function renderAnalysis(fields, analysis) {
-    fields.priority.textContent = formatPriority(analysis.priority);
-    fields.summary.textContent = textOrFallback(analysis.summary, "No summary returned");
-    fields.category.textContent = formatCategory(analysis.category);
+    renderTaskCard(fields, analysis);
+    setFieldText(fields.priority, formatPriority(analysis.priority));
+    setFieldText(fields.summary, textOrFallback(analysis.summary, "未返回摘要"));
+    setFieldText(fields.category, formatCategory(analysis.category));
     if (fields.engine) {
       fields.engine.textContent = formatEngine(analysis.analysis_engine);
     }
@@ -92,15 +108,29 @@
     if (fields.attachments && Array.isArray(analysis.attachments)) {
       renderAttachments(fields.attachments, analysis.attachments);
     }
-    renderListField(fields.risks, analysis.risk_flags, formatRisk);
-    renderListField(fields.actions, analysis.suggested_actions, formatAction);
-    fields.draft.value = analysis.reply_draft && analysis.reply_draft.body ? analysis.reply_draft.body : "";
+    if (fields.risks) {
+      renderListField(fields.risks, analysis.risk_flags, formatRisk);
+    }
+    if (fields.actions) {
+      renderListField(fields.actions, analysis.suggested_actions, formatAction);
+    }
+    renderDraft(fields, analysis.reply_draft);
   }
 
   function clearAnalysis(fields) {
-    fields.priority.textContent = "-";
-    fields.summary.textContent = "No analysis yet";
-    fields.category.textContent = "-";
+    setFieldText(fields.priority, "-");
+    setFieldText(fields.summary, "暂无分析");
+    setFieldText(fields.category, "-");
+    setFieldText(fields.conclusion, "暂无分析");
+    setFieldText(fields.currentRequest, "-");
+    renderPlaceholderIfPresent(fields.nextSteps);
+    renderPlaceholderIfPresent(fields.keyFacts);
+    renderPlaceholderIfPresent(fields.mustCheck);
+    renderPlaceholderIfPresent(fields.technicalDetails);
+    if (fields.fallbackBanner) {
+      fields.fallbackBanner.hidden = true;
+      fields.fallbackBanner.textContent = "";
+    }
     if (fields.engine) {
       fields.engine.textContent = "-";
     }
@@ -116,9 +146,142 @@
     if (fields.attachments) {
       renderPlaceholder(fields.attachments);
     }
-    renderPlaceholder(fields.risks);
-    renderPlaceholder(fields.actions);
-    fields.draft.value = "";
+    renderPlaceholderIfPresent(fields.risks);
+    renderPlaceholderIfPresent(fields.actions);
+    setFieldValue(fields.draftBody || fields.draft, "");
+    setFieldText(fields.draftSubject, "-");
+    setFieldText(fields.draftReviewStatus, "需要人工审核");
+    renderPlaceholderIfPresent(fields.draftReviewReasons);
+  }
+
+  function renderTaskCard(fields, analysis) {
+    const brief = isPlainObject(analysis.decision_brief) ? analysis.decision_brief : {};
+    setFieldText(fields.conclusion, textOrFallback(
+      brief.one_line_conclusion,
+      textOrFallback(analysis.summary, "暂无分析结论"),
+    ));
+    setFieldText(fields.currentRequest, textOrFallback(brief.requested_outcome, "暂无明确请求"));
+    renderTaskSteps(fields.nextSteps, brief.next_steps);
+    renderTaskFacts(fields.keyFacts, brief.key_facts);
+    renderMustCheck(fields.mustCheck, brief.must_check, brief.missing_info);
+    renderEngineBanner(fields.fallbackBanner, analysis.analysis_engine);
+    renderTechnicalDetails(fields.technicalDetails, analysis);
+  }
+
+  function renderTaskSteps(field, steps) {
+    if (!field) {
+      return;
+    }
+    const items = Array.isArray(steps)
+      ? steps.filter(isPlainObject).map((item, index) => structuredItem(
+        `第 ${index + 1} 步`,
+        [
+          detailLine("事项", textOrFallback(item.step, "")),
+          detailLine("负责人", formatOwnerHint(item.owner_hint)),
+          detailLine("时间", textOrFallback(item.due_hint, "未指定")),
+        ],
+      ))
+      : [];
+    renderNonLinkedItems(field, items, "暂无建议动作");
+  }
+
+  function renderTaskFacts(field, facts) {
+    if (!field) {
+      return;
+    }
+    const items = Array.isArray(facts)
+      ? facts.map((item) => isPlainObject(item)
+        ? structuredItem("", [detailLine(textOrFallback(item.label, "事实"), textOrFallback(item.value, ""))])
+        : structuredItem("", [detailLine("", textOrFallback(item, ""))]))
+      : [];
+    renderNonLinkedItems(field, items, "暂无关键事实");
+  }
+
+  function renderMustCheck(field, mustCheck, missingInfo) {
+    if (!field) {
+      return;
+    }
+    const items = [];
+    for (const value of Array.isArray(mustCheck) ? mustCheck : []) {
+      items.push(structuredItem("", [detailLine("必须核查", textOrFallback(value, ""))]));
+    }
+    for (const value of Array.isArray(missingInfo) ? missingInfo : []) {
+      items.push(structuredItem("", [detailLine("缺失信息", textOrFallback(value, ""))]));
+    }
+    renderNonLinkedItems(field, items, "暂无必须核查项");
+  }
+
+  function renderEngineBanner(field, engine) {
+    if (!field) {
+      return;
+    }
+    const fallback = isPlainObject(engine) && engine.source === "rule_fallback";
+    field.hidden = !fallback;
+    field.textContent = fallback ? FALLBACK_BANNER : "";
+  }
+
+  function renderTechnicalDetails(field, analysis) {
+    if (!field) {
+      return;
+    }
+    const engine = isPlainObject(analysis.analysis_engine) ? analysis.analysis_engine : {};
+    const scope = {
+      current_only: "仅当前邮件",
+      relevant_history: "当前邮件与相关历史",
+    }[engine.context_scope];
+    const lines = [
+      `优先级：${formatPriority(analysis.priority)}`,
+      `分类：${formatCategory(analysis.category)}`,
+      `分析引擎：${formatEngine(engine)}`,
+    ];
+    if (scope) {
+      lines.push(`上下文范围：${scope}`);
+    }
+    if (engine.context_limited === true) {
+      lines.push("上下文受限：是");
+    }
+    field.textContent = lines.join("\n");
+  }
+
+  function renderDraft(fields, value) {
+    const draft = isPlainObject(value) ? value : {};
+    const subject = textOrFallback(draft.subject, "-");
+    const body = textOrFallback(draft.body, "");
+    setFieldText(fields.draftSubject, subject);
+    setFieldValue(fields.draftBody || fields.draft, body);
+    if (fields.draft && fields.draft !== fields.draftBody) {
+      setFieldValue(fields.draft, body);
+    }
+    setFieldText(
+      fields.draftReviewStatus,
+      draft.needs_human_review === true ? "需要人工审核" : "请在使用前人工审核",
+    );
+    if (fields.draftReviewReasons) {
+      const reasons = Array.isArray(draft.review_reasons) ? draft.review_reasons : [];
+      renderNonLinkedItems(
+        fields.draftReviewReasons,
+        reasons.map((reason) => structuredItem("", [detailLine("", reason)])),
+        "请人工核对草稿内容",
+      );
+    }
+  }
+
+  function setFieldText(field, value) {
+    if (field) {
+      field.textContent = value;
+    }
+  }
+
+  function setFieldValue(field, value) {
+    if (field) {
+      field.value = value;
+    }
+  }
+
+  function renderPlaceholderIfPresent(field, text = "-") {
+    if (field) {
+      renderPlaceholder(field, text);
+    }
   }
 
   function formatList(value, formatter) {
@@ -152,7 +315,7 @@
     const title = formatActionType(item.type) || "建议动作";
     return structuredItem(title, [
       detailLine("事项", textOrFallback(item.description, "")),
-      detailLine("负责人", textOrFallback(item.owner_hint, "")),
+      detailLine("负责人", formatOwnerHint(item.owner_hint)),
       detailLine("期限", textOrFallback(item.due_hint, "")),
     ]);
   }
@@ -160,6 +323,9 @@
   function formatEngine(value) {
     if (!isPlainObject(value)) {
       return textOrDash(value);
+    }
+    if (value.source === "rule_fallback") {
+      return "本地规则";
     }
     return textOrDash(value.label);
   }
@@ -234,7 +400,7 @@
     }[item.source] || "未注明";
     return structuredItem("待办 " + (index + 1), [
       detailLine("事项", safeDisplayText(item.item, "未提供事项说明")),
-      detailLine("负责人", safeDisplayText(item.owner_hint, "未指定")),
+      detailLine("负责人", formatOwnerHint(item.owner_hint)),
       detailLine("期限", safeDisplayText(item.due_hint, "未指定")),
       detailLine("来源", source),
     ]);
@@ -390,7 +556,7 @@
     }
     const details = [
       textOrFallback(item.step, ""),
-      item.owner_hint ? `负责人：${item.owner_hint}` : "",
+      item.owner_hint ? `负责人：${formatOwnerHint(item.owner_hint)}` : "",
       item.due_hint ? `期限：${item.due_hint}` : "",
     ].filter(Boolean).join("；");
     return detailLine(String(index + 1), details);
@@ -567,6 +733,11 @@
   function formatActionType(value) {
     const text = textOrFallback(value, "");
     return text ? ACTION_LABELS[text] || text : "";
+  }
+
+  function formatOwnerHint(value) {
+    const key = textOrFallback(value, "").toLowerCase();
+    return OWNER_LABELS[key] || "相关负责人";
   }
 
   function isPlainObject(value) {

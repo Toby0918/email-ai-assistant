@@ -399,16 +399,16 @@ class BrowserExtensionRendererBehaviorTests(unittest.TestCase):
         self.assertIn('conversationTimeline: document.querySelector("#conversation-timeline")', script)
         self.assertIn('attachmentInsights: document.querySelector("#attachment-insights")', script)
 
-        result_end = page.index("</section>", page.index('class="result-section"'))
         draft_start = page.index('<section class="draft-section"')
         header_start = page.index('<div class="draft-header">', draft_start)
         header_end = page.index("</div>", header_start)
         copy_button = page.index('id="copy-draft-button"')
-        self.assertLess(result_end, draft_start)
+        self.assertLess(page.index('id="work-must-check"'), draft_start)
         self.assertLess(header_start, copy_button)
         self.assertLess(copy_button, header_end)
-        self.assertRegex(styles, r"(?s)\.result-section\s*\{[^}]*overflow-y:\s*auto")
-        self.assertRegex(styles, r"(?s)\.draft-section\s*\{[^}]*flex:\s*0\s+0\s+auto")
+        self.assertNotIn("overflow: hidden", styles)
+        self.assertNotIn("overflow-y: auto", styles)
+        self.assertNotRegex(styles, r"(?s)\.draft-section\s*\{[^}]*flex:\s*0\s+0\s+auto")
 
     def test_renders_long_sections_as_structured_lists(self) -> None:
         if shutil.which("node") is None:

@@ -44,6 +44,12 @@ body {
   text-transform: uppercase;
 }
 
+.debug-scope {
+  margin: 8px 0 0;
+  color: #52616f;
+  font-size: 13px;
+}
+
 h1,
 h2 {
   margin: 0 0 16px;
@@ -81,28 +87,9 @@ button {
   background: #335c67;
 }
 
-dl {
-  display: grid;
-  grid-template-columns: 90px 1fr;
-  gap: 10px 14px;
-}
-
-dt {
-  color: #52616f;
-  font-weight: 700;
-}
-
-dd {
-  margin: 0;
-}
-
-#priority {
-  border-radius: 999px;
-  background: #e3f2fd;
-  color: #0b5c7e;
-  padding: 6px 10px;
-  font-size: 13px;
-  font-weight: 700;
+.result-panel {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 @media (max-width: 760px) {

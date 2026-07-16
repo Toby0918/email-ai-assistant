@@ -162,7 +162,7 @@ class BrowserExtensionStaleStateTests(unittest.TestCase):
                 if (elements.get("#draft").value !== "Draft newer") {
                   throw new Error(`older response replaced draft: ${elements.get("#draft").value}`);
                 }
-                if (elements.get("#status").textContent !== "Saved #22") {
+                if (elements.get("#status").textContent !== "分析完成") {
                   throw new Error(`older response replaced status: ${elements.get("#status").textContent}`);
                 }
               },

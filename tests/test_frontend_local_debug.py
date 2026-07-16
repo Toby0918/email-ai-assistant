@@ -11,6 +11,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = ROOT / "frontend" / "local_debug_page"
+SHARED_RENDERER = (
+    ROOT / "frontend" / "browser_extension" / "shared" / "render_analysis.js"
+)
 REMOTE_PROCESSING_NOTICE = (
     "After you click Analyze, a configured remote AI provider receives locally deidentified current "
     "visible content and, when available, bounded approved knowledge cards. Processing is not "
@@ -43,17 +46,19 @@ class FrontendLocalDebugTests(unittest.TestCase):
     def test_local_debug_page_has_thread_and_attachment_insight_sections(self) -> None:
         page = (FRONTEND / "index.html").read_text(encoding="utf-8")
         script = (FRONTEND / "app.js").read_text(encoding="utf-8")
+        renderer = SHARED_RENDERER.read_text(encoding="utf-8")
 
         self.assertIn('id="conversation-timeline"', page)
         self.assertIn('id="attachment-insights"', page)
-        self.assertIn("会话进度", page)
-        self.assertIn("附件洞察", page)
-        self.assertIn("renderConversationTimeline", script)
-        self.assertIn("analysis.conversation_timeline", script)
-        self.assertIn("renderAttachmentInsights", script)
-        self.assertIn("analysis.attachment_insights", script)
-        self.assertIn("document.createElement", script)
-        self.assertNotIn("innerHTML", script)
+        self.assertIn("会话历史", page)
+        self.assertIn("附件", page)
+        self.assertIn("EmailAssistantRender.renderAnalysis", script)
+        self.assertIn("renderConversationTimeline", renderer)
+        self.assertIn("analysis.conversation_timeline", renderer)
+        self.assertIn("renderAttachmentInsights", renderer)
+        self.assertIn("analysis.attachment_insights", renderer)
+        self.assertIn('doc.createElement("div")', renderer)
+        self.assertNotIn("innerHTML", renderer)
 
     def test_local_debug_page_renders_thread_and_attachment_insights_as_safe_nodes(self) -> None:
         if shutil.which("node") is None:
@@ -63,6 +68,7 @@ class FrontendLocalDebugTests(unittest.TestCase):
         script = f"""
         const fs = require("fs");
         const vm = require("vm");
+        const renderer = fs.readFileSync({str(SHARED_RENDERER)!r}, "utf8");
         const source = fs.readFileSync({str(app)!r}, "utf8");
 
         class FakeElement {{
@@ -108,6 +114,8 @@ class FrontendLocalDebugTests(unittest.TestCase):
         elements.set("#conversation-timeline", new FakeElement());
         elements.set("#attachment-insights", new FakeElement());
         const context = {{ document, navigator: {{ clipboard: {{ writeText: async () => {{}} }} }} }};
+        context.window = context;
+        vm.runInNewContext(renderer, context);
         vm.runInNewContext(source, context);
         const backslash = String.fromCharCode(92);
         const quote = String.fromCharCode(34);
@@ -149,7 +157,7 @@ class FrontendLocalDebugTests(unittest.TestCase):
           risk_flags: [], suggested_actions: [],
           reply_draft: {{ body: "Hello,\\n\\nWe are reviewing the final price.\\n\\nBest regards" }},
         }};
-        vm.runInContext("renderAnalysis(analysis)", context);
+        vm.runInContext("EmailAssistantRender.renderAnalysis(fields, analysis)", context);
 
         const timeline = elements.get("#conversation-timeline");
         const insights = elements.get("#attachment-insights");
@@ -182,7 +190,7 @@ class FrontendLocalDebugTests(unittest.TestCase):
         if (!elements.get("#draft").value.startsWith("Hello,")) throw new Error("English draft was not preserved");
 
         context.analysis.conversation_timeline = "stale";
-        vm.runInContext("renderAnalysis(analysis)", context);
+        vm.runInContext("EmailAssistantRender.renderAnalysis(fields, analysis)", context);
         if (timeline.textContent !== "暂无会话进度") {{
           throw new Error(`missing timeline fallback parity failed: ${{timeline.textContent}}`);
         }}
@@ -209,6 +217,7 @@ class FrontendLocalDebugTests(unittest.TestCase):
             r"""
             const fs = require("fs");
             const vm = require("vm");
+            const renderer = fs.readFileSync(__RENDERER__, "utf8");
             const source = fs.readFileSync(__APP__, "utf8")
               .replace("const ANALYZE_TIMEOUT_MS = 15000;", "const ANALYZE_TIMEOUT_MS = 20;");
             const listeners = new Map();
@@ -250,6 +259,7 @@ class FrontendLocalDebugTests(unittest.TestCase):
               }),
             };
             context.window = context;
+            vm.runInNewContext(renderer, context, { filename: "render_analysis.js" });
             vm.runInNewContext(source, context, { filename: "app.js" });
 
             (async () => {
@@ -279,7 +289,7 @@ class FrontendLocalDebugTests(unittest.TestCase):
               process.exitCode = 1;
             });
             """
-        ).replace("__APP__", repr(str(app)))
+        ).replace("__APP__", repr(str(app))).replace("__RENDERER__", repr(str(SHARED_RENDERER)))
         result = subprocess.run(
             ["node", "-e", script],
             cwd=ROOT,
@@ -301,6 +311,7 @@ class FrontendLocalDebugTests(unittest.TestCase):
             r"""
             const fs = require("fs");
             const vm = require("vm");
+            const renderer = fs.readFileSync(__RENDERER__, "utf8");
             const source = fs.readFileSync(__APP__, "utf8");
             function deferred() {
               let resolve;
@@ -360,6 +371,7 @@ class FrontendLocalDebugTests(unittest.TestCase):
               },
             };
             context.window = context;
+            vm.runInNewContext(renderer, context, { filename: "render_analysis.js" });
             vm.runInNewContext(source, context, { filename: "app.js" });
 
             (async () => {
@@ -378,7 +390,7 @@ class FrontendLocalDebugTests(unittest.TestCase):
               if (elements.get("#draft").value !== "Draft newer") {
                 throw new Error(`older response overwrote draft: ${elements.get("#draft").value}`);
               }
-              if (elements.get("#status").textContent !== "Saved #2") {
+              if (elements.get("#status").textContent !== "分析完成") {
                 throw new Error(`older response overwrote status: ${elements.get("#status").textContent}`);
               }
             })().catch((error) => {
@@ -386,7 +398,7 @@ class FrontendLocalDebugTests(unittest.TestCase):
               process.exitCode = 1;
             });
             """
-        ).replace("__APP__", repr(str(app)))
+        ).replace("__APP__", repr(str(app))).replace("__RENDERER__", repr(str(SHARED_RENDERER)))
         result = subprocess.run(
             ["node", "-e", script],
             cwd=ROOT,
@@ -424,7 +436,7 @@ class FrontendLocalDebugTests(unittest.TestCase):
         self.assertIn("sent_at: fields.sentAt.value", script)
         self.assertIn("attachments,", script)
         self.assertIn("parseAttachmentList", script)
-        self.assertIn("formatAttachments", script)
+        self.assertIn("EmailAssistantRender.renderAttachments", script)
 
     def test_local_debug_page_can_copy_reply_draft(self) -> None:
         page = (FRONTEND / "index.html").read_text(encoding="utf-8")
@@ -432,20 +444,17 @@ class FrontendLocalDebugTests(unittest.TestCase):
 
         self.assertIn('id="copy-draft-button"', page)
         self.assertIn("navigator.clipboard.writeText", script)
-        self.assertIn("fields.draft.value", script)
+        self.assertIn("fields.draftBody.value", script)
 
     def test_local_debug_page_clears_analysis_on_failed_response(self) -> None:
         script = (FRONTEND / "app.js").read_text(encoding="utf-8")
 
-        self.assertIn("function clearAnalysis()", script)
-        self.assertIn("if (!data.ok)", script)
-        self.assertIn('fields.status.textContent = data.error?.message || "Analysis failed"', script)
+        self.assertIn("EmailAssistantRender.clearAnalysis(fields)", script)
+        self.assertIn("!data.ok", script)
+        self.assertIn('data.error.message', script)
+        self.assertIn('"Analysis failed"', script)
         self.assertIn("finally", script)
         self.assertIn("fields.analyzeButton.disabled = false", script)
-        self.assertIn('fields.priority.textContent = "-"', script)
-        self.assertIn('fields.summary.textContent = "No analysis yet"', script)
-        self.assertIn('fields.attachmentsPreview.textContent = "-"', script)
-        self.assertIn('fields.draft.value = ""', script)
 
     def test_local_debug_page_handles_backend_unavailable(self) -> None:
         script = (FRONTEND / "app.js").read_text(encoding="utf-8")
@@ -458,25 +467,29 @@ class FrontendLocalDebugTests(unittest.TestCase):
 
     def test_local_debug_page_renders_chinese_feedback_labels(self) -> None:
         script = (FRONTEND / "app.js").read_text(encoding="utf-8")
+        renderer = SHARED_RENDERER.read_text(encoding="utf-8")
 
-        self.assertIn("function formatPriority", script)
-        self.assertIn("function formatCategory", script)
-        self.assertIn("function formatRisk", script)
-        self.assertIn("new_product_development", script)
-        self.assertIn('payment: "付款/发票"', script)
-        self.assertIn('payment_risk: "付款风险"', script)
-        self.assertIn('check_inventory: "核查库存"', script)
+        self.assertIn("EmailAssistantRender.renderAnalysis", script)
+        self.assertIn("function formatPriority", renderer)
+        self.assertIn("function formatCategory", renderer)
+        self.assertIn("function formatRisk", renderer)
+        self.assertIn("new_product_development", renderer)
+        self.assertIn('payment: "付款/发票"', renderer)
+        self.assertIn('payment_risk: "付款风险"', renderer)
+        self.assertIn('check_inventory: "核查库存"', renderer)
 
     def test_local_debug_page_displays_backend_analysis_engine(self) -> None:
         page = (FRONTEND / "index.html").read_text(encoding="utf-8")
         script = (FRONTEND / "app.js").read_text(encoding="utf-8")
+        renderer = SHARED_RENDERER.read_text(encoding="utf-8")
 
         self.assertIn('id="engine"', page)
         self.assertIn('id="decision-brief"', page)
-        self.assertIn("analysis.analysis_engine", script)
-        self.assertIn("fields.engine.textContent", script)
-        self.assertIn("formatDecisionBrief", script)
-        self.assertIn("analysis.decision_brief", script)
+        self.assertIn("EmailAssistantRender.renderAnalysis", script)
+        self.assertIn("analysis.analysis_engine", renderer)
+        self.assertIn("fields.engine.textContent", renderer)
+        self.assertIn("formatDecisionBrief", renderer)
+        self.assertIn("analysis.decision_brief", renderer)
 
     def test_readme_documents_local_debug_start_command(self) -> None:
         readme = (ROOT / "README.md").read_text(encoding="utf-8")

@@ -166,7 +166,8 @@ class BrowserExtensionStaticTests(unittest.TestCase):
         self.assertIn("analysis.category", script)
         self.assertIn("analysis.risk_flags", script)
         self.assertIn("analysis.suggested_actions", script)
-        self.assertIn("analysis.reply_draft.body", script)
+        self.assertIn("renderDraft(fields, analysis.reply_draft)", script)
+        self.assertIn("draft.body", script)
         self.assertIn('id="attachments"', page)
         self.assertIn('id="decision-brief"', page)
         self.assertIn("renderDecisionBrief", script)
@@ -182,15 +183,18 @@ class BrowserExtensionStaticTests(unittest.TestCase):
 
     def test_popup_styles_long_analysis_output(self) -> None:
         page = (EXTENSION / "popup.html").read_text(encoding="utf-8")
-        styles = (EXTENSION / "popup.css").read_text(encoding="utf-8")
+        styles = "\n".join((
+            (EXTENSION / "popup.css").read_text(encoding="utf-8"),
+            (EXTENSION / "shared" / "analysis_components.css").read_text(encoding="utf-8"),
+        ))
 
-        self.assertIn('class="analysis-grid"', page)
+        self.assertIn('class="analysis-surface"', page)
         self.assertIn('class="analysis-list-field"', page)
         self.assertIn(".analysis-list", styles)
         self.assertIn(".analysis-list__item", styles)
         self.assertIn("overflow-wrap: anywhere", styles)
         self.assertIn("max-height", styles)
-        self.assertIn("overflow-y: auto", styles)
+        self.assertNotIn("overflow-y: auto", styles)
 
     def test_copy_draft_button_stays_with_draft_area(self) -> None:
         page = (EXTENSION / "popup.html").read_text(encoding="utf-8")
@@ -203,9 +207,9 @@ class BrowserExtensionStaticTests(unittest.TestCase):
         self.assertIn("display: flex", styles)
         self.assertIn("flex-direction: column", styles)
         self.assertIn(".result-section", styles)
-        self.assertIn("flex: 1 1 auto", styles)
-        self.assertIn(".draft-section", styles)
-        self.assertIn("flex: 0 0 auto", styles)
+        self.assertLess(page.index('id="work-must-check"'), page.index('class="draft-section"'))
+        self.assertNotIn("overflow: hidden", styles)
+        self.assertNotIn("flex: 0 0 auto", styles)
 
     def test_roadmap_records_next_extension_phases(self) -> None:
         roadmap = (ROOT / "docs" / "product" / "roadmap.md").read_text(encoding="utf-8")

@@ -1,6 +1,13 @@
 /* global EmailAssistantApi, EmailAssistantRender, chrome */
 const fields = {
   status: document.querySelector("#status"),
+  fallbackBanner: document.querySelector("#fallback-banner"),
+  conclusion: document.querySelector("#work-conclusion"),
+  currentRequest: document.querySelector("#work-current-request"),
+  nextSteps: document.querySelector("#work-next-steps"),
+  keyFacts: document.querySelector("#work-key-facts"),
+  mustCheck: document.querySelector("#work-must-check"),
+  technicalDetails: document.querySelector("#technical-details"),
   priority: document.querySelector("#priority"),
   summary: document.querySelector("#summary"),
   category: document.querySelector("#category"),
@@ -12,6 +19,10 @@ const fields = {
   risks: document.querySelector("#risks"),
   actions: document.querySelector("#actions"),
   draft: document.querySelector("#draft"),
+  draftBody: document.querySelector("#draft"),
+  draftSubject: document.querySelector("#draft-subject"),
+  draftReviewStatus: document.querySelector("#draft-review-status"),
+  draftReviewReasons: document.querySelector("#draft-review-reasons"),
   analyzeButton: document.querySelector("#analyze-button"),
   copyButton: document.querySelector("#copy-draft-button"),
 };
@@ -68,7 +79,7 @@ async function analyzeCurrentMessage() {
     }
     EmailAssistantRender.renderAnalysis(fields, data.analysis);
     renderedMessageContext = messageContext;
-    fields.status.textContent = `Saved #${data.saved_id || data.request_id || "-"}`;
+    fields.status.textContent = "分析完成";
   } catch (error) {
     if (generation === analysisGeneration) {
       fields.status.textContent = "Local analysis service unavailable. Please try again";

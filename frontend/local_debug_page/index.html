@@ -4,6 +4,7 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>Email AI Assistant</title>
+    <link rel="stylesheet" href="/shared/analysis_components.css">
     <link rel="stylesheet" href="/styles.css">
   </head>
   <body>
@@ -14,6 +15,7 @@
             <p class="eyebrow">Local Debug</p>
             <h1>Email AI Assistant</h1>
             <p id="remote-processing-notice" role="note">After you click Analyze, a configured remote AI provider receives locally deidentified current visible content and, when available, bounded approved knowledge cards. Processing is not local-only, and no zero-retention guarantee is made.</p>
+            <p class="debug-scope" role="note">仅验证请求与结果渲染，不验证腾讯邮箱页面提取。</p>
           </div>
           <button id="analyze-button" type="button">Analyze</button>
         </div>
@@ -44,37 +46,86 @@
         </label>
       </section>
 
-      <section class="result-panel" aria-label="Analysis result">
+      <section class="result-panel" aria-label="分析结果">
         <div class="status-row">
-          <span id="status">Ready</span>
-          <span id="priority">-</span>
+          <span id="status" aria-live="polite">Ready</span>
         </div>
-        <h2 id="summary">No analysis yet</h2>
-        <dl>
-          <dt>Category</dt>
-          <dd id="category">-</dd>
-          <dt>Engine</dt>
-          <dd id="engine">-</dd>
-          <dt>Action brief</dt>
-          <dd id="decision-brief">-</dd>
-          <dt>会话进度</dt>
-          <dd id="conversation-timeline">暂无会话进度</dd>
-          <dt>附件洞察</dt>
-          <dd id="attachment-insights">暂无附件洞察</dd>
-          <dt>Attachments</dt>
-          <dd id="attachments-preview">-</dd>
-          <dt>Risks</dt>
-          <dd id="risks">-</dd>
-          <dt>Actions</dt>
-          <dd id="actions">-</dd>
-        </dl>
-        <label>
-          Draft
-          <textarea id="draft" rows="10" readonly></textarea>
-        </label>
-        <button id="copy-draft-button" type="button">Copy draft</button>
+        <div class="analysis-surface">
+          <p id="fallback-banner" class="fallback-banner" hidden>未使用 DeepSeek：本次结果由本地规则生成。</p>
+          <article class="work-card" aria-labelledby="work-conclusion">
+            <section class="work-card__section">
+              <p class="work-card__label">处理结论</p>
+              <h2 id="work-conclusion" class="work-card__conclusion">暂无分析</h2>
+            </section>
+            <section class="work-card__section">
+              <h3 class="work-card__label">当前诉求</h3>
+              <div id="work-current-request" class="work-card__value">-</div>
+            </section>
+            <section class="work-card__section">
+              <h3 class="work-card__label">下一步</h3>
+              <div id="work-next-steps" class="work-card__value analysis-list-field">-</div>
+            </section>
+            <section class="work-card__section">
+              <h3 class="work-card__label">关键事实</h3>
+              <div id="work-key-facts" class="work-card__value analysis-list-field">-</div>
+            </section>
+            <section class="work-card__section">
+              <h3 class="work-card__label">必须核查</h3>
+              <div id="work-must-check" class="work-card__value analysis-list-field">-</div>
+            </section>
+          </article>
+
+          <details class="analysis-details">
+            <summary>会话历史</summary>
+            <div id="conversation-timeline" class="analysis-details__body analysis-list-field">暂无会话进度</div>
+          </details>
+          <details class="analysis-details">
+            <summary>附件</summary>
+            <div class="analysis-details__body">
+              <div id="attachment-insights" class="analysis-list-field">暂无附件洞察</div>
+              <div id="attachments-preview" class="analysis-list-field">-</div>
+            </div>
+          </details>
+          <details class="analysis-details">
+            <summary>风险依据</summary>
+            <div id="risks" class="analysis-details__body analysis-list-field">-</div>
+          </details>
+          <details class="analysis-details">
+            <summary>更多建议动作</summary>
+            <div id="actions" class="analysis-details__body analysis-list-field">-</div>
+          </details>
+          <details class="analysis-details">
+            <summary>分析与技术信息</summary>
+            <div class="analysis-details__body">
+              <div id="technical-details">-</div>
+              <div id="summary">暂无分析</div>
+              <div id="priority">-</div>
+              <div id="category">-</div>
+              <div id="engine">-</div>
+              <div id="decision-brief" class="analysis-list-field">-</div>
+            </div>
+          </details>
+
+          <section class="draft-section" aria-label="回复草稿">
+            <div class="draft-card">
+            <div class="draft-header">
+              <span class="draft-title">回复草稿</span>
+              <button id="copy-draft-button" type="button">复制草稿</button>
+            </div>
+            <p class="draft-card__label">主题</p>
+            <p id="draft-subject" class="draft-subject">-</p>
+            <label for="draft" class="draft-card__label">正文</label>
+            <textarea id="draft" rows="10" readonly></textarea>
+            <div class="draft-review">
+              <strong id="draft-review-status">需要人工审核</strong>
+              <div id="draft-review-reasons" class="analysis-list-field">-</div>
+            </div>
+            </div>
+          </section>
+        </div>
       </section>
     </main>
+    <script src="/shared/render_analysis.js"></script>
     <script src="/app.js"></script>
   </body>
 </html>

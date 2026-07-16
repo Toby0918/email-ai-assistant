@@ -10,7 +10,6 @@ import threading
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from ipaddress import IPv4Address, ip_address
-from pathlib import Path
 from typing import Any
 
 from .analysis_budget import AnalysisBudget
@@ -22,10 +21,9 @@ from .database import (
     initialize_schema,
     save_analysis,
 )
+from .frontend_assets import frontend_asset_for_path as _frontend_asset_for_path
 
 
-ROOT = Path(__file__).resolve().parents[2]
-FRONTEND_ROOT = ROOT / "frontend" / "local_debug_page"
 INVALID_HOST_MESSAGE = "Request Host is not allowed."
 UNSUPPORTED_MEDIA_TYPE_MESSAGE = "Content-Type must be application/json."
 PERSISTENCE_MAX_SECONDS = 0.5
@@ -188,8 +186,8 @@ class EmailAssistantHandler(BaseHTTPRequestHandler):
             self.server.database_lock.release()
 
     def _serve_frontend(self) -> None:
-        path = FRONTEND_ROOT / ("index.html" if self.path in {"/", "/index.html"} else self.path.lstrip("/"))
-        if not path.exists() or FRONTEND_ROOT not in path.resolve().parents:
+        path = _frontend_asset_for_path(self.path)
+        if path is None or not path.is_file():
             self._send_json({"ok": False, "error": {"code": "NOT_FOUND"}}, HTTPStatus.NOT_FOUND)
             return
         content = path.read_bytes()

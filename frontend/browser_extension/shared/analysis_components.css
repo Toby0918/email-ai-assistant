@@ -1,0 +1,161 @@
+.analysis-surface,
+.work-card,
+.work-card__section,
+.analysis-details,
+.analysis-details__body,
+.draft-section,
+.draft-card {
+  min-width: 0;
+}
+
+.analysis-surface {
+  display: grid;
+  gap: 12px;
+}
+
+.fallback-banner {
+  margin: 0;
+  border: 1px solid #e0a800;
+  border-radius: 8px;
+  background: #fff7d6;
+  color: #5b4300;
+  padding: 10px 12px;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.work-card,
+.draft-card {
+  display: grid;
+  gap: 12px;
+  border: 1px solid #d9e2ec;
+  border-radius: 10px;
+  background: #ffffff;
+  padding: 14px;
+}
+
+.work-card__section {
+  display: grid;
+  gap: 5px;
+}
+
+.work-card__label,
+.draft-card__label {
+  margin: 0;
+  color: #52616f;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.work-card__value,
+.analysis-details__body,
+.draft-card__value,
+.analysis-list__item,
+.analysis-list__line {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+.work-card__conclusion {
+  margin: 0;
+  font-size: 18px;
+  line-height: 1.4;
+}
+
+.analysis-details {
+  border: 1px solid #d9e2ec;
+  border-radius: 8px;
+  background: #ffffff;
+}
+
+details > summary {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 0 12px;
+  cursor: pointer;
+  font-weight: 700;
+}
+
+.analysis-details__body {
+  display: grid;
+  gap: 10px;
+  border-top: 1px solid #e7edf2;
+  padding: 12px;
+}
+
+.analysis-list,
+.analysis-list-field {
+  display: grid;
+  gap: 7px;
+}
+
+.analysis-list__item {
+  display: grid;
+  gap: 4px;
+  border-left: 3px solid #bcccdc;
+  padding-left: 8px;
+}
+
+.analysis-list__item-title,
+.analysis-list__label {
+  font-weight: 700;
+}
+
+.analysis-list__label {
+  color: #52616f;
+}
+
+.draft-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.draft-title {
+  font-weight: 700;
+}
+
+.draft-subject {
+  min-height: 24px;
+  margin: 0;
+}
+
+.draft-review {
+  display: grid;
+  gap: 5px;
+  border-left: 3px solid #e0a800;
+  padding-left: 9px;
+}
+
+button,
+.button-like,
+details > summary {
+  min-height: 44px;
+}
+
+button:focus-visible,
+textarea:focus-visible,
+input:focus-visible,
+details > summary:focus-visible {
+  outline: 3px solid #58a6d6;
+  outline-offset: 2px;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+@media (max-width: 360px) {
+  .work-card,
+  .draft-card {
+    padding: 12px;
+  }
+
+  .draft-header {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}
