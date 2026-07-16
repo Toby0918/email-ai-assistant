@@ -22,6 +22,7 @@ from .attachment_parser import parse_attachment_bundles
 from .attachment_storage import StoredAttachment
 from .config import AppConfig, load_config
 from .email_cleaner import clean_email_body
+from .model_context_selection import select_model_context
 from .prompt_context import normalize_text_list
 from .resource_limitations import resource_limitation_insights
 from .rule_analyzer import build_rule_based_analysis
@@ -68,12 +69,24 @@ def _route_context(
     insights: list[dict[str, object]], fallback: dict[str, Any],
     config: AppConfig, budget: AnalysisBudget, runtime_cards: tuple[object, ...],
 ) -> AnalysisRouteContext:
+    recipients = normalize_text_list(email.get("to"))
+    cc = normalize_text_list(email.get("cc"))
+    sent_at = _optional_text(email.get("sent_at"), 160)
+    model_context = select_model_context(
+        subject=subject,
+        sender=sender,
+        recipients=recipients,
+        cc=cc,
+        sent_at=sent_at,
+        clean_body=clean_body,
+        full_timeline=timeline,
+        internal_domains=config.internal_email_domains,
+    )
     return AnalysisRouteContext(
         subject=subject, sender=sender, clean_body=clean_body,
         attachments=_normalize_attachments(email.get("attachments")),
-        recipients=normalize_text_list(email.get("to")),
-        cc=normalize_text_list(email.get("cc")),
-        sent_at=_optional_text(email.get("sent_at"), 160), timeline=timeline,
+        recipients=recipients, cc=cc, sent_at=sent_at, timeline=timeline,
+        model_context=model_context,
         attachment_insights=insights, attachment_bundles=bundles,
         fallback=fallback, config=config, budget=budget,
         runtime_cards=runtime_cards if type(runtime_cards) is tuple else (),

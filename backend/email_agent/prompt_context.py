@@ -16,7 +16,6 @@ from .deepseek_analysis_contract import (
 )
 from .thread_timeline import ThreadSource, TimelineBuild
 
-
 MAX_PROMPT_BODY_CHARACTERS = 12_000
 MAX_PROMPT_FIELD_CHARACTERS = 2_600
 MAX_PROMPT_LIST_ITEMS = 8
@@ -69,19 +68,20 @@ def build_deepseek_untrusted_context(
     timeline: TimelineBuild,
     attachment_context: Sequence[AttachmentModelContextItem],
     attachment_public_sources: Mapping[str, str],
+    thread_sources: Sequence[ThreadSource] | None = None,
 ) -> tuple[str, dict[str, EvidenceSource]]:
     """Return one bounded untrusted user JSON message and its private source registry."""
     attachments = tuple(attachment_context)
     _validate_attachment_sources(attachments, attachment_public_sources)
-    thread_sources = tuple(timeline.sources[:MAX_DEEPSEEK_THREAD_SOURCES])
-    if not thread_sources:
-        thread_sources = (
-            ThreadSource("thread:0", sender, ", ".join(recipients), sent_at, subject, clean_body),
-        )
+    source_pool = timeline.sources if thread_sources is None else thread_sources
+    selected_sources = tuple(source_pool[:MAX_DEEPSEEK_THREAD_SOURCES])
+    if not selected_sources:
+        selected_sources = (ThreadSource(
+            "thread:0", sender, ", ".join(recipients), sent_at, subject, clean_body),)
     registry: dict[str, EvidenceSource] = {}
     sent_sources: list[dict[str, object]] = []
     remaining = MAX_DEEPSEEK_THREAD_CHARACTERS_TOTAL
-    for source in thread_sources:
+    for source in selected_sources:
         text = _thread_grounding_text(source, min(MAX_DEEPSEEK_THREAD_CHARACTERS, remaining))
         remaining -= len(text)
         registry[source.source_id] = EvidenceSource(source.source_id, "thread", text, "thread")

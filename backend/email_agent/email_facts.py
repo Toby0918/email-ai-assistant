@@ -5,11 +5,33 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from backend.exact_fact_patterns import iter_exact_identifiers
+
 from .thread_dates import deadline_date_hints
 
 
 MAX_FACT_ITEMS = 5
 MAX_FACT_LENGTH = 140
+
+_SIGNATURE_START_RE = re.compile(
+    r"(?i)^\s*(?:--|best regards|kind regards|regards|sincerely|"
+    r"many thanks|thanks|此致|祝好)\s*[,!.，。]?\s*$"
+)
+_QUOTED_HEADER_RE = re.compile(
+    r"(?i)^\s*(?:from|sent|date|to|cc|subject|发件人|发送时间|日期|收件人|抄送|主题)\s*[:：]"
+)
+_CONTACT_LINE_RE = re.compile(
+    r"(?i)^\s*(?:mobile|tel(?:ephone)?|phone|e-?mail|website?|web|"
+    r"wechat|whatsapp|address|地址|电话|手机|邮箱|网址)\s*[:：]"
+)
+_CID_OR_IMAGE_RE = re.compile(
+    r"(?i)^\s*(?:cid:|image\s*(?:caption)?\s*[:：]|"
+    r"[^\s]+\.(?:png|jpe?g|gif|webp))"
+)
+_EMAIL_RE = re.compile(
+    r"(?i)\b[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9.-]+\.[a-z]{2,}\b"
+)
+_URL_RE = re.compile(r"(?i)\b(?:https?|ftp)://[^\s<>]+")
 
 
 @dataclass(frozen=True)
@@ -34,8 +56,10 @@ class EmailFacts:
 
 
 def extract_email_facts(subject: str, sender: str, clean_body: str) -> EmailFacts:
-    text = "\n".join(part for part in (subject, sender, clean_body) if part)
-    sentences = _sentences(text)
+    del sender  # Sender identity is metadata, never a business fact.
+    business_body = _business_body(clean_body)
+    text = "\n".join(part for part in (subject, business_body) if part)
+    sentences = _sentences(business_body)
     return EmailFacts(
         references=_find_references(text),
         quantities=_find_quantities(text),
@@ -47,20 +71,38 @@ def extract_email_facts(subject: str, sender: str, clean_body: str) -> EmailFact
 
 
 def _find_references(text: str) -> list[str]:
-    refs: list[str] = []
-    labelled = [
-        (r"\bPO\s*(?:#|No\.?|number)?\s*[:\-]?\s*([A-Z0-9][A-Z0-9-]{4,})", "PO {}"),
-        (r"\binvoice\s*(?:#|No\.?|number)?\s*[:\-]?\s*([A-Z0-9][A-Z0-9-]{4,})", "invoice {}"),
-        (r"\btracking(?:\s+number)?\s*[:#]?\s*([A-Z0-9][A-Z0-9-]{4,})", "tracking number {}"),
-        (r"\bmaterial\s*(?:#|No\.?|number)?\s*[:\-]?\s*([A-Z0-9][A-Z0-9-]{4,})", "{}"),
-        (r"\bbooking\s*(?:#|No\.?|number)?\s*[:\-]?\s*([A-Z0-9][A-Z0-9-]{4,})", "booking {}"),
-    ]
-    for pattern, template in labelled:
-        for match in re.finditer(pattern, text, re.IGNORECASE):
-            refs.append(template.format(match.group(1)))
-    refs.extend(re.findall(r"\b[A-Z]{1,6}\d{3,}[A-Z0-9-]*\b", text))
-    refs.extend(re.findall(r"\b\d{6,}[A-Z0-9-]*\b", text))
+    refs = [_reference_display(label, value) for label, value in iter_exact_identifiers(text)]
+    for match in re.finditer(
+        r"\b(?P<label>PO|RFQ|part|invoice|tracking|order)\s*"
+        r"(?:#|No\.?|number|ID|ref(?:erence)?\.?)?\s*[:：#._/\-=()]*\s*"
+        r"(?=[A-Z0-9._/-]{4,64}\b)(?=[A-Z0-9._/-]*\d)"
+        r"[A-Z0-9][A-Z0-9._/-]{3,63}\s*(?:,|and|&)\s*"
+        r"(?P<value>(?=[A-Z0-9._/-]{4,64}\b)(?=[A-Z0-9._/-]*\d)"
+        r"[A-Z0-9][A-Z0-9._/-]{3,63})",
+        text,
+        re.IGNORECASE,
+    ):
+        refs.append(_reference_display(match.group("label"), match.group("value")))
+    for match in re.finditer(
+        r"\b(?P<label>material|booking)\s*(?:#|No\.?|number)?\s*[:\-]?\s*"
+        r"(?=[A-Z0-9._/-]{4,64}\b)(?=[A-Z0-9._/-]*\d)"
+        r"(?P<value>[A-Z0-9][A-Z0-9._/-]{3,63})",
+        text,
+        re.IGNORECASE,
+    ):
+        refs.append(
+            match.group("value")
+            if match.group("label").casefold() == "material"
+            else match.group(0)
+        )
     return _unique_short(refs)
+
+
+def _reference_display(label: str, value: str) -> str:
+    normalized = " ".join(label.split()).strip(" :：#._/-=()")
+    if normalized.casefold() == "tracking":
+        normalized = "tracking number"
+    return f"{normalized} {value}".strip()
 
 
 def _find_quantities(text: str) -> list[str]:
@@ -137,9 +179,26 @@ def _find_quality_issues(sentences: list[str]) -> list[str]:
 
 
 def _sentences(text: str) -> list[str]:
-    normalized = re.sub(r"\s+", " ", text).strip()
-    parts = re.split(r"(?<=[.!?。！？])\s+|\n+", normalized)
+    normalized = text.replace("\r\n", "\n").replace("\r", "\n")
+    parts = re.split(r"[\n.!?。！？;；]+", normalized)
     return [part.strip(" ;:") for part in parts if part.strip(" ;:")]
+
+
+def _business_body(text: object) -> str:
+    if not isinstance(text, str):
+        return ""
+    lines: list[str] = []
+    for raw_line in text.replace("\r\n", "\n").replace("\r", "\n").splitlines():
+        line = raw_line.strip()
+        if _SIGNATURE_START_RE.fullmatch(line) or _QUOTED_HEADER_RE.match(line):
+            break
+        if not line or _CONTACT_LINE_RE.match(line) or _CID_OR_IMAGE_RE.match(line):
+            continue
+        cleaned = _URL_RE.sub(" ", _EMAIL_RE.sub(" ", line))
+        cleaned = re.sub(r"\s+", " ", cleaned).strip(" ,;:")
+        if cleaned:
+            lines.append(cleaned)
+    return "\n".join(lines)
 
 
 def _sentences_with_keywords(sentences: list[str], keywords: tuple[str, ...]) -> list[str]:

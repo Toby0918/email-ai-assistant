@@ -119,6 +119,7 @@ class AnalyzerTests(unittest.TestCase):
             },
             llm_generate=fake_llm,
             analysis_engine_label="Local Qwen",
+            config=replace(load_config(dotenv_path=None), llm_provider="disabled"),
         )
 
         self.assertIn("附件元数据", captured["prompt"])
@@ -393,6 +394,7 @@ class AnalyzerTests(unittest.TestCase):
                 },
                 llm_generate=fake_llm,
                 analysis_engine_label="Local Qwen",
+                config=replace(load_config(dotenv_path=None), llm_provider="disabled"),
             )
 
             self.assertNotIn(str(stored.path), captured["prompt"])
@@ -516,6 +518,7 @@ class AnalyzerTests(unittest.TestCase):
                 },
                 llm_generate=fake_llm,
                 analysis_engine_label="Local Qwen",
+                config=replace(load_config(dotenv_path=None), llm_provider="disabled"),
             )
 
         consequential = json.dumps(
@@ -656,6 +659,7 @@ class AnalyzerTests(unittest.TestCase):
             },
             llm_generate=fake_llm,
             analysis_engine_label="Local Qwen",
+            config=replace(load_config(dotenv_path=None), llm_provider="disabled"),
         )
 
         self.assertEqual(result["summary"], "客户询问交期。")
@@ -805,6 +809,7 @@ class AnalyzerTests(unittest.TestCase):
             },
             llm_generate=fake_llm,
             analysis_engine_label="Local Qwen",
+            config=replace(load_config(dotenv_path=None), llm_provider="disabled"),
         )
 
         self.assertEqual(result["analysis_engine"]["source"], "ai_model")
@@ -988,6 +993,151 @@ class AnalyzerTests(unittest.TestCase):
             "source": "ai_model", "label": "DeepSeek V4 Flash"
         })
 
+    def test_model_timeline_merge_cannot_alias_unrelated_full_timeline_item(self) -> None:
+        annotation = "模型精确交期批注。"
+        captured: dict[str, object] = {}
+
+        def merge(_envelope, *, fallback, timeline, **_kwargs):
+            captured["selected_timeline"] = timeline
+            captured["fallback_timeline"] = copy.deepcopy(
+                fallback["conversation_timeline"]
+            )
+            analysis = copy.deepcopy(fallback)
+            analysis["conversation_timeline"] = copy.deepcopy(
+                timeline.public_timeline
+            )
+            analysis["conversation_timeline"]["open_items"][0]["item"] = annotation
+            return SafeMergeResult(analysis, True, ())
+
+        email = {
+            "subject": "current delivery request",
+            "from": "delivery-buyer@example.test",
+            "to": ["sales@synthetic.internal"],
+            "sent_at": "2026-07-15T09:00:00+00:00",
+            "body_text": "please confirm current-delivery-probe delivery.",
+            "thread_segments": [
+                {
+                    "position": 0,
+                    "from": "invoice-buyer@example.test",
+                    "to": "sales@synthetic.internal",
+                    "sent_at": "2026-07-13T09:00:00+00:00",
+                    "subject": "invoice request",
+                    "body_text": "please confirm unrelated-invoice-probe invoice.",
+                },
+                {
+                    "position": 1,
+                    "from": "delivery-buyer@example.test",
+                    "to": "sales@synthetic.internal",
+                    "sent_at": "2026-07-14T09:00:00+00:00",
+                    "subject": "delivery request",
+                    "body_text": "please confirm relevant-delivery-probe delivery.",
+                },
+            ],
+        }
+
+        with patch(
+            "backend.email_agent.analysis_model_routes.parse_deepseek_analysis_v1",
+            return_value={},
+        ), patch(
+            "backend.email_agent.analysis_model_routes.validate_envelope_evidence",
+            return_value={},
+        ), patch(
+            "backend.email_agent.analysis_model_routes.merge_deepseek_analysis_v1",
+            side_effect=merge,
+        ):
+            result = analyze_current_email(
+                email,
+                llm_generate=lambda _prompt: "{}",
+                config=self._deepseek_config(
+                    internal_email_domains=("synthetic.internal",),
+                ),
+            )
+
+        selected = captured["selected_timeline"]
+        selected_text = "\n".join(
+            f"{source.subject}\n{source.body}" for source in selected.sources
+        )
+        self.assertIn("delivery-probe", selected_text)
+        self.assertNotIn("invoice-probe", selected_text)
+        self.assertEqual(
+            result["conversation_timeline"], captured["fallback_timeline"]
+        )
+        self.assertIn(
+            "invoice request",
+            json.dumps(captured["fallback_timeline"], ensure_ascii=False),
+        )
+        self.assertNotIn(annotation, json.dumps(result, ensure_ascii=False))
+        self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
+
+    def test_privacy_downgrade_pairs_current_registry_with_current_timeline(self) -> None:
+        captured: dict[str, object] = {}
+
+        def merge(_envelope, *, fallback, sources, timeline, **_kwargs):
+            captured["sources"] = sources
+            captured["timeline"] = timeline
+            captured["fallback_timeline"] = copy.deepcopy(
+                fallback["conversation_timeline"]
+            )
+            analysis = copy.deepcopy(fallback)
+            analysis["summary"] = "模型仅根据当前邮件生成摘要。"
+            return SafeMergeResult(analysis, True, ())
+
+        email = {
+            "subject": "delivery confirmation",
+            "from": "buyer@example.test",
+            "to": ["sales@synthetic.internal"],
+            "body_text": "please confirm current-only-registry delivery.",
+            "thread_segments": [{
+                "position": 0,
+                "from": "x" * 513,
+                "to": "sales@synthetic.internal",
+                "subject": "delivery history",
+                "body_text": "please confirm unsafe-history-registry delivery.",
+            }],
+        }
+
+        with patch(
+            "backend.email_agent.analysis_model_routes.parse_deepseek_analysis_v1",
+            return_value={},
+        ), patch(
+            "backend.email_agent.analysis_model_routes.validate_envelope_evidence",
+            return_value={},
+        ), patch(
+            "backend.email_agent.analysis_model_routes.merge_deepseek_analysis_v1",
+            side_effect=merge,
+        ):
+            result = analyze_current_email(
+                email,
+                llm_generate=lambda _prompt: "{}",
+                config=self._deepseek_config(
+                    internal_email_domains=("synthetic.internal",),
+                ),
+            )
+
+        registry = {
+            source_id: source
+            for source_id, source in captured["sources"].items()
+            if source.kind == "thread"
+        }
+        timeline_sources = {
+            source.source_id: source for source in captured["timeline"].sources
+        }
+        self.assertEqual(set(registry), set(timeline_sources))
+        for source_id, evidence in registry.items():
+            with self.subTest(source_id=source_id):
+                timeline_source = timeline_sources[source_id]
+                self.assertIn(timeline_source.subject, evidence.grounding_text)
+                self.assertIn(timeline_source.body, evidence.grounding_text)
+        self.assertNotIn(
+            "unsafe-history-registry",
+            "\n".join(source.grounding_text for source in registry.values()),
+        )
+        self.assertEqual(
+            result["conversation_timeline"], captured["fallback_timeline"]
+        )
+        self.assertEqual(result["analysis_engine"]["context_scope"], "current_only")
+        self.assertIs(result["analysis_engine"]["context_limited"], True)
+
     def test_model_led_provider_reason_is_logged_once(self) -> None:
         expected = self._expected_model_email_rule_fallback()
         with self._capture_analysis_fallback_logs() as captured, patch(
@@ -1042,7 +1192,7 @@ class AnalyzerTests(unittest.TestCase):
         self.assertIn("detail=not_applicable", captured.output[0])
         self.assertNotIn("PRIVATE_EMPTY_RESPONSE", captured.output[0])
 
-    def test_model_led_invalid_json_has_specific_safety_diagnostic(self) -> None:
+    def test_model_led_invalid_json_has_specific_provider_diagnostic(self) -> None:
         expected = self._expected_model_email_rule_fallback()
         with self._capture_analysis_fallback_logs() as captured:
             result = analyze_current_email(
@@ -1053,7 +1203,7 @@ class AnalyzerTests(unittest.TestCase):
 
         self.assertEqual(result, expected)
         self.assertEqual(len(captured.output), 1)
-        self.assertIn("code=safety_rejected_all stage=safety", captured.output[0])
+        self.assertIn("code=provider_output_invalid stage=safety", captured.output[0])
         self.assertIn("detail=not_applicable", captured.output[0])
 
     def test_model_led_envelope_error_detail_is_propagated(self) -> None:
@@ -1070,9 +1220,9 @@ class AnalyzerTests(unittest.TestCase):
         self.assertEqual(result, expected)
         self.assertEqual(len(captured.output), 1)
         self.assertIn(
-            "code=envelope_invalid stage=envelope provider=deepseek "
+            "code=provider_output_invalid stage=envelope provider=deepseek "
             "model=deepseek-v4-flash output_mode=model_led "
-            "detail=schema_version",
+            "detail=not_applicable",
             captured.output[0],
         )
 
@@ -1191,7 +1341,7 @@ class AnalyzerTests(unittest.TestCase):
         self.assertIn("detail=not_applicable", captured.output[0])
         self.assertNotIn("PRIVATE_LANGUAGE", captured.output[0])
 
-    def test_conservative_invalid_json_has_specific_safety_diagnostic(self) -> None:
+    def test_conservative_invalid_json_has_specific_provider_diagnostic(self) -> None:
         expected = self._expected_model_email_rule_fallback()
         config = replace(
             self._deepseek_config(), deepseek_output_mode="conservative"
@@ -1205,7 +1355,7 @@ class AnalyzerTests(unittest.TestCase):
 
         self.assertEqual(result, expected)
         self.assertEqual(len(captured.output), 1)
-        self.assertIn("code=safety_rejected_all stage=safety", captured.output[0])
+        self.assertIn("code=provider_output_invalid stage=safety", captured.output[0])
         self.assertIn("detail=not_applicable", captured.output[0])
         self.assertNotIn("PRIVATE_SCHEMA_RESPONSE", captured.output[0])
 
@@ -1707,9 +1857,9 @@ class AnalyzerTests(unittest.TestCase):
 
     def test_both_deepseek_modes_deidentify_historical_display_names(self) -> None:
         email = {
-            "subject": "Synthetic current request",
+            "subject": "Synthetic current delivery request",
             "from": "current@example.test",
-            "body_text": "Please review the visible conversation.",
+            "body_text": "Please review the visible delivery conversation.",
             "thread_segments": [{
                 "position": 1,
                 "from": "Alice <alice@example.test>",
@@ -1735,7 +1885,7 @@ class AnalyzerTests(unittest.TestCase):
                 self.assertIn("a person", prompts[0])
                 self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
 
-    def test_deepseek_fails_closed_when_timeline_header_was_overlimit(self) -> None:
+    def test_deepseek_downgrades_when_timeline_header_was_overlimit(self) -> None:
         calls: list[str] = []
         email = {
             "subject": "Synthetic current request",
@@ -1755,8 +1905,10 @@ class AnalyzerTests(unittest.TestCase):
             config=self._deepseek_config(),
         )
 
-        self.assertEqual(calls, [])
+        self.assertEqual(len(calls), 1)
         self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
+        self.assertEqual(result["analysis_engine"]["context_scope"], "current_only")
+        self.assertTrue(result["analysis_engine"]["context_limited"])
 
     def test_local_ollama_route_remains_ungated_and_does_not_render_runtime_cards(self) -> None:
         base = load_config(dotenv_path=None)
@@ -1800,7 +1952,9 @@ class AnalyzerTests(unittest.TestCase):
         self.assertEqual(calls, [])
         self.assertEqual(result["analysis_engine"]["source"], "rule_fallback")
         self.assertEqual(len(captured.output), 1)
-        self.assertIn("code=safety_rejected_all stage=safety", captured.output[0])
+        self.assertIn(
+            "code=privacy_preflight_rejected stage=safety", captured.output[0]
+        )
         self.assertNotIn(marker, captured.output[0])
         serialized = json.dumps(result)
         for forbidden in (
@@ -1884,8 +2038,8 @@ class AnalyzerTests(unittest.TestCase):
         outputs = (
             (r'{"summary":"\u003cEmAiL_1\u003e"}', "provider_output_placeholder_echo"),
             (r'{"summary":"pri\u0076ate_con\u0074ext"}', "safety_rejected_all"),
-            ('{"summary":"safe","summary":"duplicate"}', "safety_rejected_all"),
-            ("not json", "safety_rejected_all"),
+            ('{"summary":"safe","summary":"duplicate"}', "provider_output_invalid"),
+            ("not json", "provider_output_invalid"),
         )
 
         for mode, parser_target in routes:

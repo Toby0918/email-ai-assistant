@@ -12,6 +12,7 @@ FALLBACK_REASON_CODES = frozenset({
     "provider_connection_error", "provider_server_error",
     "provider_http_error", "provider_request_failed",
     "response_incomplete", "response_empty", "envelope_invalid",
+    "privacy_preflight_rejected", "provider_output_invalid",
     "evidence_invalid", "safety_rejected_all", "provider_output_placeholder_echo",
     "public_schema_invalid",
     "public_language_invalid", "unexpected_analysis_error",

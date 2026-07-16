@@ -271,6 +271,16 @@ def _public_fallback(value: Mapping[str, Any]) -> dict[str, Any]:
     return {field: copy.deepcopy(value[field]) for field in _FIELDS}
 
 
+def has_model_contribution(
+    public: Mapping[str, Any], fallback: Mapping[str, Any],
+) -> bool:
+    """Return whether a public result still contains a provider contribution."""
+    return any(
+        _has_model_value(field, public.get(field), fallback.get(field))
+        for field in _FIELDS
+    )
+
+
 def _has_model_value(field: str, public: object, fallback: object) -> bool:
     if field != "reply_draft" or not isinstance(public, dict):
         return public != fallback

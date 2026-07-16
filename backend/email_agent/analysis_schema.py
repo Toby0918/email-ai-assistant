@@ -83,7 +83,38 @@ def validate_analysis_result(data: dict[str, Any]) -> dict[str, Any]:
     _validate_risk_flags(data["risk_flags"])
     _validate_actions(data["suggested_actions"])
     _validate_reply_draft(data["reply_draft"])
+    if "analysis_engine" in data:
+        _validate_analysis_engine(data["analysis_engine"])
     return data
+
+
+def _validate_analysis_engine(value: Any) -> None:
+    if not isinstance(value, dict):
+        raise AnalysisValidationError("analysis_engine must be an object.")
+    _require_fields(value, {"source", "label"}, "analysis_engine")
+    _require_string(value["source"], "analysis_engine.source")
+    _require_string(value["label"], "analysis_engine.label")
+    has_scope = "context_scope" in value
+    has_limited = "context_limited" in value
+    if has_scope != has_limited:
+        raise AnalysisValidationError("analysis_engine context metadata must be complete.")
+    allowed = {"source", "label"}
+    if has_scope:
+        allowed.update({"context_scope", "context_limited"})
+        _require_enum(
+            value["context_scope"],
+            {"current_only", "relevant_history"},
+            "analysis_engine.context_scope",
+        )
+        if not isinstance(value["context_limited"], bool):
+            raise AnalysisValidationError(
+                "analysis_engine.context_limited must be a boolean."
+            )
+    unexpected = sorted(set(value).difference(allowed))
+    if unexpected:
+        raise AnalysisValidationError(
+            f"analysis_engine has unexpected fields: {', '.join(unexpected)}"
+        )
 
 
 def _require_fields(data: dict[str, Any], fields: set[str], label: str) -> None:

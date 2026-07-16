@@ -359,6 +359,7 @@ class DatabaseTests(unittest.TestCase):
             },
             "analysis_engine": {
                 "source": "rule_fallback", "label": "Rule fallback",
+                "context_scope": "current_only", "context_limited": True,
                 "private_url": "https://private.example/engine",
             },
         }
@@ -405,6 +406,8 @@ class DatabaseTests(unittest.TestCase):
             {"subject", "body", "needs_human_review", "review_reasons"},
         )
         self.assertEqual(set(stored["analysis_engine"]), {"source", "label"})
+        self.assertNotIn("context_scope", stored["analysis_engine"])
+        self.assertNotIn("context_limited", stored["analysis_engine"])
         for secret in (
             "STEP_PRIVATE_TOKEN", "C:/private/key-fact", "private.example/recommendation",
             "DECISION_RAW_SECRET", "private.example/timeline", "TIMELINE_PRIVATE_TOKEN",

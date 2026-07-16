@@ -6,7 +6,6 @@ import json
 import math
 import re
 from dataclasses import dataclass, field
-from email.utils import getaddresses
 from enum import Enum
 
 from backend.private_knowledge.deidentifier import deidentify_private_text
@@ -15,15 +14,18 @@ from backend.private_knowledge.residual_scanner import scan_residuals
 
 from .analysis_budget import DEEPSEEK_PROVIDER_MAX_SECONDS
 from .private_knowledge_context import render_private_knowledge_context
+from .participant_identity_aliases import (
+    MAX_HEADER_CHARACTERS,
+    header_identity_context as _header_identity_context,
+)
 from .private_prompt_genericizer import genericize_private_prompt
+from .private_provider_output_gate import (
+    provider_output_contains_placeholder as _output_contains_placeholder,
+    provider_output_contains_private_artifact as _output_contains_artifact,
+    provider_output_is_private_safe as _output_is_private_safe,
+)
 
 
-MAX_HEADER_VALUES = 117
-MAX_HEADER_CHARACTERS = 512
-MAX_IDENTITY_NAMES = 100
-MAX_PROVIDER_OUTPUT_CHARACTERS = 65_536
-MAX_PROVIDER_OUTPUT_DEPTH = 32
-MAX_PROVIDER_OUTPUT_ITEMS = 4_096
 _RESERVED_CONTROL_LABELS = (
     "UNTRUSTED_EMAIL", "UNTRUSTED_THREAD", "UNTRUSTED_ATTACHMENT",
     "UNTRUSTED_ATTACHMENT_METADATA",
@@ -36,7 +38,6 @@ _PRIVATE_OUTPUT_MARKER = re.compile(
     r"card_id|snapshot_id|vault_id|reidentif(?:y|ication)|deanonymi[sz]e)\b"
 )
 _PRIVATE_PLACEHOLDER = re.compile(PLACEHOLDER.pattern, re.IGNORECASE)
-_HEADER_EMAIL = re.compile(r"(?i)[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9.-]+\.[a-z]{2,}\Z")
 
 
 class PrivateContextFallbackCode(Enum):
@@ -48,12 +49,18 @@ class PrivateContextFallbackCode(Enum):
 class PrivateModelRequest:
     prompt: str = field(repr=False)
     header_values: tuple[str, ...] = field(repr=False)
+    current_only_prompt: str | None = field(default=None, repr=False)
+    current_only_header_values: tuple[str, ...] = field(default=(), repr=False)
+    context_scope: str = "current_only"
+    context_limited: bool = False
 
 
 @dataclass(frozen=True, slots=True)
 class PrivateModelContext:
     text: str = field(repr=False)
     selected_card_count: int
+    context_scope: str = "current_only"
+    context_limited: bool = False
 
 
 def build_private_model_context(
@@ -67,65 +74,147 @@ def build_private_model_context(
         return PrivateContextFallbackCode.BUDGET
     if not isinstance(request, PrivateModelRequest) or not isinstance(request.prompt, str):
         return PrivateContextFallbackCode.SAFETY
-    identity_context = _header_identity_context(request.header_values)
-    if identity_context is None:
-        return PrivateContextFallbackCode.SAFETY
     knowledge = render_private_knowledge_context(cards, rule_result)
-    outbound = request.prompt
-    if knowledge.text:
-        outbound += "\n\napproved_knowledge_context\n" + knowledge.text
-    outbound = genericize_private_prompt(outbound, _PRIVATE_PLACEHOLDER)
-    if outbound is None:
+    text = _build_safe_prompt(request.prompt, request.header_values, knowledge.text)
+    if text is not None:
+        return PrivateModelContext(
+            text,
+            knowledge.card_count,
+            request.context_scope if request.context_scope in {"current_only", "relevant_history"} else "current_only",
+            bool(request.context_limited),
+        )
+    if request.current_only_prompt is None:
         return PrivateContextFallbackCode.SAFETY
+    text = _build_safe_prompt(
+        request.current_only_prompt,
+        request.current_only_header_values,
+        knowledge.text,
+    )
+    if text is None:
+        return PrivateContextFallbackCode.SAFETY
+    return PrivateModelContext(text, knowledge.card_count, "current_only", True)
+
+
+def _build_safe_prompt(
+    prompt: str, header_values: tuple[str, ...], knowledge_text: str,
+) -> str | None:
+    identity_context = _header_identity_context(header_values)
+    if identity_context is None:
+        return None
+    safe_prompt = _deidentify_prompt_values(prompt, identity_context)
+    if safe_prompt is None:
+        return None
+    if knowledge_text:
+        safe_knowledge = _deidentify_plain_prompt(knowledge_text, identity_context)
+        if safe_knowledge is None:
+            return None
+        safe_prompt += "\n\napproved_knowledge_context\n" + safe_knowledge
+    return safe_prompt
+
+
+def _deidentify_prompt_values(
+    prompt: object, identity_context: dict[str, list[str]],
+) -> str | None:
+    if not isinstance(prompt, str):
+        return None
+    stripped = prompt.lstrip()
+    if stripped.startswith(("{", "[")):
+        try:
+            decoded = json.loads(
+                prompt,
+                object_pairs_hook=_unique_object,
+                parse_constant=_reject_json_constant,
+            )
+        except Exception:
+            return None
+        safe = _deidentify_json_values(decoded, identity_context)
+        if safe is None:
+            return None
+        return json.dumps(safe, ensure_ascii=False, separators=(",", ":"))
+    return _deidentify_plain_prompt(prompt, identity_context)
+
+
+def _deidentify_json_values(value: object, identity_context: dict[str, list[str]]) -> object:
+    if isinstance(value, dict):
+        result: dict[str, object] = {}
+        for key, child in value.items():
+            if not isinstance(key, str):
+                return None
+            safe_child = _deidentify_json_values(child, identity_context)
+            if safe_child is None and child is not None:
+                return None
+            result[key] = safe_child
+        return result
+    if isinstance(value, list):
+        result_list: list[object] = []
+        for child in value:
+            safe_child = _deidentify_json_values(child, identity_context)
+            if safe_child is None and child is not None:
+                return None
+            result_list.append(safe_child)
+        return result_list
+    if isinstance(value, str):
+        return _deidentify_text_value(value, identity_context)
+    if value is None or isinstance(value, (bool, int)):
+        return value
+    if isinstance(value, float) and math.isfinite(value):
+        return value
+    return None
+
+
+def _deidentify_plain_prompt(
+    prompt: str, identity_context: dict[str, list[str]],
+) -> str | None:
+    safe_lines: list[str] = []
+    for line in prompt.splitlines():
+        match = re.match(r"^([A-Za-z][A-Za-z0-9_.\[\]-]*:\s+)(.*)$", line)
+        prefix, value = (match.group(1), match.group(2)) if match else ("", line)
+        safe_value = _deidentify_text_value(value, identity_context)
+        if safe_value is None:
+            return None
+        safe_lines.append(_normalize_reserved_labels(prefix) + safe_value)
+    return "\n".join(safe_lines)
+
+
+def _deidentify_text_value(
+    value: str, identity_context: dict[str, list[str]],
+) -> str | None:
+    value = _normalize_reserved_labels(value)
+    generic_input = genericize_private_prompt(value, _PRIVATE_PLACEHOLDER)
+    if generic_input is None:
+        return None
     try:
-        with deidentify_private_text(outbound, identity_context) as deidentified:
-            placeholder_text = _normalize_reserved_labels(deidentified.text)
-            text = genericize_private_prompt(placeholder_text, _PRIVATE_PLACEHOLDER)
-            if text is None or scan_residuals(text):
-                return PrivateContextFallbackCode.SAFETY
+        with deidentify_private_text(generic_input, identity_context) as deidentified:
+            generic = genericize_private_prompt(deidentified.text, _PRIVATE_PLACEHOLDER)
+            if generic is None or scan_residuals(generic):
+                return None
+            return generic
     except Exception:
-        return PrivateContextFallbackCode.SAFETY
-    return PrivateModelContext(text, knowledge.card_count)
+        return None
 
 
 def provider_output_is_private_safe(raw: object) -> bool:
-    """Reject private-boundary artifacts before any DeepSeek parser sees them."""
-    if type(raw) is not str:
-        return False
-    if _contains_private_artifact(raw):
-        return False
-    if not raw or len(raw) > MAX_PROVIDER_OUTPUT_CHARACTERS:
-        return False
-    try:
-        decoded = json.loads(
-            raw,
-            object_pairs_hook=_unique_object,
-            parse_constant=_reject_json_constant,
-        )
-    except Exception:
-        return False
-    return _decoded_output_is_private_safe(decoded)
+    return _output_is_private_safe(raw, _contains_private_artifact)
 
 
 def provider_output_contains_placeholder(raw: object) -> bool:
-    """Return only whether a bounded provider output echoes a private token."""
-    if (
-        type(raw) is not str
-        or not raw
-        or len(raw) > MAX_PROVIDER_OUTPUT_CHARACTERS
-    ):
-        return False
-    if _PRIVATE_PLACEHOLDER.search(raw):
-        return True
-    try:
-        decoded = json.loads(
-            raw,
-            object_pairs_hook=_unique_object,
-            parse_constant=_reject_json_constant,
-        )
-    except Exception:
-        return False
-    return _decoded_contains_placeholder(decoded)
+    return _output_contains_placeholder(raw, _contains_private_placeholder)
+
+
+def provider_output_contains_private_artifact(raw: object) -> bool:
+    return _output_contains_artifact(raw, _contains_private_artifact)
+
+
+def _contains_private_placeholder(value: str) -> bool:
+    return bool(_PRIVATE_PLACEHOLDER.search(value))
+
+
+def _contains_private_artifact(value: str) -> bool:
+    return bool(
+        _contains_private_placeholder(value)
+        or _PRIVATE_OUTPUT_MARKER.search(value)
+        or any(pattern.search(value) for pattern in _RESTORATION_PATTERNS)
+    )
 
 
 def _unique_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
@@ -141,59 +230,6 @@ def _reject_json_constant(_value: str) -> None:
     raise ValueError("nonstandard_json_constant")
 
 
-def _decoded_output_is_private_safe(decoded: object) -> bool:
-    items = 0
-    stack = [(decoded, 0)]
-    while stack:
-        value, depth = stack.pop()
-        items += 1
-        if depth > MAX_PROVIDER_OUTPUT_DEPTH or items > MAX_PROVIDER_OUTPUT_ITEMS:
-            return False
-        if isinstance(value, dict):
-            for key, child in value.items():
-                if _contains_private_artifact(key):
-                    return False
-                stack.append((child, depth + 1))
-        elif isinstance(value, list):
-            stack.extend((child, depth + 1) for child in value)
-        elif isinstance(value, str):
-            if _contains_private_artifact(value):
-                return False
-        elif isinstance(value, float) and not math.isfinite(value):
-            return False
-        elif value is not None and not isinstance(value, (bool, int, float)):
-            return False
-    return True
-
-
-def _decoded_contains_placeholder(decoded: object) -> bool:
-    items = 0
-    stack = [(decoded, 0)]
-    while stack:
-        value, depth = stack.pop()
-        items += 1
-        if depth > MAX_PROVIDER_OUTPUT_DEPTH or items > MAX_PROVIDER_OUTPUT_ITEMS:
-            return False
-        if isinstance(value, dict):
-            for key, child in value.items():
-                if _PRIVATE_PLACEHOLDER.search(key):
-                    return True
-                stack.append((child, depth + 1))
-        elif isinstance(value, list):
-            stack.extend((child, depth + 1) for child in value)
-        elif isinstance(value, str) and _PRIVATE_PLACEHOLDER.search(value):
-            return True
-    return False
-
-
-def _contains_private_artifact(value: str) -> bool:
-    return bool(
-        _PRIVATE_PLACEHOLDER.search(value)
-        or _PRIVATE_OUTPUT_MARKER.search(value)
-        or any(pattern.search(value) for pattern in _RESTORATION_PATTERNS)
-    )
-
-
 def _provider_budget(budget: object) -> float | None:
     try:
         timeout = budget.provider_timeout_seconds(
@@ -203,58 +239,6 @@ def _provider_budget(budget: object) -> float | None:
     except Exception:
         return None
     return timeout if isinstance(timeout, (int, float)) else None
-
-
-def _header_identity_context(values: object) -> dict[str, list[str]] | None:
-    if type(values) is not tuple or len(values) > MAX_HEADER_VALUES:
-        return None
-    if any(
-        not isinstance(value, str)
-        or len(value) >= MAX_HEADER_CHARACTERS
-        or "\r" in value
-        or "\n" in value
-        for value in values
-    ):
-        return None
-    names: set[str] = set()
-    for value in values:
-        parsed_names = _display_names(value)
-        if parsed_names is None:
-            return None
-        names.update(parsed_names)
-    if len(names) > MAX_IDENTITY_NAMES:
-        return None
-    return {"people": sorted(names), "organizations": []}
-
-
-def _display_names(value: str) -> tuple[str, ...] | None:
-    candidate = value.strip()
-    if not candidate:
-        return ()
-    bracketed = "<" in candidate or ">" in candidate
-    if candidate.count("<") != candidate.count(">"):
-        return None
-    try:
-        parsed = getaddresses([candidate])
-    except Exception:
-        return None
-    if not parsed or any(not name.strip() and not address.strip() for name, address in parsed):
-        return None
-    names: list[str] = []
-    for name, address in parsed:
-        display = name.strip()
-        mailbox = address.strip()
-        if bracketed and _HEADER_EMAIL.fullmatch(mailbox) is None:
-            return None
-        if "@" in mailbox and _HEADER_EMAIL.fullmatch(mailbox) is None:
-            return None
-        if not display and mailbox and "@" not in mailbox:
-            display = mailbox
-        if display:
-            if not 1 <= len(display) <= 200:
-                return None
-            names.append(display)
-    return tuple(names)
 
 
 def _normalize_reserved_labels(text: str) -> str:

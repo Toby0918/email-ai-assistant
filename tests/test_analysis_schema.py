@@ -113,6 +113,41 @@ def _set_nested_value(root: object, path: tuple[object, ...], value: object) -> 
 
 
 class AnalysisSchemaTests(unittest.TestCase):
+    def test_optional_engine_context_metadata_is_strict_when_present(self) -> None:
+        result = valid_analysis()
+        result["analysis_engine"] = {
+            "source": "ai_model",
+            "label": "Synthetic model",
+            "context_scope": "relevant_history",
+            "context_limited": True,
+        }
+
+        self.assertIs(validate_analysis_result(result), result)
+
+        for field, invalid in (
+            ("context_scope", "all_history"),
+            ("context_limited", "true"),
+        ):
+            with self.subTest(field=field):
+                candidate = valid_analysis()
+                candidate["analysis_engine"] = dict(result["analysis_engine"])
+                candidate["analysis_engine"][field] = invalid
+                with self.assertRaises(AnalysisValidationError):
+                    validate_analysis_result(candidate)
+
+    def test_analysis_engine_rejects_all_unapproved_metadata(self) -> None:
+        for field in ("private_context", "card_id"):
+            with self.subTest(field=field):
+                result = valid_analysis()
+                result["analysis_engine"] = {
+                    "source": "ai_model",
+                    "label": "Synthetic model",
+                    field: "private-value",
+                }
+
+                with self.assertRaises(AnalysisValidationError):
+                    validate_analysis_result(result)
+
     def test_validate_analysis_result_accepts_complete_schema(self) -> None:
         result = validate_analysis_result(valid_analysis())
 
