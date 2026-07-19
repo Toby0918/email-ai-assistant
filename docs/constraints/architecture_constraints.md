@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-15
+last_update: 2026-07-16
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -58,7 +58,11 @@ infrastructure layer
 
 `analysis layer` 负责邮件清洗、Prompt 编排、AI 输出校验、Decision Brief 生成和业务规则约束。
 
-`infrastructure layer` 负责后端 AI 调用（后端 DeepSeek 专用 provider、OpenAI 占位能力或明确启用的本地 Ollama/Qwen/Gemma）、SQLite 存储、受限临时附件文件、Excel 导出、配置和日志。
+`infrastructure layer` 负责后端 AI 调用（显式启用的 OpenAI `gpt-5.6-sol` 多模态主路线、DeepSeek 文本路线或明确启用的本地 Ollama/Qwen/Gemma）、SQLite 存储、受限临时附件文件、Excel 导出、配置和日志。
+
+OpenAI uses the fixed official endpoint；`EMAIL_AGENT_OPENAI_BASE_URL` 和其他 arbitrary remote base URL 均不存在。provider 默认关闭，OpenAI model allowlist 只有 `gpt-5.6-sol`，DeepSeek text fallback allowlist 只有 `disabled` 和 `deepseek`。前端和公开请求不得选择 model、endpoint、timeout 或 fallback。
+
+正常点击分析的机械预算是：frontend POST wait 60 seconds、backend shared target 55 seconds、OpenAI cap 35 seconds、DeepSeek cap 10 seconds、fallback minimum remainder 12 seconds、parser maximum 8 seconds、response/persistence reserve 5 seconds。可见资源收集继续使用独立 20 秒期限；`backend.private_evaluation.runner` 的 dataset budget 继续保持独立 13 秒，不受本路线修改。
 
 单独授权的 `mailbox ingest layer` 是项目外 vault 和管理员 CLI 的离线基础设施，
 不属于 frontend、loopback API 或正常 analysis runtime。它只处理一个授权账号、
@@ -341,7 +345,7 @@ stage_knowledge(
 
 ### llm_client.py
 
-`llm_client.py` 只负责后端 AI 调用封装。允许的 provider 是规则兜底、DeepSeek 专用 provider、OpenAI 占位能力，以及明确启用的本地 Ollama/Qwen/Gemma。DeepSeek 只能使用代码固定的后端端点，OpenAI/DeepSeek API key 只能来自后端环境；禁止读取前端密钥，禁止把 API key 或本地模型配置返回给任何调用方，禁止把原始异常中的敏感信息直接返回前端，禁止保存分析结果到数据库。
+`llm_client.py` 只负责后端 AI 调用封装。允许的 provider 是规则兜底、固定 `gpt-5.6-sol` 的 OpenAI 多模态主路线、DeepSeek 文本路线，以及明确启用的本地 Ollama/Qwen/Gemma。OpenAI 和 DeepSeek 只能使用代码固定的后端端点，OpenAI/DeepSeek API key 只能来自后端环境；禁止读取前端密钥，禁止把 API key 或本地模型配置返回给任何调用方，禁止把原始异常中的敏感信息直接返回前端，禁止保存分析结果到数据库。
 
 ### database.py
 

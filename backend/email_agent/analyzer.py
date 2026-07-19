@@ -18,11 +18,16 @@ from .analysis_model_routes import (
 )
 from .analysis_projection import project_attachment_insights
 from .attachment_model_context import AttachmentAnalysisBundle
-from .attachment_parser import parse_attachment_bundles
+from .attachment_parser import bind_prepared_media_evidence, parse_attachment_bundles
 from .attachment_storage import StoredAttachment
 from .config import AppConfig, load_config
 from .email_cleaner import clean_email_body
 from .model_context_selection import select_model_context
+from .multimodal_media import (
+    PreparedMediaAsset,
+    prepare_attachment_media,
+    wipe_prepared_media,
+)
 from .prompt_context import normalize_text_list
 from .resource_limitations import resource_limitation_insights
 from .rule_analyzer import build_rule_based_analysis
@@ -50,17 +55,23 @@ def analyze_current_email(
     if not clean_body:
         raise AnalysisError("Email body is empty.")
     timeline = _build_timeline(email.get("thread_segments"), current_config)
-    bundles = _parse_bundles(email.get("stored_attachments"), current_budget)
-    insights = _attachment_insights(bundles, email.get("resource_limitations"))
-    fallback = build_rule_based_analysis(
-        subject, sender, clean_body, attachment_insights=insights,
-        conversation_timeline=timeline.public_timeline,
-    )
-    context = _route_context(
-        email, subject, sender, clean_body, timeline, bundles, insights,
-        fallback, current_config, current_budget, runtime_cards,
-    )
-    return route_analysis(context, llm_generate, analysis_engine_label)
+    items = _stored_attachments(email.get("stored_attachments"))
+    bundles = _parse_bundles(items, current_budget)
+    prepared_media = _prepare_media(items)
+    try:
+        bundles = bind_prepared_media_evidence(bundles, prepared_media)
+        insights = _attachment_insights(bundles, email.get("resource_limitations"))
+        fallback = build_rule_based_analysis(
+            subject, sender, clean_body, attachment_insights=insights,
+            conversation_timeline=timeline.public_timeline,
+        )
+        context = _route_context(
+            email, subject, sender, clean_body, timeline, bundles, insights,
+            fallback, current_config, current_budget, runtime_cards, prepared_media,
+        )
+        return route_analysis(context, llm_generate, analysis_engine_label)
+    finally:
+        wipe_prepared_media(prepared_media)
 
 
 def _route_context(
@@ -68,6 +79,7 @@ def _route_context(
     timeline: TimelineBuild, bundles: tuple[AttachmentAnalysisBundle, ...],
     insights: list[dict[str, object]], fallback: dict[str, Any],
     config: AppConfig, budget: AnalysisBudget, runtime_cards: tuple[object, ...],
+    prepared_media: tuple[PreparedMediaAsset, ...],
 ) -> AnalysisRouteContext:
     recipients = normalize_text_list(email.get("to"))
     cc = normalize_text_list(email.get("cc"))
@@ -90,6 +102,7 @@ def _route_context(
         attachment_insights=insights, attachment_bundles=bundles,
         fallback=fallback, config=config, budget=budget,
         runtime_cards=runtime_cards if type(runtime_cards) is tuple else (),
+        prepared_media_assets=prepared_media,
     )
 
 
@@ -116,8 +129,9 @@ def _failed_public_timeline() -> dict[str, object]:
     }
 
 
-def _parse_bundles(value: Any, budget: AnalysisBudget) -> tuple[AttachmentAnalysisBundle, ...]:
-    items = _stored_attachments(value)
+def _parse_bundles(
+    items: list[StoredAttachment], budget: AnalysisBudget
+) -> tuple[AttachmentAnalysisBundle, ...]:
     if not items:
         return ()
     deadline = budget.stage_deadline(
@@ -127,6 +141,15 @@ def _parse_bundles(value: Any, budget: AnalysisBudget) -> tuple[AttachmentAnalys
         return tuple(parse_attachment_bundles(items, deadline=deadline))
     except Exception:
         return tuple(_failed_attachment_bundle(item) for item in items)
+
+
+def _prepare_media(items: list[StoredAttachment]) -> tuple[PreparedMediaAsset, ...]:
+    if not items:
+        return ()
+    try:
+        return prepare_attachment_media(items)
+    except Exception:
+        return ()
 
 
 def _failed_attachment_bundle(item: StoredAttachment) -> AttachmentAnalysisBundle:

@@ -20,8 +20,14 @@ from backend.email_agent.deepseek_analysis_schema import (
     validate_deepseek_analysis_v1,
     validate_envelope_evidence,
 )
+from backend.email_agent.model_visual_grounding import (
+    canonical_visual_observations,
+    render_visual_observation_contract,
+    visual_claim_is_allowed,
+)
 from backend.email_agent.prompt_context import (
     DEEPSEEK_SYSTEM_PROMPT,
+    OPENAI_MULTIMODAL_SYSTEM_PROMPT,
     EvidenceSource,
     build_deepseek_untrusted_context,
 )
@@ -33,6 +39,109 @@ from backend.email_agent.thread_timeline import (
 
 
 class DeepSeekPromptContextTests(unittest.TestCase):
+    def test_openai_system_prompt_declares_untrusted_media_and_visual_limits(self) -> None:
+        for instruction in (
+            "UNTRUSTED_BINARY_SOURCE",
+            "qualitative business observations",
+            "Never identify a person",
+            "exact identifiers, dates, amounts, quantities, or tracking values",
+            "needs_human_review=true",
+        ):
+            with self.subTest(instruction=instruction):
+                self.assertIn(instruction, OPENAI_MULTIMODAL_SYSTEM_PROMPT)
+
+    def test_openai_prompt_requires_source_bound_visual_augmentation_when_visible(
+        self,
+    ) -> None:
+        instruction = (
+            "For each visual source, inspect its media; emit one source-bound "
+            "attachment_augmentations item with evidence for every leaf only if "
+            "a listed observation is visible."
+        )
+
+        self.assertIn(instruction, OPENAI_MULTIMODAL_SYSTEM_PROMPT)
+        self.assertNotIn(instruction, DEEPSEEK_SYSTEM_PROMPT)
+        self.assertLessEqual(
+            len(OPENAI_MULTIMODAL_SYSTEM_PROMPT),
+            MAX_SYSTEM_PROMPT_CHARACTERS - 64,
+        )
+
+    def test_openai_visual_prompt_and_validator_share_one_finite_contract(self) -> None:
+        observations = canonical_visual_observations()
+
+        self.assertEqual(len(observations), len(set(observations)))
+        self.assertIn(
+            render_visual_observation_contract(),
+            OPENAI_MULTIMODAL_SYSTEM_PROMPT,
+        )
+        self.assertIn(
+            "Each attachment summary/key_facts leaf must exactly use one of these complete",
+            OPENAI_MULTIMODAL_SYSTEM_PROMPT,
+        )
+        self.assertIn(
+            "Global claims must occur in each cited text source",
+            OPENAI_MULTIMODAL_SYSTEM_PROMPT,
+        )
+        for observation in observations:
+            with self.subTest(observation=observation):
+                self.assertIn(observation, OPENAI_MULTIMODAL_SYSTEM_PROMPT)
+                self.assertTrue(
+                    visual_claim_is_allowed(
+                        observation, has_critical_signatures=False,
+                    )
+                )
+                self.assertTrue(
+                    visual_claim_is_allowed(
+                        "  " + observation.upper().replace(" ", "   ") + "  ",
+                        has_critical_signatures=False,
+                    )
+                )
+        self.assertLessEqual(
+            len(OPENAI_MULTIMODAL_SYSTEM_PROMPT),
+            MAX_SYSTEM_PROMPT_CHARACTERS - 64,
+        )
+
+    def test_openai_prompt_declares_finite_cross_language_claim_templates(self) -> None:
+        for template in (
+            "邮件请求人工核查当前事项。",
+            "邮件请求确认当前处理状态。",
+            "邮件请求确认交付或发货安排。",
+            "邮件请求提供或确认报价信息。",
+            "邮件请求提供或核查相关文件。",
+            "邮件报告质量或包装异常，需要人工核查。",
+            "邮件询问付款或发票事项。",
+            "邮件包含包装或标签要求，需要人工核查。",
+            "邮件表达了紧急处理需求。",
+        ):
+            with self.subTest(template=template):
+                self.assertIn(template, OPENAI_MULTIMODAL_SYSTEM_PROMPT)
+        self.assertIn(
+            "Cross-language global templates", OPENAI_MULTIMODAL_SYSTEM_PROMPT,
+        )
+        self.assertLessEqual(
+            len(OPENAI_MULTIMODAL_SYSTEM_PROMPT),
+            MAX_SYSTEM_PROMPT_CHARACTERS - 64,
+        )
+
+    def test_visual_prompt_maps_natural_variants_to_canonical_sentences(self) -> None:
+        variants = {
+            "The carton is visibly damaged.": "Damage is visible.",
+            "There is a dent in the package.": "Denting is visible.",
+            "The label appears on the right-hand side.": (
+                "The label is on the right."
+            ),
+            "Parts are missing from the tray.": "Components are missing.",
+        }
+
+        for variant, canonical in variants.items():
+            with self.subTest(variant=variant):
+                self.assertFalse(
+                    visual_claim_is_allowed(
+                        variant, has_critical_signatures=False,
+                    )
+                )
+                self.assertIn(canonical, OPENAI_MULTIMODAL_SYSTEM_PROMPT)
+
     def setUp(self) -> None:
         self.timeline = TimelineBuild(
             public_timeline={
@@ -406,6 +515,46 @@ class DeepSeekPromptContextTests(unittest.TestCase):
         self.assertLessEqual(sum(len(item["text"]) for item in thread_items), 20_000)
         self.assertNotIn("BODY-54", prompt)
 
+    def test_thread_body_projection_exactly_matches_provider_visible_body(self) -> None:
+        body = "Customer requests a packaging review.\nSecond visible line."
+        context = dict(self.context)
+        context["timeline"] = TimelineBuild(
+            {}, (),
+            (ThreadSource(
+                "thread:0", "sender\nmetadata", "recipient\u2028metadata",
+                "sent\u2029metadata", "subject\nmetadata", body,
+            ),),
+        )
+
+        prompt, registry = build_deepseek_untrusted_context(**context)
+        provider_text = json.loads(prompt)["sources"][0]["text"]
+        visible_body = provider_text.split("\nbody = ", 1)[1]
+        source = registry["thread:0"]
+
+        self.assertEqual(source.cross_language_grounding_text, visible_body)
+        self.assertEqual(source.cross_language_grounding_text, body)
+        for metadata_line in provider_text.splitlines()[:4]:
+            self.assertNotIn("\u2028", metadata_line)
+            self.assertNotIn("\u2029", metadata_line)
+
+    def test_long_thread_metadata_cannot_authorize_unsent_body(self) -> None:
+        body = "Customer requests a packaging review."
+        context = dict(self.context)
+        context["timeline"] = TimelineBuild(
+            {}, (),
+            (ThreadSource(
+                "thread:0", "", "", "", "long metadata " * 1_000, body,
+            ),),
+        )
+
+        prompt, registry = build_deepseek_untrusted_context(**context)
+        provider_text = json.loads(prompt)["sources"][0]["text"]
+        source = registry["thread:0"]
+
+        self.assertNotIn(body, provider_text)
+        self.assertIsNone(source.cross_language_grounding_text)
+        self.assertLessEqual(len(provider_text), 2_000)
+
     def test_user_json_includes_backend_open_item_ids_without_public_id_leakage(self) -> None:
         prompt, _ = build_deepseek_untrusted_context(**self.context)
         payload = json.loads(prompt)
@@ -512,11 +661,18 @@ class DeepSeekPromptContextTests(unittest.TestCase):
             "thread",
             "PRIVATE_GROUNDING_TEXT",
             "thread",
+            cross_language_grounding_text="PRIVATE_BODY_PROJECTION",
         )
 
         self.assertTrue(EvidenceSource.__dataclass_params__.frozen)
         self.assertFalse(hasattr(source, "__dict__"))
         self.assertNotIn("PRIVATE_GROUNDING_TEXT", repr(source))
+        self.assertNotIn("PRIVATE_BODY_PROJECTION", repr(source))
+
+    def test_evidence_source_default_disables_cross_language_bridge(self) -> None:
+        source = EvidenceSource("thread:0", "thread", "text", "thread")
+
+        self.assertIsNone(source.cross_language_grounding_text)
 
 
 if __name__ == "__main__":

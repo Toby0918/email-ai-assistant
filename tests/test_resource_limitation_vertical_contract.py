@@ -31,6 +31,13 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 COLLECTOR = os.path.join(
     ROOT, "frontend", "browser_extension", "content", "current_message_collector.js"
 )
+RESOURCE_CLASSIFIER = os.path.join(
+    ROOT,
+    "frontend",
+    "browser_extension",
+    "content",
+    "exmail_visible_resource_classifier.js",
+)
 API_CLIENT = os.path.join(
     ROOT, "frontend", "browser_extension", "shared", "api_client.js"
 )
@@ -181,7 +188,18 @@ class ResourceLimitationVerticalContractTests(unittest.TestCase):
             self.assertNotIn(forbidden, stored_json)
 
         rendered = self._render_insights(stored["attachment_insights"])
-        self.assertEqual(rendered["count"], 14)
+        self.assertEqual(rendered["count"], 15)
+        aggregate = str(rendered["aggregate"])
+        for expected in (
+            "附件读取状态", "已解析", "数量", "5",
+            "未读取（附件不可用）", "8", "解析失败", "1",
+        ):
+            self.assertIn(expected, aggregate)
+        for forbidden in (
+            "quote-0.xlsx", "unsupported-0.txt", "large.pdf",
+            "additional-resources", "resource",
+        ):
+            self.assertNotIn(forbidden, aggregate)
         for expected in (
             "quote-0.xlsx",
             "quote-4.xlsx",
@@ -200,6 +218,29 @@ class ResourceLimitationVerticalContractTests(unittest.TestCase):
             self.assertIn(expected, rendered["text"])
         self.assertEqual(rendered["anchor_count"], 0)
 
+    def test_legacy_no_download_control_is_parsed_and_request_temp_is_removed(self) -> None:
+        if shutil.which("node") is None:
+            self.skipTest("Node.js is required for the vertical browser contract")
+
+        request_payload = self._collector_to_api_payload(self._synthetic_xlsx())
+        self.assertEqual(request_payload["attachment_files"][0]["filename"], "quote-0.xlsx")
+
+        with TemporaryDirectory() as directory:
+            config = replace(load_config(dotenv_path=None), attachment_temp_dir=directory)
+            with patch(
+                "backend.email_agent.analyzer.PARSER_MAX_SECONDS",
+                30.0,
+            ), patch.dict(os.environ, {"EMAIL_AGENT_LLM_PROVIDER": "disabled"}):
+                response = handle_analyze_current_email(request_payload, config=config)
+            self.assertEqual(list(Path(directory).iterdir()), [])
+
+        self.assertTrue(response["ok"])
+        parsed = {
+            item["filename"]: item["status"]
+            for item in response["analysis"]["attachment_insights"]
+        }
+        self.assertEqual(parsed["quote-0.xlsx"], "parsed")
+
     def _collector_to_api_payload(self, xlsx_bytes: bytes) -> dict[str, object]:
         max_file_bytes = len(xlsx_bytes) + 256
         script = textwrap.dedent(
@@ -207,6 +248,7 @@ class ResourceLimitationVerticalContractTests(unittest.TestCase):
             const fs = require("fs");
             const vm = require("vm");
             const collectorSource = fs.readFileSync(__COLLECTOR__, "utf8");
+            const classifierSource = fs.readFileSync(__CLASSIFIER__, "utf8");
             const apiSource = fs.readFileSync(__API_CLIENT__, "utf8");
             const xlsxBytes = Uint8Array.from(Buffer.from(__XLSX_BASE64__, "base64"));
 
@@ -235,16 +277,24 @@ class ResourceLimitationVerticalContractTests(unittest.TestCase):
                 return Object.prototype.hasOwnProperty.call(this.attrs, name);
               }
               querySelectorAll() { return []; }
+              getBoundingClientRect() {
+                return { left: 0, top: 0, right: 160, bottom: 24, width: 160, height: 24 };
+              }
             }
 
-            function resource(filename, type, url, size = 0) {
-              return new Element({
+            function resource(filename, type, url, size = 0, legacy = false) {
+              const attrs = {
                 "data-filename": filename,
                 "data-type": type,
                 href: url,
-                download: filename,
                 "data-size": String(size),
-              }, [], filename, "a");
+              };
+              if (legacy) {
+                attrs.target = "_blank";
+              } else {
+                attrs.download = filename;
+              }
+              return new Element(attrs, [], filename, "a");
             }
             function streamResponse(bytes) {
               let delivered = false;
@@ -266,7 +316,13 @@ class ResourceLimitationVerticalContractTests(unittest.TestCase):
             }
 
             const parsed = Array.from({ length: 5 }, (_value, index) =>
-              resource(`quote-${index}.xlsx`, "xlsx", `/cgi-bin/download?file=quote-${index}`),
+              resource(
+                `quote-${index}.xlsx`,
+                "xlsx",
+                `/cgi-bin/download?file=quote-${index}`,
+                0,
+                index === 0,
+              ),
             );
             const unsupported = Array.from({ length: 12 }, (_value, index) =>
               resource(
@@ -292,7 +348,12 @@ class ResourceLimitationVerticalContractTests(unittest.TestCase):
             const doc = {
               body,
               baseURI: "https://exmail.qq.com/cgi-bin/readmail",
-              defaultView: { getComputedStyle: () => ({ display: "block", visibility: "visible" }) },
+              defaultView: {
+                innerWidth: 1280,
+                innerHeight: 720,
+                getComputedStyle: () => ({ display: "block", visibility: "visible" }),
+              },
+              documentElement: { clientWidth: 1280, clientHeight: 720 },
             };
             const context = {
               URL,
@@ -304,12 +365,18 @@ class ResourceLimitationVerticalContractTests(unittest.TestCase):
               btoa: (binary) => Buffer.from(binary, "binary").toString("base64"),
             };
             context.window = context;
+            vm.runInNewContext(classifierSource, context, {
+              filename: "exmail_visible_resource_classifier.js",
+            });
             vm.runInNewContext(collectorSource, context, { filename: "current_message_collector.js" });
 
             (async () => {
               const resources = await context.EmailAssistantCurrentMessageCollector.collectVisibleResources(doc, {
-                topLevelDocument: doc,
+                verifiedDocument: doc,
+                verifiedDocumentContext: true,
+                revalidateContext: () => true,
                 currentMessageRoot: currentRoot,
+                currentBodyRoot: currentRoot,
                 currentMessageContainer: container,
                 verifiedResourceCandidates: candidates,
                 resourceControlsVerified: true,
@@ -351,6 +418,7 @@ class ResourceLimitationVerticalContractTests(unittest.TestCase):
             """
         )
         script = script.replace("__COLLECTOR__", json.dumps(COLLECTOR))
+        script = script.replace("__CLASSIFIER__", json.dumps(RESOURCE_CLASSIFIER))
         script = script.replace("__API_CLIENT__", json.dumps(API_CLIENT))
         script = script.replace(
             "__XLSX_BASE64__",
@@ -418,6 +486,7 @@ class ResourceLimitationVerticalContractTests(unittest.TestCase):
             context.window.EmailAssistantRender.renderAttachmentInsights(field, __INSIGHTS__);
             process.stdout.write(JSON.stringify({
               count: field.children.length,
+              aggregate: field.children.length ? field.children[0].textContent : "",
               text: field.textContent,
               anchor_count: field.querySelectorAll("a").length,
             }));

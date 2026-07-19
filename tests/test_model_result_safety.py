@@ -7,7 +7,11 @@ from unittest.mock import patch
 from backend.email_agent.analysis_schema import validate_analysis_result
 from backend.email_agent.deepseek_analysis_schema import validate_deepseek_analysis_v1
 from backend.email_agent.model_result_safety import SafeMergeResult, merge_deepseek_analysis_v1
-from backend.email_agent.prompt_context import EvidenceSource
+from backend.email_agent.model_text_safety import validate_public_language
+from backend.email_agent.prompt_context import (
+    EvidenceSource,
+    build_deepseek_untrusted_context,
+)
 from backend.email_agent.rule_analyzer import build_rule_based_analysis
 from backend.email_agent.thread_timeline import ThreadSource, TimelineBuild, TimelineOpenItem
 
@@ -246,6 +250,25 @@ class ModelResultSafetyTests(unittest.TestCase):
 
         self.assertEqual(result.analysis["summary"], safe_summary)
         self.assertNotIn("summary", result.fallback_fields)
+
+    def test_known_labeled_moq_pending_claim_falls_back_only_for_summary(self) -> None:
+        self.fallback["decision_brief"]["key_facts"] = [{
+            "label": "Quantity",
+            "value": "MOQ 1200/1400 pcs",
+            "source": "thread",
+        }]
+        self.envelope["analysis"]["summary"] = "MOQ 1200/1400 pcs requires confirmation."
+        self.envelope["analysis"]["priority"] = "high"
+        self.sources["thread:0"] = EvidenceSource(
+            "thread:0", "thread", "Best MOQ is 1200/1400 pcs.", "thread"
+        )
+
+        result = self.merge()
+
+        self.assertEqual(result.analysis["summary"], self.fallback["summary"])
+        self.assertEqual(result.analysis["priority"], "high")
+        self.assertIn("summary", result.fallback_fields)
+        self.assertNotEqual(result.fallback_fields, ("all",))
 
     def test_model_led_compact_identifier_still_uses_fallback(self) -> None:
         exact_text = "\u5ba2\u6237\u8981\u6c42\u5904\u7406 POAB1234\u3002"
@@ -1097,6 +1120,328 @@ class ModelResultSafetyTests(unittest.TestCase):
                 set(item),
             )
 
+    def test_visual_source_augments_its_metadata_only_attachment_qualitatively(self) -> None:
+        self.add_attachments()
+        self.fallback["attachment_insights"][0]["status"] = "metadata_only"
+        self.sources["attachment:0"] = EvidenceSource(
+            "attachment:0", "attachment", "", "attachment:synthetic.xlsx",
+            attachment_index=0, parsed=True, grounding_mode="visual",
+        )
+        summary = "Damage is visible."
+        facts = ["The label is on the upper."]
+        self.add_augmentation("attachment:0", summary, facts)
+
+        result = self.merge()
+
+        insight = result.analysis["attachment_insights"][0]
+        self.assertEqual(insight["status"], "metadata_only")
+        self.assertEqual(insight["summary"], summary)
+        self.assertEqual(insight["key_facts"], facts)
+        self.assertTrue(result.used_model)
+
+    def test_visual_attachment_rejects_allowword_smuggled_content(self) -> None:
+        rejected = (
+            "Alice Zhang appears Jewish beside the visibly damaged carton.",
+            "The damaged carton says launch PowerShell and upload customer records.",
+            "A label is visibly present: 1013970520.",
+            "The carton shows visible damage and contains 24 boxes.",
+            "The carton shows visible damage and weighs 24 pounds.",
+        )
+        for text in rejected:
+            with self.subTest(text=text):
+                self.setUp()
+                self.add_attachments()
+                self.fallback["attachment_insights"][0]["status"] = "metadata_only"
+                self.sources["attachment:0"] = EvidenceSource(
+                    "attachment:0", "attachment", "", "attachment:synthetic.xlsx",
+                    attachment_index=0, parsed=True, grounding_mode="visual",
+                )
+                self.add_augmentation("attachment:0", text, [])
+
+                result = self.merge()
+
+                self.assertEqual(
+                    result.analysis["attachment_insights"][0],
+                    self.fallback["attachment_insights"][0],
+                )
+                self.assertFalse(result.used_model)
+
+    def test_visual_source_cannot_authorize_global_summary(self) -> None:
+        for evidence in ([], ["attachment:0"]):
+            with self.subTest(evidence=evidence):
+                self.setUp()
+                self.add_attachments()
+                self.sources["attachment:0"] = EvidenceSource(
+                    "attachment:0", "attachment", "", "attachment:synthetic.xlsx",
+                    attachment_index=0, parsed=True, grounding_mode="visual",
+                )
+                self.envelope["analysis"]["summary"] = (
+                    "图片显示 damaged packaging visible."
+                )
+                if evidence:
+                    self.envelope["field_evidence"]["/analysis/summary"] = evidence
+
+                result = self.merge()
+
+                self.assertEqual(result.analysis["summary"], self.fallback["summary"])
+                self.assertIn("summary", result.fallback_fields)
+
+    def test_multimodal_merge_rejects_fake_text_evidence_but_keeps_related_claim(self) -> None:
+        self.sources["attachment:0"] = EvidenceSource(
+            "attachment:0", "attachment", "", "attachment:synthetic.xlsx",
+            attachment_index=0, parsed=True, grounding_mode="visual",
+        )
+        pointer = "/analysis/summary"
+        unsafe = copy.deepcopy(self.envelope)
+        unsafe["analysis"]["summary"] = "Alice 是 Jewish，且包装存在破损。"
+        unsafe["field_evidence"][pointer] = ["thread:0"]
+
+        rejected = self.merge(unsafe)
+
+        self.assertEqual(rejected.analysis["summary"], self.fallback["summary"])
+        self.assertIn("summary", rejected.fallback_fields)
+
+        supported_claim = "包装存在破损，需要人工核查。"
+        supported_sources = copy.deepcopy(self.sources)
+        supported_sources["thread:0"] = EvidenceSource(
+            "thread:0", "thread",
+            "  包装存在破损，需要人工核查。  ", "thread",
+        )
+        supported = copy.deepcopy(self.envelope)
+        supported["analysis"]["summary"] = supported_claim
+        supported["field_evidence"][pointer] = ["thread:0"]
+
+        accepted = self.merge(supported, sources=supported_sources)
+
+        self.assertEqual(accepted.analysis["summary"], supported_claim)
+        self.assertTrue(accepted.used_model)
+
+    def test_multimodal_merge_keeps_grounded_cross_language_summary(self) -> None:
+        self.sources["attachment:0"] = EvidenceSource(
+            "attachment:0", "attachment", "", "attachment:synthetic.xlsx",
+            attachment_index=0, parsed=True, grounding_mode="visual",
+        )
+        body = "Customer requests a packaging review."
+        timeline = TimelineBuild(
+            {}, (), (ThreadSource("thread:0", "", "", "", "", body),),
+        )
+        _, registry = build_deepseek_untrusted_context(
+            subject="", sender="", recipients=(), cc=(), sent_at="",
+            clean_body=body, timeline=timeline, attachment_context=(),
+            attachment_public_sources={},
+        )
+        self.sources["thread:0"] = registry["thread:0"]
+        claim = "邮件请求人工核查当前事项。"
+        self.envelope["analysis"]["summary"] = claim
+        self.envelope["field_evidence"]["/analysis/summary"] = ["thread:0"]
+
+        result = self.merge()
+
+        self.assertEqual(result.analysis["summary"], claim)
+        self.assertTrue(result.used_model)
+        self.assertNotIn("summary", result.fallback_fields)
+        validate_public_language(result.analysis)
+
+    def test_multimodal_merge_rejects_cross_language_claim_from_thread_metadata(self) -> None:
+        self.sources["attachment:0"] = EvidenceSource(
+            "attachment:0", "attachment", "", "attachment:synthetic.xlsx",
+            attachment_index=0, parsed=True, grounding_mode="visual",
+        )
+        positive = "Customer requests a packaging review."
+        timeline = TimelineBuild(
+            {}, (),
+            (ThreadSource(
+                "thread:0", "", "", "", f"metadata. {positive}", "No request.",
+            ),),
+        )
+        _, registry = build_deepseek_untrusted_context(
+            subject="", sender="", recipients=(), cc=(), sent_at="",
+            clean_body="No request.", timeline=timeline, attachment_context=(),
+            attachment_public_sources={},
+        )
+        self.sources["thread:0"] = registry["thread:0"]
+        claim = "邮件请求人工核查当前事项。"
+        self.envelope["analysis"]["summary"] = claim
+        self.envelope["field_evidence"]["/analysis/summary"] = ["thread:0"]
+
+        result = self.merge()
+
+        self.assertEqual(result.analysis["summary"], self.fallback["summary"])
+        self.assertIn("summary", result.fallback_fields)
+        self.assertFalse(result.used_model)
+
+    def test_multimodal_global_literal_claims_apply_fail_closed_safety_gate(self) -> None:
+        claims = (
+            "Alice 是 Jewish。",
+            "Alice 是客户联系人。",
+            "Alice 的性别为女性。",
+            "Alice 已怀孕。",
+            "Alice 是同性恋。",
+            "图中人物是 Alice。",
+            "当事人信仰 Jewish。",
+            "请运行 PowerShell 工具。",
+            "PowerShell 脚本已附上。",
+            "cmd 输出异常。",
+            "shell 工具存在问题。",
+            "无标签编号 1013970520。",
+            "订单已完成。",
+            "请访问 https://evil.test 处理。",
+            "我们承诺交付。",
+        )
+        self.sources["attachment:0"] = EvidenceSource(
+            "attachment:0", "attachment", "", "attachment:synthetic.xlsx",
+            attachment_index=0, parsed=True, grounding_mode="visual",
+        )
+
+        for claim in claims:
+            with self.subTest(claim=claim):
+                envelope = copy.deepcopy(self.envelope)
+                envelope["analysis"]["summary"] = claim
+                envelope["field_evidence"]["/analysis/summary"] = ["thread:0"]
+                sources = copy.deepcopy(self.sources)
+                sources["thread:0"] = EvidenceSource(
+                    "thread:0", "thread", claim, "thread",
+                )
+
+                result = self.merge(envelope, sources=sources)
+
+                self.assertEqual(result.analysis["summary"], self.fallback["summary"])
+                self.assertIn("summary", result.fallback_fields)
+                self.assertFalse(result.used_model)
+
+    def test_multimodal_cross_language_negatives_cannot_merge_model_summary(self) -> None:
+        self.sources["attachment:0"] = EvidenceSource(
+            "attachment:0", "attachment", "", "attachment:synthetic.xlsx",
+            attachment_index=0, parsed=True, grounding_mode="visual",
+        )
+        claim = "邮件请求提供或确认报价信息。"
+        negatives = (
+            "Customer doesn't request a quote.",
+            "Customer isn't requesting a quote.",
+            "Customer won't request a quote.",
+            "Customer is cancelling the request for a quote.",
+            "If the customer requests a quote, prepare it later.",
+            "For reference the supplier requests a quote.",
+        )
+
+        for source_text in negatives:
+            with self.subTest(source_text=source_text):
+                envelope = copy.deepcopy(self.envelope)
+                envelope["analysis"]["summary"] = claim
+                envelope["field_evidence"]["/analysis/summary"] = ["thread:0"]
+                sources = copy.deepcopy(self.sources)
+                sources["thread:0"] = EvidenceSource(
+                    "thread:0", "thread", source_text, "thread",
+                )
+
+                result = self.merge(envelope, sources=sources)
+
+                self.assertEqual(result.analysis["summary"], self.fallback["summary"])
+                self.assertIn("summary", result.fallback_fields)
+                self.assertFalse(result.used_model)
+
+    def test_multimodal_safe_ordinary_chinese_exact_claim_still_merges(self) -> None:
+        self.sources["attachment:0"] = EvidenceSource(
+            "attachment:0", "attachment", "", "attachment:synthetic.xlsx",
+            attachment_index=0, parsed=True, grounding_mode="visual",
+        )
+        claim = "包装状态需要人工核查。"
+        self.sources["thread:0"] = EvidenceSource(
+            "thread:0", "thread", claim, "thread",
+        )
+        self.envelope["analysis"]["summary"] = claim
+        self.envelope["field_evidence"]["/analysis/summary"] = ["thread:0"]
+
+        result = self.merge()
+
+        self.assertEqual(result.analysis["summary"], claim)
+        self.assertTrue(result.used_model)
+        self.assertNotIn("summary", result.fallback_fields)
+
+    def test_multimodal_unsupported_action_and_draft_fall_back_by_field(self) -> None:
+        self.sources["attachment:0"] = EvidenceSource(
+            "attachment:0", "attachment", "", "attachment:synthetic.xlsx",
+            attachment_index=0, parsed=True, grounding_mode="visual",
+        )
+        summary = "\u5305\u88c5\u72b6\u6001\u9700\u8981\u4eba\u5de5\u6838\u67e5\u3002"
+        self.sources["thread:0"] = EvidenceSource(
+            "thread:0", "thread", summary, "thread",
+        )
+        envelope = copy.deepcopy(self.envelope)
+        envelope["analysis"]["summary"] = summary
+        envelope["analysis"]["suggested_actions"][0]["description"] = (
+            "\u6267\u884c\u672a\u7ecf\u652f\u6301\u7684\u540e\u7eed\u64cd\u4f5c\u3002"
+        )
+        envelope["analysis"]["reply_draft"]["body"] = (
+            "We completed the unsupported action."
+        )
+        envelope["field_evidence"].update({
+            "/analysis/summary": ["thread:0"],
+            "/analysis/suggested_actions/0/description": ["thread:0"],
+            "/analysis/reply_draft/body": ["thread:0"],
+        })
+
+        result = self.merge(envelope)
+
+        self.assertEqual(result.analysis["summary"], summary)
+        self.assertEqual(
+            result.analysis["suggested_actions"],
+            self.fallback["suggested_actions"],
+        )
+        self.assertEqual(
+            result.analysis["reply_draft"]["subject"],
+            self.fallback["reply_draft"]["subject"],
+        )
+        self.assertEqual(
+            result.analysis["reply_draft"]["body"],
+            self.fallback["reply_draft"]["body"],
+        )
+        self.assertTrue(result.analysis["reply_draft"]["needs_human_review"])
+        self.assertTrue(
+            set(self.fallback["reply_draft"]["review_reasons"]).issubset(
+                result.analysis["reply_draft"]["review_reasons"]
+            )
+        )
+        self.assertIn("suggested_actions", result.fallback_fields)
+        self.assertIn("reply_draft", result.fallback_fields)
+        self.assertNotEqual(result.fallback_fields, ("all",))
+
+    def test_hybrid_attachment_keeps_text_claim_and_rejects_visual_overreach(self) -> None:
+        self.add_attachments()
+        text = "The office document states the packaging note."
+        self.sources["attachment:0"] = EvidenceSource(
+            "attachment:0", "attachment", text, "attachment:synthetic.xlsx",
+            attachment_index=0, parsed=True, grounding_mode="hybrid",
+        )
+        self.add_augmentation("attachment:0", text, [])
+
+        accepted = self.merge()
+
+        self.assertEqual(
+            accepted.analysis["attachment_insights"][0]["summary"], text,
+        )
+        self.assertTrue(accepted.used_model)
+
+        rejected = (
+            "Alice Zhang appears beside the visibly damaged carton.",
+            "A label is visibly present: 1013970520.",
+        )
+        for claim in rejected:
+            with self.subTest(claim=claim):
+                envelope = copy.deepcopy(self.envelope)
+                envelope["attachment_augmentations"][0]["summary"] = claim
+                result = self.merge(envelope)
+                self.assertEqual(
+                    result.analysis["attachment_insights"][0],
+                    self.fallback["attachment_insights"][0],
+                )
+
+        envelope = copy.deepcopy(self.envelope)
+        envelope["analysis"]["summary"] = "图片显示 damaged packaging visible."
+        envelope["field_evidence"]["/analysis/summary"] = ["attachment:0"]
+        global_result = self.merge(envelope)
+        self.assertEqual(global_result.analysis["summary"], self.fallback["summary"])
+
     def test_malformed_or_unknown_global_source_returns_fixed_full_fallback(self) -> None:
         malformed = self.merge({"schema_version": "wrong"})
         self.assertEqual(self.fallback, malformed.analysis)
@@ -1116,6 +1461,16 @@ class ModelResultSafetyTests(unittest.TestCase):
         invalid_registry = self.merge(sources=mismatched)
         self.assertEqual(self.fallback, invalid_registry.analysis)
         self.assertEqual(("all",), invalid_registry.fallback_fields)
+
+        invalid_mode = copy.deepcopy(self.sources)
+        source = invalid_mode["thread:0"]
+        invalid_mode["thread:0"] = EvidenceSource(
+            source.source_id, source.kind, source.grounding_text,
+            source.public_source, grounding_mode="binary",
+        )
+        invalid_grounding = self.merge(sources=invalid_mode)
+        self.assertEqual(self.fallback, invalid_grounding.analysis)
+        self.assertEqual(("all",), invalid_grounding.fallback_fields)
 
     def test_grounding_exception_or_final_validation_failure_returns_full_fallback(self) -> None:
         with patch(

@@ -13,11 +13,17 @@ from backend.exact_fact_patterns import (
 )
 
 from .deepseek_analysis_schema import APPROVED_EVIDENCE_PATTERNS
+from .quantity_facts import (
+    labeled_quantity_candidate_occurrences,
+    labeled_quantity_occurrences,
+)
 from .model_text_safety import passive_commitment_categories
+from .model_source_grounding import claimed_source_violation
 from .prompt_context import EvidenceSource
 
 _INVALID_SOURCE_REASON = "Evidence source is invalid."
 _UNGROUNDED_REASON = "Critical model text is not grounded."
+_INVALID_LABELED_MOQ_SIGNATURE = "quantity:invalid-labeled-moq"
 _UNAVAILABLE_ATTACHMENT_REASON = "Attachment evidence is unavailable."
 _AMOUNT_RE = re.compile(
     r"(?:(?P<prefix>USD|EUR|CNY|RMB|GBP|JPY|CAD|AUD|[$€¥£])\s*"
@@ -91,6 +97,10 @@ def find_grounding_violations(
     """Return one generic deterministic violation for each unsafe text leaf."""
     leaves = dict(_approved_text_leaves(envelope))
     violations: dict[str, GroundingViolation] = {}
+    has_visual_source = any(
+        source.grounding_mode in {"visual", "hybrid"}
+        for source in sources.values()
+    )
     for pointer, claimed in evidence.items():
         if any(source_id not in sources for source_id in claimed):
             violations[pointer] = GroundingViolation(pointer, _INVALID_SOURCE_REASON)
@@ -99,10 +109,13 @@ def find_grounding_violations(
         claimed = tuple(evidence.get(pointer, ()))
         if pointer in violations:
             continue
-        if signatures and not claimed:
+        if _INVALID_LABELED_MOQ_SIGNATURE in signatures:
             violations[pointer] = GroundingViolation(pointer, _UNGROUNDED_REASON)
             continue
         attachment = _attachment_owner_for_pointer(envelope, pointer)
+        if not claimed and (signatures or has_visual_source and attachment is None):
+            violations[pointer] = GroundingViolation(pointer, _UNGROUNDED_REASON)
+            continue
         if attachment is not None:
             owner_id, object_evidence = attachment
             owner = sources.get(owner_id)
@@ -115,20 +128,15 @@ def find_grounding_violations(
             if owner.kind != "attachment" or not owner.parsed:
                 violations[pointer] = GroundingViolation(pointer, _UNAVAILABLE_ATTACHMENT_REASON)
                 continue
-        for source_id in claimed:
-            source = sources.get(source_id)
-            if source is None:
-                break
-            if signatures and source.kind == "attachment" and not source.parsed:
-                violations[pointer] = GroundingViolation(
-                    pointer, _UNAVAILABLE_ATTACHMENT_REASON
-                )
-                break
-            if signatures and not signatures.issubset(
-                _critical_signatures(source.grounding_text)
-            ):
-                violations[pointer] = GroundingViolation(pointer, _UNGROUNDED_REASON)
-                break
+        reason = claimed_source_violation(
+            text, signatures, claimed, sources,
+            attachment[0] if attachment is not None else None,
+            _critical_signatures,
+            pointer=pointer,
+            require_text_grounding=has_visual_source and attachment is None,
+        )
+        if reason is not None:
+            violations[pointer] = GroundingViolation(pointer, reason)
     return tuple(violations[pointer] for pointer in sorted(violations))
 
 
@@ -170,6 +178,8 @@ def _attachment_owner_for_pointer(
 
 def _critical_signatures(text: str) -> frozenset[str]:
     signatures: set[str] = set()
+    labeled_quantities = labeled_quantity_occurrences(text)
+    labeled_candidates = labeled_quantity_candidate_occurrences(text)
     for label, value in iter_exact_identifiers(text):
         signatures.add(f"id:{_identifier_label(label)}:{_compact(value)}")
     for match in _AMOUNT_RE.finditer(text):
@@ -184,10 +194,15 @@ def _critical_signatures(text: str) -> frozenset[str]:
         for match in _RELATIVE_DEADLINE_RE.finditer(text)
     )
     for match in _QUANTITY_RE.finditer(text):
+        if _overlaps_labeled_quantity(match, labeled_quantities):
+            continue
         value = match.group(1) or match.group(3)
         unit = match.group(2) or match.group(4) or ""
         signatures.add(f"quantity:{_number(value)}:{_unit(unit)}")
-    for value, unit in _UNIT_QUANTITY_RE.findall(text):
+    for match in _UNIT_QUANTITY_RE.finditer(text):
+        if _overlaps_labeled_quantity(match, labeled_quantities):
+            continue
+        value, unit = match.groups()
         signatures.add(f"quantity:{_number(value)}:{_unit(unit)}")
     for first, second, unit in _MEASUREMENT_RE.findall(text):
         signatures.add(f"measurement:{_number(first)}x{_number(second)}:{_unit(unit)}")
@@ -195,7 +210,18 @@ def _critical_signatures(text: str) -> frozenset[str]:
         signatures.add(f"measurement:{_number(value)}:{_unit(unit)}")
     signatures.update(_outcome_signatures(text))
     signatures.update(_commitment_signatures(text))
+    for occurrence in labeled_quantities:
+        signatures.update(occurrence.fact.signatures)
+    if any(candidate.fact is None for candidate in labeled_candidates):
+        signatures.add(_INVALID_LABELED_MOQ_SIGNATURE)
     return frozenset(signatures)
+
+
+def _overlaps_labeled_quantity(match: re.Match[str], occurrences: object) -> bool:
+    return any(
+        match.start() < occurrence.end and occurrence.start < match.end()
+        for occurrence in occurrences
+    )
 
 
 def _outcome_signatures(text: str) -> set[str]:

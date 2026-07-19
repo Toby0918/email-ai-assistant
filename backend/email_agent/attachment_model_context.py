@@ -117,6 +117,7 @@ class SanitizedModelText:
 class AttachmentModelCandidate:
     source_id: str
     text: str
+    visual_only: bool = False
 
 
 @dataclass(frozen=True, slots=True, repr=False)
@@ -133,9 +134,11 @@ class AttachmentAnalysisBundle:
     model_candidate: AttachmentModelCandidate | None
 
 
-def attachment_model_candidate(source_id: str, value: str) -> AttachmentModelCandidate | None:
+def attachment_model_candidate(
+    source_id: str, value: str, *, visual_only: bool = False,
+) -> AttachmentModelCandidate | None:
     """Construct a repr-safe candidate only from already-bounded extracted text."""
-    return AttachmentModelCandidate(source_id, value) if value else None
+    return AttachmentModelCandidate(source_id, value, visual_only) if value else None
 
 
 def sanitize_remote_text(

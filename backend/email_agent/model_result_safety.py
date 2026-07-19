@@ -10,6 +10,7 @@ from .deepseek_analysis_schema import validate_deepseek_analysis_v1, validate_en
 from .model_context_projection import safe_decision_brief, safe_timeline_interpretation
 from .model_exact_fact_safety import contains_model_authored_exact_fact
 from .model_grounding import find_grounding_violations
+from .model_known_fact_consistency import known_moq_conflicting_fields
 from .model_text_safety import has_chinese, is_safe_model_text, looks_english, validate_public_language
 from .prompt_context import EvidenceSource
 from .thread_timeline import TimelineBuild
@@ -60,6 +61,9 @@ def merge_deepseek_analysis_v1(
         _retain_backend_exact_fact_fields(
             public, fallback, analysis, raw_analysis, kept,
         )
+        _retain_known_moq_consistent_fields(
+            public, fallback, private, raw_analysis, kept,
+        )
         validate_analysis_result(public)
         validate_public_language(public)
         used_model = any(
@@ -70,7 +74,6 @@ def merge_deepseek_analysis_v1(
         return SafeMergeResult(public, used_model, fields)
     except Exception:
         return SafeMergeResult(_public_fallback(fallback), False, ("all",))
-
 def _validated_private(envelope: object, fallback: Mapping[str, Any]
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     raw = copy.deepcopy(envelope)
@@ -88,7 +91,6 @@ def _validated_private(envelope: object, fallback: Mapping[str, Any]
     else:
         draft["needs_human_review"] = True
     return validate_deepseek_analysis_v1(candidate), raw
-
 def _validate_global_inputs(
     envelope: dict[str, Any], evidence: Mapping[str, Sequence[str]],
     sources: Mapping[str, EvidenceSource],
@@ -96,6 +98,7 @@ def _validate_global_inputs(
     if any(
         key != source.source_id
         or source.kind not in {"thread", "attachment"}
+        or source.grounding_mode not in {"text", "visual", "hybrid"}
         or not isinstance(source.public_source, str)
         or not source.public_source
         for key, source in sources.items()
@@ -110,7 +113,6 @@ def _validate_global_inputs(
     if supplied != envelope_evidence:
         raise ValueError("Evidence map does not match envelope.")
     return supplied
-
 def _merge_direct(
     public: dict[str, Any], analysis: dict[str, Any],
     violations: set[str], kept: set[str],
@@ -125,7 +127,6 @@ def _merge_direct(
             kept.add(field)
         else:
             public[field] = copy.deepcopy(analysis[field])
-
 def _merge_extended(public, fallback, private, raw_analysis, sources, violations, kept) -> None:
     values = {
         "risk_flags": _safe_risks(raw_analysis["risk_flags"], fallback["risk_flags"], violations),
@@ -137,8 +138,6 @@ def _merge_extended(public, fallback, private, raw_analysis, sources, violations
         public[field] = value
         if fell_back:
             kept.add(field)
-
-
 def _retain_backend_exact_fact_fields(
     public: dict[str, Any], fallback: Mapping[str, Any],
     analysis: Mapping[str, Any], raw_analysis: Mapping[str, Any],
@@ -157,12 +156,19 @@ def _retain_backend_exact_fact_fields(
         if contains_model_authored_exact_fact(value):
             public[field] = copy.deepcopy(fallback[field])
             kept.add(field)
-
+def _retain_known_moq_consistent_fields(
+    public: dict[str, Any], fallback: Mapping[str, Any],
+    private: Mapping[str, Any], raw_analysis: Mapping[str, Any],
+    kept: set[str],
+) -> None:
+    local_key_facts = fallback["decision_brief"]["key_facts"]
+    for field in known_moq_conflicting_fields(private, raw_analysis, local_key_facts):
+        public[field] = copy.deepcopy(fallback[field])
+        kept.add(field)
 def _risk_shape(item: object) -> bool:
     return isinstance(item, dict) and set(item) == _RISK_FIELDS and all(
         isinstance(item[field], str) for field in _RISK_FIELDS
     )
-
 def _draft_shape(value: object) -> bool:
     if not isinstance(value, dict) or set(value) != _DRAFT_FIELDS:
         return False
@@ -171,7 +177,6 @@ def _draft_shape(value: object) -> bool:
         and isinstance(value["review_reasons"], list)
         and all(isinstance(item, str) for item in value["review_reasons"])
     )
-
 def _safe_risks(
     items: object, fallback: object, violations: set[str]
 ) -> tuple[list[dict[str, Any]], bool]:
@@ -199,7 +204,6 @@ def _safe_risks(
         result.append(copy.deepcopy(item))
         seen.add(key)
     return result, rejected or result == fallback
-
 def _safe_actions(items: object, fallback: object, violations: set[str]
 ) -> tuple[list[dict[str, Any]], bool]:
     if not isinstance(items, list):
@@ -253,7 +257,11 @@ def _safe_attachments(
         valid = (
             source is not None and source.kind == "attachment" and source.parsed
             and valid_index and ids.count(source_id) == 1 and indexes.count(index) == 1
-            and result[index]["status"] == "parsed"
+            and (
+                result[index]["status"] == "parsed"
+                or source.grounding_mode in {"visual", "hybrid"}
+                and result[index]["status"] == "metadata_only"
+            )
             and source.public_source == "attachment:" + result[index]["filename"]
             and is_safe_model_text(item["summary"], item["key_facts"])
             and not contains_model_authored_exact_fact(item)

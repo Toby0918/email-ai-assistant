@@ -14,14 +14,44 @@ ROOT = Path(__file__).resolve().parents[1]
 EXTENSION = ROOT / "frontend" / "browser_extension"
 API_CLIENT = EXTENSION / "shared" / "api_client.js"
 RESOURCE_COLLECTOR = EXTENSION / "content" / "current_message_collector.js"
+RESOURCE_CLASSIFIER = (
+    EXTENSION / "content" / "exmail_visible_resource_classifier.js"
+)
+MANUAL_FILES = EXTENSION / "shared" / "manual_attachment_files.js"
 
 
 class BrowserExtensionTask6ContractTests(unittest.TestCase):
-    def test_analysis_post_wait_is_15_seconds_and_resource_collection_stays_20_seconds(self) -> None:
+    def test_manual_fallback_adds_no_permission_or_persistent_file_surface(self) -> None:
+        manifest = json.loads((EXTENSION / "manifest.json").read_text(encoding="utf-8"))
+        source = "\n".join(
+            path.read_text(encoding="utf-8")
+            for path in (MANUAL_FILES, EXTENSION / "popup.js", EXTENSION / "popup.html")
+        )
+
+        self.assertEqual(manifest.get("permissions"), ["activeTab", "sidePanel"])
+        self.assertEqual(
+            manifest.get("host_permissions"),
+            ["https://exmail.qq.com/*", "http://127.0.0.1:8765/*"],
+        )
+        for forbidden in (
+            "chrome.downloads",
+            "showOpenFilePicker",
+            "showSaveFilePicker",
+            "chrome.storage",
+            "localStorage",
+            "sessionStorage",
+            "indexedDB",
+            "webkitRelativePath",
+            "lastModified",
+        ):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, source)
+
+    def test_analysis_post_wait_is_60_seconds_and_resource_collection_stays_20_seconds(self) -> None:
         api_source = API_CLIENT.read_text(encoding="utf-8")
         collector_source = RESOURCE_COLLECTOR.read_text(encoding="utf-8")
 
-        self.assertIn("MAX_ANALYZE_TIMEOUT_MS = 15000", api_source)
+        self.assertIn("MAX_ANALYZE_TIMEOUT_MS = 60000", api_source)
         self.assertIn("MAX_OVERALL_RESOURCE_TIMEOUT_MS = 20000", collector_source)
         self.assertNotIn("RESOURCE_COLLECTION_TIMEOUT_MS", api_source)
 
@@ -34,6 +64,7 @@ class BrowserExtensionTask6ContractTests(unittest.TestCase):
             const fs = require("fs");
             const vm = require("vm");
             const source = fs.readFileSync(__COLLECTOR_PATH__, "utf8");
+            const classifierSource = fs.readFileSync(__CLASSIFIER_PATH__, "utf8");
 
             class FakeElement {
               constructor({ tag = "div", attrs = {}, children = [] } = {}) {
@@ -69,6 +100,10 @@ class BrowserExtensionTask6ContractTests(unittest.TestCase):
               querySelectorAll(selector) {
                 return descendants(this).filter((element) => matchesAny(element, selector));
               }
+
+              getBoundingClientRect() {
+                return { left: 0, top: 0, right: 100, bottom: 20, width: 100, height: 20 };
+              }
             }
 
             class FakeDocument {
@@ -77,11 +112,14 @@ class BrowserExtensionTask6ContractTests(unittest.TestCase):
                 this.baseURI = "https://exmail.qq.com/cgi-bin/readmail";
                 this.location = new URL(this.baseURI);
                 this.defaultView = {
+                  innerWidth: 1280,
+                  innerHeight: 720,
                   getComputedStyle: (element) => ({
                     display: element.style.display || "block",
                     visibility: element.style.visibility || "visible",
                   }),
                 };
+                this.documentElement = { clientWidth: 1280, clientHeight: 720 };
               }
 
               querySelector(selector) {
@@ -167,12 +205,18 @@ class BrowserExtensionTask6ContractTests(unittest.TestCase):
               btoa: (binary) => Buffer.from(binary, "binary").toString("base64"),
             };
             context.window = context;
+            vm.runInNewContext(classifierSource, context, {
+              filename: "exmail_visible_resource_classifier.js",
+            });
             vm.runInNewContext(source, context, { filename: "current_message_collector.js" });
 
             (async () => {
               const result = await context.EmailAssistantCurrentMessageCollector.collectVisibleResources(doc, {
-                topLevelDocument: doc,
+                verifiedDocument: doc,
+                verifiedDocumentContext: true,
+                revalidateContext: () => true,
                 currentMessageRoot: currentRoot,
+                currentBodyRoot: currentRoot,
                 currentMessageContainer,
                 verifiedResourceCandidates: resources,
                 resourceControlsVerified: true,
@@ -206,7 +250,9 @@ class BrowserExtensionTask6ContractTests(unittest.TestCase):
               process.exitCode = 1;
             });
             """
-        ).replace("__COLLECTOR_PATH__", json.dumps(str(RESOURCE_COLLECTOR)))
+        )
+        script = script.replace("__COLLECTOR_PATH__", json.dumps(str(RESOURCE_COLLECTOR)))
+        script = script.replace("__CLASSIFIER_PATH__", json.dumps(str(RESOURCE_CLASSIFIER)))
 
         result = subprocess.run(
             ["node", "-e", script],
@@ -252,9 +298,10 @@ class BrowserExtensionTask6ContractTests(unittest.TestCase):
                 body_text: "Synthetic body",
               };
               await context.EmailAssistantApi.analyzeCurrentEmail(email);
+              await context.EmailAssistantApi.analyzeCurrentEmail(email, { timeoutMs: 90000 });
               await context.EmailAssistantApi.analyzeCurrentEmail(email, { timeoutMs: 40000 });
               await context.EmailAssistantApi.analyzeCurrentEmail(email, { timeoutMs: 17 });
-              const expected = [15000, 15000, 17];
+              const expected = [60000, 60000, 40000, 17];
               if (JSON.stringify(requestedDelays) !== JSON.stringify(expected)) {
                 throw new Error(`unexpected analysis waits: ${JSON.stringify(requestedDelays)}`);
               }
@@ -282,7 +329,12 @@ class BrowserExtensionTask6ContractTests(unittest.TestCase):
 
         self.assertEqual(
             script["js"],
-            ["content/current_message_collector.js", "content/exmail_adapter.js"],
+            [
+                "content/exmail_visible_context.js",
+                "content/exmail_visible_resource_classifier.js",
+                "content/current_message_collector.js",
+                "content/exmail_adapter.js",
+            ],
         )
         self.assertEqual(script["matches"], ["https://exmail.qq.com/*"])
         self.assertEqual(
@@ -351,7 +403,7 @@ class BrowserExtensionTask6ContractTests(unittest.TestCase):
               });
 
               const expectedTopLevel = [
-                "attachment_files", "attachments", "body_text", "from", "resource_limitations",
+                "attachment_files", "attachments", "body_text", "cc", "from", "resource_limitations",
                 "sent_at", "subject", "thread_segments", "to", "user_confirmed",
               ];
               const keys = Object.keys(requestBody).sort();

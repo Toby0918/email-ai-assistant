@@ -32,7 +32,15 @@ KEY_FILES = [
     ".github/workflows/cleanup_agent.yml",
     "backend/email_agent/__init__.py",
     "backend/email_agent/analysis_schema.py",
+    "backend/email_agent/analysis_budget.py",
+    "backend/email_agent/analysis_diagnostics.py",
+    "backend/email_agent/analysis_model_routes.py",
+    "backend/email_agent/analysis_provider_policy.py",
     "backend/email_agent/analysis_route_support.py",
+    "backend/email_agent/attachment_media_context.py",
+    "backend/email_agent/attachment_parser.py",
+    "backend/email_agent/attachment_safety.py",
+    "backend/email_agent/attachment_storage.py",
     "backend/email_agent/config.py",
     "backend/email_agent/logging_config.py",
     "backend/email_agent/email_cleaner.py",
@@ -44,10 +52,25 @@ KEY_FILES = [
     "backend/email_agent/api.py",
     "backend/email_agent/server.py",
     "backend/email_agent/frontend_assets.py",
+    "backend/email_agent/image_media_safety.py",
+    "backend/email_agent/llm_errors.py",
     "backend/email_agent/model_context_selection.py",
+    "backend/email_agent/model_cross_language_grounding.py",
+    "backend/email_agent/model_grounding.py",
+    "backend/email_agent/model_multimodal_claim_safety.py",
+    "backend/email_agent/model_request.py",
+    "backend/email_agent/model_result_safety.py",
+    "backend/email_agent/model_source_grounding.py",
+    "backend/email_agent/model_visual_grounding.py",
+    "backend/email_agent/multimodal_media.py",
+    "backend/email_agent/office_embedded_media.py",
+    "backend/email_agent/openai_multimodal_client.py",
     "backend/email_agent/participant_identity_aliases.py",
+    "backend/email_agent/pdf_media_safety.py",
     "backend/email_agent/private_context_gate.py",
     "backend/email_agent/private_provider_output_gate.py",
+    "backend/email_agent/prompt_context.py",
+    "backend/email_agent/thread_prompt_projection.py",
     "frontend/local_debug_page/index.html",
     "frontend/local_debug_page/app.js",
     "frontend/local_debug_page/styles.css",
@@ -57,7 +80,10 @@ KEY_FILES = [
     "frontend/browser_extension/popup.js",
     "frontend/browser_extension/content/current_message_collector.js",
     "frontend/browser_extension/content/exmail_adapter.js",
+    "frontend/browser_extension/content/exmail_visible_context.js",
+    "frontend/browser_extension/content/exmail_visible_resource_classifier.js",
     "frontend/browser_extension/shared/api_client.js",
+    "frontend/browser_extension/shared/manual_attachment_files.js",
     "frontend/browser_extension/shared/render_analysis.js",
     "frontend/browser_extension/shared/analysis_components.css",
     "docs/constraints/tooling_constraints.md",
@@ -65,10 +91,13 @@ KEY_FILES = [
     "docs/constraints/linter_constraints.md",
     "docs/constraints/mechanical_rule_translation.md",
     "docs/decisions/0006-authorized-mailbox-ingest-and-private-knowledge.md",
+    "docs/decisions/0007-multimodal-current-email-analysis.md",
     "docs/operations/authorized_mailbox_ingest_task_brief.md",
     "docs/operations/deepseek_analysis_contract_alignment_task_brief.md",
     "docs/operations/private_deepseek_evaluation_task_brief.md",
     "docs/operations/private_mailbox_rollout_closeout_task_brief.md",
+    "docs/operations/multimodal_current_email_analysis_task_brief.md",
+    "docs/operations/current_email_grounding_and_attachment_repair_task_brief.md",
     "docs/operations/project_status_log.md",
     "docs/operations/project_status_log_guide.md",
     "docs/operations/agents_project_status_snippet.md",
@@ -82,6 +111,8 @@ KEY_FILES = [
     "docs/superpowers/plans/2026-07-14-mailbox-vault.md",
     "docs/superpowers/plans/2026-07-14-private-knowledge.md",
     "docs/superpowers/plans/2026-07-14-private-deepseek-evaluation.md",
+    "docs/superpowers/plans/2026-07-16-multimodal-current-email-analysis.md",
+    "docs/superpowers/plans/2026-07-17-current-message-attachment-acquisition.md",
     "docs/templates/agent_task_brief_template.md",
     "docs/templates/cleanup_task_template.md",
     "scripts/repo_utils.py",
@@ -99,6 +130,7 @@ KEY_FILES = [
     "status_local_service.cmd",
     "tests/fixtures/sample_emails.json",
     "tests/test_analysis_schema.py",
+    "tests/test_analysis_model_routes.py",
     "tests/test_golden_email_analysis.py",
     "tests/test_rule_analyzer.py",
     "tests/test_database.py",
@@ -123,6 +155,16 @@ KEY_FILES = [
     "tests/test_browser_extension_manifest.py",
     "tests/test_browser_extension_static.py",
     "tests/test_browser_extension_behavior.py",
+    "tests/test_browser_extension_renderer_behavior.py",
+    "tests/test_browser_extension_manual_attachment_files.py",
+    "tests/test_browser_extension_task_focused_ui.py",
+    "tests/test_browser_extension_visible_resource_classifier.py",
+    "tests/test_model_grounding.py",
+    "tests/test_model_result_safety.py",
+    "tests/test_multimodal_documentation_contracts.py",
+    "tests/test_multimodal_media.py",
+    "tests/test_office_embedded_media.py",
+    "tests/test_openai_multimodal_client.py",
 ]
 
 DOC_DIRS = [
@@ -172,6 +214,21 @@ AUTHORIZED_PRIVATE_READY_FILES = {
     "scripts/repository_leakage_scan.py",
     "docs/operations/private_deepseek_evaluation_task_brief.md",
     "docs/operations/private_mailbox_rollout_closeout_task_brief.md",
+}
+
+MULTIMODAL_CURRENT_EMAIL_READY_FILES = {
+    "frontend/browser_extension/content/exmail_visible_context.js",
+    "frontend/browser_extension/content/exmail_visible_resource_classifier.js",
+    "frontend/browser_extension/shared/render_analysis.js",
+    "backend/email_agent/multimodal_media.py",
+    "backend/email_agent/openai_multimodal_client.py",
+    "backend/email_agent/analysis_model_routes.py",
+    "backend/email_agent/model_grounding.py",
+    "backend/email_agent/model_visual_grounding.py",
+    "docs/operations/multimodal_current_email_analysis_task_brief.md",
+    "tests/test_openai_multimodal_client.py",
+    "tests/test_analysis_model_routes.py",
+    "tests/test_browser_extension_task_focused_ui.py",
 }
 
 HARD_BOUNDARIES = [
@@ -241,6 +298,8 @@ def count_docs_by_status() -> dict[str, int]:
 
 def infer_stage(files: Sequence[FileStatus]) -> str:
     existing = {item.path for item in files if item.exists}
+    if MULTIMODAL_CURRENT_EMAIL_READY_FILES.issubset(existing):
+        return "multimodal_current_email_offline_ready_live_pending"
     if AUTHORIZED_PRIVATE_READY_FILES.issubset(existing):
         return "authorized_private_analysis_offline_ready"
     if AUTHORIZED_PRIVATE_INGEST_FILES.issubset(existing):
@@ -300,7 +359,15 @@ def render_boundaries() -> str:
 
 
 def render_next_steps(stage: str) -> str:
-    if stage == "authorized_private_analysis_offline_ready":
+    if stage == "multimodal_current_email_offline_ready_live_pending":
+        steps = [
+            "Keep `EMAIL_AGENT_LLM_PROVIDER=disabled` outside a separately authorized, bounded live test process; offline completion does not authorize live operation.",
+            "Task 9 synthetic provider and current-clicked Tencent smokes are complete; no prior check authorizes another live operation.",
+            "Task 5 real current-message attachment smoke remains pending and requires fresh explicit authorization after offline review; do not navigate, scan, send, or disclose content.",
+            "Keep the administrator-only mailbox CLI and click-only current-message runtime as separate authorization surfaces.",
+            "Run the content-free repository leakage scan and complete local human review before any release.",
+        ]
+    elif stage == "authorized_private_analysis_offline_ready":
         steps = [
             "Keep `EMAIL_AGENT_LLM_PROVIDER=disabled`; offline completion does not authorize live operation.",
             "Do not connect to a mailbox or run DeepSeek without a separate operator authorization after offline gates pass.",
@@ -378,7 +445,11 @@ source_type: operation_guide
 
 Separately authorized exception: the `administrator-only CLI remains default-off` and may import one authorized account within a rolling 24-month window only after explicit inventory fingerprint confirmation. The browser extension and normal runtime remain click-only and cannot scan a mailbox. The exception has no schedule, browser hook, normal-backend route, or automatic model call.
 
-The private-knowledge snapshot is verified and read-only; an invalid or missing private-knowledge snapshot returns generic rule fallback. DeepSeek outbound content remains locally deidentified with browser/backend/provider/minimum budgets of `15/13/10/5` seconds. Private evaluation is blocked by `human_judge_unavailable` by default and does not switch production models.
+The private-knowledge snapshot is verified and read-only; an invalid or missing private-knowledge snapshot returns generic rule fallback. Tasks 1-7 of the multimodal current-email route are offline implemented and review-clean. The route is one OpenAI multimodal primary call, at most one eligible DeepSeek text-only fallback, and deterministic rules last; all providers remain disabled by default. Its budget tuple is `60/55/35/10/12/8/5` seconds: 60-second POST wait, 55-second backend target, 35-second OpenAI cap, 10-second DeepSeek cap, 12-second fallback minimum, 8-second parser cap, and 5-second reserve. Browser media discovery remains a separate 20-second resource collection phase. Private evaluation is blocked by `human_judge_unavailable` by default and does not switch production models.
+
+Current-message attachment acquisition recognizes only a verified legacy current-message control after Analyze and keeps automatic bytes in browser memory. The manual picker selection is inert until Analyze. Both paths share 5 files, 10 MiB per file, and 25 MiB total, add no download/storage/filesystem permission, and expose no local path. Backend request-local files are removed from request `finally`; the 24-hour mtime cleanup is crash recovery only, not normal retention or a scheduled job. Only `attachment_insights[].status=parsed` proves content parsing.
+
+Task 9 synthetic provider and current-clicked Tencent smokes are complete. The bounded checks inspected only approved status fields and structural counts; no prior check authorizes another live operation. Task 5 real current-message attachment smoke remains pending and requires fresh explicit authorization after offline Tasks 1-4 pass review. The new attachment acquisition path is not live-tested.
 
 The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器扩展, with current-message collection only after an explicit user click.
 

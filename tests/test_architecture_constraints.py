@@ -782,6 +782,28 @@ class ArchitectureConstraintTests(unittest.TestCase):
         forbidden = {"database", "exporter", "frontend"}
         self.assertTrue(imports.isdisjoint(forbidden), imports)
 
+    def test_multimodal_provider_configuration_and_budgets_are_mechanical(self) -> None:
+        config = read_text(ROOT / "backend" / "email_agent" / "config.py")
+        budget = read_text(ROOT / "backend" / "email_agent" / "analysis_budget.py")
+        extension = read_text(
+            ROOT / "frontend" / "browser_extension" / "shared" / "api_client.js"
+        )
+        local_debug = read_text(ROOT / "frontend" / "local_debug_page" / "app.js")
+        evaluation_runner = read_text(ROOT / "backend" / "private_evaluation" / "runner.py")
+
+        self.assertIn('openai_model: str = "gpt-5.6-sol"', config)
+        self.assertIn("openai_timeout_seconds: int = 35", config)
+        self.assertIn('text_fallback_provider: str = "disabled"', config)
+        self.assertNotIn("EMAIL_AGENT_OPENAI_BASE_URL", config)
+        self.assertIn("BACKEND_TARGET_SECONDS = 55.0", budget)
+        self.assertIn("PROVIDER_MAX_SECONDS = 35.0", budget)
+        self.assertIn("DEEPSEEK_PROVIDER_MAX_SECONDS = 10.0", budget)
+        self.assertIn("TEXT_FALLBACK_MIN_REMAINING_SECONDS = 12.0", budget)
+        self.assertIn("RESPONSE_MARGIN_SECONDS = 5.0", budget)
+        self.assertIn("MAX_ANALYZE_TIMEOUT_MS = 60000", extension)
+        self.assertIn("ANALYZE_TIMEOUT_MS = 60000", local_debug)
+        self.assertIn("deadline=started + 13.0", evaluation_runner)
+
     def test_python_modules_do_not_contain_raw_secret_literals(self) -> None:
         secret_patterns = {
             "openai_key": r"\bsk-[A-Za-z0-9_-]{10,}",

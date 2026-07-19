@@ -15,12 +15,45 @@ from backend.email_agent.attachment_storage import (
     AttachmentInputError,
     AttachmentOperationError,
     cleanup_expired_attachments,
+    remove_stored_attachments,
     store_attachment_files,
 )
 from backend.email_agent.config import load_config
 
 
 class AttachmentStorageTests(unittest.TestCase):
+    def test_remove_stored_attachments_empties_request_directory_after_success(self) -> None:
+        with TemporaryDirectory() as directory:
+            config = self._config(directory)
+            stored = store_attachment_files([self._file("current.pdf", b"current")], config)
+
+            remove_stored_attachments(tuple(stored))
+
+            self.assertEqual(list(Path(directory).iterdir()), [])
+
+    def test_remove_stored_attachments_deletes_only_exact_batch_and_is_idempotent(self) -> None:
+        with TemporaryDirectory() as directory:
+            config = self._config(directory)
+            stored = store_attachment_files([self._file("current.pdf", b"current")], config)
+            unrelated = Path(directory) / "unrelated.pdf"
+            unrelated.write_bytes(b"unrelated")
+
+            remove_stored_attachments(tuple(stored))
+            remove_stored_attachments(tuple(stored))
+
+            self.assertFalse(stored[0].path.exists())
+            self.assertTrue(unrelated.exists())
+
+    def test_remove_stored_attachments_never_raises_or_exposes_unlink_failure(self) -> None:
+        with TemporaryDirectory() as directory:
+            config = self._config(directory)
+            stored = store_attachment_files([self._file("current.pdf", b"current")], config)
+
+            with patch.object(Path, "unlink", side_effect=OSError("PRIVATE_PATH_DETAIL")):
+                remove_stored_attachments(tuple(stored))
+
+            self.assertTrue(stored[0].path.exists())
+
     def test_store_attachment_files_rejects_file_over_byte_limit(self) -> None:
         with TemporaryDirectory() as directory:
             config = self._config(directory, attachment_max_file_bytes=3)

@@ -7,6 +7,7 @@ from dataclasses import dataclass
 
 from backend.exact_fact_patterns import iter_exact_identifiers
 
+from .quantity_facts import labeled_quantity_facts
 from .thread_dates import deadline_date_hints
 
 
@@ -106,11 +107,12 @@ def _reference_display(label: str, value: str) -> str:
 
 
 def _find_quantities(text: str) -> list[str]:
+    labeled = [fact.display for fact in labeled_quantity_facts(text)]
     patterns = [
         r"\b\d{1,3}(?:,\d{3})+(?:\.\d+)?\s*(?:pcs|pieces|units|pc|sets|kg)\b",
         r"\b\d+(?:\.\d+)?\s*(?:pcs|pieces|units|pc|sets|kg)\b",
     ]
-    return _unique_short(_find_all(patterns, text))
+    return _unique_short([*labeled, *_find_all(patterns, text)])
 
 
 def _find_measurements(text: str) -> list[str]:

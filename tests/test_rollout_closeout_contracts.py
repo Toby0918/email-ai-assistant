@@ -1,4 +1,4 @@
-"""Operational and generated-status closeout contracts for Task 7."""
+"""Operational and generated-status closeout contracts for Task 8."""
 
 from __future__ import annotations
 
@@ -52,14 +52,14 @@ class RolloutCloseoutContractTests(unittest.TestCase):
         paths = (
             ROOT / "docs" / "api" / "frontend_backend_flow.md",
             ROOT / "docs" / "operations" / "testing_checklist.md",
-            ROOT / "docs" / "operations" / "deployment_notes.md",
         )
         combined = "\n".join(path.read_text(encoding="utf-8") for path in paths)
 
         for required in (
             "task card",
             "closed native `<details>`",
-            "未使用 DeepSeek：本次结果由本地规则生成。",
+            "OpenAI 多模态结果未采用，本次使用 DeepSeek 文本回退。",
+            "远程模型结果未采用，本次使用安全规则结果。",
             "render_analysis.js",
             "analysis_components.css",
             "0.2.3",
@@ -93,12 +93,16 @@ class RolloutCloseoutContractTests(unittest.TestCase):
         )
         report = module.build_project_status()
 
-        self.assertIn("| Current stage | authorized_private_analysis_offline_ready |", report)
+        self.assertIn(
+            "| Current stage | multimodal_current_email_offline_ready_live_pending |",
+            report,
+        )
         self.assertIn("administrator-only CLI remains default-off", report)
         self.assertIn("browser extension and normal runtime remain click-only", report)
         self.assertIn("private-knowledge snapshot", report)
         self.assertIn("generic rule fallback", report)
-        self.assertIn("15/13/10/5", report)
+        self.assertIn("60/55/35/10/12/8/5", report)
+        self.assertNotIn("15/13/10/5", report)
         self.assertIn("human_judge_unavailable", report)
         self.assertIn("does not switch production models", report)
         self.assertIn("repository leakage scan", report)
@@ -170,6 +174,9 @@ class RolloutCloseoutContractTests(unittest.TestCase):
     def test_product_roadmap_does_not_claim_live_authorization(self) -> None:
         text = (ROOT / "docs" / "product" / "roadmap.md").read_text(encoding="utf-8")
         self.assertIn("authorized_private_analysis_offline_ready", text)
+        self.assertIn("multimodal_current_email_offline_ready_live_pending", text)
+        self.assertIn("Task 9", text)
+        self.assertIn("not live-tested", text)
         self.assertIn("offline completion does not equal live authorization", text)
         self.assertNotIn("current status is `authorized_private_ingest_build`", text)
 

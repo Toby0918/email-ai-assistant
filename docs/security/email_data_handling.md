@@ -1,5 +1,5 @@
-﻿---
-last_update: 2026-07-15
+---
+last_update: 2026-07-18
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -46,6 +46,15 @@ folder/subscription 操作。app password 只能在本地政策检查后通过 i
 - 完整序列化 remote context 必须跨 metadata、visible thread 和 attachment text 删除 credential 值。分隔形式包括 colon、equals、copula or whitespace-only separators 以及单/双引号；同时继续删除 URL、base64、authorization、cookie、token、路径和 active content。只有不携带密钥值的 password-reset status、API-key rotation policy、token expiry、cookie policy 和 session-ID expiry 可保留。
 
 ## 存储
+
+### Current-message attachment acquisition
+
+- Automatic legacy-control fetch is allowed only after Analyze for the already opened current message. Bytes stay in browser memory until the bounded request payload is released.
+- A manual picker may hold a visible operator selection, but selecting or changing it performs zero reads. The file is read only within Analyze, then the input value and in-memory references are cleared on every exit.
+- No `chrome.downloads`, `showOpenFilePicker`, File System Access surface is permitted; no `localStorage`, `sessionStorage`, `IndexedDB`, or `chrome.storage` persistence is permitted. Local path fields, private URLs, queries, cookies, tokens, `File` objects, and exception text never enter the API payload, HTTP response, SQLite, or logs.
+- Both acquisition routes enforce 5 files, 10 MiB per file, and 25 MiB total. Selection does not expand current-message ownership or authorize navigation.
+- The backend deletes request-local files from request `finally` on every exit. A 24-hour mtime cleanup is crash recovery only: it is not normal retention and is not scheduled. This is not a physical secure-erasure claim.
+- Only `attachment_insights[].status == "parsed"` is evidence that supported content was parsed. `metadata_only`, `unavailable`, and `failed` are not.
 
 - 本地 SQLite 仅用于调试、回看和功能验证。
 - 不提交数据库文件。
@@ -106,10 +115,13 @@ folder/subscription 操作。app password 只能在本地政策检查后通过 i
 ## AI 处理
 
 - 邮件正文只能从当前打开邮件、用户点击分析后进入后端。
+- 默认 `EMAIL_AGENT_LLM_PROVIDER=disabled` 和 `EMAIL_AGENT_TEXT_FALLBACK_PROVIDER=disabled`。只有显式 `EMAIL_AGENT_LLM_PROVIDER=openai` 才可选择固定 `gpt-5.6-sol` 多模态主路线；OpenAI 使用代码固定的官方 endpoint，不接受可配置 base URL，timeout cap 为 35 秒且 SDK retry 为 0。
+- 后端共享分析目标为 55 秒，并保留 5 秒响应/持久化余量。OpenAI 失败后，只有显式配置 `EMAIL_AGENT_TEXT_FALLBACK_PROVIDER=deepseek` 且调用前剩余至少 12 秒，才可进行一次最多 10 秒的 text-only DeepSeek fallback。浏览器扩展和 local debug POST wait 为 60 秒；资源收集仍使用独立 20 秒期限。
 - 默认 `EMAIL_AGENT_LLM_PROVIDER=disabled`，DeepSeek 输出模式默认 `conservative`。只有后端同时配置 `EMAIL_AGENT_LLM_PROVIDER=deepseek` 和 `EMAIL_AGENT_DEEPSEEK_OUTPUT_MODE=model_led` 时，DeepSeek 才可主导模型字段；provider disabled、缺 key、迟到、失败或输出不安全时回落规则结果。
 - 模型上下文采用 current-first 选择：当前邮件始终是唯一必需候选，只有与当前诉求相关且通过隐私门的历史才形成 `relevant_history`。历史 privacy failure downgrades to `current_only`，不会阻止安全当前邮件继续分析；当前邮件 privacy preflight 失败则 zero provider calls。对当前邮件及每个实际选中的历史值执行 per-value deidentification，不共享原始身份映射。provider 只解释被选上下文；后端继续保留 full deterministic timeline，并在模型验证后执行 local exact-fact merge。
-- DeepSeek 路线最多进行一次 provider call，SDK retry 为 0；失败后不尝试 Ollama。立即 operational rollback 可设置 `EMAIL_AGENT_LLM_PROVIDER=disabled`，字段权限 rollback 可设置 `EMAIL_AGENT_DEEPSEEK_OUTPUT_MODE=conservative`，两者都需重启后端配置生效。
-- 后端只发送 current visible thread 以及当前可见受支持附件的有界、清洗后文本；不发送附件二进制/base64、任何 URL、cookie、authorization、token、本地路径、active content 或无界原文。
+- 独立 DeepSeek-led 路线最多进行一次 provider call；Option C 最多执行一次 OpenAI 主调用，再在 eligible failure 且最终预算仍至少 12 秒时执行一次 DeepSeek text-only fallback。每个 SDK retry 为 0，失败后不尝试 Ollama。立即 operational rollback 可设置 `EMAIL_AGENT_LLM_PROVIDER=disabled`；设置 `EMAIL_AGENT_TEXT_FALLBACK_PROVIDER=disabled` 可关闭第二次 provider 调用；字段权限 rollback 可设置 `EMAIL_AGENT_DEEPSEEK_OUTPUT_MODE=conservative`，均需重启后端配置生效。
+- OpenAI 只接收 current visible thread 以及 selected、locally screened current-message media；签名头像、logo、tracker、隐藏/外部/归属歧义资源不出站。DeepSeek 只接收有界、清洗、去标识文本，不发送附件二进制/base64、任何 URL、cookie、authorization、token、本地路径、active content 或无界原文。
+- visual-only 输出只能定性增强 matching attachment insight，不能支持 global fields、identity、protected traits、precise facts、commands、commitments 或 outcomes。text/hybrid source 与 body-only fixed cross-language bridge 仍须通过本地 evidence 和实际发送正文投影核对。
 - 私有知识路线启用后，DeepSeek 也只能接收本地去标识后的 current visible thread、去标识后的受支持附件文本和最多 8 张、合计最多 4,000 characters 的 approved cards；身份上下文覆盖当前头部和所有实际发送的 timeline sender/recipient，任何实际出站截断只允许停在完整 token 边界，无安全边界则丢弃字段。不得接收 raw vault、binary、path、URL、source locator、identity source/ID、vault ID 或 restoration map。
 - 所有 provider-authored 文本族在公开合并前使用同一安全策略；DeepSeek 输出必须先经过 raw privacy scan 和有界、duplicate-key-safe JSON privacy decode，decoded key 或 string leaf 中的 placeholder、private/restoration marker 会在业务 parser 前 fail closed。模型 must never emit deidentification placeholder tokens，只能使用 generic references for exact identifiers and dates；backend-verified exact facts remain authoritative，并由本地确定性规则安全补回，歧义或不支持的格式不得由模型猜测。model-authored exact identifiers and dates fall back to backend rule fields，覆盖两种 DeepSeek 模式的所有模型可写文本族。internal deidentification tokens stay local，并在 provider 调用前确定性转换成无编号通用语义；随后执行 post-conversion residual scan，且 any unknown token fails closed。链接/markup、命令/工具、自动邮箱动作，以及第一人称或被动/名词化的价格、交期、付款、合同、质量、法律承诺都必须回落。请求、疑问、否定和人工复核措辞不应误报。
 - 前端不得直接调用 DeepSeek、OpenAI、Ollama、Qwen 或其他模型端点。
@@ -117,9 +129,11 @@ folder/subscription 操作。app password 只能在本地政策检查后通过 i
 
 ## 远程处理告知与外部保留风险
 
-浏览器扩展和本地调试页必须在 Analyze 按钮前持续显示以下 exact persistent pre-click disclosure：
+浏览器扩展和本地调试页已在 Analyze 按钮前持续显示以下 exact persistent pre-click disclosure；Task 7 已完成共享 markup 与静态/行为测试：
 
-After you click Analyze, a configured remote AI provider receives locally deidentified current visible content and, when available, bounded approved knowledge cards. Processing is not local-only, and no zero-retention guarantee is made.
+```text
+After you click Analyze, configured remote AI providers may receive locally deidentified current visible email text and selected current-message images or files after local screening. Media pixels or document content may contain identifying information and are not guaranteed to be fully deidentified. Processing is not local-only, and no zero-retention guarantee is made.
+```
 
 该告知不等于前端知道或持有 provider key，也不授权读取其他邮件、自动执行邮箱动作或后台收集。任何不允许外部处理的邮件都必须在点击前切换到 disabled/rule-only 路线。
 

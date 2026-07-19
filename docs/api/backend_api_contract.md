@@ -1,5 +1,5 @@
-﻿---
-last_update: 2026-07-15
+---
+last_update: 2026-07-18
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -14,9 +14,12 @@ source_type: api_contract
 
 ### Backend-only provider contract
 
-- 公开请求/响应 schema 不因 provider 改变。后端默认 `EMAIL_AGENT_LLM_PROVIDER=disabled`，`EMAIL_AGENT_DEEPSEEK_OUTPUT_MODE=conservative`；只有 `EMAIL_AGENT_LLM_PROVIDER=deepseek` 与 `EMAIL_AGENT_DEEPSEEK_OUTPUT_MODE=model_led` 同时显式配置时，DeepSeek 才能主导 consequential fields。
-- DeepSeek endpoint 固定为 `https://api.deepseek.com`，只允许 `deepseek-v4-flash` 和 `deepseek-v4-pro`。集成复用 `openai==2.45.0`，不安装第三方 DeepSeek package，也不接受 arbitrary remote base URL。
-- 每次分析最多发出 one provider call。SDK `max_retries=0`，请求为 non-streaming JSON object，并通过 `extra_body={"thinking":{"type":"disabled"}}` 使用 non-thinking mode。任何 provider 失败都回落规则结果，does not try Ollama。
+- 公开请求/响应 schema 不因 provider 改变；它仍是 unchanged public analysis schema。all providers disabled by default：`EMAIL_AGENT_LLM_PROVIDER=disabled`、`EMAIL_AGENT_TEXT_FALLBACK_PROVIDER=disabled`，且 `EMAIL_AGENT_DEEPSEEK_OUTPUT_MODE=conservative`。
+- Option C 显式启用后，调用链最多是 one OpenAI multimodal primary call、one DeepSeek text-only fallback、deterministic rules last；每个 provider 都是零重试，does not try Ollama。
+- OpenAI 主路线只允许 `gpt-5.6-sol`，固定 official endpoint `https://api.openai.com/v1`，使用 Responses API。OpenAI omits `text.format`; the JSON-only prompt is enforced by strict local validation. 请求保留 `store=false`、`stream=false`、`max_retries=0`、no tools（`tools=[]`）、`text.verbosity=low`、`reasoning.effort=low`，且 `max_output_tokens=2400`（2,400）；图片和文件输入固定使用 `detail=high`。输出必须通过拒绝 duplicate key 的本地 JSON 解码以及严格的 private-envelope、schema、evidence、privacy、grounding 和 safety 校验。不允许环境变量覆盖 OpenAI base URL。
+- OpenAI 只接收用户当前点击邮件的 locally screened、selected current-message text/media。媒体必须先经过本地资源分类、大小/类型/active-content 筛查，并只作为 opaque request-local payload 使用；URL、cookie、token、路径和恢复映射不出站。纯视觉来源只在 OpenAI 请求中使用固定、已去标识的自然语言描述，内部 `UNTRUSTED_MEDIA` 控制标记不出站；若允许列表中的定性观察确实可见，模型必须生成一个 source-bound attachment augmentation，并为每个 leaf 提供 evidence。
+- DeepSeek endpoint 固定为 `https://api.deepseek.com`，只允许 `deepseek-v4-flash` 和 `deepseek-v4-pro`。它仅在 OpenAI 发生 eligible provider failure、显式启用文本 fallback、且剩余至少 12 秒时调用一次；只发送已去标识文本，不发送图片或二进制。
+- privacy/private-artifact/routing/budget block 永不进入 DeepSeek fallback；OpenAI 或 DeepSeek 任一输出未通过本地严格校验时都进入下一条允许路线或规则结果。集成复用 `openai==2.45.0`，不安装第三方 provider package，也不接受 arbitrary remote base URL。
 - DeepSeek 的 `conservative` 与 `model_led` 路线都必须通过 backend-only private outbound gate。去标识身份上下文必须覆盖当前 sender/to/cc 和实际选入 prompt 的每个 timeline source sender/recipient；结构无效、畸形或超限时 fail closed。provider 只接收 locally deidentified plain text 和最多 8 张、合计 4,000 characters 的 identifier-free approved knowledge cards；placeholder mapping/resolver、identity source/ID、card/snapshot/vault identifier、path、URL、binary 和 restoration hint 都不得越过该门。模型 must never emit deidentification placeholder tokens，只能使用 generic references for exact identifiers and dates；backend-verified exact facts remain authoritative，并由本地确定性规则在安全合并时补回。model-authored exact identifiers and dates fall back to backend rule fields，覆盖摘要、原因、标签、Decision Brief、时间线、风险、动作、草稿和附件增强。internal deidentification tokens stay local，并在 provider 调用前确定性转换成无编号通用语义；随后执行 post-conversion residual scan，且 any unknown token fails closed。provider 输出在业务 parser 前先做 raw scan，再做有 size/depth/item 上限、拒绝 duplicate key 的 privacy-only JSON decode，并递归扫描 decoded keys 和 string leaves；非法 JSON 或私有标记直接完整规则回落。
 - DeepSeek 响应先解析为内部 `deepseek_analysis_v1`，再执行来源、grounding、mandatory-risk、commitment/action 和公开 schema 校验。所有 provider-authored 文本族共享 universal policy：URL/markup、工具/命令、自动邮箱动作和第一人称或被动后果性承诺均按字段回落；安全的请求、疑问、否定和人工核查措辞允许保留。公开响应仍只有本页列出的字段。
 
@@ -204,7 +207,7 @@ operator-only 日志位置、轮转上限和读取命令见 `docs/conventions/lo
     },
     "analysis_engine": {
       "source": "ai_model | rule_fallback",
-      "label": "DeepSeek V4 Flash | DeepSeek V4 Pro | Local Qwen | Rule fallback",
+      "label": "backend-compatible display label",
       "context_scope": "current_only | relevant_history",
       "context_limited": true
     }
@@ -221,6 +224,8 @@ operator-only 日志位置、轮转上限和读取命令见 `docs/conventions/lo
 - 扩展在分析前和渲染/复制前使用同一个 canonical complete analyzed scope 指纹：基础邮件、完整可见线程、基础与受支持附件元数据、受支持附件内容 identity，以及影响分析的 resource limitations。revalidation 只返回重算 hash；thread-only、attachment-metadata-only、attachment-content-only 或 limitation-only 变化都必须进入现有 stale 状态，且不得向 popup/storage 暴露原文。
 - `attachments` 仅包含安全显示用元数据，不构成已解析事实。`attachment_files` 只允许受支持类型的受限 base64 字节；不得传入附件 URL、cookie、token、邮箱凭据或本地路径。
 - 前端最多传输 5 个受支持的 `attachment_files`，并最多传入 8 个 `resource_limitations`。如果候选资源超出有界扫描或报告容量，`candidate_omission` 聚合项优先保留。
+- Automatic and explicit-picker acquisition share 5 files, 10 MiB per file, and 25 MiB total. Neither route adds a new request field. Private URLs, query values, cookies, tokens, `File` objects, and local path fields are forbidden.
+- Browser-selected content is read only in the Analyze click lifecycle and exists only in memory before the request. Backend temporary files are request-local and removed from request `finally` on every exit. The 24-hour mtime cleanup is crash recovery only, not normal retention and not a scheduled retention process.
 - 前端限制码只允许 `unsupported_type`、`frontend_limit`、`resource_unavailable`、`resource_read_failed`、`collection_timeout` 和 `candidate_omission`。未知码和前端伪造的 `operational_failure` 必须丢弃，不得根据英文 `limitation` 文本推断状态。
 - `operational_failure` 只能由后端附件临时存储或清理失败产生，并使用独立保留槽；它不得被前端 8 项上限或 `candidate_omission` 隐藏。
 - 后端将允许的机器码投影为固定安全文本和状态：`resource_read_failed`、`collection_timeout` 和 `operational_failure` 对应 `failed`，其他前端限制码对应 `unavailable`。
@@ -231,11 +236,15 @@ operator-only 日志位置、轮转上限和读取命令见 `docs/conventions/lo
 - 通用附件文本清洗不对“RFQ”标签或 ISO 日期做长数字豁免，并必须删除连续、跨空白或常见分隔符连接的任意 7 位及以上数字序列。专用组件提取器只能对完整字段段执行 `label + value` 全匹配；值字符集限 `[A-Z0-9_-]`，纯数字值限 4-9 位，任何值最多包含 9 个数字，并拒绝异种/重复前缀、电话、卡号/账号、路径和 URI/域名形状。表格字段只接受恰好两个非空 cell 的标签/值行；存在额外 continuation cell 时整行编号失效。
 - 请求动作只保留固定动词和对象类别，质量问题只保留固定信号标签，截止时间只保留明确 cue 和日期/相对时间。每个构造事实必须再通过精确 schema 清洗后才能进入结果、prompt 和 SQLite。
 - 截止时间、请求动作和质量信号在构造前必须按逗号、分号和 `and/but/however/then` 等边界定位候选所在的有界 clause，并只检查候选前后的有限 tokens。请求动作按原文顺序在同一 clause 内配对动词和其后的对象；后置动词不得绑定前一 clause 的对象。只有 affirmative 动词尚未成功配对任何对象时，才可跨 `but/however` 传给紧随的纯对象 clause；一旦构造事实就必须清空该 pending 动词。反转 clause 也不得删除后续真实动作。`not/never/without/free from`、直引号或弯引号 modal contractions、`absent/repaired/removed/withdrawn/waived/cancelled/revoked` 等反转上下文不得生成正向事实；取消、忽略或跳过的 action request 同样拒绝。质量信号紧邻的 `0/zero/nil/non-` 或 `-free/ free` 表示缺失；解决态词只有在未被局部 `not/never/no longer` 反转时才表示问题已解决。截止时间的 `not required/does not apply/no longer applicable/optional` 表示不存在有效截止要求。其他 clause 的否定不得删除当前 clause 的真实事实。
-- 只有 `attachment_insights[].status=parsed` 的 `summary` 和 `key_facts` 可以影响决策摘要、风险、建议动作和回复草稿。其他状态必须返回精确 `limitations`，但不得阻断邮件正文和会话分析。
-- 未启用后端模型 provider，provider 失败/超时/被跳过，或模型返回不可解析/不可校验的 JSON 时，使用本地规则分析器返回可验证结构。
+- text/hybrid 来源只有在逐字段 evidence 与实际发送的正文投影一致时，才可影响对应模型字段；全局字段不能只靠视觉证据。
+- visual-only 只允许生成定性观察并增强其 matching attachment insight；它不能改变附件 status/limitations，也不能支撑 global fields、identity、protected traits、precise facts、commands、commitments 或 outcomes。人物、受保护属性、编号、数量、金额、日期、完成态和业务承诺必须拒绝或由本地确定性事实补充。
+- 只有 `attachment_insights[].status=parsed` 的文本事实可以影响决策摘要、风险、建议动作和回复草稿；视觉增强可在匹配附件中保持 `metadata_only`。其他状态必须返回精确 `limitations`，但不得阻断邮件正文和会话分析。
+- Only `attachment_insights[].status == "parsed"` proves attachment content parsing to the caller. A non-empty insight list, attachment metadata, or a discovered/fetched resource does not prove parsing.
+- 只有 provider disabled with no usable route，或 all configured and eligible model routes 均已失败、超时、被跳过或返回不可解析/不可校验的 JSON 后，才使用本地规则分析器返回可验证结构。Option C 中 eligible OpenAI failure 可在显式启用且预算允许时先进入 DeepSeek text fallback；deterministic rules last。
 - 保守模式只保留经过校验的摘要、优先级、分类和标签增强。DeepSeek-led 模式允许安全且有来源证据的 Decision Brief、风险、建议动作和回复草稿主导公开字段；后端仍拥有 mandatory 风险、完整时间线/开放项骨架、附件状态/限制、枚举、`needs_human_review=true`、来源成员关系、禁止邮箱动作和禁止无条件承诺等不变量。孤立违规使用 field fallback，整体结构/语言/来源/安全失败使用完整规则 fallback。
 - `analysis.conversation_timeline` 和 `analysis.attachment_insights` 由后端确定性生成；模型返回的同名字段不得覆盖它们。
 - `analysis.analysis_engine` 由后端附加，用于显示本次结果来自模型路线还是规则回退；该字段不得由前端传入或由 AI 输出决定。
+- `analysis_engine.label` 保持兼容字符串字段，而不是公开 schema enum。Option C 标准标签为 `OpenAI GPT-5.6 Sol`、`DeepSeek V4 Flash text fallback`、`DeepSeek V4 Pro text fallback` 和 `Rule fallback`。完整 backend-compatible labels 还可能来自旧版或独立 provider 路线：`OpenAI`、`DeepSeek V4 Flash`、`DeepSeek V4 Pro`、`DeepSeek`、`Local Qwen`、`Local Gemma` 和 `Local AI model`；这些兼容标签不会因此被误写成 Option C 已确认状态。
 - `analysis_engine.context_scope` 与 `analysis_engine.context_limited` 是可选的成对响应元数据：both absent or both present。`context_scope` 只允许 `current_only | relevant_history`，`context_limited` 必须是 JSON boolean，并且 `analysis_engine` no extra keys。省略该对字段时保持旧客户端兼容。
 - `analysis.decision_brief` 是面向用户的决策摘要，必须说明邮件目的、当前动作、关键事实、需核查项、缺失信息和回复建议。
 - `analysis` 中的用户反馈字段使用中文；`analysis.reply_draft.subject` 和 `analysis.reply_draft.body` 保持英文。
@@ -244,13 +253,15 @@ operator-only 日志位置、轮转上限和读取命令见 `docs/conventions/lo
 
 ### Ephemeral model context
 
-DeepSeek-led 路线可使用当前可见线程和本地解析出的 ephemeral sanitized attachment context。该上下文有单附件/请求总量上限，移除 URL、密钥、authorization、cookie、token、本地路径、二进制/base64 和 active content。自然语言 credential/password/API-key/session-ID 值即使使用冒号、等号、copula、whitespace-only separator 或引号连接也必须删除；不含值的 reset/rotation/expiry/policy 说明保留。任何实际字符截断必须回退到可证明的完整 token 边界；找不到安全边界时丢弃该字段，不发送截断后的 identifier fragment。整个出站文本还必须经过本地 deidentification 和 residual scan；request-local resolver 在 provider call 前关闭。该上下文及 `runtime_cards` 都不能出现在公开响应、SQLite、frontend renderer、日志或异常；公开 `attachment_insights` 仍是六字段安全投影。
+OpenAI 主路线可使用当前可见线程、本地解析出的 ephemeral sanitized attachment context，以及本地筛选的当前邮件媒体。DeepSeek 主路线或 text fallback 只使用同一范围的去标识文本，不接收媒体。上下文有单附件/请求总量上限，移除 URL、密钥、authorization、cookie、token、本地路径、未批准二进制/base64 和 active content。自然语言 credential/password/API-key/session-ID 值即使使用冒号、等号、copula、whitespace-only separator 或引号连接也必须删除；不含值的 reset/rotation/expiry/policy 说明保留。任何实际字符截断必须回退到可证明的完整 token 边界；找不到安全边界时丢弃该字段，不发送截断后的 identifier fragment。整个出站文本还必须经过本地 deidentification 和 residual scan；request-local resolver 在 provider call 前关闭。该上下文及 `runtime_cards` 都不能出现在公开响应、SQLite、frontend renderer、日志或异常；公开 `attachment_insights` 仍是六字段安全投影。
+
+跨语言 grounding 只允许 body-only fixed cross-language bridge：固定模板只能用于 `summary` 和 `priority_reason`，且只能桥接实际发送的去标识正文，不得桥接附件视觉内容、未发送历史、身份或精确事实。
 
 ### Deadline contract
 
-- 浏览器扩展和本地调试页在独立资源收集完成后使用 15-second POST wait；浏览器收集本身有独立的 20-second resource collection 上限，因此 15 秒不是从点击开始计算的硬性总时限。
-- 后端在读取并校验 request body 之前立即调用 `AnalysisBudget.start()`；实际顺序是 `start -> read -> api`，所以受限 body 读取时间计入 one monotonic 13-second cooperative target。该 target 继续共享给分析、parser、private gate、provider、校验和 persistence。body 读取、附件写入、SQLite 和 socket response write 是同步阶段，所以不能描述为严格 end-to-end cancellation guarantee。
-- Ollama 的 request creation、connect 和完整 response-body read 使用同一个 absolute wall-clock deadline；逐字节 trickle 不得续期超时。DeepSeek configured default/hard cap 为 10-second；Ollama 保留既有 general provider cap 25-second。两者都受同一个 13-second cooperative target 和固定 2-second validation/response reserve 约束，因此全新预算下实际最多分别为 DeepSeek 10-second、Ollama 11-second；剩余 provider 时间少于 5-second 时跳过模型并返回规则结果。
+- 浏览器扩展和本地调试页在独立资源收集完成后使用 60-second POST wait；浏览器收集本身有独立的 20-second resource collection 上限。
+- 后端在读取并校验 request body 之前立即调用 `AnalysisBudget.start()`；实际顺序是 `start -> read -> api`，所以受限 body 读取时间计入 one monotonic 55-second cooperative target。该 target 共享给分析、8-second parser、private gate、provider、校验和 persistence，并保留 5-second response/persistence reserve。
+- OpenAI request creation、connect 和完整 response-body read 共用同一 absolute wall-clock deadline，hard cap 为 35-second。DeepSeek configured cap 为 10-second；只有一次最终预算采样确认至少 12-second remaining 时才可紧邻启动 text fallback。逐字节 trickle 不得续期超时；任何 provider 都 `max_retries=0`。
 - 附件 parser/OCR worker 使用 hard 8-second 总截止。`Process.start()` 与 terminate/kill/close cleanup 都受硬边界约束；超时后启动的 worker 进入 late-start quarantine 并最终终止，cleanup 本身不得阻塞请求或留下 orphan。
 - 前端 abort 不能保证取消服务器工作；后端截止独立执行。
 
@@ -274,7 +285,7 @@ DeepSeek-led 路线可使用当前可见线程和本地解析出的 ephemeral sa
 
 ### Operational rollback flags
 
-将 `EMAIL_AGENT_LLM_PROVIDER=disabled` 后重启可恢复规则-only 路线。将 `EMAIL_AGENT_DEEPSEEK_OUTPUT_MODE=conservative` 可关闭 DeepSeek-led consequential fields；两者都不改变公开 API 或邮箱动作边界。
+将 `EMAIL_AGENT_LLM_PROVIDER=disabled` 后重启可恢复规则-only 路线。将 `EMAIL_AGENT_TEXT_FALLBACK_PROVIDER=disabled` 可关闭第二次 provider 调用；将 `EMAIL_AGENT_DEEPSEEK_OUTPUT_MODE=conservative` 可关闭 DeepSeek-led consequential fields。这些切换都不改变公开 API 或邮箱动作边界。
 
 ## GET /api/health
 

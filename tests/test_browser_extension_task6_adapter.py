@@ -12,12 +12,20 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ADAPTER = ROOT / "frontend" / "browser_extension" / "content" / "exmail_adapter.js"
+VISIBLE_CONTEXT = ROOT / "frontend" / "browser_extension" / "content" / "exmail_visible_context.js"
 COLLECTOR = (
     ROOT
     / "frontend"
     / "browser_extension"
     / "content"
     / "current_message_collector.js"
+)
+CLASSIFIER = (
+    ROOT
+    / "frontend"
+    / "browser_extension"
+    / "content"
+    / "exmail_visible_resource_classifier.js"
 )
 
 
@@ -32,10 +40,14 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
             const vm = require("vm");
             const source = fs.readFileSync(__ADAPTER_PATH__, "utf8");
             const collectorSource = fs.readFileSync(__COLLECTOR_PATH__, "utf8");
+            const classifierSource = fs.readFileSync(__CLASSIFIER_PATH__, "utf8");
+            const visibleContextSource = fs.existsSync(__VISIBLE_CONTEXT_PATH__)
+              ? fs.readFileSync(__VISIBLE_CONTEXT_PATH__, "utf8")
+              : "";
 
             class FakeElement {
               constructor({ tag = "div", id = "", className = "", role = "", text = "",
-                            children = [], attrs = {}, hidden = false, style = {} } = {}) {
+                            children = [], attrs = {}, hidden = false, style = {}, rect = {} } = {}) {
                 this.tagName = tag.toUpperCase();
                 this.id = id;
                 this.className = className;
@@ -46,6 +58,15 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
                 this.attrs = { ...attrs };
                 this.hidden = hidden;
                 this.style = style;
+                this.rect = {
+                  left: 0,
+                  top: 0,
+                  right: 100,
+                  bottom: 20,
+                  width: 100,
+                  height: 20,
+                  ...rect,
+                };
                 this.nodeType = 1;
                 this.parentElement = null;
                 this.parentNode = null;
@@ -74,6 +95,9 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
                   .flatMap((child) => allElements(child))
                   .filter((element) => matches(element, selector));
               }
+              getBoundingClientRect() {
+                return { ...this.rect };
+              }
             }
 
             class FakeDocument {
@@ -83,16 +107,22 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
                 this.baseURI = "https://exmail.qq.com/cgi-bin/readmail";
                 this.location = new URL(this.baseURI);
                 this.defaultView = {
+                  innerWidth: 1280,
+                  innerHeight: 720,
                   getSelection: () => emptySelection(),
                   getComputedStyle: (element) => ({
                     display: element.style.display || "block",
                     visibility: element.style.visibility || "visible",
+                    opacity: element.style.opacity === undefined ? "1" : String(element.style.opacity),
                   }),
                 };
                 assignOwnerDocument(body, this);
               }
               querySelector(selector) {
                 return this.body.querySelector(selector);
+              }
+              querySelectorAll(selector) {
+                return allElements(this.body).filter((element) => matches(element, selector));
               }
             }
 
@@ -135,7 +165,9 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
                 children: [
                   ...(options.bodyChildren || []),
                   ...(options.explicitCurrentBody ? [new FakeElement({
-                    className: "mail-current-body", text: bodyText,
+                    className: "mail-current-body",
+                    text: bodyText,
+                    children: options.currentBodyChildren || [],
                   })] : []),
                 ],
               });
@@ -146,9 +178,7 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
               const additionalBodies = options.additionalBodies || [];
               const currentMessageContainer = new FakeElement({
                 className: "read-envelope",
-                children: options.verifiedControls === false
-                  ? [subject, currentRoot, controls]
-                  : [subject, header, currentRoot, ...additionalBodies, controls],
+                children: [subject, header, currentRoot, ...additionalBodies, controls],
               });
               const body = new FakeElement({
                 tag: "body", text: [messageText, backgroundText].filter(Boolean).join("\n"),
@@ -170,6 +200,9 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
                 document: doc,
                 chrome: { runtime: { onMessage: { addListener: (callback) => { listener = callback; } } } },
               };
+              if (visibleContextSource) {
+                vm.runInNewContext(visibleContextSource, context, { filename: "exmail_visible_context.js" });
+              }
               vm.runInNewContext(source, context, { filename: "exmail_adapter.js" });
               return listener;
             }
@@ -196,6 +229,46 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
                 document: doc,
                 chrome: { runtime: { onMessage: { addListener: (callback) => { listener = callback; } } } },
               };
+              if (visibleContextSource) {
+                vm.runInNewContext(visibleContextSource, context, { filename: "exmail_visible_context.js" });
+              }
+              vm.runInNewContext(classifierSource, context, {
+                filename: "exmail_visible_resource_classifier.js",
+              });
+              vm.runInNewContext(collectorSource, context, { filename: "current_message_collector.js" });
+              vm.runInNewContext(source, context, { filename: "exmail_adapter.js" });
+              return listener;
+            }
+
+            function loadAdapterWithInjectedVerifiedContext(doc, fetchImpl, verifiedContext) {
+              let listener;
+              const rootWindow = {
+                document: doc,
+                frames: [],
+                fetch: fetchImpl,
+                AbortController,
+                setTimeout,
+                clearTimeout,
+                btoa: (binary) => Buffer.from(binary, "binary").toString("base64"),
+                EmailAssistantExmailVisibleContext: {
+                  resolveVerifiedDocumentContext: () => verifiedContext,
+                  revalidateVerifiedDocumentContext: (_root, context) => context === verifiedContext,
+                },
+              };
+              const context = {
+                URL,
+                Uint8Array,
+                ArrayBuffer,
+                AbortController,
+                setTimeout,
+                clearTimeout,
+                window: rootWindow,
+                document: doc,
+                chrome: { runtime: { onMessage: { addListener: (callback) => { listener = callback; } } } },
+              };
+              vm.runInNewContext(classifierSource, context, {
+                filename: "exmail_visible_resource_classifier.js",
+              });
               vm.runInNewContext(collectorSource, context, { filename: "current_message_collector.js" });
               vm.runInNewContext(source, context, { filename: "exmail_adapter.js" });
               return listener;
@@ -216,6 +289,30 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
                 ok: true,
                 redirected: false,
                 headers: { get: (name) => name.toLowerCase() === "content-length" ? "1" : null },
+                body: { getReader: () => reader },
+              };
+            }
+
+            function pdfResponse() {
+              const bytes = Uint8Array.from([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31]);
+              let delivered = false;
+              const reader = {
+                read: async () => {
+                  if (delivered) return { done: true, value: undefined };
+                  delivered = true;
+                  return { done: false, value: bytes };
+                },
+                cancel: async () => {},
+                releaseLock: () => {},
+              };
+              return {
+                ok: true,
+                redirected: false,
+                headers: { get: (name) => {
+                  if (name.toLowerCase() === "content-length") return String(bytes.length);
+                  if (name.toLowerCase() === "content-type") return "application/pdf";
+                  return null;
+                } },
                 body: { getReader: () => reader },
               };
             }
@@ -284,6 +381,10 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
                     collectCalls += 1;
                     if (
                       receivedDoc !== doc ||
+                      options.verifiedDocument !== doc ||
+                      options.verifiedDocumentContext !== true ||
+                      typeof options.revalidateContext !== "function" ||
+                      options.revalidateContext() !== true ||
                       options.currentMessageRoot !== currentRoot ||
                       options.currentMessageContainer !== currentMessageContainer ||
                       options.resourceControlsVerified !== true
@@ -491,21 +592,214 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
                 }
               },
 
-              forged_visible_frame_resources_fail_closed_with_real_collector: async () => {
+              legacy_data_filename_metadata_is_filtered_before_collection: async () => {
+                const dispatchFor = async (attrs, text = "") => {
+                  const control = new FakeElement({
+                    tag: "a",
+                    text,
+                    attrs: {
+                      href: "/cgi-bin/download?opaque=synthetic",
+                      target: "_blank",
+                      ...attrs,
+                    },
+                  });
+                  const { doc } = openedMessage("", { hostResources: [control] });
+                  let resourceCalls = 0;
+                  let candidates = [];
+                  const collector = {
+                    extractVisibleThreadSegments: () => [],
+                    collectVisibleResources: async (_receivedDoc, options) => {
+                      resourceCalls += 1;
+                      candidates = options.verifiedResourceCandidates;
+                      return { attachment_files: [], resource_limitations: [] };
+                    },
+                  };
+                  const result = await beginDispatch(loadAdapter(doc, collector)).responsePromise;
+                  return { control, resourceCalls, candidates, result };
+                };
+
+                const supported = await dispatchFor({ "data-filename": "synthetic.pdf" });
+                if (
+                  supported.resourceCalls !== 1 ||
+                  supported.candidates.length !== 1 ||
+                  supported.candidates[0] !== supported.control
+                ) {
+                  throw new Error(`supported data-filename was not admitted: ${JSON.stringify(supported.result)}`);
+                }
+
+                const rejected = [
+                  ["unsupported", { "data-filename": "synthetic.exe" }, ""],
+                  ["declared conflict", {
+                    "data-filename": "synthetic.pdf",
+                    "data-type": "docx",
+                  }, ""],
+                  ["visible conflict", { "data-filename": "synthetic.xlsx" }, "synthetic.docx"],
+                ];
+                for (const [label, attrs, text] of rejected) {
+                  const outcome = await dispatchFor(attrs, text);
+                  if (outcome.resourceCalls !== 0 || outcome.result.payload.attachment_files.length !== 0) {
+                    throw new Error(`adapter admitted ${label} data-filename: ${JSON.stringify(outcome.result)}`);
+                  }
+                }
+              },
+
+              exact_qmbox_two_wrapper_untyped_offviewport_control_is_bounded: async () => {
+                const bodyText = "Please review the bounded legacy message.";
+                const subject = new FakeElement({ tag: "h1", id: "subject", text: "Synthetic bounded request" });
+                const header = new FakeElement({
+                  className: "read-header",
+                  text: "From: sender@example.test\nTo: recipient@example.test",
+                });
+                const currentBody = new FakeElement({ className: "mail-current-body", text: bodyText });
+                const currentRoot = new FakeElement({
+                  id: "mailContentContainer",
+                  className: "qmbox",
+                  text: bodyText,
+                  children: [currentBody],
+                });
+                const intermediate = new FakeElement({
+                  className: "legacy-current-message-wrapper",
+                  children: [currentRoot],
+                });
+                let clickCount = 0;
+                let scrollCount = 0;
+                const attachment = new FakeElement({
+                  tag: "a",
+                  attrs: { href: "/cgi-bin/download?opaque=synthetic", target: "_blank" },
+                  rect: { left: 0, top: 900, right: 160, bottom: 924, width: 160, height: 24 },
+                });
+                attachment.click = () => { clickCount += 1; };
+                attachment.scrollIntoView = () => { scrollCount += 1; };
+                const resourceContainer = new FakeElement({
+                  className: "read-envelope",
+                  children: [subject, header, intermediate, attachment],
+                });
+                const body = new FakeElement({
+                  tag: "body",
+                  text: `Synthetic bounded request\nFrom: sender@example.test\nTo: recipient@example.test\n${bodyText}`,
+                  children: [resourceContainer],
+                });
+                const doc = new FakeDocument(body);
+                const originalLocation = doc.location.href;
+                let fetchCount = 0;
+                const verifiedContext = {
+                  document: doc,
+                  currentMessageRoot: currentRoot,
+                  currentBodyRoot: currentBody,
+                  subjectRoot: subject,
+                  headerRoot: header,
+                  contextToken: Object.freeze({ synthetic: true }),
+                };
+                const listener = loadAdapterWithInjectedVerifiedContext(doc, async (_url, options) => {
+                  fetchCount += 1;
+                  if (options.credentials !== "include" || options.redirect !== "error") {
+                    throw new Error(`unsafe fetch options: ${JSON.stringify(options)}`);
+                  }
+                  return pdfResponse();
+                }, verifiedContext);
+
+                const result = await beginDispatch(listener).responsePromise;
+                if (
+                  !result.ok ||
+                  fetchCount !== 1 ||
+                  result.payload.attachment_files.length !== 1 ||
+                  result.payload.attachment_files[0].filename !== "attachment-1.pdf" ||
+                  result.payload.attachment_files[0].type !== "pdf"
+                ) {
+                  throw new Error(`bounded legacy shape failed: ${JSON.stringify({ fetchCount, result })}`);
+                }
+                if (clickCount !== 0 || scrollCount !== 0 || doc.location.href !== originalLocation) {
+                  throw new Error(`control caused interaction: ${JSON.stringify({ clickCount, scrollCount })}`);
+                }
+              },
+
+              exact_qmbox_with_two_intermediate_wrappers_has_zero_fetch_or_payload: async () => {
+                const bodyText = "Please review the wrapper depth boundary.";
+                const subject = new FakeElement({ tag: "h1", id: "subject", text: "Synthetic wrapper depth" });
+                const header = new FakeElement({
+                  className: "read-header",
+                  text: "From: sender@example.test\nTo: recipient@example.test",
+                });
+                const currentBody = new FakeElement({ className: "mail-current-body", text: bodyText });
+                const currentRoot = new FakeElement({
+                  id: "mailContentContainer",
+                  className: "qmbox",
+                  text: bodyText,
+                  children: [currentBody],
+                });
+                const firstIntermediate = new FakeElement({ children: [currentRoot] });
+                const secondIntermediate = new FakeElement({ children: [firstIntermediate] });
+                const attachment = new FakeElement({
+                  tag: "a",
+                  attrs: { href: "/cgi-bin/download?opaque=synthetic", target: "_blank" },
+                });
+                const resourceContainer = new FakeElement({
+                  className: "read-envelope",
+                  children: [subject, header, secondIntermediate, attachment],
+                });
+                const body = new FakeElement({
+                  tag: "body",
+                  text: `Synthetic wrapper depth\nFrom: sender@example.test\nTo: recipient@example.test\n${bodyText}`,
+                  children: [resourceContainer],
+                });
+                const doc = new FakeDocument(body);
+                const verifiedContext = {
+                  document: doc,
+                  currentMessageRoot: currentRoot,
+                  currentBodyRoot: currentBody,
+                  subjectRoot: subject,
+                  headerRoot: header,
+                  contextToken: Object.freeze({ synthetic: true }),
+                };
+                let fetchCount = 0;
+                const listener = loadAdapterWithInjectedVerifiedContext(doc, async () => {
+                  fetchCount += 1;
+                  return pdfResponse();
+                }, verifiedContext);
+
+                const result = await beginDispatch(listener).responsePromise;
+                if (
+                  !result.ok ||
+                  fetchCount !== 0 ||
+                  result.payload.attachment_files.length !== 0
+                ) {
+                  throw new Error(`two intermediate wrappers escaped: ${JSON.stringify({ fetchCount, result })}`);
+                }
+              },
+
+              verified_visible_mainframe_resource_is_collected_with_real_collector: async () => {
                 const topDoc = mailboxDocument();
                 const forgedLink = new FakeElement({
                   tag: "a",
                   attrs: { download: "forged.pdf", href: "/cgi-bin/download?file=forged" },
                 });
-                const { doc: frameDoc } = openedMessage("", {
-                  hostResources: [forgedLink], explicitCurrentBody: true,
+                const productPhoto = new FakeElement({
+                  tag: "img",
+                  attrs: {
+                    src: "/cgi-bin/viewfile?file=opaque-product-photo",
+                    alt: "product packaging inspection photo",
+                    "data-mime-type": "image/jpeg",
+                  },
+                  rect: { right: 1280, bottom: 960, width: 1280, height: 960 },
                 });
-                const frameElement = new FakeElement({ tag: "iframe" });
+                const { doc: frameDoc } = openedMessage("", {
+                  hostResources: [forgedLink],
+                  explicitCurrentBody: true,
+                  currentBodyChildren: [productPhoto],
+                });
+                const frameElement = new FakeElement({
+                  tag: "iframe",
+                  attrs: {
+                    name: "mainFrame",
+                    src: "https://exmail.qq.com/cgi-bin/readmail",
+                  },
+                });
                 frameElement.ownerDocument = topDoc;
                 frameElement.parentElement = topDoc.body;
                 frameElement.parentNode = topDoc.body;
                 topDoc.body.children.push(frameElement);
                 const frameWindow = { document: frameDoc, frames: [], frameElement };
+                frameElement.contentWindow = frameWindow;
                 let fetchCount = 0;
                 const listener = loadAdapterWithRealCollector(topDoc, async () => {
                   fetchCount += 1;
@@ -516,17 +810,231 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
                 if (!result.ok || !result.payload.body_text.includes("visible message")) {
                   throw new Error(`frame body analysis did not continue: ${JSON.stringify(result)}`);
                 }
-                if (fetchCount !== 0 || result.payload.attachment_files.length !== 0) {
+                if (
+                  fetchCount !== 2 ||
+                  result.payload.attachment_files.length !== 2 ||
+                  !result.payload.attachment_files.some((item) => item.filename === "forged.pdf") ||
+                  !result.payload.attachment_files.some((item) => item.filename === "inline-image-1.jpg")
+                ) {
                   throw new Error(
-                    `forged frame resource escaped: fetch=${fetchCount} ` +
+                    `verified frame resource was not collected: fetch=${fetchCount} ` +
                     `files=${result.payload.attachment_files.length}`,
                   );
                 }
+                if (result.payload.resource_limitations.length !== 0) {
+                  throw new Error(`verified frame emitted a limitation: ${JSON.stringify(result)}`);
+                }
+              },
+
+              fallback_current_body_root_keeps_business_image_discovery: async () => {
+                const productPhoto = new FakeElement({
+                  tag: "img",
+                  attrs: {
+                    src: "/cgi-bin/viewfile?file=fallback-product-photo",
+                    alt: "product packaging inspection photo",
+                    "data-mime-type": "image/jpeg",
+                  },
+                  rect: { right: 1280, bottom: 960, width: 1280, height: 960 },
+                });
+                const attachment = new FakeElement({
+                  tag: "a",
+                  text: "visible.pdf",
+                  attrs: {
+                    download: "visible.pdf",
+                    href: "/cgi-bin/download?file=visible",
+                  },
+                });
+                const { doc } = openedMessage("", {
+                  bodyChildren: [productPhoto],
+                  hostResources: [attachment],
+                });
+                const calls = [];
+                const listener = loadAdapterWithRealCollector(doc, async (url) => {
+                  calls.push(url);
+                  return oneByteResponse();
+                });
+
+                const result = await beginDispatch(listener).responsePromise;
                 if (
-                  result.payload.resource_limitations.length !== 1 ||
-                  result.payload.resource_limitations[0].code !== "resource_unavailable"
+                  !result.ok ||
+                  calls.length !== 2 ||
+                  result.payload.attachment_files.length !== 2 ||
+                  !result.payload.attachment_files.some((item) => item.filename === "visible.pdf") ||
+                  !result.payload.attachment_files.some((item) => item.filename === "inline-image-1.jpg")
                 ) {
-                  throw new Error(`single unavailable limitation missing: ${JSON.stringify(result)}`);
+                  throw new Error(`fallback current body lost business media: ${JSON.stringify({ calls, result })}`);
+                }
+              },
+
+              sibling_avatar_is_not_treated_as_an_attachment: async () => {
+                const avatar = new FakeElement({
+                  tag: "img",
+                  attrs: {
+                    src: "/cgi-bin/viewfile?file=sender-avatar",
+                    alt: "sender-avatar.jpg",
+                    "data-mime-type": "image/jpeg",
+                  },
+                  rect: { right: 64, bottom: 64, width: 64, height: 64 },
+                });
+                const attachment = new FakeElement({
+                  tag: "a",
+                  attrs: {
+                    download: "visible.pdf",
+                    href: "/cgi-bin/download?file=visible",
+                  },
+                });
+                const { doc } = openedMessage("", { hostResources: [avatar, attachment] });
+                const calls = [];
+                const listener = loadAdapterWithRealCollector(doc, async (url) => {
+                  calls.push(url);
+                  return oneByteResponse();
+                });
+
+                const result = await beginDispatch(listener).responsePromise;
+                if (
+                  !result.ok ||
+                  calls.length !== 1 ||
+                  !calls[0].includes("file=visible") ||
+                  result.payload.attachment_files.length !== 1 ||
+                  result.payload.attachment_files[0].filename !== "visible.pdf"
+                ) {
+                  throw new Error(`sibling avatar escaped: ${JSON.stringify({ calls, result })}`);
+                }
+              },
+
+              approved_profile_link_is_not_treated_as_an_attachment_control: async () => {
+                const profileLink = new FakeElement({
+                  tag: "a",
+                  className: "sender-profile avatar-link",
+                  text: "Sender profile avatar",
+                  attrs: {
+                    href: "/cgi-bin/viewfile?file=sender-avatar",
+                    "data-filename": "sender-avatar.jpg",
+                    "data-type": "image/jpeg",
+                    title: "View sender profile avatar",
+                  },
+                });
+                const attachment = new FakeElement({
+                  tag: "a",
+                  text: "visible.pdf",
+                  attrs: {
+                    download: "visible.pdf",
+                    href: "/cgi-bin/download?file=visible",
+                  },
+                });
+                const { doc } = openedMessage("", {
+                  hostResources: [profileLink, attachment],
+                });
+                const calls = [];
+                const listener = loadAdapterWithRealCollector(doc, async (url) => {
+                  calls.push(url);
+                  return oneByteResponse();
+                });
+
+                const result = await beginDispatch(listener).responsePromise;
+                if (
+                  !result.ok ||
+                  calls.length !== 1 ||
+                  !calls[0].includes("file=visible") ||
+                  result.payload.attachment_files.length !== 1 ||
+                  result.payload.attachment_files[0].filename !== "visible.pdf"
+                ) {
+                  throw new Error(`profile link escaped attachment ownership: ${JSON.stringify({ calls, result })}`);
+                }
+              },
+
+              legacy_tencent_download_control_is_collected_once: async () => {
+                const legacyControl = new FakeElement({
+                  tag: "a",
+                  text: "synthetic.pdf",
+                  attrs: {
+                    href: "/cgi-bin/download?opaque=synthetic",
+                    target: "_blank",
+                  },
+                });
+                const { doc } = openedMessage("", { hostResources: [legacyControl] });
+                const requests = [];
+                const listener = loadAdapterWithRealCollector(doc, async (url, options) => {
+                  requests.push({ url, options });
+                  return oneByteResponse();
+                });
+                const result = await beginDispatch(listener).responsePromise;
+                if (
+                  !result.ok ||
+                  requests.length !== 1 ||
+                  requests[0].url !== "https://exmail.qq.com/cgi-bin/download?opaque=synthetic" ||
+                  requests[0].options.credentials !== "include" ||
+                  requests[0].options.redirect !== "error" ||
+                  result.payload.attachment_files.length !== 1 ||
+                  result.payload.attachment_files[0].filename !== "synthetic.pdf" ||
+                  result.payload.resource_limitations.length !== 0
+                ) {
+                  throw new Error(`legacy Tencent control was not collected safely: ${JSON.stringify({ requests, result })}`);
+                }
+              },
+
+              verified_context_resource_discovery_does_not_prescan_deep_document: async () => {
+                const attachment = new FakeElement({
+                  tag: "a",
+                  attrs: {
+                    download: "visible.pdf",
+                    href: "/cgi-bin/download?file=visible",
+                  },
+                });
+                const {
+                  doc,
+                  currentRoot,
+                  currentMessageContainer,
+                  header,
+                  subject,
+                } = openedMessage("", { hostResources: [attachment] });
+                const verifiedContext = {
+                  document: doc,
+                  frameWindow: null,
+                  frameElement: null,
+                  subjectRoot: subject,
+                  headerRoot: header,
+                  currentMessageRoot: currentRoot,
+                  currentBodyRoot: currentRoot,
+                  currentBodyText: "Please review the visible message.",
+                  threadRoot: currentRoot,
+                  contextToken: {},
+                };
+
+                let deepRoot = new FakeElement();
+                for (let depth = 0; depth < 12000; depth += 1) {
+                  deepRoot = new FakeElement({ children: [deepRoot] });
+                }
+                deepRoot.parentElement = doc.body;
+                deepRoot.parentNode = doc.body;
+                doc.body.children.push(deepRoot);
+
+                const knownElements = [subject, header, currentRoot, attachment];
+                doc.querySelector = (selector) =>
+                  knownElements.find((element) => matches(element, selector)) || null;
+                doc.querySelectorAll = (selector) =>
+                  knownElements.filter((element) => matches(element, selector));
+                doc.body.querySelectorAll = (selector) =>
+                  knownElements.filter((element) => matches(element, selector));
+
+                const calls = [];
+                const listener = loadAdapterWithInjectedVerifiedContext(
+                  doc,
+                  async (url) => {
+                    calls.push(url);
+                    return oneByteResponse();
+                  },
+                  verifiedContext,
+                );
+                const result = await beginDispatch(listener).responsePromise;
+                if (
+                  !result.ok ||
+                  calls.length !== 1 ||
+                  !calls[0].includes("file=visible") ||
+                  result.payload.attachment_files.length !== 1 ||
+                  result.payload.attachment_files[0].filename !== "visible.pdf"
+                ) {
+                  throw new Error(`deep pre-scan bypassed resource bounds: ${JSON.stringify({ calls, result })}`);
                 }
               },
 
@@ -600,14 +1108,8 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
                 });
 
                 const result = await beginDispatch(listener).responsePromise;
-                if (!result.ok || fetchCount !== 0 || result.payload.attachment_files.length !== 0) {
+                if (result.ok || Object.prototype.hasOwnProperty.call(result, "payload") || fetchCount !== 0) {
                   throw new Error(`global body ambiguity escaped: fetch=${fetchCount} ${JSON.stringify(result)}`);
-                }
-                if (
-                  result.payload.resource_limitations.length !== 1 ||
-                  result.payload.resource_limitations[0].code !== "resource_unavailable"
-                ) {
-                  throw new Error(`single unavailable limitation missing: ${JSON.stringify(result)}`);
                 }
               },
 
@@ -626,26 +1128,22 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
                 });
                 const cases = [];
 
-                const bodyLevelSubject = new FakeElement({ tag: "h1", id: "subject", text: "Synthetic request" });
-                const bodyLevelHeader = new FakeElement({
-                  text: "From: sender@example.test\nTo: recipient@example.test",
-                });
-                const bodyLevelMessage = new FakeElement({
-                  className: "mail-content", text: "Please review the visible message.",
-                });
                 const bodyLevelControls = new FakeElement({ children: [validControl()] });
-                cases.push(new FakeDocument(new FakeElement({
-                  tag: "body",
-                  text: "Synthetic request\nFrom: sender@example.test\nTo: recipient@example.test\nPlease review the visible message.",
-                  children: [bodyLevelSubject, bodyLevelHeader, bodyLevelMessage, bodyLevelControls],
-                })));
+                cases.push(openedMessage("", { envelopeExternal: [bodyLevelControls] }).doc);
 
                 const duplicateBody = new FakeElement({
                   className: "mail-content", text: "Second ambiguous visible message body.",
                 });
-                cases.push(openedMessage("", {
+                const duplicateDoc = openedMessage("", {
                   additionalBodies: [duplicateBody], hostResources: [validControl()],
-                }).doc);
+                }).doc;
+                const duplicateResult = await beginDispatch(loadAdapter(duplicateDoc, collector)).responsePromise;
+                if (
+                  duplicateResult.ok ||
+                  Object.prototype.hasOwnProperty.call(duplicateResult, "payload")
+                ) {
+                  throw new Error(`ambiguous duplicate body escaped: ${JSON.stringify(duplicateResult)}`);
+                }
                 cases.push(openedMessage("", { hostResources: [new FakeElement({
                   tag: "a", hidden: true,
                   attrs: { download: "hidden.pdf", href: "/cgi-bin/download?file=hidden" },
@@ -810,7 +1308,9 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
             """
         )
         script = script.replace("__ADAPTER_PATH__", json.dumps(str(ADAPTER)))
+        script = script.replace("__VISIBLE_CONTEXT_PATH__", json.dumps(str(VISIBLE_CONTEXT)))
         script = script.replace("__COLLECTOR_PATH__", json.dumps(str(COLLECTOR)))
+        script = script.replace("__CLASSIFIER_PATH__", json.dumps(str(CLASSIFIER)))
         script = script.replace("__CASE_NAME__", json.dumps(case_name))
         result = subprocess.run(
             ["node", "-"],
@@ -842,8 +1342,38 @@ class BrowserExtensionTask6AdapterTests(unittest.TestCase):
     def test_unknown_intermediate_body_wrapper_fails_closed_with_real_collector(self) -> None:
         self.run_node_case("unknown_intermediate_body_wrapper_fails_closed_with_real_collector")
 
-    def test_forged_visible_frame_resources_fail_closed_with_real_collector(self) -> None:
-        self.run_node_case("forged_visible_frame_resources_fail_closed_with_real_collector")
+    def test_legacy_data_filename_metadata_is_filtered_before_collection(self) -> None:
+        self.run_node_case("legacy_data_filename_metadata_is_filtered_before_collection")
+
+    def test_exact_qmbox_two_wrapper_untyped_offviewport_control_is_bounded(self) -> None:
+        self.run_node_case(
+            "exact_qmbox_two_wrapper_untyped_offviewport_control_is_bounded"
+        )
+
+    def test_exact_qmbox_with_two_intermediate_wrappers_has_zero_fetch_or_payload(
+        self,
+    ) -> None:
+        self.run_node_case(
+            "exact_qmbox_with_two_intermediate_wrappers_has_zero_fetch_or_payload"
+        )
+
+    def test_verified_visible_mainframe_resource_is_collected_with_real_collector(self) -> None:
+        self.run_node_case("verified_visible_mainframe_resource_is_collected_with_real_collector")
+
+    def test_fallback_current_body_root_keeps_business_image_discovery(self) -> None:
+        self.run_node_case("fallback_current_body_root_keeps_business_image_discovery")
+
+    def test_sibling_avatar_is_not_treated_as_an_attachment(self) -> None:
+        self.run_node_case("sibling_avatar_is_not_treated_as_an_attachment")
+
+    def test_approved_profile_link_is_not_treated_as_an_attachment_control(self) -> None:
+        self.run_node_case("approved_profile_link_is_not_treated_as_an_attachment_control")
+
+    def test_legacy_tencent_download_control_is_collected_once(self) -> None:
+        self.run_node_case("legacy_tencent_download_control_is_collected_once")
+
+    def test_verified_context_resource_discovery_does_not_prescan_deep_document(self) -> None:
+        self.run_node_case("verified_context_resource_discovery_does_not_prescan_deep_document")
 
     def test_whole_fake_envelope_below_unknown_wrapper_fails_closed(self) -> None:
         self.run_node_case("whole_fake_envelope_below_unknown_wrapper_fails_closed")

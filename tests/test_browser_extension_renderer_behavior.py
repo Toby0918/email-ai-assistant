@@ -189,7 +189,7 @@ class BrowserExtensionRendererBehaviorTests(unittest.TestCase):
           priority: "high",
           summary: "客户仍在等待报价。",
           category: "customer_inquiry",
-          analysis_engine: {{ label: "Rule fallback" }},
+          analysis_engine: {{ source: "rule_fallback", label: "Rule fallback" }},
           decision_brief: {{
             one_line_conclusion: "需要核查成本后回复客户。",
             requested_outcome: "客户希望获得报价。",
@@ -233,6 +233,24 @@ class BrowserExtensionRendererBehaviorTests(unittest.TestCase):
               private_url: "file:///private/quote.pdf",
             }},
             {{
+              filename: "metadata-only.xlsx",
+              type: "xlsx",
+              status: "metadata_only",
+              summary: "Metadata-only summary",
+              key_facts: ["METADATA FACT"],
+              limitations: ["METADATA LIMITATION"],
+              source_id: "PRIVATE_SOURCE_ID",
+            }},
+            {{
+              filename: "unavailable.pdf",
+              type: "pdf",
+              status: "unavailable",
+              summary: "Unavailable summary",
+              key_facts: ["UNAVAILABLE FACT"],
+              limitations: ["UNAVAILABLE LIMITATION"],
+              provider_diagnostics: "PRIVATE_PROVIDER_DIAGNOSTIC",
+            }},
+            {{
               filename: "failed.docx",
               type: "docx",
               status: "failed",
@@ -267,12 +285,28 @@ class BrowserExtensionRendererBehaviorTests(unittest.TestCase):
         ]) {{
           if (!timelineText.includes(expected)) throw new Error(`timeline text missing ${{expected}}: ${{timelineText}}`);
         }}
-        if (fields.attachmentInsights.children.length !== 2) {{
-          throw new Error(`expected two attachment insight entries, got ${{fields.attachmentInsights.children.length}}`);
+        if (fields.attachmentInsights.children.length !== 5) {{
+          throw new Error(`expected one aggregate and four insight entries, got ${{fields.attachmentInsights.children.length}}`);
+        }}
+        const aggregateText = fields.attachmentInsights.children[0].textContent;
+        for (const expected of [
+          "附件读取状态", "已解析", "仅元数据", "未读取（附件不可用）", "解析失败", "数量", "1",
+        ]) {{
+          if (!aggregateText.includes(expected)) throw new Error(`attachment status aggregate missing ${{expected}}: ${{aggregateText}}`);
+        }}
+        for (const forbidden of [
+          "quote<script>.pdf", "metadata-only.xlsx", "unavailable.pdf", "failed.docx",
+          "RFQ 42", "200 pcs", "Metadata-only summary", "METADATA FACT",
+          "METADATA LIMITATION", "PRIVATE_SOURCE_ID", "Unavailable summary",
+          "UNAVAILABLE FACT", "UNAVAILABLE LIMITATION", "PRIVATE_PROVIDER_DIAGNOSTIC",
+          "解析失败，需人工核查",
+        ]) {{
+          if (aggregateText.includes(forbidden)) throw new Error(`attachment detail leaked into aggregate: ${{forbidden}}`);
         }}
         const insightText = fields.attachmentInsights.textContent;
         for (const expected of [
           "quote<script>.pdf", "PDF", "已解析", "摘要", "RFQ 42", "200 pcs",
+          "metadata-only.xlsx", "XLSX", "仅元数据", "unavailable.pdf", "不可用",
           "failed.docx", "DOCX", "解析失败", "解析失败，需人工核查", "暂无可用摘要",
         ]) {{
           if (!insightText.includes(expected)) throw new Error(`attachment insight missing ${{expected}}: ${{insightText}}`);
@@ -282,6 +316,7 @@ class BrowserExtensionRendererBehaviorTests(unittest.TestCase):
           "quoted URL", "quoted report.pdf", "Windows path", "Program Files",
           "UNC path", "share name", "root path=/secret",
           "parser path=/var/tmp/private.txt", "quoted POSIX path", "private report.txt",
+          "PRIVATE_SOURCE_ID", "PRIVATE_PROVIDER_DIAGNOSTIC",
         ]) {{
           if (insightText.includes(forbidden)) throw new Error(`private/raw attachment field leaked: ${{forbidden}}`);
         }}
@@ -350,7 +385,7 @@ class BrowserExtensionRendererBehaviorTests(unittest.TestCase):
           priority: "normal",
           summary: "正文分析仍然可用。",
           category: "internal",
-          analysis_engine: {{ label: "Rule fallback" }},
+          analysis_engine: {{ source: "rule_fallback", label: "Rule fallback" }},
           decision_brief: {{
             one_line_conclusion: "继续人工核查。", requested_outcome: "确认现状。", next_steps: [], key_facts: [],
             must_check: [], missing_info: [],
@@ -750,7 +785,7 @@ class BrowserExtensionRendererBehaviorTests(unittest.TestCase):
           priority: "high",
           summary: "需要核对付款状态。",
           category: "payment",
-          analysis_engine: {{ label: "Rule fallback" }},
+          analysis_engine: {{ source: "rule_fallback", label: "Rule fallback" }},
           decision_brief: {{
             one_line_conclusion: "客户要求确认付款状态，需要先核查再回复。",
             requested_outcome: "对方希望获得汇款状态确认。",
@@ -810,7 +845,7 @@ class BrowserExtensionRendererBehaviorTests(unittest.TestCase):
           priority: "normal",
           summary: "这是一封新品开发邮件。",
           category: "new_product_development",
-          analysis_engine: {{ label: "Rule fallback" }},
+          analysis_engine: {{ source: "rule_fallback", label: "Rule fallback" }},
           decision_brief: {{
             one_line_conclusion: "这是一封新品开发邮件，需要先核查项目范围。",
             requested_outcome: "对方希望获得可行性反馈。",
@@ -838,6 +873,7 @@ class BrowserExtensionRendererBehaviorTests(unittest.TestCase):
             ["node", "-e", textwrap.dedent(script)],
             cwd=ROOT,
             capture_output=True,
+            encoding="utf-8",
             text=True,
             check=False,
             timeout=10,

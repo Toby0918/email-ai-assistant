@@ -75,6 +75,17 @@ def cleanup_expired_attachments(config: AppConfig, now: datetime | None = None) 
         raise AttachmentOperationError("Temporary attachment cleanup is unavailable.") from exc
 
 
+def remove_stored_attachments(items: list[StoredAttachment] | tuple[StoredAttachment, ...]) -> None:
+    """Best-effort removal of only the current request's stored attachment files."""
+    for item in tuple(items):
+        if not isinstance(item, StoredAttachment):
+            continue
+        try:
+            item.path.unlink(missing_ok=True)
+        except OSError:
+            continue
+
+
 def _decode_and_validate_files(
     files: list[dict[str, object]], config: AppConfig
 ) -> list[tuple[str, str, bytes]]:

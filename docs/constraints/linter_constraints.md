@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-15
+last_update: 2026-07-16
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -152,6 +152,8 @@ process.env
 ```
 
 OpenAI/DeepSeek API key 和本地 Ollama/Qwen/Gemma 配置只能存在后端环境变量中，由后端 `llm_client.py` 使用。前端禁止引入 OpenAI 或 third-party DeepSeek SDK，也禁止配置或调用任何远程模型端点。
+
+后端 OpenAI model allowlist 只有 `gpt-5.6-sol`，并 uses the fixed official endpoint。静态约束必须拒绝 `EMAIL_AGENT_OPENAI_BASE_URL` 或其他可配置 OpenAI remote base URL。分析 POST wait 必须在浏览器扩展和 local debug 中固定为 60 seconds；backend shared target 为 55 seconds、OpenAI cap 为 35 seconds、DeepSeek cap 为 10 秒、fallback minimum remainder 为 12 seconds、parser maximum 为 8 秒、response/persistence reserve 为 5 秒。
 
 ## 7. 前端禁止高风险邮箱动作
 
@@ -325,7 +327,9 @@ Executable constraints must enforce all of the following:
   general privacy refusal uses `safety_rejected_all` / `safety` / `not_applicable`,
   and only placeholder echo may use the fixed
   `provider_output_placeholder_echo` / `safety` / `not_applicable` tuple;
-- exact budget constants are 13/10/8/5/2 seconds and the frontend analysis POST wait is 15 seconds.
+- normal current-email budget constants are backend/OpenAI/DeepSeek/fallback minimum/response reserve = 55/35/10/12/5 seconds, parser maximum = 8 seconds, and both frontend analysis POST waits = 60 seconds;
+- the private-evaluation dataset runner remains a separate 13-second budget;
+- OpenAI model configuration remains exactly `gpt-5.6-sol` through the fixed official endpoint, with no configurable OpenAI base URL.
 
 These guards belong in `tests/test_architecture_constraints.py`, the frontend static suites, and the public response/persistence canaries. They must run with synthetic data and no network.
 

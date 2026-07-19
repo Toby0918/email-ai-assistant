@@ -13,7 +13,7 @@ from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import MagicMock, patch
-from zipfile import ZIP_STORED, ZipFile
+from zipfile import ZIP_DEFLATED, ZIP_STORED, ZipFile
 
 import pypdf.filters as pypdf_filters
 from docx import Document
@@ -21,16 +21,27 @@ from openpyxl import Workbook
 from PIL import Image
 
 from backend.email_agent import attachment_parser
+from backend.email_agent import attachment_safety
 from backend.email_agent.analyzer import build_analysis_prompt
 from backend.email_agent.attachment_fact_safety import sanitize_constructed_fact
 from backend.email_agent.attachment_facts import extract_attachment_facts
 from backend.email_agent.attachment_parser import (
+    bind_prepared_media_evidence,
     parse_attachment_bundles_compat,
     parse_attachments,
+)
+from backend.email_agent.attachment_model_context import (
+    AttachmentAnalysisBundle,
+    attachment_model_candidate,
+)
+from backend.email_agent.attachment_media_context import (
+    UNTRUSTED_MEDIA_EVIDENCE,
+    provider_attachment_candidate,
 )
 from backend.email_agent.attachment_storage import StoredAttachment
 from backend.email_agent.attachment_text import sanitize_text
 from backend.email_agent.database import initialize_schema, save_analysis
+from backend.email_agent.multimodal_media import PreparedMediaAsset
 
 
 EXPECTED_KEYS = {"filename", "type", "status", "summary", "key_facts", "limitations"}
@@ -69,6 +80,59 @@ class _ObservedDocxCell:
 
 
 class AttachmentParserTests(unittest.TestCase):
+    def test_successful_media_without_text_gets_one_fixed_untrusted_media_candidate(self) -> None:
+        metadata = AttachmentAnalysisBundle(
+            {
+                "filename": "visible.png",
+                "type": "image",
+                "status": "metadata_only",
+                "summary": "Image metadata only.",
+                "key_facts": [],
+                "limitations": ["OCR returned no readable text."],
+            },
+            None,
+        )
+        asset = PreparedMediaAsset(
+            source_id="attachment:0",
+            provider_filename="image_0.png",
+            mime_type="image/png",
+            kind="image",
+            detail="high",
+            buffer=bytearray(b"synthetic"),
+        )
+
+        bound = bind_prepared_media_evidence((metadata,), (asset,))
+
+        self.assertEqual(bound[0].display_insight, metadata.display_insight)
+        self.assertEqual(bound[0].model_candidate.source_id, "attachment:0")
+        self.assertEqual(
+            bound[0].model_candidate.text,
+            "UNTRUSTED_MEDIA: sanitized current-message media has no locally extracted text.",
+        )
+        self.assertTrue(bound[0].model_candidate.visual_only)
+        self.assertIsNone(
+            provider_attachment_candidate(bound[0].model_candidate, "deepseek")
+        )
+
+    def test_marker_text_without_visual_provenance_remains_a_text_candidate(self) -> None:
+        candidate = attachment_model_candidate(
+            "attachment:0", UNTRUSTED_MEDIA_EVIDENCE,
+        )
+
+        self.assertFalse(candidate.visual_only)
+        self.assertIs(provider_attachment_candidate(candidate, "deepseek"), candidate)
+        self.assertIs(provider_attachment_candidate(candidate, "openai"), candidate)
+
+    def test_failed_media_gets_no_candidate_and_text_candidate_is_preserved(self) -> None:
+        metadata = AttachmentAnalysisBundle({"status": "metadata_only"}, None)
+        existing = attachment_model_candidate("attachment:1", "bounded extracted text")
+        parsed = AttachmentAnalysisBundle({"status": "parsed"}, existing)
+
+        bound = bind_prepared_media_evidence((metadata, parsed), ())
+
+        self.assertIsNone(bound[0].model_candidate)
+        self.assertIs(bound[1].model_candidate, existing)
+
     def test_parsed_bundle_has_private_candidate_and_metadata_only_does_not(self) -> None:
         raw = "PO 1013970520 qty 24 due 2026-07-20 https://private.example.test/a"
         with TemporaryDirectory() as directory:
@@ -1384,6 +1448,91 @@ class AttachmentParserTests(unittest.TestCase):
                 result = parse_attachments([stored])
 
         self.assertIn("total uncompressed size", result[0]["limitations"][0].lower())
+        loader.assert_not_called()
+
+    def test_office_raw_package_size_limit_precedes_open_for_docx_and_xlsx(self) -> None:
+        cases = (
+            ("oversized.docx", "docx", "Document", self._docx_bytes()),
+            ("oversized.xlsx", "xlsx", "load_workbook", self._xlsx_bytes()),
+        )
+        for filename, attachment_type, loader_name, package in cases:
+            with self.subTest(attachment_type=attachment_type), TemporaryDirectory() as directory:
+                padding = b"0" * (
+                    attachment_safety.OFFICE_ZIP_MAX_INPUT_BYTES + 1 - len(package)
+                )
+                stored = self._write(
+                    directory, filename, attachment_type, package + padding
+                )
+                loader = MagicMock()
+                with patch.object(attachment_parser, loader_name, loader):
+                    result = parse_attachments([stored])
+
+                self.assertIn("compressed size", result[0]["limitations"][0].lower())
+                loader.assert_not_called()
+
+    def test_office_local_header_only_encryption_mismatch_never_reaches_loaders(self) -> None:
+        cases = (
+            ("unsafe.docx", "docx", "Document", self._docx_bytes()),
+            ("unsafe.xlsx", "xlsx", "load_workbook", self._xlsx_bytes()),
+        )
+        for filename, attachment_type, loader_name, package in cases:
+            mutated = bytearray(package)
+            local = mutated.index(b"PK\x03\x04")
+            mutated[local + 6] |= 0x01
+            with self.subTest(attachment_type=attachment_type), TemporaryDirectory() as directory:
+                stored = self._write(directory, filename, attachment_type, bytes(mutated))
+                loader = MagicMock()
+                with patch.object(attachment_parser, loader_name, loader):
+                    result = parse_attachments([stored])
+
+                self.assertEqual(result[0]["status"], "metadata_only")
+                self.assertIn("unsafe", result[0]["limitations"][0].lower())
+                loader.assert_not_called()
+
+    def test_office_unsafe_names_encryption_and_ratio_bombs_never_reach_loaders(self) -> None:
+        cases: list[tuple[str, bytes]] = []
+        traversal = BytesIO()
+        with ZipFile(traversal, "w", compression=ZIP_STORED) as archive:
+            archive.writestr("[Content_Types].xml", b"<Types/>")
+            archive.writestr("word/document.xml", b"<document/>")
+            archive.writestr("word/media/../private.png", b"x")
+        cases.append(("traversal", traversal.getvalue()))
+
+        encrypted = bytearray(self._docx_bytes())
+        local = encrypted.index(b"PK\x03\x04")
+        central = encrypted.index(b"PK\x01\x02")
+        encrypted[local + 6] |= 0x01
+        encrypted[central + 8] |= 0x01
+        cases.append(("encrypted", bytes(encrypted)))
+
+        ratio = BytesIO()
+        with ZipFile(ratio, "w", compression=ZIP_DEFLATED) as archive:
+            archive.writestr("[Content_Types].xml", b"<Types/>")
+            archive.writestr("word/document.xml", b"<document/>")
+            archive.writestr("word/media/bomb.bin", b"0" * 20_000)
+        cases.append(("ratio", ratio.getvalue()))
+
+        for name, content in cases:
+            with self.subTest(name=name), TemporaryDirectory() as directory:
+                stored = self._write(directory, "unsafe.docx", "docx", content)
+                loader = MagicMock()
+                with patch.object(attachment_parser, "Document", loader):
+                    result = parse_attachments([stored])
+                self.assertEqual(result[0]["status"], "metadata_only")
+                self.assertIn("package", result[0]["limitations"][0].lower())
+                loader.assert_not_called()
+
+    def test_office_missing_ooxml_roots_never_reaches_loader(self) -> None:
+        content = BytesIO()
+        with ZipFile(content, "w") as archive:
+            archive.writestr("word/media/image.png", b"synthetic")
+        with TemporaryDirectory() as directory:
+            stored = self._write(directory, "not-office.docx", "docx", content.getvalue())
+            loader = MagicMock()
+            with patch.object(attachment_parser, "Document", loader):
+                result = parse_attachments([stored])
+
+        self.assertEqual(result[0]["status"], "metadata_only")
         loader.assert_not_called()
 
     def test_ocr_uses_explicit_timeout(self) -> None:

@@ -23,6 +23,8 @@ from backend.email_agent.llm_client import (
     configured_analysis_engine_label,
     generate_analysis,
 )
+from backend.email_agent.model_request import ModelAnalysisRequest
+from backend.email_agent.multimodal_media import PreparedMediaAsset
 
 
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"
@@ -162,6 +164,40 @@ class LlmClientTests(unittest.TestCase):
             max_tokens=2400,
             extra_body={"thinking": {"type": "disabled"}},
         )
+
+    def test_deepseek_model_request_remains_exactly_text_only(self) -> None:
+        media = PreparedMediaAsset(
+            source_id="attachment:0",
+            provider_filename="image_0.png",
+            mime_type="image/png",
+            kind="image",
+            detail="high",
+            buffer=bytearray(b"BINARY_CANARY"),
+        )
+        client, create = _async_client(_deepseek_response())
+
+        with patch(
+            "backend.email_agent.llm_client.AsyncOpenAI",
+            return_value=client,
+        ):
+            generate_analysis(
+                ModelAnalysisRequest("DEIDENTIFIED_TEXT", (media,)),
+                system_prompt="RETURN JSON",
+                config=_deepseek_config(),
+                timeout_seconds=7,
+            )
+
+        payload = create.call_args.kwargs
+        self.assertEqual(
+            payload["messages"],
+            [
+                {"role": "system", "content": "RETURN JSON"},
+                {"role": "user", "content": "DEIDENTIFIED_TEXT"},
+            ],
+        )
+        self.assertNotIn("BINARY_CANARY", repr(payload))
+        self.assertNotIn("input_image", repr(payload))
+        self.assertNotIn("input_file", repr(payload))
 
     def test_deepseek_timeout_uses_minimum_of_caller_config_and_hard_cap(self) -> None:
         cases = (
@@ -484,23 +520,28 @@ class LlmClientTests(unittest.TestCase):
 
         urlopen.assert_not_called()
 
-    def test_openai_provider_remains_a_conservative_stub(self) -> None:
+    def test_openai_provider_dispatches_provider_neutral_request(self) -> None:
         config = _deepseek_config(
             llm_provider="openai",
             openai_api_key="synthetic-openai-key",
         )
 
-        with patch("backend.email_agent.llm_client.AsyncOpenAI") as async_client:
-            with patch("urllib.request.urlopen") as urlopen:
-                with self.assertRaises(LlmClientError) as caught:
-                    generate_analysis("synthetic prompt", config=config)
+        with patch(
+            "backend.email_agent.llm_client.generate_openai_multimodal_analysis",
+            new=AsyncMock(return_value='{"summary":"synthetic"}'),
+        ) as generate_openai:
+            result = generate_analysis(
+                ModelAnalysisRequest("DEIDENTIFIED_TEXT", ()),
+                config=config,
+                timeout_seconds=9,
+            )
 
-        async_client.assert_not_called()
-        urlopen.assert_not_called()
-        self.assertEqual(
-            str(caught.exception),
-            "OpenAI integration is not enabled in the first skeleton.",
-        )
+        self.assertEqual(result, '{"summary":"synthetic"}')
+        generate_openai.assert_awaited_once()
+        self.assertEqual(generate_openai.call_args.args[0].text, "DEIDENTIFIED_TEXT")
+        self.assertEqual(generate_openai.call_args.kwargs["api_key"], "synthetic-openai-key")
+        self.assertEqual(generate_openai.call_args.kwargs["model"], "gpt-5.6-sol")
+        self.assertEqual(generate_openai.call_args.kwargs["timeout_seconds"], 9)
 
     def test_ollama_provider_posts_json_mode_generate_request(self) -> None:
         response_body = json.dumps({"response": "{\"summary\":\"客户询问。\"}"}).encode("utf-8")

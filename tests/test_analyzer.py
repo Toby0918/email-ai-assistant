@@ -11,7 +11,11 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from backend.email_agent.analysis_budget import AnalysisBudget
+from backend.email_agent.analysis_budget import (
+    PROVIDER_MIN_SECONDS,
+    RESPONSE_MARGIN_SECONDS,
+    AnalysisBudget,
+)
 from backend.email_agent.analyzer import (
     AnalysisError,
     analyze_current_email,
@@ -26,6 +30,7 @@ from backend.email_agent.config import load_config
 from backend.email_agent.deepseek_analysis_schema import DeepSeekEnvelopeError
 from backend.email_agent.email_cleaner import clean_email_body
 from backend.email_agent.llm_client import LlmClientError
+from backend.email_agent.multimodal_media import PreparedMediaAsset
 from backend.email_agent.model_result_safety import SafeMergeResult
 from backend.email_agent.model_exact_fact_safety import (
     DEEPSEEK_CONSERVATIVE_SYSTEM_PROMPT,
@@ -43,7 +48,108 @@ def _contains_chinese(text: str) -> bool:
     return any("\u4e00" <= char <= "\u9fff" for char in text)
 
 
+def _synthetic_stored_attachment(filename: str, attachment_type: str) -> StoredAttachment:
+    return StoredAttachment(
+        safe_filename=filename,
+        type=attachment_type,
+        path=Path("synthetic-request-attachment"),
+        byte_size=1,
+        expires_at=datetime.now(UTC),
+    )
+
+
 class AnalyzerTests(unittest.TestCase):
+    def test_rule_fallback_keeps_final_labeled_moq_for_model_consistency(self) -> None:
+        result = analyze_current_email(
+            {
+                "subject": "Order planning",
+                "from": "buyer@example.test",
+                "body_text": "Best MOQ is 1200/1400 pcs.",
+            },
+            config=load_config(dotenv_path=None),
+        )
+
+        values = [
+            item["value"] for item in result["decision_brief"]["key_facts"]
+        ]
+        self.assertIn("MOQ 1200/1400 pcs", values)
+
+    def test_analyzer_carries_provider_neutral_media_only_during_route_and_wipes_after_success(self) -> None:
+        asset = PreparedMediaAsset(
+            source_id="attachment:0",
+            provider_filename="image_0.png",
+            mime_type="image/png",
+            kind="image",
+            detail="high",
+            buffer=bytearray(b"SYNTHETIC_PRIVATE_MEDIA"),
+        )
+        bundle = AttachmentAnalysisBundle(
+            {
+                "filename": "visible.png", "type": "image", "status": "metadata_only",
+                "summary": "Image metadata only.", "key_facts": [], "limitations": [],
+            },
+            None,
+        )
+        observed: list[object] = []
+
+        def route(context, *_args):
+            observed.append(context)
+            self.assertEqual(bytes(context.prepared_media_assets[0].buffer), b"SYNTHETIC_PRIVATE_MEDIA")
+            self.assertEqual(context.attachment_bundles[0].model_candidate.source_id, "attachment:0")
+            return {"summary": "safe public result"}
+
+        with patch(
+            "backend.email_agent.analyzer._parse_bundles", return_value=(bundle,)
+        ), patch(
+            "backend.email_agent.analyzer.prepare_attachment_media", return_value=(asset,)
+        ), patch("backend.email_agent.analyzer.route_analysis", side_effect=route):
+            result = analyze_current_email(
+                {
+                    "subject": "Synthetic request",
+                    "from": "sender@example.test",
+                    "body_text": "Please review.",
+                    "stored_attachments": [_synthetic_stored_attachment("visible.png", "image")],
+                    "prepared_media_assets": ["ATTACKER_MEDIA"],
+                },
+                config=load_config(dotenv_path=None),
+            )
+
+        self.assertEqual(result, {"summary": "safe public result"})
+        self.assertEqual(len(observed), 1)
+        self.assertEqual(asset.buffer, bytearray())
+        serialized = str(result)
+        for forbidden in ("SYNTHETIC_PRIVATE_MEDIA", "attachment:0", "image_0.png", "ATTACKER_MEDIA"):
+            self.assertNotIn(forbidden, serialized)
+
+    def test_analyzer_wipes_provider_neutral_media_when_routing_raises(self) -> None:
+        asset = PreparedMediaAsset(
+            source_id="attachment:0",
+            provider_filename="image_0.png",
+            mime_type="image/png",
+            kind="image",
+            detail="high",
+            buffer=bytearray(b"SYNTHETIC_PRIVATE_MEDIA"),
+        )
+        with patch(
+            "backend.email_agent.analyzer._parse_bundles", return_value=()
+        ), patch(
+            "backend.email_agent.analyzer.prepare_attachment_media", return_value=(asset,)
+        ), patch(
+            "backend.email_agent.analyzer.route_analysis", side_effect=RuntimeError("SYNTHETIC_ROUTE_FAILURE")
+        ):
+            with self.assertRaises(RuntimeError):
+                analyze_current_email(
+                    {
+                        "subject": "Synthetic request",
+                        "from": "sender@example.test",
+                        "body_text": "Please review.",
+                        "stored_attachments": [_synthetic_stored_attachment("visible.png", "image")],
+                    },
+                    config=load_config(dotenv_path=None),
+                )
+
+        self.assertEqual(asset.buffer, bytearray())
+
     def test_prompt_includes_attachment_metadata_as_untrusted_context(self) -> None:
         captured: dict[str, str] = {}
 
@@ -844,7 +950,7 @@ class AnalyzerTests(unittest.TestCase):
         budget = AnalysisBudget.start(clock=lambda: now[0])
 
         def build_slow_context(**kwargs):
-            now[0] = 105.0
+            now[0] = budget.deadline - RESPONSE_MARGIN_SECONDS - 6.0
             return build_deepseek_untrusted_context(**kwargs)
 
         with patch(
@@ -866,7 +972,12 @@ class AnalyzerTests(unittest.TestCase):
         budget = AnalysisBudget.start(clock=lambda: now[0])
 
         def build_slow_context(**kwargs):
-            now[0] = 106.1
+            now[0] = (
+                budget.deadline
+                - RESPONSE_MARGIN_SECONDS
+                - PROVIDER_MIN_SECONDS
+                + 0.1
+            )
             return build_deepseek_untrusted_context(**kwargs)
 
         with patch(
@@ -952,7 +1063,10 @@ class AnalyzerTests(unittest.TestCase):
         )
         self.assertNotIn('"source_id":"attachment:0"', prompts[0])
         serialized = json.dumps(result, ensure_ascii=False)
-        for private_name in ("source_id", "grounding_text", "field_evidence", "model_candidate"):
+        for private_name in (
+            "source_id", "grounding_text", "cross_language_grounding_text",
+            "field_evidence", "model_candidate",
+        ):
             self.assertNotIn(private_name, serialized)
 
     def test_empty_attachment_list_does_not_start_parser(self) -> None:
@@ -1545,7 +1659,7 @@ class AnalyzerTests(unittest.TestCase):
                 side_effect=merged,
             ),
             patch(
-                "backend.email_agent.analysis_model_routes.configured_analysis_engine_label",
+                "backend.email_agent.analysis_model_routes._provider_engine_label",
                 side_effect=RuntimeError("PRIVATE_ENGINE_LABEL"),
             ),
         )
@@ -1728,7 +1842,7 @@ class AnalyzerTests(unittest.TestCase):
                     llm_provider="ollama",
                     ollama_timeout_seconds=30,
                 ),
-                25.0,
+                30.0,
             ),
         )
 
@@ -1755,7 +1869,7 @@ class AnalyzerTests(unittest.TestCase):
         )
 
         def build_slow_prompt(*args, **kwargs):
-            now[0] = 105.0
+            now[0] = budget.deadline - RESPONSE_MARGIN_SECONDS - 6.0
             return build_analysis_prompt(*args, **kwargs)
 
         with patch(
@@ -1778,7 +1892,12 @@ class AnalyzerTests(unittest.TestCase):
         config = replace(load_config(dotenv_path=None), llm_provider="ollama")
 
         def build_slow_prompt(*args, **kwargs):
-            now[0] = 106.1
+            now[0] = (
+                budget.deadline
+                - RESPONSE_MARGIN_SECONDS
+                - PROVIDER_MIN_SECONDS
+                + 0.1
+            )
             return build_analysis_prompt(*args, **kwargs)
 
         with patch(

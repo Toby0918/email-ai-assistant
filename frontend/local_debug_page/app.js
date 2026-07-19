@@ -34,7 +34,13 @@ const fields = {
   copyButton: document.querySelector("#copy-draft-button"),
 };
 
-const ANALYZE_TIMEOUT_MS = 15000;
+const ANALYZE_TIMEOUT_MS = 60000;
+const ANALYZING_STATUS = "正在分析当前邮件及所选图片/文件，最长可能需要 60 秒。";
+const ANALYSIS_ERROR_STATUSES = Object.freeze({
+  LOCAL_ANALYSIS_TIMEOUT: "本地分析服务超时，请重试。",
+  INVALID_LOCAL_RESPONSE: "本地分析服务返回无效结果，请重试。",
+  LOCAL_HTTP_ERROR: "本地分析服务请求失败，请重试。",
+});
 let analysisGeneration = 0;
 
 fields.analyzeButton.addEventListener("click", async () => {
@@ -42,7 +48,7 @@ fields.analyzeButton.addEventListener("click", async () => {
   fields.analyzeButton.disabled = true;
   try {
     EmailAssistantRender.clearAnalysis(fields);
-    fields.status.textContent = "Analyzing";
+    fields.status.textContent = ANALYZING_STATUS;
     const attachments = parseAttachmentList(fields.attachmentsInput.value);
     EmailAssistantRender.renderAttachments(fields.attachmentsPreview, attachments);
     const data = await requestLocalAnalysis({
@@ -59,9 +65,7 @@ fields.analyzeButton.addEventListener("click", async () => {
     }
     if (!data || !data.ok || !data.analysis || typeof data.analysis !== "object") {
       EmailAssistantRender.clearAnalysis(fields);
-      fields.status.textContent = data && data.error && data.error.message
-        ? data.error.message
-        : "Analysis failed";
+      fields.status.textContent = safeAnalysisErrorStatus(data && data.error);
       return;
     }
     EmailAssistantRender.renderAnalysis(fields, data.analysis);
@@ -187,4 +191,26 @@ function parseAttachmentLine(line) {
     size: String(match[3] || "").trim(),
     type: String(match[2] || "").toLowerCase(),
   };
+}
+
+function safeAnalysisErrorStatus(error) {
+  const code = ownStringDataProperty(error, "code");
+  return Object.prototype.hasOwnProperty.call(ANALYSIS_ERROR_STATUSES, code)
+    ? ANALYSIS_ERROR_STATUSES[code]
+    : "分析未完成，请重试。";
+}
+
+function ownStringDataProperty(value, key) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return "";
+  }
+  try {
+    const descriptor = Object.getOwnPropertyDescriptor(value, key);
+    return descriptor && Object.prototype.hasOwnProperty.call(descriptor, "value") &&
+      typeof descriptor.value === "string"
+      ? descriptor.value
+      : "";
+  } catch (error) {
+    return "";
+  }
 }

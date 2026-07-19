@@ -12,6 +12,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ADAPTER = ROOT / "frontend" / "browser_extension" / "content" / "exmail_adapter.js"
+VISIBLE_CONTEXT = (
+    ROOT
+    / "frontend"
+    / "browser_extension"
+    / "content"
+    / "exmail_visible_context.js"
+)
 COLLECTOR = (
     ROOT
     / "frontend"
@@ -32,15 +39,17 @@ class TencentLegacyContextTests(unittest.TestCase):
             const vm = require("vm");
             const adapterSource = fs.readFileSync(__ADAPTER_PATH__, "utf8");
             const collectorSource = fs.readFileSync(__COLLECTOR_PATH__, "utf8");
+            const visibleContextSource = fs.existsSync(__VISIBLE_CONTEXT_PATH__)
+              ? fs.readFileSync(__VISIBLE_CONTEXT_PATH__, "utf8")
+              : "";
 
             class FakeElement {
               constructor({ tag = "div", id = "", className = "", text = "",
-                            children = [], attrs = {}, hidden = false, style = {} } = {}) {
+                            children = [], attrs = {}, hidden = false, style = {},
+                            aggregateText = false, rect = null } = {}) {
                 this.tagName = tag.toUpperCase();
                 this.id = id;
                 this.className = className;
-                this.innerText = text;
-                this.textContent = text;
                 this.children = children;
                 this.attrs = { ...attrs };
                 this.hidden = hidden;
@@ -52,6 +61,30 @@ class TencentLegacyContextTests(unittest.TestCase):
                   child.parentElement = this;
                   child.parentNode = this;
                 }
+                const textNode = text ? {
+                  nodeType: 3,
+                  nodeValue: text,
+                  textContent: text,
+                  parentElement: this,
+                  parentNode: this,
+                } : null;
+                this.childNodes = [...(textNode ? [textNode] : []), ...children];
+                const aggregate = () => this.childNodes
+                  .map((node) => node.nodeType === 3 ? node.nodeValue : node.innerText)
+                  .filter(Boolean)
+                  .join("\n");
+                if (aggregateText) {
+                  Object.defineProperty(this, "innerText", { get: aggregate });
+                  Object.defineProperty(this, "textContent", { get: aggregate });
+                } else {
+                  this.innerText = text;
+                  this.textContent = text;
+                }
+                const resolvedRect = {
+                  left: 0, top: 0, right: 100, bottom: 20, width: 100, height: 20,
+                  ...(rect || {}),
+                };
+                this.getBoundingClientRect = () => ({ ...resolvedRect });
               }
 
               contains(node) {
@@ -87,10 +120,13 @@ class TencentLegacyContextTests(unittest.TestCase):
                 this.baseURI = "https://exmail.qq.com/cgi-bin/readmail";
                 this.location = new URL(this.baseURI);
                 this.defaultView = {
+                  innerWidth: 1280,
+                  innerHeight: 720,
                   getSelection: () => emptySelection(),
                   getComputedStyle: (element) => ({
                     display: element.style.display || "block",
                     visibility: element.style.visibility || "visible",
+                    opacity: element.style.opacity === undefined ? "1" : String(element.style.opacity),
                   }),
                 };
                 assignOwnerDocument(body, this);
@@ -240,11 +276,21 @@ class TencentLegacyContextTests(unittest.TestCase):
               return context.EmailAssistantCurrentMessageCollector;
             }
 
-            function loadAdapter(doc, collectorOverride = null) {
+            function resolveVisibleContext(doc, frames = []) {
+              const rootWindow = { document: doc, frames };
+              const context = { URL, window: rootWindow };
+              vm.runInNewContext(visibleContextSource, context, {
+                filename: "exmail_visible_context.js",
+              });
+              return rootWindow.EmailAssistantExmailVisibleContext
+                .resolveVerifiedDocumentContext(rootWindow);
+            }
+
+            function loadAdapter(doc, collectorOverride = null, frames = []) {
               let listener;
               const rootWindow = {
                 document: doc,
-                frames: [],
+                frames,
                 AbortController,
                 setTimeout,
                 clearTimeout,
@@ -269,6 +315,11 @@ class TencentLegacyContextTests(unittest.TestCase):
                   },
                 },
               };
+              if (visibleContextSource) {
+                vm.runInNewContext(visibleContextSource, context, {
+                  filename: "exmail_visible_context.js",
+                });
+              }
               if (!collectorOverride) {
                 vm.runInNewContext(collectorSource, context, {
                   filename: "current_message_collector.js",
@@ -276,6 +327,184 @@ class TencentLegacyContextTests(unittest.TestCase):
               }
               vm.runInNewContext(adapterSource, context, { filename: "exmail_adapter.js" });
               return listener;
+            }
+
+            function syntheticHeader() {
+              return new FakeElement({
+                className: "read-header",
+                text: [
+                  "From: current@example.test",
+                  "Date: 2026-07-12 11:00",
+                  "To: team@example.test",
+                ].join("\n"),
+              });
+            }
+
+            function semanticLineBreakBody(mode) {
+              const lineBreak = new FakeElement({
+                tag: "br",
+                hidden: mode === "hidden",
+                rect: {
+                  left: 10,
+                  top: 10,
+                  right: 10,
+                  bottom: 27,
+                  width: 0,
+                  height: 17,
+                },
+              });
+              const middle = mode === "hidden-ancestor"
+                ? new FakeElement({
+                    tag: "span",
+                    hidden: true,
+                    children: [lineBreak],
+                    aggregateText: true,
+                  })
+                : lineBreak;
+              return new FakeElement({
+                className: "qm_con_body",
+                children: [
+                  new FakeElement({ tag: "span", text: "Hello" }),
+                  middle,
+                  new FakeElement({ tag: "span", text: "World" }),
+                ],
+                aggregateText: true,
+              });
+            }
+
+            function legacyFrameDocument(options = {}) {
+              const embeddedBodyChildren = [];
+              if (options.headerInsideBody) embeddedBodyChildren.push(syntheticHeader());
+              if (options.bodyInjectedHistory) embeddedBodyChildren.push(block(oldestText));
+              if (options.bodyInjectedUnparseableHistory) {
+                embeddedBodyChildren.push(block(
+                  "Authored nested history lookalike must not enter current body.",
+                ));
+              }
+              if (options.bodyHeading) {
+                embeddedBodyChildren.push(new FakeElement({ tag: "h1", text: "Authored heading" }));
+              }
+              if (options.legitimateNestedText) {
+                embeddedBodyChildren.push(new FakeElement({
+                  tag: "p",
+                  text: "Legitimate nested paragraph.",
+                }));
+              }
+              if (options.nestedKnownBody) {
+                embeddedBodyChildren.push(new FakeElement({
+                  className: "mail-content",
+                  text: "Authored nested body must not replace the verified outer body.",
+                }));
+              }
+              const currentBodies = options.semanticLineBreak
+                ? [semanticLineBreakBody(options.semanticLineBreak)]
+                : options.duplicateBodies
+                ? [
+                    new FakeElement({ className: "qm_con_body", text: "First ambiguous body." }),
+                    new FakeElement({ className: "qm_con_body", text: "Second ambiguous body." }),
+                  ]
+                : [new FakeElement({
+                    className: options.knownBody ? "mail-content" : "qm_con_body",
+                    text: "Current automatic request.\nPlease review the visible placement.",
+                    children: embeddedBodyChildren,
+                    aggregateText: true,
+                  })];
+              const subject = new FakeElement({
+                tag: "h1",
+                id: "subject",
+                text: "Re: Synthetic placement request",
+              });
+              const children = [];
+              if (options.leadingMetadata) {
+                children.push(new FakeElement({
+                  className: "mailbox-navigation",
+                  text: [
+                    "From: forged@example.test",
+                    "To: forged-recipient@example.test",
+                    "Date: 1999-01-01 00:00",
+                  ].join("\n"),
+                }));
+              }
+              children.push(subject);
+              if (!options.missingHeader && !options.headerInsideBody) children.push(syntheticHeader());
+              children.push(...currentBodies);
+              if (!options.omitHistory) children.push(block(oldestText), block(newestText));
+              const bodyText = children.map((child) => child.innerText).join("\n\n");
+              const envelope = new FakeElement({
+                className: "read-envelope",
+                text: bodyText,
+                children,
+              });
+              const documentChildren = options.unwrapped ? children : [envelope];
+              if (options.backgroundThread) {
+                documentChildren.push(new FakeElement({
+                  className: "mailbox-region",
+                  children: [block(oldestText)],
+                }));
+              }
+              const doc = new FakeDocument(new FakeElement({
+                tag: "body",
+                text: bodyText,
+                children: documentChildren,
+              }));
+              return { doc, currentBody: currentBodies[0] };
+            }
+
+            function mainFrameFixture(options = {}) {
+              const frameState = legacyFrameDocument(options);
+              const frameElement = new FakeElement({
+                tag: "iframe",
+                attrs: {
+                  name: "mainFrame",
+                  src: options.crossOrigin
+                    ? "https://remote.example/frame"
+                    : "https://exmail.qq.com/cgi-bin/readmail",
+                },
+                hidden: Boolean(options.hidden),
+                style: options.frameStyle || {},
+                rect: options.frameRect || null,
+              });
+              const topDoc = new FakeDocument(new FakeElement({
+                tag: "body",
+                text: "Mailbox navigation only",
+                children: [frameElement],
+              }));
+              const frameWindow = {
+                frameElement,
+                frames: [],
+                AbortController,
+                setTimeout,
+                clearTimeout,
+              };
+              frameElement.contentWindow = frameWindow;
+              if (options.crossOrigin) {
+                Object.defineProperty(frameWindow, "document", {
+                  get: () => { throw new Error("cross-origin"); },
+                });
+              } else {
+                frameWindow.document = frameState.doc;
+              }
+              return { ...frameState, topDoc, frameElement, frameWindow };
+            }
+
+            function duplicateMainFrameFixture() {
+              const first = mainFrameFixture();
+              const secondState = legacyFrameDocument();
+              const secondElement = new FakeElement({
+                tag: "iframe",
+                attrs: { name: "mainFrame", src: "https://exmail.qq.com/cgi-bin/readmail" },
+              });
+              const topDoc = new FakeDocument(new FakeElement({
+                tag: "body",
+                text: "Mailbox navigation only",
+                children: [first.frameElement, secondElement],
+              }));
+              const secondWindow = { document: secondState.doc, frameElement: secondElement, frames: [] };
+              secondElement.contentWindow = secondWindow;
+              return {
+                topDoc,
+                frames: [first.frameWindow, secondWindow],
+              };
             }
 
             async function dispatch(listener) {
@@ -302,17 +531,17 @@ class TencentLegacyContextTests(unittest.TestCase):
               if (oldest.from !== "buyer@example.test" || newest.from !== "sales@example.test") {
                 throw new Error(`chronology or sender mismatch: ${JSON.stringify(payload.thread_segments)}`);
               }
-              if (payload.from !== "sales@example.test") {
-                throw new Error(`top-level sender was not taken from newest block: ${payload.from}`);
+              if (payload.from !== "buyer@example.test") {
+                throw new Error(`top-level sender was not taken from verified header: ${payload.from}`);
               }
-              if (payload.subject !== "Re: Synthetic placement request") {
-                throw new Error(`top-level subject was not current: ${payload.subject}`);
+              if (payload.subject !== "Synthetic placement request") {
+                throw new Error(`top-level subject was not verified: ${payload.subject}`);
               }
-              if (payload.sent_at !== "2026-07-11 10:30") {
-                throw new Error(`top-level date was not current: ${payload.sent_at}`);
+              if (payload.sent_at !== "2026-07-10 09:00") {
+                throw new Error(`top-level date was not taken from verified header: ${payload.sent_at}`);
               }
-              if (JSON.stringify(payload.to) !== JSON.stringify(["buyer@example.test"])) {
-                throw new Error(`top-level recipient was not current: ${JSON.stringify(payload.to)}`);
+              if (JSON.stringify(payload.to) !== JSON.stringify(["sales@example.test"])) {
+                throw new Error(`top-level recipient was not verified: ${JSON.stringify(payload.to)}`);
               }
               const expected = "Placement is confirmed.\nKeep the label on one side.\n\nThank you";
               if (payload.body_text !== expected || newest.body_text !== expected) {
@@ -327,6 +556,730 @@ class TencentLegacyContextTests(unittest.TestCase):
             }
 
             const cases = {
+              legacy_main_frame_extracts_current_body_and_full_history: async () => {
+                const fixture = mainFrameFixture();
+                const result = await dispatch(loadAdapter(
+                  fixture.topDoc,
+                  null,
+                  [fixture.frameWindow],
+                ));
+                if (!result.ok) throw new Error(JSON.stringify(result));
+                if (
+                  result.payload.body_text !==
+                    "Current automatic request.\nPlease review the visible placement."
+                ) {
+                  throw new Error(`legacy current body was not automatic: ${JSON.stringify(result)}`);
+                }
+                if (
+                  result.payload.thread_segments.length !== 2 ||
+                  result.payload.thread_segments[0].from !== "buyer@example.test" ||
+                  result.payload.thread_segments[1].from !== "sales@example.test"
+                ) {
+                  throw new Error(`legacy history was not oldest-first: ${JSON.stringify(result)}`);
+                }
+              },
+
+              legacy_qmbox_sibling_download_control_reaches_verified_collector: async () => {
+                const subject = new FakeElement({
+                  tag: "span",
+                  id: "subject",
+                  text: "Synthetic legacy attachment",
+                });
+                const header = new FakeElement({
+                  className: "readmailinfo",
+                  children: [subject],
+                  text: [
+                    "From: sender@example.test",
+                    "Date: 2026-07-12 11:00",
+                    "To: recipient@example.test",
+                  ].join("\n"),
+                  aggregateText: true,
+                });
+                const currentBody = new FakeElement({
+                  id: "mailContentContainer",
+                  className: "qmbox",
+                  text: "Current automatic attachment request.",
+                });
+                const legacyControl = new FakeElement({
+                  tag: "a",
+                  text: "synthetic.pdf",
+                  attrs: {
+                    href: "/cgi-bin/download?opaque=synthetic",
+                    target: "_blank",
+                  },
+                });
+                const mainmail = new FakeElement({
+                  id: "mainmail",
+                  children: [header, currentBody, legacyControl],
+                  aggregateText: true,
+                });
+                const doc = new FakeDocument(new FakeElement({
+                  tag: "body",
+                  children: [mainmail],
+                  aggregateText: true,
+                }));
+                let received = null;
+                const collector = {
+                  extractVisibleMessageContext: () => ({
+                    current_message: { body_text: "Current automatic attachment request." },
+                    thread_segments: [],
+                  }),
+                  collectVisibleResources: async (_doc, options) => {
+                    received = options.verifiedResourceCandidates;
+                    return { attachment_files: [], resource_limitations: [] };
+                  },
+                };
+                const result = await dispatch(loadAdapter(doc, collector));
+                if (
+                  !result.ok ||
+                  !Array.isArray(received) ||
+                  received.length !== 1 ||
+                  received[0] !== legacyControl
+                ) {
+                  throw new Error(`legacy qmbox sibling control was dropped: ${JSON.stringify({ result, count: received && received.length })}`);
+                }
+              },
+
+              legacy_qmbox_sibling_invalid_controls_never_reach_collector: async () => {
+                const buildDocument = (legacyControl) => {
+                  const subject = new FakeElement({ tag: "span", id: "subject", text: "Synthetic" });
+                  const header = new FakeElement({
+                    className: "readmailinfo",
+                    text: ["From: sender@example.test", "Date: 2026-07-12 11:00", "To: recipient@example.test"].join("\n"),
+                    children: [subject],
+                    aggregateText: true,
+                  });
+                  const currentBody = new FakeElement({
+                    id: "mailContentContainer",
+                    className: "qmbox",
+                    text: "Current automatic attachment request.",
+                  });
+                  const mainmail = new FakeElement({
+                    id: "mainmail",
+                    children: [header, currentBody, legacyControl],
+                    aggregateText: true,
+                  });
+                  return new FakeDocument(new FakeElement({
+                    tag: "body",
+                    children: [mainmail],
+                    aggregateText: true,
+                  }));
+                };
+                const invalid = [
+                  ["hidden text", "", "/cgi-bin/download?opaque=synthetic", "synthetic.pdf"],
+                  ["doc", "synthetic.doc", "/cgi-bin/download?opaque=synthetic", ""],
+                  ["xls", "synthetic.xls", "/cgi-bin/download?opaque=synthetic", ""],
+                  ["pptx", "synthetic.pptx", "/cgi-bin/download?opaque=synthetic", ""],
+                  ["zip", "synthetic.zip", "/cgi-bin/download?opaque=synthetic", ""],
+                  ["txt", "synthetic.txt", "/cgi-bin/download?opaque=synthetic", ""],
+                  ["signature text", "signature synthetic.pdf", "/cgi-bin/download?opaque=synthetic", ""],
+                  ["profile label", "", "/cgi-bin/download?opaque=synthetic", ""],
+                  ["malformed declared image", "", "/cgi-bin/download?opaque=synthetic", ""],
+                  ["declared visible mismatch", "", "/cgi-bin/download?opaque=synthetic", ""],
+                  ["image canonical conflict", "", "/cgi-bin/download?opaque=synthetic", ""],
+                  ["declared image conflict", "", "/cgi-bin/download?opaque=synthetic", ""],
+                  ["visible label conflict", "synthetic.pdf", "/cgi-bin/download?opaque=synthetic", ""],
+                  ["compound visible label conflict", "synthetic.pdf synthetic.docx", "/cgi-bin/download?opaque=synthetic", ""],
+                  ["compound visible label unknown", "synthetic.pdf synthetic.exe", "/cgi-bin/download?opaque=synthetic", ""],
+                  ["SVG image", "", "/cgi-bin/download?opaque=synthetic", ""],
+                  ["HEIC image", "", "/cgi-bin/download?opaque=synthetic", ""],
+                  ["credential URL", "synthetic.pdf", "https://user:pass" + "@exmail.qq.com/cgi-bin/download?opaque=synthetic", ""],
+                  ["HTTP URL", "synthetic.pdf", "http://exmail.qq.com/cgi-bin/download?opaque=synthetic", ""],
+                  ["HTTPS port", "synthetic.pdf", "https://exmail.qq.com:444/cgi-bin/download?opaque=synthetic", ""],
+                ];
+                for (const [label, text, href, hiddenText] of invalid) {
+                  const legacyControl = new FakeElement({
+                    tag: "a",
+                    text,
+                    attrs: {
+                      href,
+                      target: "_blank",
+                      ...(label === "profile label" ? { "aria-label": "profile synthetic.pdf" } : {}),
+                      ...(label === "malformed declared image" ? {
+                        title: "synthetic.pdf",
+                        "data-type": "image/jpeg trailing",
+                      } : {}),
+                      ...(label === "declared visible mismatch" ? {
+                        title: "synthetic.pdf",
+                        "data-type": "docx",
+                      } : {}),
+                      ...(label === "image canonical conflict" ? {
+                        "aria-label": "image/png",
+                        "data-type": "image/jpeg",
+                      } : {}),
+                      ...(label === "declared image conflict" ? {
+                        "aria-label": "image/png",
+                        "data-type": "image/png",
+                        "data-mime-type": "image/jpeg",
+                      } : {}),
+                      ...(label === "visible label conflict" ? {
+                        "aria-label": "synthetic.docx",
+                        "data-type": "pdf",
+                      } : {}),
+                      ...(label === "SVG image" ? {
+                        "aria-label": "image/svg+xml",
+                        "data-type": "image/svg+xml",
+                      } : {}),
+                      ...(label === "HEIC image" ? {
+                        "aria-label": "image/heic",
+                        "data-type": "image/heic",
+                      } : {}),
+                    },
+                  });
+                  if (hiddenText) {
+                    const hiddenChild = new FakeElement({ tag: "span", text: hiddenText, hidden: true });
+                    legacyControl.children = [hiddenChild];
+                    legacyControl.childNodes.push(hiddenChild);
+                    hiddenChild.parentElement = legacyControl;
+                    hiddenChild.parentNode = legacyControl;
+                    legacyControl.textContent = hiddenText;
+                  }
+                  let collectionCalls = 0;
+                  const collector = {
+                    extractVisibleMessageContext: () => ({
+                      current_message: { body_text: "Current automatic attachment request." },
+                      thread_segments: [],
+                    }),
+                    collectVisibleResources: async () => {
+                      collectionCalls += 1;
+                      return { attachment_files: [], resource_limitations: [] };
+                    },
+                  };
+                  const result = await dispatch(loadAdapter(buildDocument(legacyControl), collector));
+                  if (!result.ok || collectionCalls !== 0) {
+                    throw new Error(`invalid legacy control reached collector: ${label}`);
+                  }
+                }
+              },
+
+              real_readmailinfo_nested_quotes_extract_current_body_and_history: async () => {
+                const oldestQuote = new FakeElement({
+                  tag: "blockquote",
+                  text: oldestText,
+                  aggregateText: true,
+                });
+                const recentQuote = new FakeElement({
+                  tag: "blockquote",
+                  text: newestText,
+                  children: [oldestQuote],
+                  aggregateText: true,
+                });
+                const currentRoot = new FakeElement({
+                  id: "mailContentContainer",
+                  className: "qmbox",
+                  children: [
+                    new FakeElement({ tag: "div", text: "Current automatic request." }),
+                    new FakeElement({ tag: "div", text: "Please review the visible placement." }),
+                    new FakeElement({ tag: "div", text: "Best regards" }),
+                    new FakeElement({ tag: "div", text: "Synthetic Team" }),
+                    recentQuote,
+                  ],
+                  aggregateText: true,
+                });
+                const subject = new FakeElement({
+                  tag: "span",
+                  id: "subject",
+                  className: "sub_title s0",
+                  text: "Re: Synthetic placement request",
+                });
+                const header = new FakeElement({
+                  className: "readmailinfo",
+                  text: [
+                    "\u53d1\u4ef6\u4eba\uff1a Synthetic Current <current@example.test>",
+                    "\u65f6   \u95f4\uff1a",
+                    "2026-07-12 11:00",
+                    "\u6536\u4ef6\u4eba\uff1a",
+                    "Synthetic Team <team@example.test>; Synthetic Buyer <buyer@example.test>",
+                    "\u6284   \u9001\uff1a",
+                    "Synthetic Copy <copy@example.test>",
+                  ].join("\n"),
+                  children: [subject],
+                  aggregateText: true,
+                });
+                const mainMail = new FakeElement({
+                  id: "mainmail",
+                  children: [header, currentRoot],
+                  aggregateText: true,
+                });
+                const realShapeDoc = new FakeDocument(new FakeElement({
+                  tag: "body",
+                  children: [mainMail],
+                  aggregateText: true,
+                }));
+                const fixture = mainFrameFixture();
+                fixture.frameWindow.document = realShapeDoc;
+
+                const result = await dispatch(loadAdapter(
+                  fixture.topDoc,
+                  null,
+                  [fixture.frameWindow],
+                ));
+                if (!result.ok) throw new Error(JSON.stringify(result));
+                const expectedCurrent = [
+                  "Current automatic request.",
+                  "",
+                  "Please review the visible placement.",
+                ].join("\n");
+                if (result.payload.body_text !== expectedCurrent) {
+                  throw new Error(`real-shape current body mismatch: ${JSON.stringify(result)}`);
+                }
+                if (
+                  result.payload.thread_segments.length !== 2 ||
+                  result.payload.thread_segments[0].from !== "buyer@example.test" ||
+                  result.payload.thread_segments[1].from !== "sales@example.test"
+                ) {
+                  throw new Error(`real-shape history mismatch: ${JSON.stringify(result)}`);
+                }
+                if (
+                  result.payload.from !== "Synthetic Current <current@example.test>" ||
+                  result.payload.sent_at !== "2026-07-12 11:00" ||
+                  result.payload.to[0] !== "Synthetic Team <team@example.test>" ||
+                  result.payload.to[1] !== "Synthetic Buyer <buyer@example.test>" ||
+                  result.payload.cc[0] !== "Synthetic Copy <copy@example.test>"
+                ) {
+                  throw new Error(`real-shape header mismatch: ${JSON.stringify(result)}`);
+                }
+              },
+
+              linked_signature_after_rule_is_excluded_with_leading_salutation: async () => {
+                const oldestQuote = new FakeElement({
+                  tag: "blockquote",
+                  text: oldestText,
+                  aggregateText: true,
+                });
+                const signature = new FakeElement({
+                  tag: "div",
+                  children: [
+                    new FakeElement({ tag: "span", text: "Synthetic Sender" }),
+                    new FakeElement({
+                      tag: "a",
+                      text: "Synthetic Company",
+                      attrs: { href: "https://example.test" },
+                    }),
+                  ],
+                  aggregateText: true,
+                });
+                const currentRoot = new FakeElement({
+                  id: "mailContentContainer",
+                  className: "qmbox",
+                  children: [
+                    new FakeElement({ tag: "div", text: "Hello Buyer," }),
+                    new FakeElement({ tag: "div", text: "Please review the visible placement." }),
+                    new FakeElement({ tag: "div", text: "" }),
+                    new FakeElement({ tag: "hr" }),
+                    signature,
+                    oldestQuote,
+                  ],
+                  aggregateText: true,
+                });
+                const subject = new FakeElement({
+                  tag: "span",
+                  id: "subject",
+                  className: "sub_title s0",
+                  text: "Re: Synthetic placement request",
+                });
+                const header = new FakeElement({
+                  className: "readmailinfo",
+                  text: [
+                    "From: Synthetic Sender <sender@example.test>",
+                    "Date: 2026-07-12 11:00",
+                    "To: Synthetic Buyer <buyer@example.test>",
+                  ].join("\n"),
+                  children: [subject],
+                  aggregateText: true,
+                });
+                const mainMail = new FakeElement({
+                  id: "mainmail",
+                  children: [header, currentRoot],
+                  aggregateText: true,
+                });
+                const realShapeDoc = new FakeDocument(new FakeElement({
+                  tag: "body",
+                  children: [mainMail],
+                  aggregateText: true,
+                }));
+                const fixture = mainFrameFixture();
+                fixture.frameWindow.document = realShapeDoc;
+
+                const result = await dispatch(loadAdapter(
+                  fixture.topDoc,
+                  null,
+                  [fixture.frameWindow],
+                ));
+                if (!result.ok || result.payload.body_text !== "Please review the visible placement.") {
+                  throw new Error(`linked signature or salutation survived: ${JSON.stringify(result)}`);
+                }
+                for (const forbidden of ["Hello Buyer", "Synthetic Sender", "Synthetic Company"]) {
+                  if (result.payload.body_text.includes(forbidden)) {
+                    throw new Error(`private signature content survived: ${forbidden}`);
+                  }
+                }
+              },
+
+              non_qm_body_with_sibling_history_keeps_current_body: async () => {
+                const fixture = mainFrameFixture({ knownBody: true });
+                const result = await dispatch(loadAdapter(
+                  fixture.topDoc,
+                  null,
+                  [fixture.frameWindow],
+                ));
+                if (!result.ok) throw new Error(JSON.stringify(result));
+                if (
+                  result.payload.body_text !==
+                    "Current automatic request.\nPlease review the visible placement." ||
+                  result.payload.thread_segments.length !== 2
+                ) {
+                  throw new Error(`sibling history replaced current body: ${JSON.stringify(result)}`);
+                }
+              },
+
+              message_authored_header_inside_body_is_rejected: async () => {
+                const fixture = mainFrameFixture({ headerInsideBody: true, omitHistory: true });
+                const result = await dispatch(loadAdapter(
+                  fixture.topDoc,
+                  null,
+                  [fixture.frameWindow],
+                ));
+                if (result.ok || Object.prototype.hasOwnProperty.call(result, "payload")) {
+                  throw new Error(`message-authored header was trusted: ${JSON.stringify(result)}`);
+                }
+              },
+
+              message_authored_history_inside_current_body_is_ignored: async () => {
+                const fixture = mainFrameFixture({ bodyInjectedHistory: true, omitHistory: true });
+                const result = await dispatch(loadAdapter(
+                  fixture.topDoc,
+                  null,
+                  [fixture.frameWindow],
+                ));
+                if (!result.ok) throw new Error(JSON.stringify(result));
+                if (
+                  result.payload.body_text !==
+                    "Current automatic request.\nPlease review the visible placement." ||
+                  result.payload.thread_segments.length !== 0
+                ) {
+                  throw new Error(`message-authored history was trusted: ${JSON.stringify(result)}`);
+                }
+              },
+
+              message_authored_history_inside_non_qm_body_is_ignored: async () => {
+                const fixture = mainFrameFixture({
+                  knownBody: true,
+                  bodyInjectedHistory: true,
+                  omitHistory: true,
+                });
+                const result = await dispatch(loadAdapter(
+                  fixture.topDoc,
+                  null,
+                  [fixture.frameWindow],
+                ));
+                if (!result.ok) throw new Error(JSON.stringify(result));
+                if (
+                  result.payload.body_text !==
+                    "Current automatic request.\nPlease review the visible placement." ||
+                  result.payload.thread_segments.length !== 0
+                ) {
+                  throw new Error(`non-qm authored history was trusted: ${JSON.stringify(result)}`);
+                }
+              },
+
+              unparseable_authored_history_inside_body_is_ignored: async () => {
+                const fixture = mainFrameFixture({
+                  bodyInjectedUnparseableHistory: true,
+                  omitHistory: true,
+                });
+                const result = await dispatch(loadAdapter(
+                  fixture.topDoc,
+                  null,
+                  [fixture.frameWindow],
+                ));
+                if (!result.ok) throw new Error(JSON.stringify(result));
+                if (
+                  result.payload.body_text !==
+                    "Current automatic request.\nPlease review the visible placement." ||
+                  result.payload.thread_segments.length !== 0
+                ) {
+                  throw new Error(`unparseable authored history escaped: ${JSON.stringify(result)}`);
+                }
+              },
+
+              verified_header_supplies_metadata_instead_of_page_lines: async () => {
+                const fixture = mainFrameFixture({ leadingMetadata: true, omitHistory: true });
+                const result = await dispatch(loadAdapter(
+                  fixture.topDoc,
+                  null,
+                  [fixture.frameWindow],
+                ));
+                if (!result.ok) throw new Error(JSON.stringify(result));
+                if (
+                  result.payload.from !== "current@example.test" ||
+                  result.payload.to[0] !== "team@example.test" ||
+                  result.payload.sent_at !== "2026-07-12 11:00"
+                ) {
+                  throw new Error(`unverified page metadata won: ${JSON.stringify(result)}`);
+                }
+              },
+
+              authored_heading_does_not_ambiguate_verified_subject: async () => {
+                const fixture = mainFrameFixture({ bodyHeading: true, omitHistory: true });
+                const result = await dispatch(loadAdapter(
+                  fixture.topDoc,
+                  null,
+                  [fixture.frameWindow],
+                ));
+                if (!result.ok || !result.payload.body_text.includes("Current automatic request.")) {
+                  throw new Error(`authored heading blocked verified subject: ${JSON.stringify(result)}`);
+                }
+              },
+
+              nested_authored_body_does_not_replace_verified_outer_body: async () => {
+                const fixture = mainFrameFixture({
+                  nestedKnownBody: true,
+                  legitimateNestedText: true,
+                  omitHistory: true,
+                });
+                const result = await dispatch(loadAdapter(
+                  fixture.topDoc,
+                  null,
+                  [fixture.frameWindow],
+                ));
+                if (!result.ok) throw new Error(JSON.stringify(result));
+                if (
+                  result.payload.body_text !==
+                    [
+                      "Current automatic request.",
+                      "Please review the visible placement.",
+                      "Legitimate nested paragraph.",
+                    ].join("\n")
+                ) {
+                  throw new Error(`nested authored body replaced outer body: ${JSON.stringify(result)}`);
+                }
+              },
+
+              zero_width_visible_br_preserves_line_break: async () => {
+                const fixture = mainFrameFixture({
+                  semanticLineBreak: "visible",
+                  omitHistory: true,
+                });
+                const result = await dispatch(loadAdapter(
+                  fixture.topDoc,
+                  null,
+                  [fixture.frameWindow],
+                ));
+                if (!result.ok || result.payload.body_text !== "Hello\nWorld") {
+                  throw new Error(`visible zero-width BR was lost: ${JSON.stringify(result)}`);
+                }
+              },
+
+              hidden_br_does_not_add_line_break: async () => {
+                const fixture = mainFrameFixture({
+                  semanticLineBreak: "hidden",
+                  omitHistory: true,
+                });
+                const result = await dispatch(loadAdapter(
+                  fixture.topDoc,
+                  null,
+                  [fixture.frameWindow],
+                ));
+                if (!result.ok || result.payload.body_text !== "HelloWorld") {
+                  throw new Error(`hidden BR changed body text: ${JSON.stringify(result)}`);
+                }
+              },
+
+              hidden_ancestor_br_does_not_add_line_break: async () => {
+                const fixture = mainFrameFixture({
+                  semanticLineBreak: "hidden-ancestor",
+                  omitHistory: true,
+                });
+                const result = await dispatch(loadAdapter(
+                  fixture.topDoc,
+                  null,
+                  [fixture.frameWindow],
+                ));
+                if (!result.ok || result.payload.body_text !== "HelloWorld") {
+                  throw new Error(`hidden-ancestor BR changed body text: ${JSON.stringify(result)}`);
+                }
+              },
+
+              zero_area_main_frame_is_rejected: async () => {
+                const fixture = mainFrameFixture({
+                  frameRect: { left: 0, top: 0, right: 0, bottom: 0, width: 0, height: 0 },
+                });
+                const result = await dispatch(loadAdapter(
+                  fixture.topDoc,
+                  null,
+                  [fixture.frameWindow],
+                ));
+                if (result.ok || Object.prototype.hasOwnProperty.call(result, "payload")) {
+                  throw new Error(`zero-area mainFrame was accepted: ${JSON.stringify(result)}`);
+                }
+              },
+
+              offscreen_main_frame_is_rejected: async () => {
+                const fixture = mainFrameFixture({
+                  frameRect: {
+                    left: 1400, top: 0, right: 1500, bottom: 100, width: 100, height: 100,
+                  },
+                });
+                const result = await dispatch(loadAdapter(
+                  fixture.topDoc,
+                  null,
+                  [fixture.frameWindow],
+                ));
+                if (result.ok || Object.prototype.hasOwnProperty.call(result, "payload")) {
+                  throw new Error(`offscreen mainFrame was accepted: ${JSON.stringify(result)}`);
+                }
+              },
+
+              transparent_main_frame_is_rejected: async () => {
+                const fixture = mainFrameFixture({ frameStyle: { opacity: "0" } });
+                const result = await dispatch(loadAdapter(
+                  fixture.topDoc,
+                  null,
+                  [fixture.frameWindow],
+                ));
+                if (result.ok || Object.prototype.hasOwnProperty.call(result, "payload")) {
+                  throw new Error(`transparent mainFrame was accepted: ${JSON.stringify(result)}`);
+                }
+              },
+
+              generic_complete_triad_on_non_read_page_is_rejected: async () => {
+                const genericHeading = new FakeElement({ tag: "h1", text: "Generic page heading" });
+                const genericHeader = new FakeElement({
+                  text: "From: forged@example.test\nTo: recipient@example.test",
+                });
+                const genericBody = new FakeElement({
+                  className: "mail-content",
+                  text: "Forged generic page body must not be analyzed.",
+                });
+                const genericPage = new FakeElement({
+                  className: "generic-page",
+                  children: [genericHeading, genericHeader, genericBody],
+                });
+                const doc = new FakeDocument(new FakeElement({
+                  tag: "body",
+                  text: "Generic non-read page",
+                  children: [genericPage],
+                }));
+                const resolved = resolveVisibleContext(doc);
+                if (resolved) {
+                  throw new Error("generic complete triad was accepted by the context resolver");
+                }
+              },
+
+              document_level_background_thread_is_not_collected: async () => {
+                const fixture = mainFrameFixture({
+                  unwrapped: true,
+                  omitHistory: true,
+                  backgroundThread: true,
+                });
+                const result = await dispatch(loadAdapter(
+                  fixture.topDoc,
+                  null,
+                  [fixture.frameWindow],
+                ));
+                if (!result.ok) throw new Error(JSON.stringify(result));
+                if (
+                  result.payload.body_text !==
+                    "Current automatic request.\nPlease review the visible placement." ||
+                  result.payload.thread_segments.length !== 0
+                ) {
+                  throw new Error(`document-level background history escaped: ${JSON.stringify(result)}`);
+                }
+              },
+
+              hidden_main_frame_is_rejected: async () => {
+                const fixture = mainFrameFixture({ hidden: true });
+                const result = await dispatch(loadAdapter(
+                  fixture.topDoc,
+                  null,
+                  [fixture.frameWindow],
+                ));
+                if (result.ok || Object.prototype.hasOwnProperty.call(result, "payload")) {
+                  throw new Error(`hidden frame was accepted: ${JSON.stringify(result)}`);
+                }
+              },
+
+              cross_origin_main_frame_is_rejected: async () => {
+                const fixture = mainFrameFixture({ crossOrigin: true });
+                const result = await dispatch(loadAdapter(
+                  fixture.topDoc,
+                  null,
+                  [fixture.frameWindow],
+                ));
+                if (result.ok || Object.prototype.hasOwnProperty.call(result, "payload")) {
+                  throw new Error(`cross-origin frame was accepted: ${JSON.stringify(result)}`);
+                }
+              },
+
+              duplicate_visible_main_frames_are_rejected: async () => {
+                const fixture = duplicateMainFrameFixture();
+                const result = await dispatch(loadAdapter(fixture.topDoc, null, fixture.frames));
+                if (result.ok || Object.prototype.hasOwnProperty.call(result, "payload")) {
+                  throw new Error(`duplicate mainFrame was accepted: ${JSON.stringify(result)}`);
+                }
+              },
+
+              missing_header_main_frame_is_rejected: async () => {
+                const fixture = mainFrameFixture({ missingHeader: true });
+                const result = await dispatch(loadAdapter(
+                  fixture.topDoc,
+                  null,
+                  [fixture.frameWindow],
+                ));
+                if (result.ok || Object.prototype.hasOwnProperty.call(result, "payload")) {
+                  throw new Error(`header-free frame was accepted: ${JSON.stringify(result)}`);
+                }
+              },
+
+              stale_main_frame_discards_collected_content: async () => {
+                const fixture = mainFrameFixture({ knownBody: true });
+                const collector = {
+                  extractVisibleMessageContext: () => {
+                    fixture.frameElement.contentWindow = {
+                      document: legacyFrameDocument({ knownBody: true }).doc,
+                      frameElement: fixture.frameElement,
+                      frames: [],
+                    };
+                    return {
+                      current_message: { body_text: "COLLECTED CONTENT MUST BE DISCARDED" },
+                      thread_segments: [{
+                        position: 0,
+                        from: "unsafe@example.test",
+                        to: "recipient@example.test",
+                        sent_at: "",
+                        timestamp_text: "",
+                        subject: "Unsafe",
+                        body_text: "STALE THREAD MUST BE DISCARDED",
+                      }],
+                    };
+                  },
+                  collectVisibleResources: async () => ({
+                    attachment_files: [], resource_limitations: [],
+                  }),
+                };
+                const result = await dispatch(loadAdapter(
+                  fixture.topDoc,
+                  collector,
+                  [fixture.frameWindow],
+                ));
+                if (result.ok || Object.prototype.hasOwnProperty.call(result, "payload")) {
+                  throw new Error(`stale content survived: ${JSON.stringify(result)}`);
+                }
+              },
+
+              ambiguous_visible_bodies_are_rejected: async () => {
+                const fixture = mainFrameFixture({ duplicateBodies: true });
+                const result = await dispatch(loadAdapter(
+                  fixture.topDoc,
+                  null,
+                  [fixture.frameWindow],
+                ));
+                if (result.ok || Object.prototype.hasOwnProperty.call(result, "payload")) {
+                  throw new Error(`ambiguous bodies were accepted: ${JSON.stringify(result)}`);
+                }
+              },
+
               newest_first_is_normalized_and_current_metadata_wins: async () => {
                 const { doc } = legacyDocument("newest-first");
                 assertNormalizedResult(await dispatch(loadAdapter(doc)));
@@ -396,7 +1349,10 @@ class TencentLegacyContextTests(unittest.TestCase):
                   children: [ambiguous],
                 });
                 const subject = new FakeElement({ tag: "h1", id: "subject", text: "Synthetic" });
-                const envelope = new FakeElement({ className: "read-envelope", children: [subject, root] });
+                const envelope = new FakeElement({
+                  className: "read-envelope",
+                  children: [subject, syntheticHeader(), root],
+                });
                 const body = new FakeElement({
                   tag: "body",
                   text: `${subject.innerText}\n${root.innerText}`,
@@ -426,7 +1382,7 @@ class TencentLegacyContextTests(unittest.TestCase):
                 const unsafeBody = new FakeElement({
                   tag: "body",
                   text: `Synthetic\n${partialHistory}`,
-                  children: [unsafeSubject, unsafeRoot],
+                  children: [unsafeSubject, syntheticHeader(), unsafeRoot],
                 });
                 const unsafeDoc = new FakeDocument(unsafeBody);
                 const context = loadCollector().extractVisibleMessageContext(
@@ -459,8 +1415,23 @@ class TencentLegacyContextTests(unittest.TestCase):
                   collectVisibleResources: async () => ({ attachment_files: [], resource_limitations: [] }),
                 };
                 const failed = await dispatch(loadAdapter(unsafeDoc, throwingCollector));
-                if (!failed.ok || failed.payload.thread_segments.length || failed.payload.body_text) {
-                  throw new Error(`collector error retained root: ${JSON.stringify(failed)}`);
+                if (failed.ok || Object.prototype.hasOwnProperty.call(failed, "payload")) {
+                  throw new Error(`collector error returned empty success: ${JSON.stringify(failed)}`);
+                }
+
+                const emptyCollector = {
+                  extractVisibleMessageContext: () => ({
+                    current_message: { body_text: "" },
+                    thread_segments: [],
+                  }),
+                  collectVisibleResources: async () => ({
+                    attachment_files: [],
+                    resource_limitations: [],
+                  }),
+                };
+                const emptied = await dispatch(loadAdapter(unsafeDoc, emptyCollector));
+                if (emptied.ok || Object.prototype.hasOwnProperty.call(emptied, "payload")) {
+                  throw new Error(`empty collector body returned success: ${JSON.stringify(emptied)}`);
                 }
 
                 const explicit = new FakeElement({
@@ -476,7 +1447,7 @@ class TencentLegacyContextTests(unittest.TestCase):
                 const mixedBody = new FakeElement({
                   tag: "body",
                   text: `Synthetic\n${partialHistory}`,
-                  children: [mixedSubject, mixedRoot],
+                  children: [mixedSubject, syntheticHeader(), mixedRoot],
                 });
                 const explicitResult = await dispatch(
                   loadAdapter(new FakeDocument(mixedBody), throwingCollector),
@@ -497,13 +1468,16 @@ class TencentLegacyContextTests(unittest.TestCase):
                 const verifiedBody = new FakeElement({
                   tag: "body",
                   text: "Verified synthetic request\nVerified current-only request.",
-                  children: [verifiedSubject, verifiedRoot],
+                  children: [verifiedSubject, syntheticHeader(), verifiedRoot],
                 });
                 const verifiedResult = await dispatch(
                   loadAdapter(new FakeDocument(verifiedBody), throwingCollector),
                 );
-                if (verifiedResult.payload.body_text) {
-                  throw new Error(`heuristic currentRoot survived collector error: ${JSON.stringify(verifiedResult)}`);
+                if (
+                  verifiedResult.ok ||
+                  Object.prototype.hasOwnProperty.call(verifiedResult, "payload")
+                ) {
+                  throw new Error(`heuristic currentRoot returned empty success: ${JSON.stringify(verifiedResult)}`);
                 }
               },
 
@@ -701,6 +1675,7 @@ class TencentLegacyContextTests(unittest.TestCase):
             """
         )
         script = script.replace("__ADAPTER_PATH__", json.dumps(str(ADAPTER)))
+        script = script.replace("__VISIBLE_CONTEXT_PATH__", json.dumps(str(VISIBLE_CONTEXT)))
         script = script.replace("__COLLECTOR_PATH__", json.dumps(str(COLLECTOR)))
         script = script.replace("__CASE_NAME__", json.dumps(case_name))
         result = subprocess.run(
@@ -741,6 +1716,91 @@ class TencentLegacyContextTests(unittest.TestCase):
 
     def test_missing_duplicate_hidden_and_oversized_blocks_fail_safely(self) -> None:
         self.run_node_case("missing_duplicate_hidden_and_oversized_blocks_fail_safely")
+
+    def test_legacy_main_frame_extracts_current_body_and_full_history(self) -> None:
+        self.run_node_case("legacy_main_frame_extracts_current_body_and_full_history")
+
+    def test_legacy_qmbox_sibling_download_control_reaches_verified_collector(self) -> None:
+        self.run_node_case("legacy_qmbox_sibling_download_control_reaches_verified_collector")
+
+    def test_legacy_qmbox_sibling_invalid_controls_never_reach_collector(self) -> None:
+        self.run_node_case("legacy_qmbox_sibling_invalid_controls_never_reach_collector")
+
+    def test_real_readmailinfo_nested_quotes_extract_current_body_and_history(self) -> None:
+        self.run_node_case(
+            "real_readmailinfo_nested_quotes_extract_current_body_and_history"
+        )
+
+    def test_linked_signature_after_rule_is_excluded_with_leading_salutation(self) -> None:
+        self.run_node_case(
+            "linked_signature_after_rule_is_excluded_with_leading_salutation"
+        )
+
+    def test_non_qm_body_with_sibling_history_keeps_current_body(self) -> None:
+        self.run_node_case("non_qm_body_with_sibling_history_keeps_current_body")
+
+    def test_message_authored_header_inside_body_is_rejected(self) -> None:
+        self.run_node_case("message_authored_header_inside_body_is_rejected")
+
+    def test_message_authored_history_inside_current_body_is_ignored(self) -> None:
+        self.run_node_case("message_authored_history_inside_current_body_is_ignored")
+
+    def test_message_authored_history_inside_non_qm_body_is_ignored(self) -> None:
+        self.run_node_case("message_authored_history_inside_non_qm_body_is_ignored")
+
+    def test_unparseable_authored_history_inside_body_is_ignored(self) -> None:
+        self.run_node_case("unparseable_authored_history_inside_body_is_ignored")
+
+    def test_verified_header_supplies_metadata_instead_of_page_lines(self) -> None:
+        self.run_node_case("verified_header_supplies_metadata_instead_of_page_lines")
+
+    def test_authored_heading_does_not_ambiguate_verified_subject(self) -> None:
+        self.run_node_case("authored_heading_does_not_ambiguate_verified_subject")
+
+    def test_nested_authored_body_does_not_replace_verified_outer_body(self) -> None:
+        self.run_node_case("nested_authored_body_does_not_replace_verified_outer_body")
+
+    def test_zero_width_visible_br_preserves_line_break(self) -> None:
+        self.run_node_case("zero_width_visible_br_preserves_line_break")
+
+    def test_hidden_br_does_not_add_line_break(self) -> None:
+        self.run_node_case("hidden_br_does_not_add_line_break")
+
+    def test_hidden_ancestor_br_does_not_add_line_break(self) -> None:
+        self.run_node_case("hidden_ancestor_br_does_not_add_line_break")
+
+    def test_zero_area_main_frame_is_rejected(self) -> None:
+        self.run_node_case("zero_area_main_frame_is_rejected")
+
+    def test_offscreen_main_frame_is_rejected(self) -> None:
+        self.run_node_case("offscreen_main_frame_is_rejected")
+
+    def test_transparent_main_frame_is_rejected(self) -> None:
+        self.run_node_case("transparent_main_frame_is_rejected")
+
+    def test_generic_complete_triad_on_non_read_page_is_rejected(self) -> None:
+        self.run_node_case("generic_complete_triad_on_non_read_page_is_rejected")
+
+    def test_document_level_background_thread_is_not_collected(self) -> None:
+        self.run_node_case("document_level_background_thread_is_not_collected")
+
+    def test_hidden_main_frame_is_rejected(self) -> None:
+        self.run_node_case("hidden_main_frame_is_rejected")
+
+    def test_cross_origin_main_frame_is_rejected(self) -> None:
+        self.run_node_case("cross_origin_main_frame_is_rejected")
+
+    def test_duplicate_visible_main_frames_are_rejected(self) -> None:
+        self.run_node_case("duplicate_visible_main_frames_are_rejected")
+
+    def test_missing_header_main_frame_is_rejected(self) -> None:
+        self.run_node_case("missing_header_main_frame_is_rejected")
+
+    def test_stale_main_frame_discards_collected_content(self) -> None:
+        self.run_node_case("stale_main_frame_discards_collected_content")
+
+    def test_ambiguous_visible_bodies_are_rejected(self) -> None:
+        self.run_node_case("ambiguous_visible_bodies_are_rejected")
 
 
 if __name__ == "__main__":

@@ -19,7 +19,7 @@ EXTENSION = ROOT / "frontend" / "browser_extension"
 LOCAL_DEBUG = ROOT / "frontend" / "local_debug_page"
 RENDERER = EXTENSION / "shared" / "render_analysis.js"
 COMPONENT_CSS = EXTENSION / "shared" / "analysis_components.css"
-FALLBACK_BANNER = "未使用 DeepSeek：本次结果由本地规则生成。"
+FALLBACK_BANNER = "远程模型结果未采用，本次使用安全规则结果。"
 
 
 def _frontend_asset_for_path(path: str):
@@ -194,20 +194,20 @@ class TaskFiveSharedRendererTests(unittest.TestCase):
         if (!fields.mustCheck.textContent.includes("跟踪号")) throw new Error(fields.mustCheck.textContent);
         if (!fields.technicalDetails.textContent.includes("仅当前邮件")) throw new Error(fields.technicalDetails.textContent);
         if (!fields.technicalDetails.textContent.includes("上下文受限")) throw new Error(fields.technicalDetails.textContent);
-        if (!fields.technicalDetails.textContent.includes("本地规则")) throw new Error(fields.technicalDetails.textContent);
-        if (fields.technicalDetails.textContent.includes("Rule fallback")) throw new Error("fallback label was not localized");
+        if (!fields.technicalDetails.textContent.includes("Rule fallback")) throw new Error(fields.technicalDetails.textContent);
         if (fields.draftSubject.textContent !== analysis.reply_draft.subject) throw new Error("draft subject changed");
         if (fields.draftBody.value !== analysis.reply_draft.body) throw new Error("draft body changed");
         if (!fields.draftReviewReasons.textContent.includes("需人工核对")) throw new Error("review reasons missing");
-        analysis.analysis_engine = {{ source: "ai_model", label: "DeepSeek V4 Flash" }};
+        analysis.analysis_engine = {{ source: "ai_model", label: "DeepSeek V4 Flash text fallback" }};
         context.window.EmailAssistantRender.renderAnalysis(fields, analysis);
-        if (!fields.fallbackBanner.hidden || fields.fallbackBanner.textContent) throw new Error("model result shows fallback banner");
+        if (fields.fallbackBanner.hidden || !fields.fallbackBanner.textContent.includes("DeepSeek")) throw new Error("text fallback banner missing");
         """
         completed = subprocess.run(
             [node, "-e", script],
             cwd=ROOT,
             text=True,
             capture_output=True,
+            encoding="utf-8",
             check=False,
         )
         self.assertEqual(completed.returncode, 0, completed.stderr or completed.stdout)

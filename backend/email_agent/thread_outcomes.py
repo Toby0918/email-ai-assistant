@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 
+from .quantity_facts import has_final_labeled_quantity_statement
 
 _OUTCOME_RE = re.compile(
     r"\b(resolved|completed|closed|has been sent|delivered)\b|已(?:解决|完成|关闭|发送|处理完成)",
@@ -33,7 +34,10 @@ _NEGATED_OUTCOME_RE = re.compile(
 
 def evidence_flags(text: str) -> tuple[bool, bool]:
     negated = _NEGATED_OUTCOME_RE.search(text) is not None
-    outcome = _OUTCOME_RE.search(text) is not None and not negated
+    outcome = (
+        _OUTCOME_RE.search(text) is not None
+        or has_final_labeled_quantity_statement(text)
+    ) and not negated
     blocker = _BLOCKER_RE.search(text) is not None or negated
     return outcome, blocker
 

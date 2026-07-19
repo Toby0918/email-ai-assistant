@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import unittest
 from dataclasses import replace
+from datetime import UTC, datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from backend.email_agent.analysis_budget import AnalysisBudget
+from backend.email_agent.analysis_budget import RESPONSE_MARGIN_SECONDS, AnalysisBudget
+from backend.email_agent.analyzer import AnalysisError
 from backend.email_agent.api import handle_analyze_current_email
+from backend.email_agent.attachment_storage import StoredAttachment
 from backend.email_agent.config import load_config
 
 
@@ -139,7 +142,7 @@ class ApiTests(unittest.TestCase):
         received: dict[str, object] = {}
 
         def cleanup(_config) -> None:
-            now[0] = 31.0
+            now[0] = budget.deadline - RESPONSE_MARGIN_SECONDS
 
         with patch(
             "backend.email_agent.api.cleanup_expired_attachments", side_effect=cleanup
@@ -164,6 +167,46 @@ class ApiTests(unittest.TestCase):
         self.assertEqual(received["stored_attachments"], [])
         self.assertEqual(received["resource_limitations"][0]["code"], "operational_failure")
 
+    def test_budget_exhaustion_after_storage_removes_the_unreturned_batch(self) -> None:
+        with TemporaryDirectory() as directory:
+            now = [0.0]
+            budget = AnalysisBudget.start(clock=lambda: now[0])
+            stored_path = Path(directory) / "request-local.pdf"
+
+            def store(_files, _config):
+                stored_path.write_bytes(b"SYNTHETIC_REQUEST_BYTES")
+                now[0] = budget.deadline - RESPONSE_MARGIN_SECONDS
+                return [StoredAttachment(
+                    safe_filename="visible.pdf",
+                    type="pdf",
+                    path=stored_path,
+                    byte_size=stored_path.stat().st_size,
+                    expires_at=datetime.now(UTC),
+                )]
+
+            received: dict[str, object] = {}
+            with patch(
+                "backend.email_agent.api.store_attachment_files", side_effect=store
+            ):
+                response = handle_analyze_current_email(
+                    {
+                        "user_confirmed": True,
+                        "subject": "Synthetic request",
+                        "from": "sender@example.test",
+                        "body_text": "Please review.",
+                        "attachment_files": [
+                            {"filename": "visible.pdf", "type": "pdf", "content_base64": "YQ=="}
+                        ],
+                    },
+                    analyzer=lambda payload: received.update(payload) or {"summary": "continued"},
+                    config=replace(load_config(dotenv_path=None), attachment_temp_dir=directory),
+                    budget=budget,
+                )
+
+            self.assertTrue(response["ok"])
+            self.assertEqual(received["stored_attachments"], [])
+            self.assertFalse(stored_path.exists())
+
     def test_handle_analyze_current_email_requires_user_trigger(self) -> None:
         # API calls without the user's button click must stop at the boundary.
         response = handle_analyze_current_email({"subject": "x", "from": "a@example.com", "body_text": "hi"})
@@ -187,9 +230,12 @@ class ApiTests(unittest.TestCase):
         with TemporaryDirectory() as directory:
             config = replace(load_config(dotenv_path=None), attachment_temp_dir=directory)
             received: dict[str, object] = {}
+            existed_during_analysis: list[bool] = []
 
             def analyzer(payload: dict[str, object]) -> dict[str, str]:
                 received.update(payload)
+                stored = payload["stored_attachments"]
+                existed_during_analysis.append(Path(stored[0].path).is_file())
                 return {"summary": "ok"}
 
             response = handle_analyze_current_email(
@@ -219,7 +265,120 @@ class ApiTests(unittest.TestCase):
             self.assertEqual(stored[0].safe_filename, "visible.pdf")
             self.assertNotIn("https://", str(stored[0]))
             self.assertNotIn("not-for-storage", str(stored[0]))
-            self.assertTrue(Path(stored[0].path).is_file())
+            self.assertEqual(existed_during_analysis, [True])
+            self.assertFalse(Path(stored[0].path).exists())
+            self.assertEqual(list(Path(directory).iterdir()), [])
+
+    def test_api_cleans_request_temp_dir_after_default_provider_failure(self) -> None:
+        with TemporaryDirectory() as directory:
+            config = replace(load_config(dotenv_path=None), attachment_temp_dir=directory)
+            with patch(
+                "backend.email_agent.api.analyze_current_email",
+                side_effect=AnalysisError("synthetic provider failure"),
+            ):
+                response = handle_analyze_current_email(
+                    {
+                        "user_confirmed": True,
+                        "subject": "Synthetic request",
+                        "from": "sender@example.test",
+                        "body_text": "Please review.",
+                        "attachment_files": [
+                            {"filename": "visible.pdf", "type": "pdf", "content_base64": "YQ=="}
+                        ],
+                    },
+                    config=config,
+                )
+
+            self.assertFalse(response["ok"])
+            self.assertEqual(response["error"]["code"], "ANALYSIS_FAILED")
+            self.assertEqual(list(Path(directory).iterdir()), [])
+
+    def test_api_finally_removes_stored_attachments_on_known_and_unexpected_failures(self) -> None:
+        failures = (
+            (AnalysisError("synthetic analysis failure"), False),
+            (RuntimeError("SYNTHETIC_PRIVATE_FAILURE"), True),
+        )
+        for failure, escapes in failures:
+            with self.subTest(failure=type(failure).__name__), TemporaryDirectory() as directory:
+                config = replace(load_config(dotenv_path=None), attachment_temp_dir=directory)
+
+                def analyzer(_payload: dict[str, object]) -> dict[str, str]:
+                    raise failure
+
+                payload = {
+                    "user_confirmed": True,
+                    "subject": "Synthetic request",
+                    "from": "sender@example.test",
+                    "body_text": "Please review.",
+                    "attachment_files": [
+                        {"filename": "visible.pdf", "type": "pdf", "content_base64": "YQ=="}
+                    ],
+                }
+                if escapes:
+                    with self.assertRaises(RuntimeError):
+                        handle_analyze_current_email(payload, analyzer=analyzer, config=config)
+                else:
+                    response = handle_analyze_current_email(payload, analyzer=analyzer, config=config)
+                    self.assertEqual(response["error"]["code"], "ANALYSIS_FAILED")
+                self.assertEqual(list(Path(directory).iterdir()), [])
+
+    def test_default_analyzer_branch_owns_cleanup_and_payload_mutation_cannot_defeat_it(self) -> None:
+        with TemporaryDirectory() as directory:
+            config = replace(load_config(dotenv_path=None), attachment_temp_dir=directory)
+            observed: list[Path] = []
+
+            def analyze(payload: dict[str, object], **_kwargs: object) -> dict[str, str]:
+                stored = payload["stored_attachments"]
+                observed.append(stored[0].path)
+                self.assertTrue(observed[0].is_file())
+                stored.clear()
+                return {"summary": "ok"}
+
+            with patch("backend.email_agent.api.analyze_current_email", side_effect=analyze):
+                response = handle_analyze_current_email(
+                    {
+                        "user_confirmed": True,
+                        "subject": "Synthetic request",
+                        "from": "sender@example.test",
+                        "body_text": "Please review.",
+                        "attachment_files": [
+                            {"filename": "visible.pdf", "type": "pdf", "content_base64": "YQ=="}
+                        ],
+                    },
+                    config=config,
+                )
+
+            self.assertTrue(response["ok"])
+            self.assertEqual(len(observed), 1)
+            self.assertFalse(observed[0].exists())
+
+    def test_api_calls_current_request_cleanup_from_finally_for_every_exit(self) -> None:
+        valid_payload = {
+            "user_confirmed": True,
+            "subject": "Synthetic request",
+            "from": "sender@example.test",
+            "body_text": "Please review.",
+        }
+        exits = (
+            ({**valid_payload}, lambda _payload: {"summary": "ok"}, None),
+            ({**valid_payload, "attachment_files": "invalid"}, None, None),
+            ({**valid_payload}, lambda _payload: (_ for _ in ()).throw(AnalysisError("failed")), None),
+            ({**valid_payload}, lambda _payload: (_ for _ in ()).throw(RuntimeError("failed")), RuntimeError),
+        )
+        for payload, analyzer, escaping in exits:
+            with self.subTest(escaping=escaping, invalid=payload.get("attachment_files")), patch(
+                "backend.email_agent.api.remove_stored_attachments"
+            ) as remove:
+                if escaping is None:
+                    handle_analyze_current_email(
+                        payload, analyzer=analyzer, config=load_config(dotenv_path=None)
+                    )
+                else:
+                    with self.assertRaises(escaping):
+                        handle_analyze_current_email(
+                            payload, analyzer=analyzer, config=load_config(dotenv_path=None)
+                        )
+                remove.assert_called_once()
 
     def test_api_projects_resource_limitations_to_exact_safe_fields(self) -> None:
         with TemporaryDirectory() as directory:

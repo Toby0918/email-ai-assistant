@@ -4,21 +4,25 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any, TypeVar
 
-from .analysis_budget import DEEPSEEK_PROVIDER_MAX_SECONDS
 from .attachment_model_context import (
     AttachmentAnalysisBundle,
     build_attachment_model_context,
 )
+from .attachment_media_context import (
+    provider_attachment_candidate,
+)
 from .deepseek_analysis_schema import DeepSeekEnvelopeError
 from .llm_client import LlmClientError
+from .model_request import ModelAnalysisRequest
 from .private_analysis_route import (
     PrivateAnalysisRouteError,
     prepare_private_deepseek_request,
 )
 from .private_context_gate import PrivateModelContext
+from .prompt_context import EvidenceSource
 from .thread_timeline import TimelineBuild
 
 
@@ -33,6 +37,7 @@ class AnalysisFallback(RuntimeError):
     def __init__(
         self, code: str, stage: str, detail: str = "not_applicable",
         context_scope: str | None = None, context_limited: bool = False,
+        fallback_blocked: bool = False,
     ) -> None:
         super().__init__(code)
         self.code = code
@@ -40,6 +45,9 @@ class AnalysisFallback(RuntimeError):
         self.detail = detail
         self.context_scope = context_scope
         self.context_limited = context_limited
+        self.provider: str | None = None
+        self.model: str | None = None
+        self.fallback_blocked = fallback_blocked
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,15 +55,26 @@ class ModelRun:
     analysis: dict[str, Any]
     context_scope: str = "current_only"
     context_limited: bool = False
+    engine_source: str = "ai_model"
+    engine_label: str = ""
 
 
 def prepare_model_led_request(
     context: Any, build_context: Callable[..., tuple[str, dict[str, Any]]],
-) -> tuple[PrivateModelContext, str, dict[str, Any], TimelineBuild]:
-    attachment_context = build_attachment_model_context(
-        bundle.model_candidate
+    *, provider: str | None = None,
+) -> tuple[
+    PrivateModelContext, str | ModelAnalysisRequest, dict[str, Any], TimelineBuild,
+]:
+    selected_provider = provider or context.config.llm_provider
+    candidates = tuple(
+        candidate
         for bundle in context.attachment_bundles
-        if bundle.model_candidate is not None
+        if (candidate := provider_attachment_candidate(
+            bundle.model_candidate, selected_provider,
+        )) is not None
+    )
+    attachment_context = build_attachment_model_context(
+        candidates
     )
     mapping = attachment_public_sources(context.attachment_bundles, attachment_context)
     prompt, sources = _deepseek_context(
@@ -69,7 +88,67 @@ def prepare_model_led_request(
     if private.context_scope == "current_only":
         sources = current_sources
         model_timeline = context.model_context.current_timeline
-    return private, private.text, sources, model_timeline
+    request: str | ModelAnalysisRequest = private.text
+    if selected_provider == "openai":
+        private = _with_openai_media(private, context.prepared_media_assets)
+        request = private.model_request
+        sources = _with_visual_sources(context, sources, context.prepared_media_assets)
+    return private, request, sources, model_timeline
+
+
+def _with_openai_media(private: PrivateModelContext, assets: object) -> PrivateModelContext:
+    return PrivateModelContext(
+        ModelAnalysisRequest(private.text, assets),
+        private.selected_card_count,
+        private.context_scope,
+        private.context_limited,
+    )
+
+
+def _with_visual_sources(
+    context: Any, sources: Mapping[str, Any], assets: Sequence[object],
+) -> dict[str, Any]:
+    visual_ids = {
+        asset.source_id for asset in assets
+        if isinstance(getattr(asset, "source_id", None), str)
+    }
+    visual_only_ids = {
+        bundle.model_candidate.source_id
+        for bundle in context.attachment_bundles
+        if bundle.model_candidate is not None
+        and bundle.model_candidate.visual_only
+    }
+    result = {
+        source_id: replace(
+            source,
+            grounding_mode=(
+                "visual"
+                if source_id in visual_only_ids
+                else "hybrid" if source.grounding_text.strip() else "visual"
+            ),
+        )
+        if source_id in visual_ids else source
+        for source_id, source in sources.items()
+    }
+    for source_id in visual_ids - set(result):
+        source = _visual_source(context.attachment_bundles, source_id)
+        if source is not None:
+            result[source_id] = source
+    return result
+
+
+def _visual_source(
+    bundles: Sequence[AttachmentAnalysisBundle], source_id: str,
+) -> EvidenceSource | None:
+    try:
+        index = int(source_id.split(":", 1)[1])
+        filename = str(bundles[index].display_insight.get("filename") or "attachment")
+    except (IndexError, ValueError):
+        return None
+    return EvidenceSource(
+        source_id, "attachment", "", f"attachment:{filename}",
+        attachment_index=index, parsed=True, grounding_mode="visual",
+    )
 
 
 def prepare_conservative_request(
@@ -140,6 +219,7 @@ def private_failure_context(private: object):
             exc.reason_code, llm_client_failure_stage(exc.reason_code),
             context_scope=private.context_scope,
             context_limited=private.context_limited,
+            fallback_blocked=exc.fallback_blocked,
         ) from exc
     except PrivateAnalysisRouteError as exc:
         if not isinstance(private, PrivateModelContext) or exc.context_scope is not None:
@@ -170,19 +250,6 @@ def run_envelope_stage(action: Callable[[], _T]) -> _T:
         ) from exc
     except Exception as exc:
         raise AnalysisFallback("provider_output_invalid", "envelope") from exc
-
-
-def provider_timeout(context: Any) -> float | None:
-    if context.config.llm_provider == "deepseek":
-        return context.budget.provider_timeout_seconds(
-            context.config.deepseek_timeout_seconds,
-            maximum_seconds=DEEPSEEK_PROVIDER_MAX_SECONDS,
-        )
-    return context.budget.provider_timeout_seconds(context.config.ollama_timeout_seconds)
-
-
-def model_led(config: Any) -> bool:
-    return config.llm_provider == "deepseek" and config.deepseek_output_mode == "model_led"
 
 
 def llm_client_failure_stage(reason_code: object) -> str:

@@ -12,6 +12,7 @@ from backend.email_agent.thread_timeline import (
     build_conversation_timeline,
     build_timeline_skeleton,
 )
+from backend.email_agent.thread_requests import extract_request_atoms, extract_topics
 
 
 class _TrackingText(str):
@@ -408,6 +409,85 @@ class ThreadTimelineTests(unittest.TestCase):
 
         self.assertEqual(result["current_status"], "unresolved")
         self.assertIn("将跟进", result["latest_internal_commitment"])
+
+    def test_final_labeled_moq_resolves_only_quantity_request(self) -> None:
+        segments = [
+            {
+                "position": "1",
+                "from": "Buyer <buyer@example.com>",
+                "body_text": "Please confirm MOQ and sample timing.",
+            },
+            {
+                "position": "2",
+                "from": "Sales <sales@company.test>",
+                "body_text": "Best MOQ is 1200/1400 pcs.",
+            },
+        ]
+
+        result = build_conversation_timeline(segments, ("company.test",))
+
+        self.assertEqual(result["current_status"], "partially_resolved")
+        self.assertEqual(len(result["open_items"]), 1)
+        self.assertIn("sample", result["open_items"][0]["item"].lower())
+        self.assertNotIn("MOQ", result["open_items"][0]["item"])
+
+    def test_pending_labeled_moq_does_not_resolve_quantity_request(self) -> None:
+        segments = [
+            {
+                "position": "1",
+                "from": "Buyer <buyer@example.com>",
+                "body_text": "Please confirm MOQ.",
+            },
+            {
+                "position": "2",
+                "from": "Sales <sales@company.test>",
+                "body_text": "MOQ is pending confirmation.",
+            },
+        ]
+
+        result = build_conversation_timeline(segments, ("company.test",))
+
+        self.assertEqual(result["current_status"], "unresolved")
+        self.assertEqual(len(result["open_items"]), 1)
+        self.assertIn("MOQ", result["open_items"][0]["item"])
+
+    def test_minimum_order_quantity_creates_only_quantity_topic(self) -> None:
+        atoms, complete = extract_request_atoms("Please confirm minimum order quantity.", "")
+
+        self.assertTrue(complete)
+        self.assertEqual(len(atoms), 1)
+        self.assertEqual(atoms[0]["topics"], ("quantity",))
+
+    def test_minimum_order_quantity_outcome_creates_only_quantity_topic(self) -> None:
+        for text in (
+            "Minimum order quantity is 1200 pcs.",
+            "Minimum order qty is 1200 pcs.",
+        ):
+            with self.subTest(text=text):
+                self.assertEqual(extract_topics(text), ("quantity",))
+
+    def test_minimum_order_without_quantity_remains_an_order_topic(self) -> None:
+        self.assertEqual(extract_topics("Please confirm the minimum order."), ("order",))
+
+    def test_final_moq_cannot_close_a_pure_order_request(self) -> None:
+        segments = [
+            {
+                "position": "1",
+                "from": "Buyer <buyer@example.com>",
+                "body_text": "Please confirm the order.",
+            },
+            {
+                "position": "2",
+                "from": "Sales <sales@company.test>",
+                "body_text": "Minimum order quantity is 1200 pcs.",
+            },
+        ]
+
+        result = build_conversation_timeline(segments, ("company.test",))
+
+        self.assertEqual(result["current_status"], "unresolved")
+        self.assertEqual(len(result["open_items"]), 1)
+        self.assertIn("order", result["open_items"][0]["item"].lower())
 
     def test_external_commitment_language_is_not_labeled_as_internal(self) -> None:
         segments = [

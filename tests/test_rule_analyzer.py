@@ -31,6 +31,16 @@ class RuleAnalyzerTests(unittest.TestCase):
         self.assertEqual(result["risk_flags"][0]["type"], "delivery_risk")
         self.assertTrue(result["reply_draft"]["needs_human_review"])
 
+    def test_rule_analysis_keeps_labeled_moq_as_a_local_fact(self) -> None:
+        result = build_rule_based_analysis(
+            subject="Order planning",
+            sender="buyer@example.test",
+            clean_body="Best MOQ is 1200/1400 pcs.",
+        )
+
+        facts = [item["value"] for item in result["decision_brief"]["key_facts"]]
+        self.assertIn("MOQ 1200/1400 pcs", facts)
+
     def test_build_rule_based_analysis_detects_prompt_injection_risk(self) -> None:
         result = build_rule_based_analysis(
             subject="Urgent",

@@ -9,10 +9,12 @@ class LlmClientError(RuntimeError):
     """Raised when the LLM client cannot produce an analysis."""
 
     def __init__(
-        self, message: str, *, reason_code: str = "provider_request_failed"
+        self, message: str, *, reason_code: str = "provider_request_failed",
+        fallback_blocked: bool = False,
     ) -> None:
         super().__init__(message)
         self.reason_code = reason_code
+        self.fallback_blocked = fallback_blocked
 
 
 def _deepseek_failure_reason(exc: BaseException) -> str:

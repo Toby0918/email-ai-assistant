@@ -55,7 +55,7 @@ class GenerateProjectStatusTests(unittest.TestCase):
 
         if (ROOT / "tests" / "fixtures" / "sample_emails.json").exists():
             expected_stage = (
-                "authorized_private_analysis_offline_ready"
+                "multimodal_current_email_offline_ready_live_pending"
                 if (
                     ROOT
                     / "docs"
@@ -70,7 +70,10 @@ class GenerateProjectStatusTests(unittest.TestCase):
         module = load_script_module(SCRIPT, "generate_project_status")
         report = module.build_project_status()
 
-        self.assertIn("| Current stage | authorized_private_analysis_offline_ready |", report)
+        self.assertIn(
+            "| Current stage | multimodal_current_email_offline_ready_live_pending |",
+            report,
+        )
         self.assertIn("administrator-only CLI", report)
         self.assertIn("one authorized account", report)
         self.assertIn("rolling 24-month window", report)
@@ -88,7 +91,29 @@ class GenerateProjectStatusTests(unittest.TestCase):
         self.assertIn("Keep `EMAIL_AGENT_LLM_PROVIDER=disabled`", report)
         self.assertIn("repository leakage scan", report)
         self.assertIn("human_judge_unavailable", report)
-        self.assertIn("Do not connect to a mailbox or run DeepSeek", report)
+        self.assertIn(
+            "Task 9 synthetic provider and current-clicked Tencent smokes are complete",
+            report,
+        )
+        self.assertIn("no prior check authorizes another live operation", report)
+        self.assertNotIn("current-clicked Tencent smoke remains pending", report)
+
+    def test_attachment_acquisition_safeguards_and_live_gate_are_reported(self) -> None:
+        module = load_script_module(SCRIPT, "generate_project_status_attachments")
+        report = module.build_project_status()
+
+        for marker in (
+            "verified legacy current-message control",
+            "manual picker selection is inert until Analyze",
+            "5 files, 10 MiB per file, and 25 MiB total",
+            "request `finally`",
+            "24-hour mtime cleanup is crash recovery only",
+            "Only `attachment_insights[].status=parsed` proves content parsing",
+            "Task 5 real current-message attachment smoke remains pending",
+            "fresh explicit authorization",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, report)
 
     def test_status_log_uses_stable_head_reference(self) -> None:
         module = load_script_module(SCRIPT, "generate_project_status")
@@ -157,6 +182,18 @@ class GenerateProjectStatusTests(unittest.TestCase):
         self.assertIn("`frontend/browser_extension/popup.js`", report)
         self.assertIn("`frontend/browser_extension/content/exmail_adapter.js`", report)
         self.assertIn("`frontend/browser_extension/shared/api_client.js`", report)
+        self.assertIn(
+            "`frontend/browser_extension/shared/manual_attachment_files.js`",
+            report,
+        )
+        self.assertIn(
+            "`docs/operations/current_email_grounding_and_attachment_repair_task_brief.md`",
+            report,
+        )
+        self.assertIn(
+            "`tests/test_browser_extension_manual_attachment_files.py`",
+            report,
+        )
         self.assertIn("`docs/operations/tencent_exmail_browser_extension_task_brief.md`", report)
         self.assertIn("`tests/test_browser_extension_manifest.py`", report)
         self.assertIn("`tests/test_browser_extension_static.py`", report)
@@ -187,6 +224,31 @@ class GenerateProjectStatusTests(unittest.TestCase):
         ):
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, report)
+
+    def test_multimodal_current_email_files_and_live_gate_are_reported(self) -> None:
+        module = load_script_module(SCRIPT, "generate_project_status_multimodal")
+        report = module.build_project_status()
+
+        for path in (
+            "frontend/browser_extension/content/exmail_visible_context.js",
+            "frontend/browser_extension/content/exmail_visible_resource_classifier.js",
+            "backend/email_agent/multimodal_media.py",
+            "backend/email_agent/openai_multimodal_client.py",
+            "backend/email_agent/analysis_model_routes.py",
+            "backend/email_agent/model_grounding.py",
+            "backend/email_agent/model_visual_grounding.py",
+        ):
+            with self.subTest(path=path):
+                self.assertIn(f"`{path}`", report)
+
+        self.assertIn("Tasks 1-7", report)
+        self.assertIn("60/55/35/10/12/8/5", report)
+        self.assertIn(
+            "Task 9 synthetic provider and current-clicked Tencent smokes are complete",
+            report,
+        )
+        self.assertIn("Task 5 real current-message attachment smoke remains pending", report)
+        self.assertNotIn("15/13/10/5", report)
 
     def test_main_writes_requested_output(self) -> None:
         module = load_script_module(SCRIPT, "generate_project_status")

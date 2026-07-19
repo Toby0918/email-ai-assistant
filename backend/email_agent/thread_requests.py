@@ -39,12 +39,20 @@ _TOPIC_PATTERNS = (
     ("certificate", re.compile(r"\b(certificate|certification)\b|证书|认证", re.IGNORECASE)),
     ("shipment", re.compile(r"\b(shipment|delivery|eta|dispatch)\b|交期|发货|出货", re.IGNORECASE)),
     ("sample", re.compile(r"\bsample\b|样品", re.IGNORECASE)),
-    ("quantity", re.compile(r"\b(quantity|qty)\b|数量", re.IGNORECASE)),
+    (
+        "quantity",
+        re.compile(
+            r"\b(?:MOQ|minimum\s+order\s+(?:qty|quantity)|quantity|qty)\b|数量",
+            re.IGNORECASE,
+        ),
+    ),
     ("invoice", re.compile(r"\binvoice\b|发票", re.IGNORECASE)),
     ("payment", re.compile(r"\bpayment\b|付款|支付", re.IGNORECASE)),
     ("contract", re.compile(r"\bcontract\b|合同", re.IGNORECASE)),
     ("order", re.compile(r"\border\b|订单", re.IGNORECASE)),
 )
+_MINIMUM_ORDER_PREFIX_RE = re.compile(r"minimum\s+$", re.IGNORECASE)
+_QUANTITY_SUFFIX_RE = re.compile(r"\s+(?:quantity|qty)\b", re.IGNORECASE)
 
 
 def extract_request_atoms(
@@ -189,7 +197,7 @@ def extract_identifiers(text: str) -> tuple[str, ...]:
 
 
 def extract_topics(text: str) -> tuple[str, ...]:
-    return tuple(name for name, pattern in _TOPIC_PATTERNS if pattern.search(text))
+    return tuple(name for name, _ in _topic_matches(text))
 
 
 def _atoms_from_clause(clause: str, due_hint: str) -> list[dict[str, object]]:
@@ -235,6 +243,15 @@ def _topic_matches(text: str) -> list[tuple[str, re.Match[str]]]:
     matches: list[tuple[str, re.Match[str]]] = []
     for name, pattern in _TOPIC_PATTERNS:
         topic_matches = list(pattern.finditer(text))
+        if name == "order":
+            topic_matches = [
+                match
+                for match in topic_matches
+                if not (
+                    _MINIMUM_ORDER_PREFIX_RE.search(text[: match.start()])
+                    and _QUANTITY_SUFFIX_RE.match(text[match.end() :])
+                )
+            ]
         if topic_matches:
             matches.append((name, topic_matches[-1]))
     return sorted(matches, key=lambda item: item[1].start())

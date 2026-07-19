@@ -1,6 +1,6 @@
 (function () {
   const ANALYZE_URL = "http://127.0.0.1:8765/api/analyze-current-email";
-  const MAX_ANALYZE_TIMEOUT_MS = 15000;
+  const MAX_ANALYZE_TIMEOUT_MS = 60000;
   const FRONTEND_RESOURCE_LIMITATION_CODES = new Set([
     "unsupported_type",
     "frontend_limit",
@@ -12,6 +12,16 @@
 
   async function analyzeCurrentEmail(payload, options) {
     const email = payload || {};
+    if (!stringValue(email.body_text).trim()) {
+      return {
+        ok: false,
+        error: {
+          code: "CURRENT_EMAIL_BODY_EMPTY",
+          message: "Current email body could not be read.",
+          retryable: true,
+        },
+      };
+    }
     const controller = typeof window.AbortController === "function"
       ? new window.AbortController()
       : null;
@@ -77,6 +87,7 @@
       subject: stringValue(email.subject),
       from: stringValue(email.from),
       to: stringList(email.to),
+      cc: stringList(email.cc),
       sent_at: stringValue(email.sent_at),
       body_text: stringValue(email.body_text),
       attachments: projectItems(email.attachments, ["filename", "size", "type"]),

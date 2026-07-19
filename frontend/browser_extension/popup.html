@@ -16,13 +16,13 @@
         </div>
       </header>
 
-      <p id="remote-processing-notice" class="status-line" role="note">After you click Analyze, a configured remote AI provider receives locally deidentified current visible content and, when available, bounded approved knowledge cards. Processing is not local-only, and no zero-retention guarantee is made.</p>
+      <p id="remote-processing-notice" class="status-line" role="note">After you click Analyze, configured remote AI providers may receive locally deidentified current visible email text and selected current-message images or files after local screening. Media pixels or document content may contain identifying information and are not guaranteed to be fully deidentified. Processing is not local-only, and no zero-retention guarantee is made.</p>
       <button id="analyze-button" type="button">Analyze current email</button>
       <p id="status" class="status-line" aria-live="polite">Open an email, then click Analyze.</p>
 
       <section class="result-section" aria-label="分析结果">
         <div class="analysis-surface">
-        <p id="fallback-banner" class="fallback-banner" hidden>未使用 DeepSeek：本次结果由本地规则生成。</p>
+        <p id="fallback-banner" class="fallback-banner" hidden>远程模型结果未采用，本次使用安全规则结果。</p>
         <article class="work-card" aria-labelledby="work-conclusion">
           <section class="work-card__section">
             <p class="work-card__label">处理结论</p>
@@ -45,6 +45,20 @@
             <div id="work-must-check" class="work-card__value analysis-list-field">-</div>
           </section>
         </article>
+
+        <details class="manual-attachment-picker">
+          <summary>可选：手动选择当前邮件附件</summary>
+          <div class="manual-attachment-picker__body">
+            <label for="manual-attachment-files">附件自动读取失败时，可在此选择文件</label>
+            <input
+              id="manual-attachment-files"
+              type="file"
+              multiple
+              accept=".png,.jpg,.jpeg,.gif,.webp,.bmp,.tif,.tiff,.pdf,.xlsx,.docx,image/png,image/jpeg,image/gif,image/webp,image/bmp,image/tiff,application/pdf,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            >
+            <p>仅在点击 Analyze 后读取。系统无法验证本地文件是否来自当前邮件，请仅选择当前邮件附件。</p>
+          </div>
+        </details>
 
         <details class="analysis-details">
           <summary>会话历史</summary>
@@ -99,6 +113,7 @@
 
     <script src="shared/api_client.js"></script>
     <script src="shared/render_analysis.js"></script>
+    <script src="shared/manual_attachment_files.js"></script>
     <script src="popup.js"></script>
   </body>
 </html>

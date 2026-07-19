@@ -9,8 +9,13 @@ from email.utils import getaddresses
 MAX_HEADER_VALUES = 117
 MAX_HEADER_CHARACTERS = 512
 MAX_IDENTITY_NAMES = 100
-_HEADER_EMAIL = re.compile(
-    r"(?i)[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9.-]+\.[a-z]{2,}\Z"
+_HEADER_EMAIL_TEXT = (
+    r"[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9.-]+\.[a-z]{2,}"
+)
+_HEADER_EMAIL = re.compile(rf"(?i){_HEADER_EMAIL_TEXT}\Z")
+_DUPLICATE_EMAIL_DISPLAY = re.compile(
+    rf"(?i)\A(?P<display>{_HEADER_EMAIL_TEXT})\s*"
+    rf"<(?P<mailbox>{_HEADER_EMAIL_TEXT})>\Z"
 )
 _GENERIC_ORGANIZATION_LABELS = frozenset({
     "business", "buyer", "co", "com", "company", "customer", "email",
@@ -57,6 +62,32 @@ def _parse_header_value(value: str) -> tuple[tuple[str, str], ...] | None:
     candidate = value.strip()
     if not candidate:
         return ()
+    parsed = _parse_single_header_value(candidate)
+    if parsed is not None:
+        return parsed
+    parts = _split_header_list(candidate)
+    if parts is None:
+        return None
+    result: list[tuple[str, str]] = []
+    for part in parts:
+        parsed_part = _parse_single_header_value(part)
+        if parsed_part is None:
+            return None
+        result.extend(parsed_part)
+        if len(result) > MAX_HEADER_VALUES:
+            return None
+    return tuple(result)
+
+
+def _parse_single_header_value(
+    candidate: str,
+) -> tuple[tuple[str, str], ...] | None:
+    duplicate_display = _DUPLICATE_EMAIL_DISPLAY.fullmatch(candidate)
+    if duplicate_display is not None:
+        display = duplicate_display.group("display")
+        mailbox = duplicate_display.group("mailbox")
+        if display.casefold() == mailbox.casefold():
+            return (("", mailbox),)
     bracketed = "<" in candidate or ">" in candidate
     if candidate.count("<") != candidate.count(">"):
         return None
@@ -80,6 +111,74 @@ def _parse_header_value(value: str) -> tuple[tuple[str, str], ...] | None:
             return None
         result.append((display, mailbox))
     return tuple(result)
+
+
+def _split_header_list(value: str) -> tuple[str, ...] | None:
+    parts: list[str] = []
+    start = 0
+    quoted = False
+    escaped = False
+    angle_depth = 0
+    comment_depth = 0
+    for index, character in enumerate(value):
+        if escaped:
+            escaped = False
+            continue
+        if quoted and character == "\\":
+            escaped = True
+            continue
+        if character == '"' and comment_depth == 0:
+            quoted = not quoted
+            continue
+        if quoted:
+            continue
+        if character == "(" and angle_depth == 0:
+            comment_depth += 1
+            continue
+        if character == ")" and angle_depth == 0:
+            comment_depth -= 1
+            if comment_depth < 0:
+                return None
+            continue
+        if comment_depth:
+            continue
+        if character == "<":
+            angle_depth += 1
+            if angle_depth > 1:
+                return None
+            continue
+        if character == ">":
+            angle_depth -= 1
+            if angle_depth < 0:
+                return None
+            continue
+        if character != "," or angle_depth:
+            continue
+        part = value[start:index].strip()
+        if not part:
+            return None
+        parts.append(part)
+        if len(parts) >= MAX_HEADER_VALUES:
+            return None
+        start = index + 1
+    return _finish_header_list(value, start, parts, quoted, escaped, angle_depth, comment_depth)
+
+
+def _finish_header_list(
+    value: str,
+    start: int,
+    parts: list[str],
+    quoted: bool,
+    escaped: bool,
+    angle_depth: int,
+    comment_depth: int,
+) -> tuple[str, ...] | None:
+    if quoted or escaped or angle_depth or comment_depth:
+        return None
+    final = value[start:].strip()
+    if not final:
+        return None
+    return (*parts, final) if parts else None
 
 
 def _domain_organization(mailbox: str) -> str:

@@ -13,6 +13,7 @@ from .attachment_storage import (
     AttachmentOperationError,
     StoredAttachment,
     cleanup_expired_attachments,
+    remove_stored_attachments,
     store_attachment_files,
     validate_attachment_files,
 )
@@ -45,6 +46,7 @@ def handle_analyze_current_email(
     # First phase requires an explicit user click before any analysis runs.
     if payload.get("user_confirmed") is not True:
         return _error("USER_ACTION_REQUIRED", "User must click the analysis button first.")
+    cleanup_attachments: tuple[StoredAttachment, ...] = ()
     try:
         current_config = config or load_config()
         current_budget = budget or AnalysisBudget.start()
@@ -55,9 +57,10 @@ def handle_analyze_current_email(
         stored_attachments, operational_limitations = _store_attachments_or_degrade(
             attachment_files, current_config, current_budget,
         )
+        cleanup_attachments = tuple(stored_attachments)
         analysis_payload = _without_reserved_private_fields(payload)
         analysis_payload.pop("attachment_files", None)
-        analysis_payload["stored_attachments"] = stored_attachments
+        analysis_payload["stored_attachments"] = list(cleanup_attachments)
         frontend_limitations = project_resource_limitations(
             _limitation_items(payload.get("resource_limitations")),
             allow_operational=False,
@@ -65,15 +68,8 @@ def handle_analyze_current_email(
         analysis_payload["resource_limitations"] = project_resource_limitations(
             [*frontend_limitations, *operational_limitations]
         )
-        analysis = (
-            analyzer(analysis_payload)
-            if analyzer is not None
-            else analyze_current_email(
-                analysis_payload,
-                config=current_config,
-                budget=current_budget,
-                runtime_cards=runtime_cards if type(runtime_cards) is tuple else (),
-            )
+        analysis = _run_analysis(
+            analysis_payload, analyzer, current_config, current_budget, runtime_cards
         )
         return {
             "ok": True,
@@ -84,6 +80,25 @@ def handle_analyze_current_email(
         return _error("ATTACHMENT_INPUT_INVALID", "Attachment input is invalid or exceeds configured limits.")
     except AnalysisError as exc:
         return _error("ANALYSIS_FAILED", str(exc))
+    finally:
+        remove_stored_attachments(cleanup_attachments)
+
+
+def _run_analysis(
+    payload: dict[str, Any],
+    analyzer: Callable[[dict[str, Any]], dict[str, Any]] | None,
+    config: AppConfig,
+    budget: AnalysisBudget,
+    runtime_cards: tuple[object, ...],
+) -> dict[str, Any]:
+    if analyzer is not None:
+        return analyzer(payload)
+    return analyze_current_email(
+        payload,
+        config=config,
+        budget=budget,
+        runtime_cards=runtime_cards if type(runtime_cards) is tuple else (),
+    )
 
 
 def _error(code: str, message: str) -> dict[str, Any]:
@@ -113,6 +128,7 @@ def _store_attachments_or_degrade(
     except (AttachmentOperationError, OSError):
         return [], [_operational_limitation()]
     if _storage_time_exhausted(budget):
+        remove_stored_attachments(tuple(stored))
         return [], [_operational_limitation()]
     return stored, []
 

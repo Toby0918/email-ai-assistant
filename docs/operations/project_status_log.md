@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-15
+last_update: 2026-07-19
 status: active
 owner: "@tobyWang"
 review_cycle: weekly
@@ -15,8 +15,8 @@ source_type: operation_guide
 
 | Field | Value |
 |---|---|
-| Generated on | 2026-07-15 |
-| Current stage | authorized_private_analysis_offline_ready |
+| Generated on | 2026-07-19 |
+| Current stage | multimodal_current_email_offline_ready_live_pending |
 | Git branch | master |
 | Git HEAD reference | Run `git rev-parse --short HEAD` in this workspace |
 | Working tree status | Run `git status --short --ignored` in this workspace |
@@ -27,7 +27,11 @@ source_type: operation_guide
 
 Separately authorized exception: the `administrator-only CLI remains default-off` and may import one authorized account within a rolling 24-month window only after explicit inventory fingerprint confirmation. The browser extension and normal runtime remain click-only and cannot scan a mailbox. The exception has no schedule, browser hook, normal-backend route, or automatic model call.
 
-The private-knowledge snapshot is verified and read-only; an invalid or missing private-knowledge snapshot returns generic rule fallback. DeepSeek outbound content remains locally deidentified with browser/backend/provider/minimum budgets of `15/13/10/5` seconds. Private evaluation is blocked by `human_judge_unavailable` by default and does not switch production models.
+The private-knowledge snapshot is verified and read-only; an invalid or missing private-knowledge snapshot returns generic rule fallback. Tasks 1-7 of the multimodal current-email route are offline implemented and review-clean. The route is one OpenAI multimodal primary call, at most one eligible DeepSeek text-only fallback, and deterministic rules last; all providers remain disabled by default. Its budget tuple is `60/55/35/10/12/8/5` seconds: 60-second POST wait, 55-second backend target, 35-second OpenAI cap, 10-second DeepSeek cap, 12-second fallback minimum, 8-second parser cap, and 5-second reserve. Browser media discovery remains a separate 20-second resource collection phase. Private evaluation is blocked by `human_judge_unavailable` by default and does not switch production models.
+
+Current-message attachment acquisition recognizes only a verified legacy current-message control after Analyze and keeps automatic bytes in browser memory. The manual picker selection is inert until Analyze. Both paths share 5 files, 10 MiB per file, and 25 MiB total, add no download/storage/filesystem permission, and expose no local path. Backend request-local files are removed from request `finally`; the 24-hour mtime cleanup is crash recovery only, not normal retention or a scheduled job. Only `attachment_insights[].status=parsed` proves content parsing.
+
+Task 9 synthetic provider and current-clicked Tencent smokes are complete. The bounded checks inspected only approved status fields and structural counts; no prior check authorizes another live operation. Task 5 real current-message attachment smoke remains pending and requires fresh explicit authorization after offline Tasks 1-4 pass review. The new attachment acquisition path is not live-tested.
 
 The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器扩展, with current-message collection only after an explicit user click.
 
@@ -60,7 +64,15 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 | `.github/workflows/cleanup_agent.yml` | yes |
 | `backend/email_agent/__init__.py` | yes |
 | `backend/email_agent/analysis_schema.py` | yes |
+| `backend/email_agent/analysis_budget.py` | yes |
+| `backend/email_agent/analysis_diagnostics.py` | yes |
+| `backend/email_agent/analysis_model_routes.py` | yes |
+| `backend/email_agent/analysis_provider_policy.py` | yes |
 | `backend/email_agent/analysis_route_support.py` | yes |
+| `backend/email_agent/attachment_media_context.py` | yes |
+| `backend/email_agent/attachment_parser.py` | yes |
+| `backend/email_agent/attachment_safety.py` | yes |
+| `backend/email_agent/attachment_storage.py` | yes |
 | `backend/email_agent/config.py` | yes |
 | `backend/email_agent/logging_config.py` | yes |
 | `backend/email_agent/email_cleaner.py` | yes |
@@ -72,10 +84,25 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 | `backend/email_agent/api.py` | yes |
 | `backend/email_agent/server.py` | yes |
 | `backend/email_agent/frontend_assets.py` | yes |
+| `backend/email_agent/image_media_safety.py` | yes |
+| `backend/email_agent/llm_errors.py` | yes |
 | `backend/email_agent/model_context_selection.py` | yes |
+| `backend/email_agent/model_cross_language_grounding.py` | yes |
+| `backend/email_agent/model_grounding.py` | yes |
+| `backend/email_agent/model_multimodal_claim_safety.py` | yes |
+| `backend/email_agent/model_request.py` | yes |
+| `backend/email_agent/model_result_safety.py` | yes |
+| `backend/email_agent/model_source_grounding.py` | yes |
+| `backend/email_agent/model_visual_grounding.py` | yes |
+| `backend/email_agent/multimodal_media.py` | yes |
+| `backend/email_agent/office_embedded_media.py` | yes |
+| `backend/email_agent/openai_multimodal_client.py` | yes |
 | `backend/email_agent/participant_identity_aliases.py` | yes |
+| `backend/email_agent/pdf_media_safety.py` | yes |
 | `backend/email_agent/private_context_gate.py` | yes |
 | `backend/email_agent/private_provider_output_gate.py` | yes |
+| `backend/email_agent/prompt_context.py` | yes |
+| `backend/email_agent/thread_prompt_projection.py` | yes |
 | `frontend/local_debug_page/index.html` | yes |
 | `frontend/local_debug_page/app.js` | yes |
 | `frontend/local_debug_page/styles.css` | yes |
@@ -85,7 +112,10 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 | `frontend/browser_extension/popup.js` | yes |
 | `frontend/browser_extension/content/current_message_collector.js` | yes |
 | `frontend/browser_extension/content/exmail_adapter.js` | yes |
+| `frontend/browser_extension/content/exmail_visible_context.js` | yes |
+| `frontend/browser_extension/content/exmail_visible_resource_classifier.js` | yes |
 | `frontend/browser_extension/shared/api_client.js` | yes |
+| `frontend/browser_extension/shared/manual_attachment_files.js` | yes |
 | `frontend/browser_extension/shared/render_analysis.js` | yes |
 | `frontend/browser_extension/shared/analysis_components.css` | yes |
 | `docs/constraints/tooling_constraints.md` | yes |
@@ -93,10 +123,13 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 | `docs/constraints/linter_constraints.md` | yes |
 | `docs/constraints/mechanical_rule_translation.md` | yes |
 | `docs/decisions/0006-authorized-mailbox-ingest-and-private-knowledge.md` | yes |
+| `docs/decisions/0007-multimodal-current-email-analysis.md` | yes |
 | `docs/operations/authorized_mailbox_ingest_task_brief.md` | yes |
 | `docs/operations/deepseek_analysis_contract_alignment_task_brief.md` | yes |
 | `docs/operations/private_deepseek_evaluation_task_brief.md` | yes |
 | `docs/operations/private_mailbox_rollout_closeout_task_brief.md` | yes |
+| `docs/operations/multimodal_current_email_analysis_task_brief.md` | yes |
+| `docs/operations/current_email_grounding_and_attachment_repair_task_brief.md` | yes |
 | `docs/operations/project_status_log.md` | yes |
 | `docs/operations/project_status_log_guide.md` | yes |
 | `docs/operations/agents_project_status_snippet.md` | yes |
@@ -110,6 +143,8 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 | `docs/superpowers/plans/2026-07-14-mailbox-vault.md` | yes |
 | `docs/superpowers/plans/2026-07-14-private-knowledge.md` | yes |
 | `docs/superpowers/plans/2026-07-14-private-deepseek-evaluation.md` | yes |
+| `docs/superpowers/plans/2026-07-16-multimodal-current-email-analysis.md` | yes |
+| `docs/superpowers/plans/2026-07-17-current-message-attachment-acquisition.md` | yes |
 | `docs/templates/agent_task_brief_template.md` | yes |
 | `docs/templates/cleanup_task_template.md` | yes |
 | `scripts/repo_utils.py` | yes |
@@ -127,6 +162,7 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 | `status_local_service.cmd` | yes |
 | `tests/fixtures/sample_emails.json` | yes |
 | `tests/test_analysis_schema.py` | yes |
+| `tests/test_analysis_model_routes.py` | yes |
 | `tests/test_golden_email_analysis.py` | yes |
 | `tests/test_rule_analyzer.py` | yes |
 | `tests/test_database.py` | yes |
@@ -151,6 +187,16 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 | `tests/test_browser_extension_manifest.py` | yes |
 | `tests/test_browser_extension_static.py` | yes |
 | `tests/test_browser_extension_behavior.py` | yes |
+| `tests/test_browser_extension_renderer_behavior.py` | yes |
+| `tests/test_browser_extension_manual_attachment_files.py` | yes |
+| `tests/test_browser_extension_task_focused_ui.py` | yes |
+| `tests/test_browser_extension_visible_resource_classifier.py` | yes |
+| `tests/test_model_grounding.py` | yes |
+| `tests/test_model_result_safety.py` | yes |
+| `tests/test_multimodal_documentation_contracts.py` | yes |
+| `tests/test_multimodal_media.py` | yes |
+| `tests/test_office_embedded_media.py` | yes |
+| `tests/test_openai_multimodal_client.py` | yes |
 
 ## docs Directory Status
 
@@ -172,17 +218,17 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 
 | Status | Count |
 |---|---:|
-| active | 91 |
-| draft | 24 |
+| active | 100 |
+| draft | 23 |
 | deprecated | 1 |
 | missing_front_matter | 0 |
 
 ## Recommended Next Steps
 
-1. Keep `EMAIL_AGENT_LLM_PROVIDER=disabled`; offline completion does not authorize live operation.
-2. Do not connect to a mailbox or run DeepSeek without a separate operator authorization after offline gates pass.
-3. Keep private evaluation blocked by default with `human_judge_unavailable`; the evaluator does not switch production models.
-4. If the signed private-knowledge snapshot is missing or invalid, preserve generic rule fallback.
+1. Keep `EMAIL_AGENT_LLM_PROVIDER=disabled` outside a separately authorized, bounded live test process; offline completion does not authorize live operation.
+2. Task 9 synthetic provider and current-clicked Tencent smokes are complete; no prior check authorizes another live operation.
+3. Task 5 real current-message attachment smoke remains pending and requires fresh explicit authorization after offline review; do not navigate, scan, send, or disclose content.
+4. Keep the administrator-only mailbox CLI and click-only current-message runtime as separate authorization surfaces.
 5. Run the content-free repository leakage scan and complete local human review before any release.
 
 ## Do Not Touch Boundaries

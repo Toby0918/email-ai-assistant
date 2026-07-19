@@ -58,7 +58,9 @@
     "采购/工程负责人": "采购/工程负责人",
   };
 
-  const FALLBACK_BANNER = "未使用 DeepSeek：本次结果由本地规则生成。";
+  const DEEPSEEK_FALLBACK_REASON = "OpenAI 多模态结果未采用，本次使用 DeepSeek 文本回退。";
+  const RULE_FALLBACK_REASON = "远程模型结果未采用，本次使用安全规则结果。";
+  const UNKNOWN_ENGINE_REASON = "分析引擎信息未确认，请人工核查本次结果。";
 
   const TIMELINE_STATUS_LABELS = {
     resolved: "已解决",
@@ -82,6 +84,19 @@
     failed: "解析失败",
   };
 
+  const ATTACHMENT_STATUS_AGGREGATE_LABELS = Object.freeze({
+    parsed: "已解析",
+    metadata_only: "仅元数据",
+    unavailable: "未读取（附件不可用）",
+    failed: "解析失败",
+  });
+  const ATTACHMENT_STATUS_ORDER = Object.freeze([
+    "parsed",
+    "metadata_only",
+    "unavailable",
+    "failed",
+  ]);
+
   const ATTACHMENT_REDACTION = "[已隐藏链接或路径]";
   const ATTACHMENT_URI_MARKER_PATTERN = /(^|[^A-Za-z0-9+.-])[A-Za-z][A-Za-z0-9+.-]*:[^\s]/i;
   const ATTACHMENT_WINDOWS_PATH_MARKER_PATTERN = /(^|[^A-Za-z0-9])[A-Za-z]:[\\/]/;
@@ -89,12 +104,14 @@
   const ATTACHMENT_POSIX_PATH_MARKER_PATTERN = /(^|[\s="'(=：])\/[A-Za-z0-9._-]/;
 
   function renderAnalysis(fields, analysis) {
-    renderTaskCard(fields, analysis);
+    const engine = engineSnapshot(analysis.analysis_engine);
+    const presentation = enginePresentation(engine);
+    renderTaskCard(fields, analysis, engine, presentation);
     setFieldText(fields.priority, formatPriority(analysis.priority));
     setFieldText(fields.summary, textOrFallback(analysis.summary, "未返回摘要"));
     setFieldText(fields.category, formatCategory(analysis.category));
     if (fields.engine) {
-      fields.engine.textContent = formatEngine(analysis.analysis_engine);
+      fields.engine.textContent = presentation.label;
     }
     if (fields.decisionBrief) {
       renderDecisionBrief(fields.decisionBrief, analysis.decision_brief);
@@ -154,7 +171,7 @@
     renderPlaceholderIfPresent(fields.draftReviewReasons);
   }
 
-  function renderTaskCard(fields, analysis) {
+  function renderTaskCard(fields, analysis, engine, presentation) {
     const brief = isPlainObject(analysis.decision_brief) ? analysis.decision_brief : {};
     setFieldText(fields.conclusion, textOrFallback(
       brief.one_line_conclusion,
@@ -164,8 +181,8 @@
     renderTaskSteps(fields.nextSteps, brief.next_steps);
     renderTaskFacts(fields.keyFacts, brief.key_facts);
     renderMustCheck(fields.mustCheck, brief.must_check, brief.missing_info);
-    renderEngineBanner(fields.fallbackBanner, analysis.analysis_engine);
-    renderTechnicalDetails(fields.technicalDetails, analysis);
+    renderEngineBanner(fields.fallbackBanner, presentation);
+    renderTechnicalDetails(fields.technicalDetails, analysis, engine, presentation);
   }
 
   function renderTaskSteps(field, steps) {
@@ -211,33 +228,35 @@
     renderNonLinkedItems(field, items, "暂无必须核查项");
   }
 
-  function renderEngineBanner(field, engine) {
+  function renderEngineBanner(field, presentation) {
     if (!field) {
       return;
     }
-    const fallback = isPlainObject(engine) && engine.source === "rule_fallback";
-    field.hidden = !fallback;
-    field.textContent = fallback ? FALLBACK_BANNER : "";
+    const reason = presentation.fallbackReason;
+    field.hidden = !reason;
+    field.textContent = reason;
   }
 
-  function renderTechnicalDetails(field, analysis) {
+  function renderTechnicalDetails(field, analysis, engine, presentation) {
     if (!field) {
       return;
     }
-    const engine = isPlainObject(analysis.analysis_engine) ? analysis.analysis_engine : {};
     const scope = {
       current_only: "仅当前邮件",
       relevant_history: "当前邮件与相关历史",
-    }[engine.context_scope];
+    }[engine.contextScope];
     const lines = [
       `优先级：${formatPriority(analysis.priority)}`,
       `分类：${formatCategory(analysis.category)}`,
-      `分析引擎：${formatEngine(engine)}`,
+      `分析引擎：${presentation.label}`,
     ];
+    if (presentation.fallbackReason) {
+      lines.push(`回退说明：${presentation.fallbackReason}`);
+    }
     if (scope) {
       lines.push(`上下文范围：${scope}`);
     }
-    if (engine.context_limited === true) {
+    if (engine.contextLimited === true) {
       lines.push("上下文受限：是");
     }
     field.textContent = lines.join("\n");
@@ -321,13 +340,58 @@
   }
 
   function formatEngine(value) {
+    return enginePresentation(engineSnapshot(value)).label;
+  }
+
+  function engineSnapshot(value) {
+    return Object.freeze({
+      source: ownDataProperty(value, "source", "string"),
+      label: ownDataProperty(value, "label", "string"),
+      contextScope: ownDataProperty(value, "context_scope", "string"),
+      contextLimited: ownDataProperty(value, "context_limited", "boolean"),
+    });
+  }
+
+  function ownDataProperty(value, key, expectedType) {
     if (!isPlainObject(value)) {
-      return textOrDash(value);
+      return undefined;
     }
-    if (value.source === "rule_fallback") {
-      return "本地规则";
+    try {
+      const descriptor = Object.getOwnPropertyDescriptor(value, key);
+      if (
+        !descriptor ||
+        !Object.prototype.hasOwnProperty.call(descriptor, "value") ||
+        typeof descriptor.value !== expectedType
+      ) {
+        return undefined;
+      }
+      return descriptor.value;
+    } catch (error) {
+      return undefined;
     }
-    return textOrDash(value.label);
+  }
+
+  function enginePresentation(value) {
+    if (!isPlainObject(value)) {
+      return unknownEnginePresentation();
+    }
+    if (value.source === "ai_model" && value.label === "OpenAI GPT-5.6 Sol") {
+      return { label: "OpenAI GPT-5.6 Sol", fallbackReason: "" };
+    }
+    if (
+      value.source === "ai_model" &&
+      ["DeepSeek V4 Flash text fallback", "DeepSeek V4 Pro text fallback"].includes(value.label)
+    ) {
+      return { label: "DeepSeek text fallback", fallbackReason: DEEPSEEK_FALLBACK_REASON };
+    }
+    if (value.source === "rule_fallback" && value.label === "Rule fallback") {
+      return { label: "Rule fallback", fallbackReason: RULE_FALLBACK_REASON };
+    }
+    return unknownEnginePresentation();
+  }
+
+  function unknownEnginePresentation() {
+    return { label: "未确认分析引擎", fallbackReason: UNKNOWN_ENGINE_REASON };
   }
 
   function formatAttachments(value) {
@@ -423,10 +487,31 @@
       renderPlaceholder(field, "暂无附件洞察");
       return;
     }
-    const items = insights
-      .map(formatAttachmentInsight)
-      .filter(Boolean);
+    const items = [
+      formatAttachmentStatusAggregate(insights),
+      ...insights.map(formatAttachmentInsight),
+    ].filter(Boolean);
     renderNonLinkedItems(field, items, "暂无附件洞察");
+  }
+
+  function formatAttachmentStatusAggregate(insights) {
+    const counts = Object.fromEntries(ATTACHMENT_STATUS_ORDER.map((status) => [status, 0]));
+    for (const insight of insights) {
+      const status = ownDataProperty(insight, "status", "string");
+      if (Object.prototype.hasOwnProperty.call(counts, status)) {
+        counts[status] += 1;
+      }
+    }
+    if (counts.metadata_only === 0 && counts.unavailable === 0) {
+      return null;
+    }
+    const lines = ATTACHMENT_STATUS_ORDER
+      .filter((status) => counts[status] > 0)
+      .map((status) => detailLine(
+        ATTACHMENT_STATUS_AGGREGATE_LABELS[status],
+        `数量 ${counts[status]}`,
+      ));
+    return lines.length > 0 ? structuredItem("附件读取状态", lines) : null;
   }
 
   function formatAttachmentInsight(insight) {

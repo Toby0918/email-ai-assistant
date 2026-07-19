@@ -1,5 +1,5 @@
-﻿---
-last_update: 2026-07-15
+---
+last_update: 2026-07-16
 status: draft
 owner: "@tobyWang"
 review_cycle: monthly
@@ -36,6 +36,8 @@ app password 只可 interactive 输入，不得通过 CLI argument、environment
 - 不采集与分析无关的个人信息。
 - 可选本地 Ollama/Qwen 只允许在后端处理当前邮件内容；不得把模型端点暴露给前端。
 - DeepSeek 外部处理只允许在用户点击后由后端发送当前可见线程和有界、清洗后的受支持附件文本；必须保留 persistent pre-click disclosure，并明确 no zero-retention guarantee。完整边界见 `docs/security/email_data_handling.md`。
+- OpenAI 多模态路线默认关闭，只允许固定 `gpt-5.6-sol` 和代码固定的官方 endpoint。用户点击后可发送本地去标识的当前可见邮件文本，以及经本地筛选的当前消息图片或文件；媒体像素和文档内容不代表已完全去标识。DeepSeek text fallback 也默认关闭，只能显式启用且不得接收图片或文件 bytes。
+- 本地筛选只放行与当前邮件归属明确的业务媒体；签名头像、logo、tracker、隐藏资源、外部资源和歧义资源必须拒绝。visual-only 只允许定性增强 matching attachment insight，不得支持 global fields、identity、protected traits、precise facts、commands、commitments 或 outcomes。
 - 管理员导入的 raw snapshot 只可存于项目外的加密 vault；Codex、DeepSeek、Git、public SQLite、日志、tests、docs、status 和 maintenance report 都不得读取或保存 raw/identifying content。
 - 私有知识必须本地去标识、达到 3-conversation/2-counterparty threshold，并经过 business/privacy approval；高风险规则还需 accountable-owner approval。只有 approved、current、signed snapshot 中的 generic cards 可进入 runtime。
 - DeepSeek 只接收 locally deidentified current visible content 和有界 approved cards；模型 must never emit deidentification placeholder tokens，只能使用 generic references for exact identifiers and dates；backend-verified exact facts remain authoritative，并由本地确定性规则安全补回。model-authored exact identifiers and dates fall back to backend rule fields，覆盖两种 DeepSeek 模式的所有模型可写文本族。internal deidentification tokens stay local，并在 provider 调用前确定性转换成无编号通用语义；随后执行 post-conversion residual scan，且 any unknown token fails closed。任何 residual、placeholder、reidentification、unsafe commitment、invalid schema 或 unsupported fact 都回落规则结果。
@@ -46,5 +48,13 @@ app password 只可 interactive 输入，不得通过 CLI argument、environment
 - 前端只展示当前分析所需内容。
 - 错误提示不得包含密钥、token、完整堆栈或内部 prompt。
 - 模型调用异常不得把原始邮件正文、prompt 或本地模型错误堆栈展示给用户。
+
+## Persistent pre-click disclosure
+
+浏览器扩展和 local debug page 已在 Analyze 控件前持续显示以下 exact 文案；Task 7 已完成共享 markup 与静态/行为测试：
+
+```text
+After you click Analyze, configured remote AI providers may receive locally deidentified current visible email text and selected current-message images or files after local screening. Media pixels or document content may contain identifying information and are not guaranteed to be fully deidentified. Processing is not local-only, and no zero-retention guarantee is made.
+```
 
 

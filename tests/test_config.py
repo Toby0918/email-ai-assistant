@@ -15,6 +15,50 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class ConfigTests(unittest.TestCase):
+    def test_load_config_has_safe_openai_and_text_fallback_defaults(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            config = load_config(dotenv_path=None)
+
+        self.assertEqual(getattr(config, "openai_model", None), "gpt-5.6-sol")
+        self.assertEqual(getattr(config, "openai_timeout_seconds", None), 35)
+        self.assertEqual(getattr(config, "text_fallback_provider", None), "disabled")
+
+    def test_load_config_normalizes_allowlisted_multimodal_overrides(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "EMAIL_AGENT_LLM_PROVIDER": " OpenAI ",
+                "EMAIL_AGENT_OPENAI_MODEL": " GPT-5.6-SOL ",
+                "EMAIL_AGENT_OPENAI_TIMEOUT_SECONDS": "999",
+                "EMAIL_AGENT_TEXT_FALLBACK_PROVIDER": " DeepSeek ",
+            },
+            clear=True,
+        ):
+            config = load_config(dotenv_path=None)
+
+        self.assertEqual(config.llm_provider, "openai")
+        self.assertEqual(getattr(config, "openai_model", None), "gpt-5.6-sol")
+        self.assertEqual(getattr(config, "openai_timeout_seconds", None), 35)
+        self.assertEqual(getattr(config, "text_fallback_provider", None), "deepseek")
+
+    def test_load_config_rejects_unallowlisted_multimodal_values(self) -> None:
+        with patch.dict(
+            os.environ,
+            {
+                "EMAIL_AGENT_OPENAI_MODEL": "gpt-5.6-sol-preview",
+                "EMAIL_AGENT_OPENAI_TIMEOUT_SECONDS": "invalid",
+                "EMAIL_AGENT_TEXT_FALLBACK_PROVIDER": "openai",
+                "EMAIL_AGENT_OPENAI_BASE_URL": "https://override.example.test/v1",
+            },
+            clear=True,
+        ):
+            config = load_config(dotenv_path=None)
+
+        self.assertEqual(getattr(config, "openai_model", None), "gpt-5.6-sol")
+        self.assertEqual(getattr(config, "openai_timeout_seconds", None), 35)
+        self.assertEqual(getattr(config, "text_fallback_provider", None), "disabled")
+        self.assertFalse(hasattr(config, "openai_base_url"))
+
     def test_load_config_reads_and_normalizes_deepseek_overrides(self) -> None:
         with patch.dict(
             os.environ,
@@ -175,12 +219,16 @@ class ConfigTests(unittest.TestCase):
         self.assertIn("EMAIL_AGENT_SQLITE_PATH=", sample)
         self.assertIn("EMAIL_AGENT_LOG_LEVEL=", sample)
         self.assertIn("EMAIL_AGENT_LLM_PROVIDER=", sample)
+        self.assertIn("EMAIL_AGENT_OPENAI_MODEL=gpt-5.6-sol", sample)
+        self.assertIn("EMAIL_AGENT_OPENAI_TIMEOUT_SECONDS=35", sample)
+        self.assertIn("EMAIL_AGENT_TEXT_FALLBACK_PROVIDER=disabled", sample)
         self.assertIn("EMAIL_AGENT_OLLAMA_MODEL=", sample)
         self.assertIn("EMAIL_AGENT_PRIVATE_KNOWLEDGE_ENABLED=false", sample)
         self.assertIn("EMAIL_AGENT_PRIVATE_KNOWLEDGE_AUTHORITY_ROOT=", sample)
         self.assertIn("EMAIL_AGENT_PRIVATE_KNOWLEDGE_SNAPSHOT_PATH=", sample)
         self.assertNotIn("EMAIL_AI_DB_PATH", sample)
         self.assertNotIn("EMAIL_AI_LOG_LEVEL", sample)
+        self.assertNotIn("EMAIL_AGENT_OPENAI_BASE_URL", sample)
 
     def test_load_config_reads_backend_dotenv_when_environment_is_unset(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

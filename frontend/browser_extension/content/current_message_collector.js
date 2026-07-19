@@ -27,6 +27,8 @@
     "[data-email-current-message]",
     "#mailContentContainer",
     "#mailContent",
+    "#qm_con_body",
+    ".qm_con_body",
     ".mail-detail-content",
     ".mail-content",
     ".mail_content",
@@ -66,12 +68,41 @@
     if (!currentRoot) {
       return emptyVisibleMessageContext();
     }
+    const threadRoot = verifiedThreadRoot(settings.threadRoot, currentRoot, doc);
+    const verifiedCurrentBody = verifiedCurrentBodyText(
+      settings,
+      currentRoot,
+      threadRoot,
+      doc,
+    );
 
-    const candidates = minimalLegacyCandidates(
-      queryAll(currentRoot, THREAD_SEGMENT_SELECTORS),
-    ).filter((candidate) => isVisibleWithin(candidate, currentRoot, doc));
+    const markedCandidates = minimalLegacyCandidates(
+      queryAll(threadRoot, THREAD_SEGMENT_SELECTORS),
+    );
+    const nestedQuotedCandidates = verifiedNestedQuotedCandidates(
+      settings,
+      currentRoot,
+      doc,
+    );
+    const visibleCandidates = [...markedCandidates, ...nestedQuotedCandidates]
+      .filter((candidate, index, values) => values.indexOf(candidate) === index)
+      .filter((candidate) => isVisibleWithin(candidate, threadRoot, doc));
+    const verifiedAggregate = isVerifiedAggregateRoot(
+      settings,
+      currentRoot,
+      visibleCandidates,
+    );
+    const candidates = visibleCandidates.filter((candidate) =>
+      isVerifiedHistoryCandidate(
+        candidate,
+        settings,
+        currentRoot,
+        verifiedCurrentBody,
+        verifiedAggregate,
+      ),
+    );
     if (!candidates.length || candidates.length > MAX_THREAD_SEGMENTS) {
-      return fallbackVisibleMessageContext(currentRoot, doc);
+      return fallbackVisibleMessageContext(currentRoot, doc, verifiedCurrentBody);
     }
 
     const structuredFlags = candidates.map((candidate) =>
@@ -79,14 +110,14 @@
     );
     let ordered;
     if (structuredFlags.every(Boolean)) {
-      ordered = structuredSegments(candidates, doc, currentRoot);
+      ordered = structuredSegments(candidates, doc);
     } else if (structuredFlags.some(Boolean)) {
       ordered = null;
     } else {
       ordered = legacySegments(candidates);
     }
     if (!ordered) {
-      return fallbackVisibleMessageContext(currentRoot, doc);
+      return fallbackVisibleMessageContext(currentRoot, doc, verifiedCurrentBody);
     }
     const positioned = ordered.map((segment, position) => ({
       position,
@@ -98,7 +129,8 @@
       body_text: segment.body_text,
     }));
     const latest = positioned[positioned.length - 1];
-    const explicitCurrentBody = uniqueExplicitCurrentBody(currentRoot, doc);
+    const explicitCurrentBody = uniqueExplicitCurrentBody(currentRoot, doc) ||
+      verifiedCurrentBody;
     return {
       current_message: explicitCurrentBody !== null ? {
         from: "",
@@ -134,12 +166,83 @@
     };
   }
 
-  function fallbackVisibleMessageContext(currentRoot, doc) {
-    const explicitCurrentBody = uniqueExplicitCurrentBody(currentRoot, doc);
+  function fallbackVisibleMessageContext(currentRoot, doc, verifiedCurrentBody) {
+    const explicitCurrentBody = uniqueExplicitCurrentBody(currentRoot, doc) ||
+      verifiedCurrentBody;
     if (explicitCurrentBody !== null) {
       return emptyVisibleMessageContext(explicitCurrentBody);
     }
     return emptyVisibleMessageContext();
+  }
+
+  function verifiedThreadRoot(suppliedRoot, currentRoot, doc) {
+    if (
+      suppliedRoot &&
+      isInside(currentRoot, suppliedRoot) &&
+      isVisibleWithin(suppliedRoot, suppliedRoot, doc)
+    ) {
+      return suppliedRoot;
+    }
+    return currentRoot;
+  }
+
+  function verifiedCurrentBodyText(settings, currentRoot, threadRoot, doc) {
+    const candidate = settings.currentBodyRoot;
+    if (
+      settings.verifiedDocumentContext !== true ||
+      !candidate ||
+      !isInside(candidate, currentRoot) ||
+      !isInside(candidate, threadRoot) ||
+      !isVisibleWithin(candidate, threadRoot, doc)
+    ) {
+      return null;
+    }
+    const suppliedText = typeof settings.currentBodyText === "string"
+      ? settings.currentBodyText
+      : elementRawText(candidate);
+    return cleanMessageBody(suppliedText) || null;
+  }
+
+  function isVerifiedAggregateRoot(settings, currentRoot, candidates) {
+    if (
+      settings.verifiedDocumentContext !== true ||
+      settings.currentBodyRoot ||
+      !candidates.length ||
+      !candidates.every((candidate) => isInside(candidate, currentRoot))
+    ) {
+      return false;
+    }
+    return normalizeText(elementRawText(currentRoot)) ===
+      candidates.map((candidate) => normalizeText(elementRawText(candidate))).join(" ");
+  }
+
+  function isVerifiedHistoryCandidate(
+    candidate,
+    settings,
+    currentRoot,
+    verifiedCurrentBody,
+    verifiedAggregate,
+  ) {
+    if (settings.verifiedDocumentContext !== true) {
+      return true;
+    }
+    const currentBody = settings.currentBodyRoot;
+    if (verifiedCurrentBody === null) {
+      return Boolean(!currentBody && verifiedAggregate && isInside(candidate, currentRoot));
+    }
+    if (
+      currentBody === currentRoot &&
+      isInside(candidate, currentRoot) &&
+      isCompleteLegacyQuote(candidate)
+    ) {
+      return true;
+    }
+    return Boolean(
+      currentBody &&
+      isInside(currentBody, currentRoot) &&
+      !isInside(candidate, currentBody) &&
+      !isInside(currentBody, candidate)
+    );
   }
 
   function uniqueExplicitCurrentBody(currentRoot, doc) {
@@ -158,29 +261,61 @@
     );
   }
 
+  function verifiedNestedQuotedCandidates(settings, currentRoot, doc) {
+    if (
+      settings.verifiedDocumentContext !== true ||
+      settings.currentBodyRoot !== currentRoot
+    ) {
+      return [];
+    }
+    return queryAll(currentRoot, ["blockquote"])
+      .filter((candidate) => (
+        isCompleteLegacyQuote(candidate) &&
+        isVisibleWithin(candidate, currentRoot, doc)
+      ));
+  }
+
+  function isCompleteLegacyQuote(element) {
+    if (String(element && element.tagName || "").toUpperCase() !== "BLOCKQUOTE") {
+      return false;
+    }
+    const lines = normalizeBodySource(elementRawText(element))
+      .split("\n")
+      .slice(0, 20)
+      .map(normalizeLine)
+      .filter(Boolean)
+      .join("\n");
+    return (
+      /^(?:From|\u53d1\u4ef6\u4eba)\s*[:\uff1a]/im.test(lines) &&
+      /^(?:Date|Sent|\u65f6\u95f4|\u53d1\u9001\u65f6\u95f4)\s*[:\uff1a]/im.test(lines) &&
+      /^(?:To|\u6536\u4ef6\u4eba)\s*[:\uff1a]/im.test(lines) &&
+      /^(?:Subject|\u4e3b\u9898)\s*[:\uff1a]/im.test(lines)
+    );
+  }
+
   function legacySegments(candidates) {
     const segments = [];
     let remainingChars = MAX_THREAD_SOURCE_CHARS;
     for (const candidate of candidates) {
       const sourceText = elementRawText(candidate);
-      if (!sourceText || sourceText.length > remainingChars) {
+      if (!sourceText) {
         return null;
       }
       const segment = parseLegacyMessageBlock(sourceText, remainingChars);
       if (!segment) {
         return null;
       }
-      remainingChars -= sourceText.length;
+      remainingChars -= segment._source_chars;
       segments.push(segment);
     }
     return chronologicalSegments(segments);
   }
 
-  function structuredSegments(candidates, doc, currentRoot) {
+  function structuredSegments(candidates, doc) {
     const segments = [];
     let remainingChars = MAX_THREAD_SOURCE_CHARS;
     for (const candidate of candidates) {
-      const bodySource = structuredFieldText(candidate, "body_text", doc, currentRoot, true);
+      const bodySource = structuredFieldText(candidate, "body_text", doc, candidate, true);
       const bodyText = cleanMessageBody(bodySource);
       const rawPosition = attribute(candidate, "data-email-position") ||
         attribute(candidate, "data-position");
@@ -192,20 +327,20 @@
         return null;
       }
       const sentAt = boundedText(
-        structuredFieldText(candidate, "sent_at", doc, currentRoot),
+        structuredFieldText(candidate, "sent_at", doc, candidate),
         MAX_METADATA_CHARS,
       );
       segments.push({
         _position: position,
-        from: boundedText(structuredFieldText(candidate, "from", doc, currentRoot), MAX_METADATA_CHARS),
-        to: boundedText(structuredFieldText(candidate, "to", doc, currentRoot), MAX_METADATA_CHARS),
+        from: boundedText(structuredFieldText(candidate, "from", doc, candidate), MAX_METADATA_CHARS),
+        to: boundedText(structuredFieldText(candidate, "to", doc, candidate), MAX_METADATA_CHARS),
         sent_at: sentAt,
         timestamp_text: boundedText(
-          structuredFieldText(candidate, "timestamp_text", doc, currentRoot) || sentAt,
+          structuredFieldText(candidate, "timestamp_text", doc, candidate) || sentAt,
           MAX_METADATA_CHARS,
         ),
         subject: boundedText(
-          structuredFieldText(candidate, "subject", doc, currentRoot),
+          structuredFieldText(candidate, "subject", doc, candidate),
           MAX_METADATA_CHARS,
         ),
         body_text: boundedBodyText(
@@ -259,6 +394,9 @@
 
   function parseLegacyMessageBlock(value, remainingChars) {
     const unquoted = truncateQuotedHistory(normalizeBodySource(value));
+    if (!unquoted || unquoted.length > remainingChars) {
+      return null;
+    }
     const lines = unquoted.split("\n");
     const fields = { from: "", sent_at: "", to: "", subject: "" };
     const seen = new Set();
@@ -316,6 +454,7 @@
         Math.min(MAX_THREAD_SEGMENT_CHARS, remainingChars),
       ),
       _timestamp: Number.isFinite(timestamp) ? timestamp : null,
+      _source_chars: unquoted.length,
     };
   }
 
@@ -353,9 +492,16 @@
     const lines = unquoted.split("\n");
     const kept = [];
     const contactTailStart = Math.max(0, lines.length - 8);
+    let firstContentHandled = false;
     for (let index = 0; index < lines.length; index += 1) {
       const sourceLine = lines[index];
       const line = normalizeLine(sourceLine);
+      if (!firstContentHandled && line) {
+        firstContentHandled = true;
+        if (salutationLine(line)) {
+          continue;
+        }
+      }
       if (signatureClosing(line)) {
         break;
       }
@@ -377,6 +523,10 @@
       compact.push(line);
     }
     return compact.join("\n");
+  }
+
+  function salutationLine(line) {
+    return /^(?:(?:dear|hello|hi)|good\s+(?:morning|afternoon|evening))\s+[^,!?;:\n]{1,80},$/i.test(line);
   }
 
   function truncateQuotedHistory(value) {
@@ -473,16 +623,24 @@
     }
 
     const currentContainer = settings.currentMessageContainer;
+    const currentBodyRoot = verifiedCurrentBodyRoot(
+      settings.currentBodyRoot,
+      currentRoot,
+      doc,
+    );
     const verifiedCandidates = Array.isArray(settings.verifiedResourceCandidates)
       ? settings.verifiedResourceCandidates
       : [];
+    const revalidateContext = settings.revalidateContext;
     if (
       settings.resourceControlsVerified !== true ||
-      settings.topLevelDocument !== doc ||
+      settings.verifiedDocumentContext !== true ||
+      settings.verifiedDocument !== doc ||
+      typeof revalidateContext !== "function" ||
+      !safeContextRevalidation(revalidateContext) ||
       !currentContainer ||
       (currentContainer.parentElement || currentContainer.parentNode) !== (doc && doc.body) ||
-      !isInside(currentRoot, currentContainer) ||
-      (currentRoot.parentElement || currentRoot.parentNode) !== currentContainer ||
+      !hasVerifiedResourceContainerRelationship(currentRoot, currentContainer, doc) ||
       !hasUniqueVisibleKnownBodyRoot(doc, currentRoot) ||
       !isVisibleWithin(currentContainer, currentContainer, doc)
     ) {
@@ -496,6 +654,18 @@
       return result;
     }
 
+    const classifier = root.EmailAssistantExmailVisibleResourceClassifier;
+    if (!classifier || typeof classifier.classifyVisibleResource !== "function") {
+      result.resource_limitations.push(
+        limitedMetadata(
+          { filename: "resource", type: "unsupported", size: 0 },
+          LIMITATION_CODES.unavailable,
+          "Current-message resources could not be classified safely; body analysis continued.",
+        ),
+      );
+      return result;
+    }
+
     const limits = boundedLimits(settings.limits);
     const fetchImpl = typeof settings.fetchImpl === "function" ? settings.fetchImpl : root.fetch;
     const baseHref = settings.locationHref || documentHref(doc);
@@ -504,15 +674,24 @@
       .filter((element) =>
         isHostResourceControl(element) &&
         isInside(element, currentContainer) &&
-        !hasKnownBodyAncestor(element, currentRoot, currentContainer) &&
-        isVisibleWithin(element, currentContainer, doc),
+        isVisibleResourceWithin(element, currentContainer, doc),
       );
+    const repeatedInlineIdentities = repeatedInlineResourceIdentities(
+      candidates,
+      currentBodyRoot,
+      baseHref,
+    );
     const omitted = {
       count: Math.max(0, verifiedCandidates.length - MAX_RESOURCE_CANDIDATES),
     };
-    const overallDeadline = Date.now() + limits.overallTimeoutMs;
+    const localOverallDeadline = Date.now() + limits.overallTimeoutMs;
+    const suppliedOverallDeadline = Number(settings.overallDeadline);
+    const overallDeadline = Number.isFinite(suppliedOverallDeadline)
+      ? Math.min(localOverallDeadline, suppliedOverallDeadline)
+      : localOverallDeadline;
     let transferCount = 0;
     let totalBytes = 0;
+    let inlineImageCount = 0;
 
     for (let index = 0; index < candidates.length; index += 1) {
       if (Date.now() >= overallDeadline) {
@@ -520,8 +699,29 @@
         break;
       }
       const element = candidates[index];
-      const metadata = resourceMetadata(element);
-      if (!metadata.type) {
+      const record = classifyResourceCandidate(
+        classifier,
+        element,
+        currentRoot,
+        currentBodyRoot,
+        currentContainer,
+        doc,
+        baseHref,
+        repeatedInlineIdentities,
+      );
+      if (!record || record.classification === "rejected") {
+        if (record && record.candidateKind === "attachment") {
+          addRejectedAttachmentLimitation(result, record, omitted);
+        }
+        continue;
+      }
+      const nextInlineOrdinal = record.classification === "inline_business_image"
+        ? inlineImageCount + 1
+        : 0;
+      const metadata = record.classification === "inline_business_image"
+        ? inlineResourceMetadata(element, nextInlineOrdinal)
+        : resourceMetadata(element);
+      if (!metadata.type && !record.deferredTypeValidation) {
         addResourceLimitation(
           result,
           limitedMetadata(metadata, LIMITATION_CODES.unsupported, "Resource type is not supported."),
@@ -530,7 +730,7 @@
         continue;
       }
 
-      const resolvedUrl = resolveResourceUrl(resourceUrl(element), baseHref);
+      const resolvedUrl = record.resolvedUrl;
       if (!resolvedUrl) {
         addResourceLimitation(result,
           limitedMetadata(metadata, LIMITATION_CODES.unavailable, "Resource URL must be a same-origin Tencent Exmail HTTPS URL."),
@@ -569,6 +769,24 @@
           omitted);
         continue;
       }
+      if (!safeContextRevalidation(revalidateContext)) {
+        return staleContextResult(result);
+      }
+      if (!resourceCandidateMatches(
+        record,
+        classifier,
+        currentRoot,
+        currentBodyRoot,
+        currentContainer,
+        doc,
+        baseHref,
+        candidates,
+      )) {
+        addResourceLimitation(result,
+          limitedMetadata(metadata, LIMITATION_CODES.unavailable, "Resource identity changed before collection; body analysis continued."),
+          omitted);
+        continue;
+      }
 
       const resourceDeadline = Math.min(
         overallDeadline,
@@ -577,14 +795,49 @@
       const collected = await fetchResource(
         fetchImpl,
         resolvedUrl,
-        metadata,
         limits,
         totalBytes,
         resourceDeadline,
+        record.deferredTypeValidation,
       );
-      if (collected.file) {
-        result.attachment_files.push(collected.file);
-        totalBytes += collected.file.size;
+      if (collected.buffer) {
+        if (!safeContextRevalidation(revalidateContext)) {
+          clearMutableBuffer(collected.buffer);
+          return staleContextResult(result);
+        }
+        if (!resourceCandidateMatches(
+          record,
+          classifier,
+          currentRoot,
+          currentBodyRoot,
+          currentContainer,
+          doc,
+          baseHref,
+          candidates,
+        )) {
+          clearMutableBuffer(collected.buffer);
+          addResourceLimitation(result,
+            limitedMetadata(metadata, LIMITATION_CODES.unavailable, "Resource identity changed during collection; body analysis continued."),
+            omitted);
+          continue;
+        }
+        const byteSize = collected.buffer.byteLength;
+        const payloadType = record.deferredTypeValidation ? collected.detectedType : metadata.type;
+        const payloadFilename = record.deferredTypeValidation
+          ? genericAttachmentFilename(transferCount, collected.detectedExtension)
+          : metadata.filename;
+        const contentBase64 = arrayBufferToBase64(collected.buffer);
+        clearMutableBuffer(collected.buffer);
+        result.attachment_files.push({
+          filename: payloadFilename,
+          type: payloadType,
+          size: byteSize,
+          content_base64: contentBase64,
+        });
+        totalBytes += byteSize;
+        if (record.classification === "inline_business_image") {
+          inlineImageCount = nextInlineOrdinal;
+        }
       } else {
         addResourceLimitation(
           result,
@@ -593,8 +846,598 @@
         );
       }
     }
+    if (!safeContextRevalidation(revalidateContext)) {
+      return staleContextResult(result);
+    }
     appendAggregateOmission(result, omitted.count);
     return result;
+  }
+
+  function addRejectedAttachmentLimitation(result, record, omitted) {
+    const metadata = record.metadata;
+    if (!metadata.type) {
+      addResourceLimitation(
+        result,
+        limitedMetadata(metadata, LIMITATION_CODES.unsupported, "Resource type is not supported."),
+        omitted,
+      );
+      return;
+    }
+    if (!record.resolvedUrl) {
+      addResourceLimitation(
+        result,
+        limitedMetadata(metadata, LIMITATION_CODES.unavailable, "Resource URL must be a same-origin Tencent Exmail HTTPS URL."),
+        omitted,
+      );
+      return;
+    }
+    if (!record.approvedEndpoint) {
+      addResourceLimitation(
+        result,
+        limitedMetadata(metadata, LIMITATION_CODES.unavailable, "Resource URL is not an approved Tencent Exmail attachment endpoint."),
+        omitted,
+      );
+    }
+  }
+
+  function verifiedCurrentBodyRoot(candidate, currentRoot, doc) {
+    return candidate &&
+      isInside(candidate, currentRoot) &&
+      isVisibleWithin(candidate, currentRoot, doc)
+      ? candidate
+      : null;
+  }
+
+  function hasVerifiedResourceContainerRelationship(currentRoot, currentContainer, doc) {
+    if (!currentRoot || !currentContainer || !doc || !doc.body || currentContainer === doc.body) {
+      return false;
+    }
+    if ((currentContainer.parentElement || currentContainer.parentNode) !== doc.body) {
+      return false;
+    }
+    const parent = currentRoot.parentElement || currentRoot.parentNode;
+    if (parent === currentContainer) {
+      return true;
+    }
+    if (!isExactTencentQmboxRoot(currentRoot) || !parent) {
+      return false;
+    }
+    return (parent.parentElement || parent.parentNode) === currentContainer;
+  }
+
+  function isExactTencentQmboxRoot(element) {
+    const classes = attribute(element, "class").split(/\s+/).filter(Boolean);
+    return attribute(element, "id") === "mailContentContainer" && classes.includes("qmbox");
+  }
+
+  function safeContextRevalidation(revalidateContext) {
+    try {
+      return revalidateContext() === true;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function staleContextResult(result) {
+    result.attachment_files.length = 0;
+    result.resource_limitations.length = 0;
+    result.resource_limitations.push(limitedMetadata(
+      { filename: "resource", type: "unsupported", size: 0 },
+      LIMITATION_CODES.unavailable,
+      "Verified current-message context changed during resource collection; collected bytes were discarded.",
+    ));
+    return result;
+  }
+
+  function repeatedInlineResourceIdentities(candidates, currentBodyRoot, baseHref) {
+    const counts = new Map();
+    if (!currentBodyRoot) {
+      return new Set();
+    }
+    for (const element of candidates) {
+      if (String(element && element.tagName || "").toUpperCase() !== "IMG" ||
+          !isInside(element, currentBodyRoot)) {
+        continue;
+      }
+      for (const identity of inlineResourceIdentities(element, baseHref)) {
+        counts.set(identity, (counts.get(identity) || 0) + 1);
+      }
+    }
+    return new Set(
+      Array.from(counts.entries())
+        .filter((entry) => entry[1] > 1)
+        .map((entry) => entry[0]),
+    );
+  }
+
+  function inlineResourceIdentities(element, baseHref) {
+    const identities = [];
+    const resolvedUrl = resolveResourceUrl(resourceUrl(element), baseHref);
+    if (resolvedUrl) {
+      identities.push(`url:${resolvedUrl}`);
+    }
+    const contentId = normalizeText(attribute(element, "data-cid") || attribute(element, "cid"));
+    if (contentId) {
+      identities.push(`cid:${contentId.toLowerCase()}`);
+    }
+    return identities;
+  }
+
+  function isRepeatedInlineResource(element, baseHref, repeatedInlineIdentities) {
+    return inlineResourceIdentities(element, baseHref).some(
+      (identity) => repeatedInlineIdentities.has(identity),
+    );
+  }
+
+  function classifyResourceCandidate(
+    classifier,
+    element,
+    currentRoot,
+    currentBodyRoot,
+    currentContainer,
+    doc,
+    baseHref,
+    repeatedInlineIdentities,
+  ) {
+    const candidateKind = resourceCandidateKind(
+      element,
+      currentRoot,
+      currentBodyRoot,
+      currentContainer,
+    );
+    const resolvedUrl = resolveResourceUrl(resourceUrl(element), baseHref);
+    const metadata = resourceMetadata(element);
+    const approvedEndpoint = Boolean(resolvedUrl && isApprovedResourceEndpoint(resolvedUrl));
+    const dimensions = imageDimensions(element);
+    const contactSignals = candidateContactSignalCount(element, currentBodyRoot);
+    const visualHint = candidateVisualHint(element, currentBodyRoot);
+    const attachmentEvidence = candidateKind === "attachment"
+      ? attachmentControlEvidence(element, visualHint, resolvedUrl, metadata)
+      : { verified: false, deferredTypeValidation: false };
+    const facts = {
+      candidateKind,
+      resourceType: candidateKind === "inline_image" ? "image" : metadata.type,
+      visible: isVisibleResourceWithin(element, currentContainer, doc),
+      currentMessageOwned: candidateKind !== "ambiguous",
+      approvedUrl: approvedEndpoint,
+      ambiguousOwnership: candidateKind === "ambiguous",
+      quotedHistory: candidateKind === "inline_image" && isQuotedHistoryMedia(element, currentBodyRoot),
+      afterSignatureBoundary: candidateKind === "inline_image" && isAfterSignatureBoundary(element, currentBodyRoot),
+      repeated: candidateKind === "inline_image" &&
+        isRepeatedInlineResource(element, baseHref, repeatedInlineIdentities),
+      width: dimensions.width,
+      height: dimensions.height,
+      visualHint,
+      signatureContext: candidateKind === "inline_image" && isSignatureContext(element, currentBodyRoot),
+      contactSignalCount: contactSignals,
+      verifiedAttachmentControl: attachmentEvidence.verified,
+      deferredTypeValidation: attachmentEvidence.deferredTypeValidation,
+    };
+    const classification = classifier.classifyVisibleResource(facts);
+    return {
+      element,
+      classification,
+      resolvedUrl,
+      candidateKind,
+      metadata,
+      approvedEndpoint,
+      deferredTypeValidation: facts.deferredTypeValidation,
+      identityKey: resourceIdentityKey(facts, resolvedUrl, element),
+    };
+  }
+
+  function resourceCandidateMatches(
+    expected,
+    classifier,
+    currentRoot,
+    currentBodyRoot,
+    currentContainer,
+    doc,
+    baseHref,
+    candidates,
+  ) {
+    if (!expected || !expected.element || !isInside(expected.element, currentContainer)) {
+      return false;
+    }
+    const current = classifyResourceCandidate(
+      classifier,
+      expected.element,
+      currentRoot,
+      currentBodyRoot,
+      currentContainer,
+      doc,
+      baseHref,
+      repeatedInlineResourceIdentities(candidates, currentBodyRoot, baseHref),
+    );
+    return current.classification === expected.classification &&
+      current.resolvedUrl === expected.resolvedUrl &&
+      current.identityKey === expected.identityKey;
+  }
+
+  function resourceCandidateKind(element, currentRoot, currentBodyRoot, currentContainer) {
+    const tagName = String(element && element.tagName || "").toUpperCase();
+    if (tagName === "IMG" && currentBodyRoot && isInside(element, currentBodyRoot)) {
+      return "inline_image";
+    }
+    if (
+      tagName === "A" &&
+      isInside(element, currentContainer) &&
+      !isInside(element, currentRoot) &&
+      !hasKnownBodyAncestor(element, currentRoot, currentContainer)
+    ) {
+      return "attachment";
+    }
+    return "ambiguous";
+  }
+
+  function resourceIdentityKey(facts, resolvedUrl, element) {
+    const attachmentName = facts.candidateKind === "attachment"
+      ? resourceMetadata(element).filename
+      : "";
+    return JSON.stringify([
+      facts.candidateKind,
+      facts.resourceType,
+      facts.visible,
+      facts.currentMessageOwned,
+      facts.approvedUrl,
+      facts.ambiguousOwnership,
+      facts.quotedHistory,
+      facts.afterSignatureBoundary,
+      facts.repeated,
+      facts.width,
+      facts.height,
+      facts.visualHint,
+      facts.signatureContext,
+      facts.contactSignalCount,
+      facts.verifiedAttachmentControl,
+      facts.deferredTypeValidation,
+      resolvedUrl,
+      attachmentName,
+    ]);
+  }
+
+  function candidateVisualHint(element, currentBodyRoot) {
+    const parts = [];
+    let current = element;
+    while (current && current !== currentBodyRoot) {
+      for (const name of ["id", "class", "role", "alt", "title", "name", "data-role"]) {
+        const value = attribute(current, name);
+        if (value) {
+          parts.push(value);
+        }
+      }
+      current = current.parentElement || current.parentNode;
+    }
+    return normalizeText(parts.join(" ")).slice(0, 1024);
+  }
+
+  function attachmentControlEvidence(element, visualHint, resolvedUrl, metadata) {
+    if (
+      String(element && element.tagName || "").toUpperCase() !== "A" ||
+      /(?:^|[^a-z0-9])(?:avatar|contact|footer|headshot|icon|logo|portrait|profile|signature|social|tracker|tracking)(?:[^a-z0-9]|$)/i
+        .test(String(visualHint || ""))
+    ) {
+      return { verified: false, deferredTypeValidation: false };
+    }
+    const hasDownload = normalizeText(attribute(element, "download")).length > 0;
+    const typeEvidence = legacyAttachmentTypeEvidence(element, metadata, hasDownload);
+    if (!typeEvidence.valid) {
+      return { verified: false, deferredTypeValidation: false };
+    }
+    if (hasDownload) {
+      return { verified: true, deferredTypeValidation: false };
+    }
+    return legacyTencentDownloadControlEvidence(element, resolvedUrl, metadata, typeEvidence);
+  }
+
+  function legacyTencentDownloadControlEvidence(element, resolvedUrl, metadata, existingTypeEvidence) {
+    try {
+      const url = new URL(String(resolvedUrl || ""));
+      const typeEvidence = existingTypeEvidence || legacyAttachmentTypeEvidence(element, metadata);
+      const verified = normalizeText(attribute(element, "target")).length > 0 &&
+        url.origin === EXMAIL_ORIGIN &&
+        url.protocol === "https:" &&
+        !url.username && !url.password &&
+        url.pathname === "/cgi-bin/download" &&
+        url.search.length > 1 &&
+        !hasLegacyNegativeAttachmentLabel(element) &&
+        typeEvidence.valid;
+      return {
+        verified,
+        deferredTypeValidation: verified && typeEvidence.deferred,
+      };
+    } catch (error) {
+      return { verified: false, deferredTypeValidation: false };
+    }
+  }
+
+  function legacyAttachmentTypeEvidence(element, metadata, allowUnselectedMetadata) {
+    const visible = legacyVisibleAttachmentDescriptor(element);
+    const declared = legacyDeclaredTypeDescriptor(element);
+    const filename = legacyDataFilenameDescriptor(element);
+    const descriptors = [visible.descriptor, declared.descriptor, filename.descriptor].filter(Boolean);
+    const selected = descriptors[0] || null;
+    const consistent = new Set(descriptors.map((descriptor) => descriptor.canonical)).size <= 1;
+    const metadataType = String(metadata && metadata.type || "");
+    const metadataConsistent = selected
+      ? selected.type === metadataType
+      : allowUnselectedMetadata === true || metadataType === "";
+    return {
+      valid: visible.valid && declared.valid && filename.valid && consistent && metadataConsistent,
+      deferred: descriptors.length === 0,
+    };
+  }
+
+  function legacyDataFilenameDescriptor(element) {
+    const value = normalizeText(attribute(element, "data-filename")).toLowerCase();
+    if (!value) {
+      return { present: false, valid: true, descriptor: null };
+    }
+    const suffix = value.match(/\.([a-z0-9]+)$/);
+    const descriptor = suffix ? normalizeLegacyVisibleAttachmentType(`.${suffix[1]}`) : null;
+    return { present: true, valid: Boolean(descriptor), descriptor };
+  }
+
+  function legacyVisibleAttachmentDescriptor(element) {
+    const descriptors = [];
+    for (const label of legacyVisibleAttachmentLabels(element)) {
+      const normalized = normalizeText(label);
+      if (!normalized) {
+        continue;
+      }
+      const scan = legacyVisibleAttachmentDescriptors(normalized);
+      if (!scan.valid) {
+        return { valid: false, descriptor: null };
+      }
+      descriptors.push(...scan.descriptors);
+    }
+    const canonicalTypes = new Set(descriptors.map((descriptor) => descriptor.canonical));
+    const valid = canonicalTypes.size <= 1;
+    return {
+      valid,
+      descriptor: valid && descriptors.length > 0 ? descriptors[0] : null,
+    };
+  }
+
+  function legacyVisibleAttachmentDescriptors(value) {
+    const normalized = normalizeText(value).toLowerCase();
+    const exact = normalizeLegacyDeclaredType(normalized);
+    if (exact) {
+      return { valid: true, descriptors: [exact] };
+    }
+    const descriptors = [];
+    const mimePattern = /(?:^|[\s(])((?:image|application)\/[^\s)\]]+)/gi;
+    for (const match of normalized.matchAll(mimePattern)) {
+      const descriptor = normalizeLegacyDeclaredType(match[1]);
+      if (!descriptor) {
+        return { valid: false, descriptors: [] };
+      }
+      descriptors.push(descriptor);
+    }
+    const extensionPattern = /(?:^|[\s(])(?:[a-z0-9][a-z0-9_-]*)\.([a-z0-9]{2,5})(?=$|[\s)\]])/gi;
+    for (const match of normalized.matchAll(extensionPattern)) {
+      const descriptor = normalizeLegacyVisibleAttachmentType(`.${match[1]}`);
+      if (!descriptor) {
+        return { valid: false, descriptors: [] };
+      }
+      descriptors.push(descriptor);
+    }
+    return { valid: true, descriptors };
+  }
+
+  function legacyVisibleAttachmentLabels(element) {
+    const labels = [];
+    if (element && typeof element.innerText === "string") {
+      labels.push(element.innerText);
+    }
+    for (const name of ["aria-label", "title", "alt"]) {
+      labels.push(attribute(element, name));
+    }
+    return labels;
+  }
+
+  function normalizeLegacyVisibleAttachmentType(value) {
+    const normalized = normalizeText(value).toLowerCase();
+    const declaredType = normalizeLegacyDeclaredType(normalized);
+    if (declaredType) {
+      return declaredType;
+    }
+    const extension = normalized.match(/\.([a-z0-9]+)(?:$|[\s)\]])/i);
+    if (!extension) {
+      return null;
+    }
+    const extensions = {
+      pdf: { type: "pdf", canonical: "pdf" },
+      docx: { type: "docx", canonical: "docx" },
+      xlsx: { type: "xlsx", canonical: "xlsx" },
+      bmp: { type: "image", canonical: "image/bmp" },
+      gif: { type: "image", canonical: "image/gif" },
+      jpg: { type: "image", canonical: "image/jpeg" },
+      jpeg: { type: "image", canonical: "image/jpeg" },
+      png: { type: "image", canonical: "image/png" },
+      tif: { type: "image", canonical: "image/tiff" },
+      tiff: { type: "image", canonical: "image/tiff" },
+      webp: { type: "image", canonical: "image/webp" },
+    };
+    return extensions[extension[1]] || null;
+  }
+
+  function normalizeLegacyDeclaredType(value) {
+    const declaredTypes = {
+      "image": { type: "image", canonical: "image" },
+      "image/bmp": { type: "image", canonical: "image/bmp" },
+      "image/gif": { type: "image", canonical: "image/gif" },
+      "image/jpg": { type: "image", canonical: "image/jpeg" },
+      "image/jpeg": { type: "image", canonical: "image/jpeg" },
+      "image/png": { type: "image", canonical: "image/png" },
+      "image/tif": { type: "image", canonical: "image/tiff" },
+      "image/tiff": { type: "image", canonical: "image/tiff" },
+      "image/webp": { type: "image", canonical: "image/webp" },
+      "application/pdf": { type: "pdf", canonical: "pdf" },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": { type: "xlsx", canonical: "xlsx" },
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document": { type: "docx", canonical: "docx" },
+      "pdf": { type: "pdf", canonical: "pdf" },
+      "xlsx": { type: "xlsx", canonical: "xlsx" },
+      "docx": { type: "docx", canonical: "docx" },
+    };
+    if (Object.prototype.hasOwnProperty.call(declaredTypes, value)) {
+      return declaredTypes[value];
+    }
+    return null;
+  }
+
+  function hasLegacyNegativeAttachmentLabel(element) {
+    return legacyVisibleAttachmentLabels(element).some((label) => (
+      /(?:^|[^a-z0-9])(?:avatar|contact|footer|headshot|icon|logo|portrait|profile|signature|social|tracker|tracking)(?:[^a-z0-9]|$)/i
+        .test(String(label || ""))
+    ));
+  }
+
+  function legacyDeclaredTypeDescriptor(element) {
+    const declared = ["data-type", "data-mime-type", "type"]
+      .map((name) => normalizeText(attribute(element, name)).toLowerCase())
+      .filter(Boolean);
+    const descriptors = declared.map((value) => normalizeLegacyDeclaredType(value));
+    const valid = descriptors.every(Boolean) &&
+      new Set(descriptors.filter(Boolean).map((item) => item.canonical)).size <= 1;
+    return { valid, descriptor: valid && descriptors.length ? descriptors[0] : null };
+  }
+
+  function isQuotedHistoryMedia(element, currentBodyRoot) {
+    if (hasKnownThreadSegmentAncestor(element, currentBodyRoot)) {
+      return true;
+    }
+    const hint = ancestorStructuralHint(element, currentBodyRoot);
+    if (/(?:^|[-_\s])(?:quote|quoted|history|original|forwarded|reply)(?:[-_\s]|$)/i.test(hint)) {
+      return true;
+    }
+    const preceding = precedingElementText(element, currentBodyRoot);
+    return /-----\s*original message-----|(?:^|\s)(?:from|\u53d1\u4ef6\u4eba)\s*[:\uff1a].*(?:sent|date|\u53d1\u9001\u65f6\u95f4)\s*[:\uff1a]/i.test(preceding);
+  }
+
+  function hasKnownThreadSegmentAncestor(element, boundary) {
+    let current = element;
+    while (current && current !== boundary) {
+      if (isKnownThreadSegment(current)) {
+        return true;
+      }
+      current = current.parentElement || current.parentNode;
+    }
+    return false;
+  }
+
+  function isKnownThreadSegment(element) {
+    if (isCompleteLegacyQuote(element)) {
+      return true;
+    }
+    if (hasAttribute(element, "data-email-thread-segment")) {
+      return true;
+    }
+    const classes = attribute(element, "class").split(/\s+/).filter(Boolean);
+    return THREAD_SEGMENT_SELECTORS
+      .filter((selector) => selector.startsWith("."))
+      .some((selector) => classes.includes(selector.slice(1)));
+  }
+
+  function isAfterSignatureBoundary(element, currentBodyRoot) {
+    const preceding = precedingElementText(element, currentBodyRoot);
+    return /(?:^|\s)(?:--|best regards|kind regards|regards|sincerely|thank you|thanks|\u6b64\u81f4|\u656c\u793c|\u795d\u597d)(?:\s|$)/i.test(preceding);
+  }
+
+  function isSignatureContext(element, currentBodyRoot) {
+    const hint = ancestorStructuralHint(element, currentBodyRoot);
+    if (/(?:^|[-_\s])(?:signature|footer|vcard|contact-card)(?:[-_\s]|$)/i.test(hint)) {
+      return true;
+    }
+    const parent = element && (element.parentElement || element.parentNode);
+    return Boolean(
+      parent &&
+      parent !== currentBodyRoot &&
+      contactSignalCount(elementText(parent)) >= 2
+    );
+  }
+
+  function candidateContactSignalCount(element, currentBodyRoot) {
+    const parent = element && (element.parentElement || element.parentNode);
+    return parent && parent !== currentBodyRoot ? contactSignalCount(elementText(parent)) : 0;
+  }
+
+  function contactSignalCount(value) {
+    const text = String(value || "");
+    const signals = [
+      /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/i,
+      /(?:\b(?:tel|phone|mobile|fax|wechat|whatsapp)\b|\u7535\u8bdd|\u624b\u673a|\u5fae\u4fe1)\s*[:\uff1a]?/i,
+      /(?:\baddress\b|\u5730\u5740|\bstreet\b|\broad\b)\s*[:\uff1a]?/i,
+      /(?:\bwww\.|https?:\/\/)/i,
+    ];
+    return signals.filter((pattern) => pattern.test(text)).length;
+  }
+
+  function ancestorStructuralHint(element, boundary) {
+    const parts = [];
+    let current = element;
+    while (current && current !== boundary) {
+      parts.push(attribute(current, "id"), attribute(current, "class"), attribute(current, "role"));
+      current = current.parentElement || current.parentNode;
+    }
+    return normalizeText(parts.join(" ")).slice(0, 1024);
+  }
+
+  function precedingElementText(element, boundary) {
+    const parts = [];
+    let current = element;
+    while (current && current !== boundary) {
+      const parent = current.parentElement || current.parentNode;
+      if (!parent) {
+        break;
+      }
+      const siblings = Array.from(parent.children || []);
+      const index = siblings.indexOf(current);
+      for (let offset = 0; offset < index; offset += 1) {
+        parts.push(elementText(siblings[offset]));
+      }
+      current = parent;
+    }
+    return normalizeText(parts.join(" ")).slice(-2048);
+  }
+
+  function imageDimensions(element) {
+    const rect = resourceLayoutRect(element);
+    return {
+      width: positiveDimension(rect && rect.width),
+      height: positiveDimension(rect && rect.height),
+    };
+  }
+
+  function positiveDimension(value) {
+    const number = Number(value);
+    return Number.isFinite(number) && number > 0 ? number : 0;
+  }
+
+  function inlineResourceMetadata(element, ordinal) {
+    return {
+      filename: `inline-image-${ordinal}.${inlineImageExtension(element)}`,
+      type: "image",
+      size: declaredByteSize(attribute(element, "data-size")),
+    };
+  }
+
+  function inlineImageExtension(element) {
+    const declared = normalizeText(
+      attribute(element, "data-type") ||
+      attribute(element, "data-mime-type") ||
+      attribute(element, "type"),
+    ).toLowerCase();
+    const mapping = {
+      "image/bmp": "bmp",
+      "image/gif": "gif",
+      "image/jpeg": "jpg",
+      "image/jpg": "jpg",
+      "image/png": "png",
+      "image/tiff": "tiff",
+      "image/webp": "webp",
+    };
+    return mapping[declared] || "jpg";
   }
 
   function findCurrentMessageRoot(doc, suppliedRoot) {
@@ -648,6 +1491,55 @@
     return reachedBoundary && reachedDocumentBody;
   }
 
+  function isVisibleResourceWithin(element, boundary, doc) {
+    const requireViewportIntersection = String(element && element.tagName || "").toUpperCase() === "IMG";
+    return isVisibleWithin(element, boundary, doc) &&
+      hasVisibleResourceLayout(element, doc, requireViewportIntersection);
+  }
+
+  function hasVisibleResourceLayout(element, doc, requireViewportIntersection) {
+    const rect = resourceLayoutRect(element);
+    if (!rect) {
+      return false;
+    }
+    const values = [rect.left, rect.top, rect.right, rect.bottom, rect.width, rect.height]
+      .map((value) => Number(value));
+    if (!values.every(Number.isFinite)) {
+      return false;
+    }
+    const [left, top, right, bottom, width, height] = values;
+    if (width <= 0 || height <= 0) {
+      return false;
+    }
+    if (requireViewportIntersection !== true) {
+      return true;
+    }
+    const view = doc && doc.defaultView;
+    const documentElement = doc && doc.documentElement;
+    const body = doc && doc.body;
+    const viewportWidth = positiveDimension(
+      view && view.innerWidth,
+    ) || positiveDimension(documentElement && documentElement.clientWidth) ||
+      positiveDimension(body && body.clientWidth);
+    const viewportHeight = positiveDimension(
+      view && view.innerHeight,
+    ) || positiveDimension(documentElement && documentElement.clientHeight) ||
+      positiveDimension(body && body.clientHeight);
+    return Boolean(viewportWidth && viewportHeight) &&
+      right > 0 && bottom > 0 && left < viewportWidth && top < viewportHeight;
+  }
+
+  function resourceLayoutRect(element) {
+    if (!element || typeof element.getBoundingClientRect !== "function") {
+      return null;
+    }
+    try {
+      return element.getBoundingClientRect();
+    } catch (error) {
+      return null;
+    }
+  }
+
   function isInside(element, boundary) {
     let current = element;
     while (current) {
@@ -697,13 +1589,17 @@
     }
     const classes = attribute(element, "class").split(/\s+/).filter(Boolean);
     return [
-      "mail-detail-content", "mail-content", "mail_content", "readmail_content",
+      "qm_con_body", "mail-detail-content", "mail-content", "mail_content", "readmail_content",
     ].some((className) => classes.includes(className));
   }
 
   function styleHides(element, doc) {
     const inlineStyle = element.style || {};
-    if (inlineStyle.display === "none" || hiddenVisibility(inlineStyle.visibility)) {
+    if (
+      inlineStyle.display === "none" ||
+      hiddenVisibility(inlineStyle.visibility) ||
+      String(inlineStyle.opacity) === "0"
+    ) {
       return true;
     }
     const view = doc && doc.defaultView;
@@ -712,7 +1608,9 @@
     }
     try {
       const computed = view.getComputedStyle(element);
-      return computed.display === "none" || hiddenVisibility(computed.visibility);
+      return computed.display === "none" ||
+        hiddenVisibility(computed.visibility) ||
+        String(computed.opacity) === "0";
     } catch (error) {
       return false;
     }
@@ -743,11 +1641,14 @@
   }
 
   function resourceUrl(element) {
-    return (
-      attribute(element, "data-resource-url") ||
-      attribute(element, "href") ||
-      attribute(element, "src")
-    );
+    const tagName = String(element && element.tagName || "").toUpperCase();
+    if (tagName === "A") {
+      return attribute(element, "href");
+    }
+    if (tagName === "IMG") {
+      return attribute(element, "src");
+    }
+    return "";
   }
 
   function normalizeResourceType(value, filename) {
@@ -784,7 +1685,14 @@
     return SUPPORTED_RESOURCE_TYPES.includes(extension[1]) ? extension[1] : "";
   }
 
-  async function fetchResource(fetchImpl, url, metadata, limits, totalBytes, deadline) {
+  async function fetchResource(
+    fetchImpl,
+    url,
+    limits,
+    totalBytes,
+    deadline,
+    deferredTypeValidation,
+  ) {
     const controller = typeof root.AbortController === "function"
       ? new root.AbortController()
       : null;
@@ -829,16 +1737,22 @@
       }
       const actualLimitation = byteLimitation(byteSize, limits, totalBytes);
       if (actualLimitation) {
+        clearMutableBuffer(buffer);
         return { code: LIMITATION_CODES.frontendLimit, limitation: actualLimitation };
       }
-      return {
-        file: {
-          filename: metadata.filename,
-          type: metadata.type,
-          size: byteSize,
-          content_base64: arrayBufferToBase64(buffer),
-        },
-      };
+      if (deferredTypeValidation === true) {
+        const detected = detectDeferredResponseType(response, buffer);
+        if (!detected.type) {
+          clearMutableBuffer(buffer);
+          return { code: detected.code, limitation: detected.limitation };
+        }
+        return {
+          buffer,
+          detectedType: detected.type,
+          detectedExtension: detected.extension,
+        };
+      }
+      return { buffer };
     } catch (error) {
       if (isDeadlineError(error)) {
         return {
@@ -850,6 +1764,275 @@
         code: LIMITATION_CODES.readFailed,
         limitation: "Resource could not be read from the current Tencent Exmail session.",
       };
+    }
+  }
+
+  function detectDeferredResponseType(response, buffer) {
+    const contentType = normalizeSingleContentType(responseHeader(response, "content-type"));
+    if (!contentType.valid) {
+      return unsupportedDeferredType();
+    }
+    const signature = detectedSignature(buffer);
+    const exactTypes = {
+      "application/pdf": { type: "pdf", extension: "pdf", signature: "pdf" },
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document": {
+        type: "docx", extension: "docx", signature: "zip",
+      },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+        type: "xlsx", extension: "xlsx", signature: "zip",
+      },
+      "image/bmp": { type: "image", extension: "bmp", signature: "bmp" },
+      "image/gif": { type: "image", extension: "gif", signature: "gif" },
+      "image/jpeg": { type: "image", extension: "jpg", signature: "jpeg" },
+      "image/jpg": { type: "image", extension: "jpg", signature: "jpeg" },
+      "image/png": { type: "image", extension: "png", signature: "png" },
+      "image/tiff": { type: "image", extension: "tiff", signature: "tiff" },
+      "image/webp": { type: "image", extension: "webp", signature: "webp" },
+    };
+    if (contentType.value && contentType.value !== "application/octet-stream") {
+      const expected = exactTypes[contentType.value];
+      if (!expected) {
+        return unsupportedDeferredType();
+      }
+      return signature && signature.kind === expected.signature
+        ? { type: expected.type, extension: expected.extension }
+        : conflictingDeferredType();
+    }
+    if (!signature) {
+      return unsupportedDeferredType();
+    }
+    if (signature.type) {
+      return { type: signature.type, extension: signature.extension };
+    }
+    if (signature.kind === "zip") {
+      const officeExtension = strictOfficeDispositionExtension(
+        responseHeader(response, "content-disposition"),
+      );
+      return officeExtension
+        ? { type: officeExtension, extension: officeExtension }
+        : unsupportedDeferredType();
+    }
+    return unsupportedDeferredType();
+  }
+
+  function normalizeSingleContentType(value) {
+    const raw = normalizeText(value).toLowerCase();
+    if (!raw) {
+      return { valid: true, value: "" };
+    }
+    if (raw.includes(",")) {
+      return { valid: false, value: "" };
+    }
+    const token = raw.split(";", 1)[0].trim();
+    return {
+      valid: /^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/.test(token),
+      value: token,
+    };
+  }
+
+  function responseHeader(response, name) {
+    const headers = response && response.headers;
+    if (!headers || typeof headers.get !== "function") {
+      return "";
+    }
+    try {
+      return String(headers.get(name) || "");
+    } catch (error) {
+      return "";
+    }
+  }
+
+  function detectedSignature(buffer) {
+    const bytes = buffer instanceof ArrayBuffer ? new Uint8Array(buffer) : null;
+    if (!bytes) {
+      return null;
+    }
+    if (hasBytePrefix(bytes, [0x25, 0x50, 0x44, 0x46, 0x2d])) {
+      return { kind: "pdf", type: "pdf", extension: "pdf" };
+    }
+    if (hasBytePrefix(bytes, [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])) {
+      return { kind: "png", type: "image", extension: "png" };
+    }
+    if (hasBytePrefix(bytes, [0xff, 0xd8, 0xff])) {
+      return { kind: "jpeg", type: "image", extension: "jpg" };
+    }
+    if (
+      hasBytePrefix(bytes, [0x47, 0x49, 0x46, 0x38, 0x37, 0x61]) ||
+      hasBytePrefix(bytes, [0x47, 0x49, 0x46, 0x38, 0x39, 0x61])
+    ) {
+      return { kind: "gif", type: "image", extension: "gif" };
+    }
+    if (hasBytePrefix(bytes, [0x42, 0x4d])) {
+      return { kind: "bmp", type: "image", extension: "bmp" };
+    }
+    if (
+      hasBytePrefix(bytes, [0x49, 0x49, 0x2a, 0x00]) ||
+      hasBytePrefix(bytes, [0x4d, 0x4d, 0x00, 0x2a])
+    ) {
+      return { kind: "tiff", type: "image", extension: "tiff" };
+    }
+    if (
+      hasBytePrefix(bytes, [0x52, 0x49, 0x46, 0x46]) &&
+      bytes.length >= 12 &&
+      hasBytesAt(bytes, 8, [0x57, 0x45, 0x42, 0x50])
+    ) {
+      return { kind: "webp", type: "image", extension: "webp" };
+    }
+    if (hasBytePrefix(bytes, [0x50, 0x4b, 0x03, 0x04])) {
+      return { kind: "zip", type: "", extension: "" };
+    }
+    return null;
+  }
+
+  function hasBytePrefix(bytes, expected) {
+    return hasBytesAt(bytes, 0, expected);
+  }
+
+  function hasBytesAt(bytes, offset, expected) {
+    if (bytes.length < offset + expected.length) {
+      return false;
+    }
+    return expected.every((value, index) => bytes[offset + index] === value);
+  }
+
+  function strictOfficeDispositionExtension(value) {
+    const parameters = strictDispositionParameters(value);
+    if (!parameters) {
+      return "";
+    }
+    const fields = parameters
+      .filter((parameter) => parameter.name === "filename" || parameter.name === "filename*")
+      .map((parameter) => parameter.value);
+    if (fields.length !== 1) {
+      return "";
+    }
+    const suffix = fields[0].toLowerCase().match(/\.([a-z0-9]+)$/);
+    return suffix && ["docx", "xlsx"].includes(suffix[1]) ? suffix[1] : "";
+  }
+
+  function strictDispositionParameters(value) {
+    const raw = String(value || "");
+    let index = skipDispositionWhitespace(raw, 0);
+    const dispositionEnd = readDispositionTokenEnd(raw, index);
+    if (dispositionEnd === index) {
+      return null;
+    }
+    index = skipDispositionWhitespace(raw, dispositionEnd);
+    const parameters = [];
+    const names = new Set();
+    while (index < raw.length) {
+      if (raw[index] !== ";") {
+        return null;
+      }
+      index = skipDispositionWhitespace(raw, index + 1);
+      const nameEnd = readDispositionTokenEnd(raw, index);
+      if (nameEnd === index) {
+        return null;
+      }
+      const name = raw.slice(index, nameEnd).toLowerCase();
+      index = skipDispositionWhitespace(raw, nameEnd);
+      if (raw[index] !== "=") {
+        return null;
+      }
+      index = skipDispositionWhitespace(raw, index + 1);
+      const parsed = readDispositionValue(raw, index);
+      if (!parsed) {
+        return null;
+      }
+      index = skipDispositionWhitespace(raw, parsed.end);
+      if (index < raw.length && raw[index] !== ";") {
+        return null;
+      }
+      if (names.has(name)) {
+        return null;
+      }
+      names.add(name);
+      parameters.push({ name, value: parsed.value });
+    }
+    return parameters;
+  }
+
+  function readDispositionValue(raw, start) {
+    if (raw[start] !== '"') {
+      const end = readDispositionTokenEnd(raw, start);
+      return end === start ? null : { value: raw.slice(start, end), end };
+    }
+    let index = start + 1;
+    let decoded = "";
+    while (index < raw.length) {
+      const character = raw[index];
+      if (character === '"') {
+        return { value: decoded, end: index + 1 };
+      }
+      if (character === "\\") {
+        index += 1;
+        if (index >= raw.length || isDispositionControl(raw[index])) {
+          return null;
+        }
+        decoded += raw[index];
+        index += 1;
+        continue;
+      }
+      if (isDispositionControl(character)) {
+        return null;
+      }
+      decoded += character;
+      index += 1;
+    }
+    return null;
+  }
+
+  function readDispositionTokenEnd(raw, start) {
+    let index = start;
+    while (index < raw.length && isDispositionTokenCharacter(raw[index])) {
+      index += 1;
+    }
+    return index;
+  }
+
+  function isDispositionTokenCharacter(character) {
+    return /^[!#$%&'*+\-.^_`|~0-9A-Za-z]$/.test(character);
+  }
+
+  function skipDispositionWhitespace(raw, start) {
+    let index = start;
+    while (index < raw.length && (raw[index] === " " || raw[index] === "\t")) {
+      index += 1;
+    }
+    return index;
+  }
+
+  function isDispositionControl(character) {
+    const code = character.charCodeAt(0);
+    return code < 0x20 || code === 0x7f;
+  }
+
+  function unsupportedDeferredType() {
+    return {
+      code: LIMITATION_CODES.unsupported,
+      limitation: "Resource type is not supported.",
+    };
+  }
+
+  function conflictingDeferredType() {
+    return {
+      code: LIMITATION_CODES.readFailed,
+      limitation: "Resource response type did not match its content.",
+    };
+  }
+
+  function genericAttachmentFilename(ordinal, extension) {
+    return `attachment-${ordinal}.${extension}`;
+  }
+
+  function clearMutableBuffer(buffer) {
+    if (!(buffer instanceof ArrayBuffer)) {
+      return;
+    }
+    try {
+      new Uint8Array(buffer).fill(0);
+    } catch (error) {
+      return;
     }
   }
 

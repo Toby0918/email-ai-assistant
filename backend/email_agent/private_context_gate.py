@@ -13,6 +13,8 @@ from backend.private_knowledge.entity_patterns import PATTERNS, PLACEHOLDER
 from backend.private_knowledge.residual_scanner import scan_residuals
 
 from .analysis_budget import DEEPSEEK_PROVIDER_MAX_SECONDS
+from .model_request import ModelAnalysisRequest
+from .multimodal_media import PreparedMediaAsset
 from .private_knowledge_context import render_private_knowledge_context
 from .participant_identity_aliases import (
     MAX_HEADER_CHARACTERS,
@@ -53,14 +55,22 @@ class PrivateModelRequest:
     current_only_header_values: tuple[str, ...] = field(default=(), repr=False)
     context_scope: str = "current_only"
     context_limited: bool = False
+    prepared_media_assets: tuple[PreparedMediaAsset, ...] = field(
+        default=(), repr=False
+    )
 
 
 @dataclass(frozen=True, slots=True)
 class PrivateModelContext:
-    text: str = field(repr=False)
+    model_request: ModelAnalysisRequest = field(repr=False)
     selected_card_count: int
     context_scope: str = "current_only"
     context_limited: bool = False
+
+    @property
+    def text(self) -> str:
+        """Preserve the existing text-only route seam until provider routing changes."""
+        return self.model_request.text
 
 
 def build_private_model_context(
@@ -77,8 +87,11 @@ def build_private_model_context(
     knowledge = render_private_knowledge_context(cards, rule_result)
     text = _build_safe_prompt(request.prompt, request.header_values, knowledge.text)
     if text is not None:
+        model_request = _model_request(text, request.prepared_media_assets)
+        if model_request is None:
+            return PrivateContextFallbackCode.SAFETY
         return PrivateModelContext(
-            text,
+            model_request,
             knowledge.card_count,
             request.context_scope if request.context_scope in {"current_only", "relevant_history"} else "current_only",
             bool(request.context_limited),
@@ -92,7 +105,19 @@ def build_private_model_context(
     )
     if text is None:
         return PrivateContextFallbackCode.SAFETY
-    return PrivateModelContext(text, knowledge.card_count, "current_only", True)
+    model_request = _model_request(text, request.prepared_media_assets)
+    if model_request is None:
+        return PrivateContextFallbackCode.SAFETY
+    return PrivateModelContext(model_request, knowledge.card_count, "current_only", True)
+
+
+def _model_request(
+    text: str, assets: object,
+) -> ModelAnalysisRequest | None:
+    try:
+        return ModelAnalysisRequest(text, assets)
+    except (TypeError, ValueError):
+        return None
 
 
 def _build_safe_prompt(
@@ -203,6 +228,16 @@ def provider_output_contains_placeholder(raw: object) -> bool:
 
 def provider_output_contains_private_artifact(raw: object) -> bool:
     return _output_contains_artifact(raw, _contains_private_artifact)
+
+
+def model_request_text_is_private_safe(text: object) -> bool:
+    """Revalidate one dispatch-ready text value without exposing findings."""
+    if type(text) is not str or _PRIVATE_PLACEHOLDER.search(text):
+        return False
+    try:
+        return not scan_residuals(text)
+    except Exception:
+        return False
 
 
 def _contains_private_placeholder(value: str) -> bool:

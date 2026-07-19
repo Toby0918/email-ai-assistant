@@ -3,11 +3,12 @@ from collections.abc import Callable
 from dataclasses import dataclass, field
 
 
-BACKEND_TARGET_SECONDS = 13.0
-RESPONSE_MARGIN_SECONDS = 2.0
+BACKEND_TARGET_SECONDS = 55.0
+RESPONSE_MARGIN_SECONDS = 5.0
 PARSER_MAX_SECONDS = 8.0
-PROVIDER_MAX_SECONDS = 25.0
+PROVIDER_MAX_SECONDS = 35.0
 DEEPSEEK_PROVIDER_MAX_SECONDS = 10.0
+TEXT_FALLBACK_MIN_REMAINING_SECONDS = 12.0
 PROVIDER_MIN_SECONDS = 5.0
 
 
@@ -54,5 +55,19 @@ class AnalysisBudget:
             configured_timeout_seconds,
             maximum_seconds,
             self.remaining_seconds(reserve_seconds=RESPONSE_MARGIN_SECONDS),
+        )
+        return timeout if timeout >= PROVIDER_MIN_SECONDS else None
+
+    def text_fallback_timeout_seconds(
+        self, configured_timeout_seconds: float,
+    ) -> float | None:
+        """Return one fallback timeout from one final authoritative clock read."""
+        remaining = max(0.0, self.deadline - self._clock())
+        if remaining < TEXT_FALLBACK_MIN_REMAINING_SECONDS:
+            return None
+        timeout = min(
+            configured_timeout_seconds,
+            DEEPSEEK_PROVIDER_MAX_SECONDS,
+            max(0.0, remaining - RESPONSE_MARGIN_SECONDS),
         )
         return timeout if timeout >= PROVIDER_MIN_SECONDS else None

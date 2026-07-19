@@ -77,6 +77,37 @@ button:disabled {
   overflow-wrap: anywhere;
 }
 
+.manual-attachment-picker {
+  border: 1px solid #bcccdc;
+  border-radius: 6px;
+  background: #ffffff;
+}
+
+.manual-attachment-picker summary {
+  padding: 10px 12px;
+  color: #335c67;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.manual-attachment-picker__body {
+  display: grid;
+  gap: 8px;
+  padding: 0 12px 12px;
+  color: #52616f;
+}
+
+.manual-attachment-picker__body input {
+  width: 100%;
+  min-width: 0;
+}
+
+.manual-attachment-picker__body p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
 .result-section {
   min-width: 0;
 }

@@ -1,5 +1,5 @@
-﻿---
-last_update: 2026-07-15
+---
+last_update: 2026-07-16
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -94,7 +94,7 @@ AI 分析结果必须能解析为 JSON，并至少包含以下字段。
   },
   "analysis_engine": {
     "source": "ai_model | rule_fallback",
-    "label": "DeepSeek V4 Flash | DeepSeek V4 Pro | Local Qwen | Local Gemma | OpenAI | Rule fallback",
+    "label": "backend-compatible display label",
     "context_scope": "current_only | relevant_history",
     "context_limited": true
   }
@@ -103,15 +103,15 @@ AI 分析结果必须能解析为 JSON，并至少包含以下字段。
 
 ## 公开 Schema 与内部 Provider Envelope
 
-本页 JSON 是 unchanged public analysis schema。启用 DeepSeek-led 路线不会改变 `POST /api/analyze-current-email` 的公开请求或响应形状，也不会增加 SQLite 列。
+本页 JSON 是 unchanged public analysis schema。启用 OpenAI multimodal、DeepSeek-led 或 DeepSeek text-only fallback 不会改变 `POST /api/analyze-current-email` 的公开请求或响应形状，也不会增加 SQLite 列。
 
-DeepSeek 返回的是版本化内部 `deepseek_analysis_v1` envelope，而不是本页对象。内部 envelope 包含 request-local source ID、`field_evidence`、`timeline_interpretation` 和 `attachment_augmentations`；这些 provider-only 字段在后端完成 JSON/schema/语言/来源/grounding/安全校验后才映射到本页对象，并且 are never returned to the frontend、never persisted to SQLite、never written to logs。扩展的附件模型上下文同样只存在于当前请求内存中。
+OpenAI 与 DeepSeek 返回的是同一个版本化内部 `deepseek_analysis_v1` envelope，而不是本页对象。内部 envelope 包含 request-local source ID、`field_evidence`、`timeline_interpretation` 和 `attachment_augmentations`；这些 provider-only 字段在后端完成 JSON/schema/语言/来源/grounding/安全校验后才映射到本页对象，并且 are never returned to the frontend、never persisted to SQLite、never written to logs。媒体、source 和 grounding metadata 同样只存在于当前请求内存中。
 
 Private outbound gate 的 `runtime_cards`、approved knowledge rendering、deidentified prompt、placeholder mapping、resolver、private context count，以及 `card_id` / `snapshot_id` / `vault_id` 均不是公开 schema 字段，也不是 SQLite 字段。它们不得出现在 API response、browser renderer、日志或异常中。模型输出如包含 placeholder、restoration/re-identification instruction 或 private metadata marker，必须在 parser 前整体拒绝并返回精确规则 fallback。
 
 模型采用的 `decision_brief.key_facts` 不能替换本地事实集合。公开结果必须使用规则 fallback 中 exact、deep-copied local key facts；模型仍可在其他允许且 grounded 的字段提供增量。
 
-`analysis_engine.source` 的公开枚举保持 `ai_model | rule_fallback`。有效 DeepSeek 结果使用 `ai_model`，`label` 可显示 `DeepSeek V4 Flash` 或 `DeepSeek V4 Pro`；provider 被禁用、超时、失败或输出无效时返回完整规则结果并使用 `rule_fallback` / `Rule fallback`。
+`analysis_engine.source` 的公开枚举保持 `ai_model | rule_fallback`。`analysis_engine.label` 是 backend-compatible labels 字符串，不是公开 enum。Option C 标准路线使用 `OpenAI GPT-5.6 Sol`、`DeepSeek V4 Flash text fallback`、`DeepSeek V4 Pro text fallback` 或 `Rule fallback`；旧版或独立 provider 兼容响应仍可能使用 `OpenAI`、`DeepSeek V4 Flash`、`DeepSeek V4 Pro`、`DeepSeek`、`Local Qwen`、`Local Gemma` 或 `Local AI model`。只有 provider disabled with no usable route，或 all configured and eligible model routes 均已失败、超时、被跳过或输出无效时，才返回完整规则结果并使用 `rule_fallback` / `Rule fallback`。Option C 中 eligible OpenAI failure 可先进入 DeepSeek text fallback；deterministic rules last。
 
 `analysis_engine.context_scope` 与 `analysis_engine.context_limited` 是可选的成对扩展：both absent or both present。`context_scope` 只允许 `current_only | relevant_history`，`context_limited` 必须是 JSON boolean；为保持严格公开投影，`analysis_engine` no extra keys。旧响应可以同时省略这两个字段，现有必填字段和 SQLite 列保持不变。
 
@@ -126,11 +126,14 @@ Private outbound gate 的 `runtime_cards`、approved knowledge rendering、deide
 - `attachment_insights[].status` 只能是 `parsed`、`metadata_only`、`unavailable` 或 `failed`。
 - `attachment_insights` 最多 14 项，由最多 5 个已接受附件、8 个前端资源限制和 1 个后端运行限制组成。达到上限时必须优先保留候选资源聚合遗漏和后端运行失败；模型 Prompt 的附件 insight 上限也必须独立保持 14，不能因其他通用列表的 8 项预算隐藏最后的限制。
 - 资源限制的 `type/status` 必须由允许的机器码确定，不得从英文限制文本推断。`resource_read_failed`、`collection_timeout` 和后端专用 `operational_failure` 对应 `failed`；`unsupported_type`、`frontend_limit`、`resource_unavailable` 和 `candidate_omission` 对应 `unavailable`。
-- 只有 `status=parsed` 的附件 `summary` 和 `key_facts` 可以影响决策摘要、风险、建议动作或回复草稿；其他状态只能产生限制说明和人工核查项。
+- text/hybrid 附件 evidence 只有与实际发送 source 匹配时才能影响对应字段。visual-only 只能生成 qualitative claims 并增强其 matching attachment insight；该 insight 可保持 `metadata_only`。
+- 视觉 evidence 不得用于 global fields、identity、protected traits、precise facts、commands、commitments 或 outcomes，也不得改变附件 status/limitations。人物、受保护属性、编号、数量、金额、日期、业务命令、承诺和完成态必须拒绝或由本地确定性事实补充。
+- body-only fixed cross-language bridge 仅用于固定模板的 `summary` 与 `priority_reason`，并且只引用实际发送的正文投影；不得桥接视觉、身份、未发送历史或精确事实。
+- 只有 `status=parsed` 的文本附件 `summary` 和 `key_facts` 可以影响决策摘要、风险、建议动作或回复草稿；其他状态只能产生限制说明和人工核查项。
 - 不能包含自动发送指令。
 - `analysis_engine` 由后端在 JSON 校验后附加；AI 输出中同名字段不可信，后端必须忽略或覆盖。
 - 保守输出模式只允许经过枚举和语言校验的摘要、优先级、分类和标签增强；其他字段继续投影为确定性规则结果。
-- 只有 `deepseek + model_led` 双配置门同时成立时，经过 `deepseek_analysis_v1` 验证的模型字段才可主导 Decision Brief、风险、建议动作和回复草稿。后端仍覆盖完整时间线/开放项骨架、附件状态/限制、`analysis_engine`、mandatory 安全风险、`needs_human_review=true`、来源成员关系和禁止邮箱动作/无条件承诺边界。
+- 只有显式 provider route 配置成立时，经过 `deepseek_analysis_v1` 验证的 OpenAI 或 DeepSeek 字段才可主导 Decision Brief、风险、建议动作和回复草稿。后端仍覆盖完整时间线/开放项骨架、附件状态/限制、`analysis_engine`、mandatory 安全风险、`needs_human_review=true`、来源成员关系和禁止邮箱动作/无条件承诺边界。
 - 模型字段含有未被其 `field_evidence` 来源支持的关键编号、数量、金额、日期、完成或承诺主张时，对可隔离字段使用确定性 field-level fallback；结构、语言、来源完整性或全局安全失败时返回完整规则结果。
 - 公开合并前必须对所有 provider-authored 文本族执行同一 universal safety policy；URL/URI、HTML、Markdown 链接、工具/命令指令、自动邮箱动作和无条件后果性承诺均不得保留。被动或名词化的价格/交期/付款/合同/质量/法律确认同样属于承诺；请求、疑问、否定和人工核查语义不属于承诺。
 

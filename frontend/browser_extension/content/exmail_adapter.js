@@ -7,11 +7,15 @@
     subject: "",
     from: "",
     to: [],
+    cc: [],
     sent_at: "",
     body_text: "",
     attachments: [],
   };
   const MAX_ATTACHMENTS = 8;
+  const MAX_RESOURCE_PHASE_MS = 20000;
+  const MAX_RESOURCE_DISCOVERY_NODES = 200;
+  const MAX_RESOURCE_DISCOVERY_DEPTH = 20;
   const EXMAIL_ORIGIN = "https://exmail.qq.com";
   const APPROVED_RESOURCE_PATHS = ["/cgi-bin/download", "/cgi-bin/viewfile"];
   const ATTACHMENT_PATTERN =
@@ -19,6 +23,8 @@
   const BODY_SELECTORS = [
     "#mailContentContainer",
     "#mailContent",
+    "#qm_con_body",
+    ".qm_con_body",
     ".mail_content",
     ".mail-detail-content",
     ".mail-content",
@@ -60,6 +66,12 @@
       return extraction.result;
     }
     const result = await collectCurrentMessageContext(extraction);
+    if (!revalidateExtractionContext(extraction)) {
+      return safeExtractionFailure();
+    }
+    if (!hasUsableCurrentBody(result)) {
+      return safeExtractionFailure();
+    }
     return {
       ...result,
       message_fingerprint: messageFingerprint(result.payload),
@@ -72,6 +84,12 @@
       return safeRevalidationFailure();
     }
     const result = await collectCurrentMessageContext(extraction);
+    if (!revalidateExtractionContext(extraction)) {
+      return safeRevalidationFailure();
+    }
+    if (!hasUsableCurrentBody(result)) {
+      return safeRevalidationFailure();
+    }
     return {
       ok: true,
       message_fingerprint: messageFingerprint(result.payload),
@@ -79,10 +97,26 @@
   }
 
   function findCurrentEmail() {
-    const documents = collectAccessibleDocuments(window);
-    const selected = getSelectedEmailContent(documents);
+    const visibleContextApi = window.EmailAssistantExmailVisibleContext;
+    const verifiedContext = visibleContextApi &&
+      typeof visibleContextApi.resolveVerifiedDocumentContext === "function"
+      ? visibleContextApi.resolveVerifiedDocumentContext(window)
+      : null;
+    if (!verifiedContext) {
+      return extractionContext({
+        ok: false,
+        error: "Open a Tencent Exmail message or select email body text from that opened message first. The fallback is user-selected email content only, not arbitrary webpage analysis.",
+      });
+    }
+    const selectedDocument = verifiedContext.document;
+    const selected = getSelectedEmailContent([selectedDocument]);
     if (selected) {
-      const metadata = extractFromDocument(selected.document, true);
+      const metadata = extractFromDocument(
+        selected.document,
+        true,
+        verifiedContext.currentBodyRoot || verifiedContext.currentMessageRoot,
+        verifiedContext,
+      );
       return extractionContext({
         ok: true,
         source: "selected_text",
@@ -94,29 +128,20 @@
           body_text: selected.text,
           attachments: metadata.attachments || [],
         },
-      }, selected.document, findKnownBodyElement(selected.document));
+      }, verifiedContext);
     }
 
-    for (const doc of documents) {
-      const payload = extractFromDocument(doc, false);
-      if (payload.body_text) {
-        return extractionContext(
-          { ok: true, source: "dom", payload },
-          doc,
-          findKnownBodyElement(doc),
-        );
-      }
-    }
-
-    for (const doc of documents) {
-      const payload = extractFromDocument(doc, true);
-      if (payload.body_text) {
-        return extractionContext(
-          { ok: true, source: "dom_fallback", payload },
-          doc,
-          findKnownBodyElement(doc),
-        );
-      }
+    const payload = extractFromDocument(
+      selectedDocument,
+      true,
+      verifiedContext.currentBodyRoot || verifiedContext.currentMessageRoot,
+      verifiedContext,
+    );
+    if (payload.body_text) {
+      return extractionContext(
+        { ok: true, source: "dom", payload },
+        verifiedContext,
+      );
     }
 
     return extractionContext({
@@ -125,11 +150,14 @@
     });
   }
 
-  function extractionContext(result, selectedDocument, currentMessageRoot) {
+  function extractionContext(result, verifiedContext) {
     return {
       result,
-      document: selectedDocument || null,
-      currentMessageRoot: currentMessageRoot || null,
+      document: verifiedContext ? verifiedContext.document : null,
+      currentMessageRoot: verifiedContext ? verifiedContext.currentMessageRoot : null,
+      currentBodyRoot: verifiedContext ? verifiedContext.currentBodyRoot : null,
+      threadRoot: verifiedContext ? verifiedContext.threadRoot : null,
+      verifiedContext: verifiedContext || null,
     };
   }
 
@@ -152,7 +180,13 @@
     }
 
     try {
-      const collectionOptions = { currentMessageRoot: extraction.currentMessageRoot };
+      const collectionOptions = {
+        currentMessageRoot: extraction.currentMessageRoot,
+        currentBodyRoot: extraction.currentBodyRoot,
+        currentBodyText: extraction.verifiedContext && extraction.verifiedContext.currentBodyText,
+        threadRoot: extraction.threadRoot,
+        verifiedDocumentContext: true,
+      };
       const messageContext = typeof collector.extractVisibleMessageContext === "function"
         ? collector.extractVisibleMessageContext(extraction.document, collectionOptions)
         : {
@@ -168,6 +202,7 @@
       );
       applyCurrentMessageContext(payload, messageContext && messageContext.current_message, {
         preserveSelectedBody: extraction.result.source === "selected_text",
+        preserveVerifiedMetadata: Boolean(extraction.verifiedContext),
         cleanSelectedBody: collector.cleanVisibleMessageBody,
       });
     } catch (error) {
@@ -178,20 +213,21 @@
       );
     }
 
-    if (extraction.document !== document) {
+    if (!revalidateExtractionContext(extraction)) {
       payload.resource_limitations.push(
         safeResourceLimitation(
           "resource_unavailable",
-          "Resources are unavailable outside the verified top-level current-message document; body analysis continued.",
+          "Resources are unavailable because the verified current-message context changed; body analysis continued.",
         ),
       );
       return { ...extraction.result, payload };
     }
 
+    const resourceDeadline = Date.now() + MAX_RESOURCE_PHASE_MS;
     try {
       const resourceContext = findVerifiedResourceContext(
-        extraction.document,
-        extraction.currentMessageRoot,
+        extraction.verifiedContext,
+        resourceDeadline,
       );
       if (!resourceContext) {
         payload.resource_limitations.push(
@@ -203,11 +239,15 @@
         return { ...extraction.result, payload };
       }
       const resources = await collector.collectVisibleResources(extraction.document, {
-        topLevelDocument: document,
+        verifiedDocument: extraction.document,
+        verifiedDocumentContext: true,
+        revalidateContext: () => revalidateExtractionContext(extraction),
         currentMessageRoot: extraction.currentMessageRoot,
+        currentBodyRoot: extraction.currentBodyRoot,
         currentMessageContainer: resourceContext.currentMessageContainer,
         verifiedResourceCandidates: resourceContext.verifiedResourceCandidates,
         resourceControlsVerified: true,
+        overallDeadline: resourceDeadline,
       });
       payload.attachment_files = projectItems(resources && resources.attachment_files, [
         "filename", "type", "size", "content_base64",
@@ -223,6 +263,20 @@
       );
     }
     return { ...extraction.result, payload };
+  }
+
+  function revalidateExtractionContext(extraction) {
+    const visibleContextApi = window.EmailAssistantExmailVisibleContext;
+    return Boolean(
+      extraction &&
+      extraction.verifiedContext &&
+      visibleContextApi &&
+      typeof visibleContextApi.revalidateVerifiedDocumentContext === "function" &&
+      visibleContextApi.revalidateVerifiedDocumentContext(
+        window,
+        extraction.verifiedContext,
+      )
+    );
   }
 
   function safeCurrentBodyAfterCollectorFailure(extraction) {
@@ -260,6 +314,9 @@
     } else if (Object.prototype.hasOwnProperty.call(currentMessage, "body_text")) {
       payload.body_text = String(currentMessage.body_text || "");
     }
+    if (settings.preserveVerifiedMetadata) {
+      return;
+    }
 
     const subject = normalizeText(currentMessage.subject);
     const sender = normalizeText(currentMessage.from);
@@ -271,23 +328,23 @@
     if (recipients.length) payload.to = recipients;
   }
 
-  function findVerifiedResourceContext(doc, currentMessageRoot) {
-    const subject = uniqueVisibleSubject(doc, currentMessageRoot);
-    const header = uniqueVisibleHeaderEvidence(doc, currentMessageRoot);
-    if (!subject || !header) {
-      return null;
-    }
-    const currentMessageContainer = minimumCommonVisibleAncestor(
-      currentMessageRoot,
-      subject,
-      header,
-      doc,
-    );
+  function findVerifiedResourceContext(verifiedContext, resourceDeadline) {
+    const doc = verifiedContext && verifiedContext.document;
+    const currentMessageRoot = verifiedContext && verifiedContext.currentMessageRoot;
+    const currentBodyRoot = verifiedContext && verifiedContext.currentBodyRoot;
+    const currentMessageContainer = verifiedResourceContainer(currentMessageRoot, doc);
     if (
+      !verifiedContext ||
+      !verifiedContext.contextToken ||
+      !doc ||
+      !doc.body ||
       !currentMessageContainer ||
       (currentMessageContainer.parentElement || currentMessageContainer.parentNode) !== (doc && doc.body) ||
-      (currentMessageRoot.parentElement || currentMessageRoot.parentNode) !== currentMessageContainer ||
-      hasAmbiguousBodyRoots(doc && doc.body, currentMessageRoot, doc)
+      verifiedResourceContainer(currentMessageRoot, doc) !== currentMessageContainer ||
+      !currentBodyRoot ||
+      !containsElement(currentMessageRoot, currentBodyRoot) ||
+      !hasUniqueVisibleKnownBodyRoot(doc, currentMessageRoot) ||
+      Date.now() >= resourceDeadline
     ) {
       return null;
     }
@@ -297,119 +354,354 @@
       ? collector.MAX_RESOURCE_CANDIDATES
       : 20;
     const baseHref = documentHref(doc);
-    const verifiedResourceCandidates = resourceSiblingSubtrees(
+    const discovery = {
+      candidates: [],
+      deadline: resourceDeadline,
+      maxCandidates: candidateCap + 1,
+      nodesVisited: 0,
+      visited: new Set(),
+    };
+    boundedResourceCandidates(
+      currentMessageContainer.children || [],
+      "A",
+      baseHref,
+      doc,
+      discovery,
       currentMessageRoot,
-      currentMessageContainer,
-    )
-      .flatMap((subtree) => [subtree, ...descendantElements(subtree)])
-      .filter((candidate) => isApprovedResourceControl(candidate, baseHref, doc))
-      .slice(0, candidateCap + 1)
+    );
+    boundedResourceCandidates(
+      [currentBodyRoot],
+      "IMG",
+      baseHref,
+      doc,
+      discovery,
+    );
+    const verifiedResourceCandidates = discovery.candidates;
     if (verifiedResourceCandidates.length === 0) {
       return null;
     }
     return { currentMessageContainer, verifiedResourceCandidates };
   }
 
-  function uniqueVisibleSubject(doc, currentMessageRoot) {
-    const candidates = uniqueElements(
-      querySelectorAll(doc && doc.body, MESSAGE_CONTEXT_SUBJECT_SELECTORS.join(", ")),
-    ).filter((candidate) =>
-      !containsElement(currentMessageRoot, candidate) &&
-      !containsElement(candidate, currentMessageRoot) &&
-      isVisibleElementInDocument(candidate, doc) &&
-      normalizeText(candidate.innerText || candidate.textContent),
-    );
-    return candidates.length === 1 ? candidates[0] : null;
-  }
-
-  function uniqueVisibleHeaderEvidence(doc, currentMessageRoot) {
-    const candidates = descendantElements(doc && doc.body).filter((candidate) =>
-      !containsElement(currentMessageRoot, candidate) &&
-      !containsElement(candidate, currentMessageRoot) &&
-      isVisibleElementInDocument(candidate, doc) &&
-      hasHeaderLabels(candidate),
-    );
-    const minimal = candidates.filter((candidate) =>
-      !candidates.some((other) => other !== candidate && containsElement(candidate, other)),
-    );
-    return minimal.length === 1 ? minimal[0] : null;
-  }
-
-  function hasHeaderLabels(element) {
-    const text = normalizeText(element ? element.innerText || element.textContent : "");
-    const hasFrom = /(?:^|\s)(?:From|\u53d1\u4ef6\u4eba)\s*[:\uff1a]/i.test(text);
-    const hasTo = /(?:^|\s)(?:To|\u6536\u4ef6\u4eba)\s*[:\uff1a]/i.test(text);
-    return hasFrom && hasTo;
-  }
-
-  function minimumCommonVisibleAncestor(bodyRoot, subject, header, doc) {
-    let current = bodyRoot;
-    while (current) {
-      if (
-        containsElement(current, subject) &&
-        containsElement(current, header) &&
-        isVisibleElementInDocument(current, doc)
-      ) {
-        const tagName = String(current.tagName || "").toUpperCase();
-        return current !== (doc && doc.body) && !["BODY", "HTML"].includes(tagName)
-          ? current
-          : null;
-      }
-      current = current.parentElement || current.parentNode;
+  function verifiedResourceContainer(currentMessageRoot, doc) {
+    if (!currentMessageRoot || !doc || !doc.body) {
+      return null;
     }
-    return null;
+    const parent = currentMessageRoot.parentElement || currentMessageRoot.parentNode;
+    if (parent && (parent.parentElement || parent.parentNode) === doc.body) {
+      return parent;
+    }
+    if (!isExactTencentQmboxRoot(currentMessageRoot) || !parent) {
+      return null;
+    }
+    const container = parent.parentElement || parent.parentNode;
+    return container && (container.parentElement || container.parentNode) === doc.body
+      ? container
+      : null;
   }
 
-  function hasAmbiguousBodyRoots(container, currentMessageRoot, doc) {
-    const roots = uniqueElements([
-      ...(isKnownBodyRoot(container) ? [container] : []),
-      ...querySelectorAll(container, BODY_SELECTORS.join(", ")),
-    ])
-      .filter((candidate) =>
-        isVisibleElementInDocument(candidate, doc) &&
-        normalizeText(candidate.innerText || candidate.textContent).length >= MIN_BODY_LENGTH,
-      );
-    return roots.length !== 1 || roots[0] !== currentMessageRoot;
-  }
-
-  function isKnownBodyRoot(element) {
-    if (!element) {
+  function isExactTencentQmboxRoot(element) {
+    if (!element || typeof element.getAttribute !== "function") {
       return false;
     }
-    const id = String(
-      element.id || (typeof element.getAttribute === "function" ? element.getAttribute("id") : "") || "",
-    );
-    const className = String(
-      element.className ||
-      (typeof element.getAttribute === "function" ? element.getAttribute("class") : "") ||
-      "",
-    );
-    const classes = className.split(/\s+/).filter(Boolean);
-    return BODY_SELECTORS.some((selector) =>
-      selector.startsWith("#")
-        ? id === selector.slice(1)
-        : selector.startsWith(".") && classes.includes(selector.slice(1)),
-    );
+    const id = String(element.getAttribute("id") || element.id || "");
+    const classes = String(element.getAttribute("class") || element.className || "")
+      .split(/\s+/)
+      .filter(Boolean);
+    return id === "mailContentContainer" && classes.includes("qmbox");
   }
 
-  function resourceSiblingSubtrees(bodyRoot, container) {
-    const parent = bodyRoot && (bodyRoot.parentElement || bodyRoot.parentNode);
-    if (parent !== container) {
-      return [];
+  function hasUniqueVisibleKnownBodyRoot(doc, currentMessageRoot) {
+    const roots = uniqueElements(querySelectorAll(doc && doc.body, BODY_SELECTORS.join(", ")))
+      .filter((candidate) => isVisibleElementInDocument(candidate, doc));
+    return roots.length === 1 && roots[0] === currentMessageRoot;
+  }
+
+  function boundedResourceCandidates(roots, requiredTag, baseHref, doc, state, excludedSubtree) {
+    const stack = [];
+    pushDiscoveryElements(stack, roots, 0, state);
+    while (
+      stack.length > 0 &&
+      state.candidates.length < state.maxCandidates &&
+      state.nodesVisited < MAX_RESOURCE_DISCOVERY_NODES &&
+      Date.now() < state.deadline
+    ) {
+      const item = stack.pop();
+      const element = item && item.element;
+      if (!element || state.visited.has(element)) {
+        continue;
+      }
+      state.nodesVisited += 1;
+      if (element === excludedSubtree) {
+        continue;
+      }
+      state.visited.add(element);
+      if (
+        String(element.tagName || "").toUpperCase() === requiredTag &&
+        isApprovedResourceControl(element, baseHref, doc) &&
+        (requiredTag !== "A" || hasPositiveAttachmentControlEvidence(element, baseHref))
+      ) {
+        state.candidates.push(element);
+        if (state.candidates.length >= state.maxCandidates) {
+          break;
+        }
+      }
+      if (item.depth < MAX_RESOURCE_DISCOVERY_DEPTH) {
+        pushDiscoveryElements(stack, element.children || [], item.depth + 1, state);
+      }
     }
-    return Array.from(container.children || []).filter((child) => child !== bodyRoot);
+  }
+
+  function pushDiscoveryElements(stack, elements, depth, state) {
+    const remaining = Math.max(
+      0,
+      MAX_RESOURCE_DISCOVERY_NODES - state.nodesVisited - stack.length,
+    );
+    const count = Math.min(collectionLength(elements), remaining);
+    for (
+      let index = count - 1;
+      index >= 0 && Date.now() < state.deadline;
+      index -= 1
+    ) {
+      const element = collectionElement(elements, index);
+      if (element) {
+        stack.push({ element, depth });
+      }
+    }
+  }
+
+  function collectionLength(value) {
+    const length = Number(value && value.length);
+    return Number.isSafeInteger(length) && length > 0 ? length : 0;
+  }
+
+  function collectionElement(value, index) {
+    try {
+      return value[index] || null;
+    } catch (error) {
+      return null;
+    }
   }
 
   function isApprovedResourceControl(element, baseHref, doc) {
-    if (!element || !isVisibleElementInDocument(element, doc)) {
+    const tagName = String(element && element.tagName || "").toUpperCase();
+    if (
+      !element ||
+      !isVisibleElementInDocument(element, doc) ||
+      !hasVisibleResourceLayout(element, doc, tagName === "IMG")
+    ) {
       return false;
     }
-    const tagName = String(element.tagName || "").toUpperCase();
     const attributeName = tagName === "A" ? "href" : tagName === "IMG" ? "src" : "";
     if (!attributeName || typeof element.getAttribute !== "function") {
       return false;
     }
     return isApprovedResourceUrl(element.getAttribute(attributeName), baseHref);
+  }
+
+  function hasPositiveAttachmentControlEvidence(element, baseHref) {
+    if (
+      !element ||
+      String(element.tagName || "").toUpperCase() !== "A" ||
+      typeof element.getAttribute !== "function"
+    ) {
+      return false;
+    }
+    const hint = ["id", "class", "role", "alt", "title", "name", "data-role"]
+      .map((name) => String(element.getAttribute(name) || ""))
+      .join(" ");
+    if (/(?:^|[^a-z0-9])(?:avatar|contact|footer|headshot|icon|logo|portrait|profile|signature|social|tracker|tracking)(?:[^a-z0-9]|$)/i.test(hint)) {
+      return false;
+    }
+    const typeEvidence = legacyAttachmentTypeEvidence(element);
+    if (!typeEvidence.valid) {
+      return false;
+    }
+    return Boolean(normalizeText(element.getAttribute("download"))) ||
+      isLegacyTencentDownloadControl(element, baseHref);
+  }
+
+  function isLegacyTencentDownloadControl(element, baseHref) {
+    try {
+      const resolved = new URL(String(element.getAttribute("href") || ""), baseHref);
+      const typeEvidence = legacyAttachmentTypeEvidence(element);
+      return normalizeText(element.getAttribute("target")).length > 0 &&
+        resolved.origin === EXMAIL_ORIGIN &&
+        resolved.protocol === "https:" &&
+        !resolved.username && !resolved.password &&
+        resolved.pathname === "/cgi-bin/download" &&
+        resolved.search.length > 1 &&
+        !hasLegacyNegativeAttachmentLabel(element) &&
+        typeEvidence.valid;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  function legacyAttachmentTypeEvidence(element) {
+    const visible = legacyVisibleAttachmentDescriptor(element);
+    const declared = legacyDeclaredTypeDescriptor(element);
+    const filename = legacyDataFilenameDescriptor(element);
+    const descriptors = [visible.descriptor, declared.descriptor, filename.descriptor].filter(Boolean);
+    const consistent = new Set(descriptors.map((descriptor) => descriptor.canonical)).size <= 1;
+    return {
+      valid: visible.valid && declared.valid && filename.valid && consistent &&
+        !hasNonVisibleAttachmentTypeHint(element),
+      deferred: descriptors.length === 0,
+    };
+  }
+
+  function legacyDataFilenameDescriptor(element) {
+    const value = normalizeText(
+      element && typeof element.getAttribute === "function"
+        ? element.getAttribute("data-filename") || ""
+        : "",
+    ).toLowerCase();
+    if (!value) {
+      return { present: false, valid: true, descriptor: null };
+    }
+    const suffix = value.match(/\.([a-z0-9]+)$/);
+    const descriptor = suffix ? normalizeLegacyVisibleAttachmentType(`.${suffix[1]}`) : null;
+    return { present: true, valid: Boolean(descriptor), descriptor };
+  }
+
+  function hasNonVisibleAttachmentTypeHint(element) {
+    const renderedText = normalizeText(element && element.innerText);
+    const completeText = normalizeText(element && element.textContent);
+    if (!completeText || completeText === renderedText) {
+      return false;
+    }
+    const scan = legacyVisibleAttachmentDescriptors(completeText);
+    return !scan.valid || scan.descriptors.length > 0;
+  }
+
+  function legacyVisibleAttachmentDescriptor(element) {
+    const descriptors = [];
+    for (const label of legacyVisibleAttachmentLabels(element)) {
+      const normalized = normalizeText(label);
+      if (!normalized) {
+        continue;
+      }
+      const scan = legacyVisibleAttachmentDescriptors(normalized);
+      if (!scan.valid) {
+        return { valid: false, descriptor: null };
+      }
+      descriptors.push(...scan.descriptors);
+    }
+    const canonicalTypes = new Set(descriptors.map((descriptor) => descriptor.canonical));
+    const valid = canonicalTypes.size <= 1;
+    return {
+      valid,
+      descriptor: valid && descriptors.length > 0 ? descriptors[0] : null,
+    };
+  }
+
+  function legacyVisibleAttachmentDescriptors(value) {
+    const normalized = normalizeText(value).toLowerCase();
+    const exact = normalizeLegacyDeclaredType(normalized);
+    if (exact) {
+      return { valid: true, descriptors: [exact] };
+    }
+    const descriptors = [];
+    const mimePattern = /(?:^|[\s(])((?:image|application)\/[^\s)\]]+)/gi;
+    for (const match of normalized.matchAll(mimePattern)) {
+      const descriptor = normalizeLegacyDeclaredType(match[1]);
+      if (!descriptor) {
+        return { valid: false, descriptors: [] };
+      }
+      descriptors.push(descriptor);
+    }
+    const extensionPattern = /(?:^|[\s(])(?:[a-z0-9][a-z0-9_-]*)\.([a-z0-9]{2,5})(?=$|[\s)\]])/gi;
+    for (const match of normalized.matchAll(extensionPattern)) {
+      const descriptor = normalizeLegacyVisibleAttachmentType(`.${match[1]}`);
+      if (!descriptor) {
+        return { valid: false, descriptors: [] };
+      }
+      descriptors.push(descriptor);
+    }
+    return { valid: true, descriptors };
+  }
+
+  function legacyVisibleAttachmentLabels(element) {
+    const labels = [];
+    if (element && typeof element.innerText === "string") {
+      labels.push(element.innerText);
+    }
+    for (const name of ["aria-label", "title", "alt"]) {
+      if (element && typeof element.getAttribute === "function") {
+        labels.push(element.getAttribute(name) || "");
+      }
+    }
+    return labels;
+  }
+
+  function normalizeLegacyVisibleAttachmentType(value) {
+    const normalized = normalizeText(value).toLowerCase();
+    const declaredType = normalizeLegacyDeclaredType(normalized);
+    if (declaredType) {
+      return declaredType;
+    }
+    const extension = normalized.match(/\.([a-z0-9]+)(?:$|[\s)\]])/i);
+    if (!extension) {
+      return null;
+    }
+    const extensions = {
+      pdf: { type: "pdf", canonical: "pdf" },
+      docx: { type: "docx", canonical: "docx" },
+      xlsx: { type: "xlsx", canonical: "xlsx" },
+      bmp: { type: "image", canonical: "image/bmp" },
+      gif: { type: "image", canonical: "image/gif" },
+      jpg: { type: "image", canonical: "image/jpeg" },
+      jpeg: { type: "image", canonical: "image/jpeg" },
+      png: { type: "image", canonical: "image/png" },
+      tif: { type: "image", canonical: "image/tiff" },
+      tiff: { type: "image", canonical: "image/tiff" },
+      webp: { type: "image", canonical: "image/webp" },
+    };
+    return extensions[extension[1]] || null;
+  }
+
+  function normalizeLegacyDeclaredType(value) {
+    const declaredTypes = {
+      "image": { type: "image", canonical: "image" },
+      "image/bmp": { type: "image", canonical: "image/bmp" },
+      "image/gif": { type: "image", canonical: "image/gif" },
+      "image/jpg": { type: "image", canonical: "image/jpeg" },
+      "image/jpeg": { type: "image", canonical: "image/jpeg" },
+      "image/png": { type: "image", canonical: "image/png" },
+      "image/tif": { type: "image", canonical: "image/tiff" },
+      "image/tiff": { type: "image", canonical: "image/tiff" },
+      "image/webp": { type: "image", canonical: "image/webp" },
+      "application/pdf": { type: "pdf", canonical: "pdf" },
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": { type: "xlsx", canonical: "xlsx" },
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document": { type: "docx", canonical: "docx" },
+      "pdf": { type: "pdf", canonical: "pdf" },
+      "xlsx": { type: "xlsx", canonical: "xlsx" },
+      "docx": { type: "docx", canonical: "docx" },
+    };
+    if (Object.prototype.hasOwnProperty.call(declaredTypes, value)) {
+      return declaredTypes[value];
+    }
+    return null;
+  }
+
+  function hasLegacyNegativeAttachmentLabel(element) {
+    return legacyVisibleAttachmentLabels(element).some((label) => (
+      /(?:^|[^a-z0-9])(?:avatar|contact|footer|headshot|icon|logo|portrait|profile|signature|social|tracker|tracking)(?:[^a-z0-9]|$)/i
+        .test(String(label || ""))
+    ));
+  }
+
+  function legacyDeclaredTypeDescriptor(element) {
+    const declared = ["data-type", "data-mime-type", "type"]
+      .map((name) => normalizeText(
+        element && typeof element.getAttribute === "function" ? element.getAttribute(name) || "" : "",
+      ).toLowerCase())
+      .filter(Boolean);
+    const descriptors = declared.map((value) => normalizeLegacyDeclaredType(value));
+    const valid = descriptors.every(Boolean) &&
+      new Set(descriptors.filter(Boolean).map((item) => item.canonical)).size <= 1;
+    return { valid, descriptor: valid && descriptors.length ? descriptors[0] : null };
   }
 
   function isApprovedResourceUrl(value, baseHref) {
@@ -436,15 +728,44 @@
     return "";
   }
 
-  function descendantElements(root) {
-    if (!root) {
-      return [];
+  function hasVisibleResourceLayout(element, doc, requireViewportIntersection) {
+    if (!element || typeof element.getBoundingClientRect !== "function") {
+      return false;
     }
-    const descendants = [];
-    for (const child of Array.from(root.children || [])) {
-      descendants.push(child, ...descendantElements(child));
+    let rect;
+    try {
+      rect = element.getBoundingClientRect();
+    } catch (error) {
+      return false;
     }
-    return descendants;
+    const view = doc && doc.defaultView;
+    const documentElement = doc && doc.documentElement;
+    const body = doc && doc.body;
+    const viewportWidth = positiveNumber(view && view.innerWidth) ||
+      positiveNumber(documentElement && documentElement.clientWidth) ||
+      positiveNumber(body && body.clientWidth);
+    const viewportHeight = positiveNumber(view && view.innerHeight) ||
+      positiveNumber(documentElement && documentElement.clientHeight) ||
+      positiveNumber(body && body.clientHeight);
+    const values = rect
+      ? [rect.left, rect.top, rect.right, rect.bottom, rect.width, rect.height]
+        .map((value) => Number(value))
+      : [];
+    if (values.length !== 6 || !values.every(Number.isFinite)) {
+      return false;
+    }
+    const [left, top, right, bottom, width, height] = values;
+    const rendered = width > 0 && height > 0;
+    return rendered && (
+      requireViewportIntersection !== true ||
+      (Boolean(viewportWidth && viewportHeight) &&
+        right > 0 && bottom > 0 && left < viewportWidth && top < viewportHeight)
+    );
+  }
+
+  function positiveNumber(value) {
+    const number = Number(value);
+    return Number.isFinite(number) && number > 0 ? number : 0;
   }
 
   function uniqueElements(values) {
@@ -514,10 +835,20 @@
     };
   }
 
+  function hasUsableCurrentBody(result) {
+    return Boolean(
+      result &&
+      result.ok === true &&
+      result.payload &&
+      typeof result.payload === "object" &&
+      normalizeText(result.payload.body_text).length >= MIN_BODY_LENGTH
+    );
+  }
+
   function messageFingerprint(payload) {
     const email = payload || {};
     const source = JSON.stringify([
-      fingerprintValues([email.subject, email.from, email.to, email.sent_at, email.body_text]),
+      fingerprintValues([email.subject, email.from, email.to, email.cc, email.sent_at, email.body_text]),
       fingerprintItems(email.attachments, ["filename", "size", "type"]),
       fingerprintItems(email.thread_segments, [
         "position", "from", "to", "sent_at", "timestamp_text", "subject", "body_text",
@@ -562,49 +893,42 @@
     return (value >>> 0).toString(16).padStart(8, "0");
   }
 
-  function collectAccessibleDocuments(rootWindow) {
-    const documents = [];
-    visitWindow(rootWindow, documents, true);
-    return documents;
-  }
-
-  function visitWindow(targetWindow, documents, isRootWindow) {
-    try {
-      if (!isRootWindow && !isVisibleFrameWindow(targetWindow)) {
-        return;
-      }
-      if (targetWindow.document) {
-        documents.push(targetWindow.document);
-      }
-      for (let index = 0; index < targetWindow.frames.length; index += 1) {
-        visitWindow(targetWindow.frames[index], documents, false);
-      }
-    } catch (error) {
-      return;
-    }
-  }
-
-  function isVisibleFrameWindow(targetWindow) {
-    const frame = targetWindow.frameElement;
-    return Boolean(frame && isVisibleElementInDocument(frame, frame.ownerDocument || null));
-  }
-
-  function extractFromDocument(doc, allowDocumentBodyFallback) {
-    if (!hasMessageContext(doc, allowDocumentBodyFallback)) {
+  function extractFromDocument(
+    doc,
+    allowDocumentBodyFallback,
+    suppliedBodyElement,
+    verifiedContext,
+  ) {
+    if (!hasMessageContext(doc, allowDocumentBodyFallback, suppliedBodyElement)) {
       return EMPTY_PAYLOAD;
     }
 
-    const body = findBody(doc, allowDocumentBodyFallback);
+    const verifiedBodyText = verifiedContext && verifiedContext.currentBodyRoot
+      ? String(verifiedContext.currentBodyText || "")
+      : "";
+    const body = verifiedBodyText ||
+      findBody(doc, allowDocumentBodyFallback, suppliedBodyElement);
     if (!body) {
       return EMPTY_PAYLOAD;
     }
-    const bodyElement = findBodyElement(doc, allowDocumentBodyFallback);
+    const bodyElement = findBodyElement(doc, allowDocumentBodyFallback, suppliedBodyElement);
+    const subjectText = verifiedContext
+      ? normalizeText(
+          verifiedContext.subjectRoot &&
+          (verifiedContext.subjectRoot.innerText || verifiedContext.subjectRoot.textContent),
+        )
+      : findSubject(doc);
+    const headerRoot = verifiedContext ? verifiedContext.headerRoot : null;
 
     return {
-      subject: findSubject(doc) || doc.title || "Tencent Exmail message",
-      from: findLabeledText(doc, ["From", "\u53d1\u4ef6\u4eba"]),
-      to: splitRecipients(findLabeledText(doc, ["To", "\u6536\u4ef6\u4eba"])),
-      sent_at: findLabeledText(doc, ["Date", "Sent", "\u65f6\u95f4", "\u53d1\u9001\u65f6\u95f4"]),
+      subject: subjectText || doc.title || "Tencent Exmail message",
+      from: findLabeledTextInElement(headerRoot, ["From", "\u53d1\u4ef6\u4eba"]),
+      to: splitRecipients(findLabeledTextInElement(headerRoot, ["To", "\u6536\u4ef6\u4eba"])),
+      cc: splitRecipients(findLabeledTextInElement(headerRoot, ["Cc", "\u6284\u9001"])),
+      sent_at: findLabeledTextInElement(
+        headerRoot,
+        ["Date", "Sent", "\u65f6\u95f4", "\u53d1\u9001\u65f6\u95f4"],
+      ),
       body_text: body,
       attachments: findAttachments(doc, bodyElement),
     };
@@ -614,8 +938,8 @@
     return firstText(doc, SUBJECT_SELECTORS);
   }
 
-  function findBody(doc, allowDocumentBodyFallback) {
-    const element = findBodyElement(doc, allowDocumentBodyFallback);
+  function findBody(doc, allowDocumentBodyFallback, suppliedBodyElement) {
+    const element = findBodyElement(doc, allowDocumentBodyFallback, suppliedBodyElement);
     const body = normalizeText(element ? element.innerText || element.textContent : "");
     if (body.length >= MIN_BODY_LENGTH) {
       return body;
@@ -623,7 +947,16 @@
     return "";
   }
 
-  function findBodyElement(doc, allowDocumentBodyFallback) {
+  function findBodyElement(doc, allowDocumentBodyFallback, suppliedBodyElement) {
+    if (
+      suppliedBodyElement &&
+      isVisibleElementInDocument(suppliedBodyElement, doc) &&
+      normalizeText(
+        suppliedBodyElement.innerText || suppliedBodyElement.textContent,
+      ).length >= MIN_BODY_LENGTH
+    ) {
+      return suppliedBodyElement;
+    }
     const knownBody = findKnownBodyElement(doc);
     if (knownBody) {
       return knownBody;
@@ -663,8 +996,11 @@
     });
   }
 
-  function hasMessageContext(doc, allowDocumentBodyFallback) {
-    return Boolean(isReadMessageDocument(doc) && findBodyElement(doc, allowDocumentBodyFallback));
+  function hasMessageContext(doc, allowDocumentBodyFallback, suppliedBodyElement) {
+    return Boolean(
+      isReadMessageDocument(doc) &&
+      findBodyElement(doc, allowDocumentBodyFallback, suppliedBodyElement)
+    );
   }
 
   function isReadMessageDocument(doc) {
@@ -707,21 +1043,65 @@
     return "";
   }
 
-  function findLabeledText(doc, labels) {
-    const lines = String(doc.body ? doc.body.innerText || "" : "")
+  function findLabeledTextInElement(element, labels) {
+    const lines = String(element ? element.innerText || element.textContent || "" : "")
       .split(/\r?\n/)
       .map((line) => line.trim())
       .filter(Boolean);
 
-    for (const label of labels) {
-      for (const line of lines) {
-        const normalized = normalizeText(line);
-        if (normalized.startsWith(`${label}:`) || normalized.startsWith(`${label}\uff1a`)) {
-          return normalized.slice(label.length + 1).trim();
-        }
+    const accepted = new Set(labels.map(compactHeaderLabel));
+    for (let index = 0; index < lines.length; index += 1) {
+      const parsed = splitHeaderLine(lines[index]);
+      if (!parsed || !accepted.has(parsed.label)) {
+        continue;
       }
+      if (parsed.value) {
+        return parsed.value;
+      }
+      for (let next = index + 1; next < lines.length; next += 1) {
+        const value = normalizeText(lines[next]);
+        if (!value) {
+          continue;
+        }
+        const followingHeader = splitHeaderLine(value);
+        return followingHeader && isKnownHeaderLabel(followingHeader.label)
+          ? ""
+          : value;
+      }
+      return "";
     }
     return "";
+  }
+
+  function splitHeaderLine(value) {
+    const normalized = normalizeText(value);
+    const separators = [normalized.indexOf(":"), normalized.indexOf("\uff1a")]
+      .filter((index) => index >= 0);
+    if (!separators.length) {
+      return null;
+    }
+    const separator = Math.min(...separators);
+    const label = compactHeaderLabel(normalized.slice(0, separator));
+    if (!label) {
+      return null;
+    }
+    return {
+      label,
+      value: normalizeText(normalized.slice(separator + 1)),
+    };
+  }
+
+  function compactHeaderLabel(value) {
+    return normalizeText(value).replace(/\s+/g, "").toLocaleLowerCase();
+  }
+
+  function isKnownHeaderLabel(value) {
+    return [
+      "from", "\u53d1\u4ef6\u4eba", "to", "\u6536\u4ef6\u4eba",
+      "cc", "\u6284\u9001", "date", "sent", "\u65f6\u95f4",
+      "\u53d1\u9001\u65f6\u95f4", "subject", "\u4e3b\u9898",
+      "attachments", "\u9644\u4ef6",
+    ].includes(value);
   }
 
   function splitRecipients(value) {
@@ -844,7 +1224,11 @@
 
   function elementStyleHides(element, doc) {
     const style = element.style || {};
-    if (style.display === "none" || hiddenVisibility(style.visibility)) {
+    if (
+      style.display === "none" ||
+      hiddenVisibility(style.visibility) ||
+      String(style.opacity) === "0"
+    ) {
       return true;
     }
     const view = doc && doc.defaultView;
@@ -853,7 +1237,9 @@
     }
     try {
       const computed = view.getComputedStyle(element);
-      return computed.display === "none" || hiddenVisibility(computed.visibility);
+      return computed.display === "none" ||
+        hiddenVisibility(computed.visibility) ||
+        String(computed.opacity) === "0";
     } catch (error) {
       return false;
     }

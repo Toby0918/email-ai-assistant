@@ -61,9 +61,15 @@ class BrowserExtensionManifestTests(unittest.TestCase):
         self.assertEqual(script["matches"], ["https://exmail.qq.com/*"])
         self.assertEqual(
             script["js"],
-            ["content/current_message_collector.js", "content/exmail_adapter.js"],
+            [
+                "content/exmail_visible_context.js",
+                "content/exmail_visible_resource_classifier.js",
+                "content/current_message_collector.js",
+                "content/exmail_adapter.js",
+            ],
         )
         self.assertEqual(script["run_at"], "document_idle")
+        self.assertNotIn("all_frames", script)
 
 
 if __name__ == "__main__":

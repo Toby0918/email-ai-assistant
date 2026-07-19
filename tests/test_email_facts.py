@@ -44,6 +44,15 @@ class EmailFactsTests(unittest.TestCase):
         self.assertIn("asap", facts.deadlines)
         self.assertLessEqual(max(len(item) for item in facts.requested_actions), 140)
 
+    def test_extracts_labeled_moq_as_a_quantity_fact(self) -> None:
+        facts = extract_email_facts(
+            subject="Order planning",
+            sender="buyer@example.test",
+            clean_body="Best MOQ is 1200/1400 pcs.",
+        )
+
+        self.assertIn("MOQ 1200/1400 pcs", facts.quantities)
+
     def test_generic_iso_date_requires_due_cue_and_does_not_consume_prose_as_zone(self) -> None:
         ordinary = extract_email_facts(
             subject="Invoice update",

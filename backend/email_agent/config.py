@@ -13,6 +13,8 @@ except ImportError:
 
 
 DEFAULT_DOTENV_PATH = Path(__file__).resolve().parents[2] / ".env"
+ALLOWED_OPENAI_MODELS = frozenset({"gpt-5.6-sol"})
+ALLOWED_TEXT_FALLBACK_PROVIDERS = frozenset({"disabled", "deepseek"})
 
 
 @dataclass(frozen=True)
@@ -34,6 +36,9 @@ class AppConfig:
     deepseek_model: str = "deepseek-v4-flash"
     deepseek_timeout_seconds: int = 10
     deepseek_output_mode: str = "conservative"
+    openai_model: str = "gpt-5.6-sol"
+    openai_timeout_seconds: int = 35
+    text_fallback_provider: str = "disabled"
     private_knowledge_enabled: bool = False
     private_knowledge_authority_root: str = field(default="", repr=False)
     private_knowledge_snapshot_path: str = field(default="", repr=False)
@@ -51,6 +56,20 @@ def load_config(dotenv_path: str | Path | None = DEFAULT_DOTENV_PATH) -> AppConf
         deepseek_timeout_seconds=min(_int_env("EMAIL_AGENT_DEEPSEEK_TIMEOUT_SECONDS", 10), 10),
         deepseek_output_mode=os.getenv("EMAIL_AGENT_DEEPSEEK_OUTPUT_MODE", "conservative").strip().lower()
         or "conservative",
+        openai_model=_allowlisted_env(
+            "EMAIL_AGENT_OPENAI_MODEL",
+            "gpt-5.6-sol",
+            ALLOWED_OPENAI_MODELS,
+        ),
+        openai_timeout_seconds=min(
+            _int_env("EMAIL_AGENT_OPENAI_TIMEOUT_SECONDS", 35),
+            35,
+        ),
+        text_fallback_provider=_allowlisted_env(
+            "EMAIL_AGENT_TEXT_FALLBACK_PROVIDER",
+            "disabled",
+            ALLOWED_TEXT_FALLBACK_PROVIDERS,
+        ),
         sqlite_path=os.getenv("EMAIL_AGENT_SQLITE_PATH", "outputs/email_agent.sqlite3"),
         log_level=os.getenv("EMAIL_AGENT_LOG_LEVEL", "INFO"),
         llm_provider=os.getenv("EMAIL_AGENT_LLM_PROVIDER", "disabled").strip().lower() or "disabled",
@@ -88,6 +107,15 @@ def _int_env(name: str, default: int) -> int:
     except ValueError:
         return default
     return value if value > 0 else default
+
+
+def _allowlisted_env(
+    name: str,
+    default: str,
+    allowed: frozenset[str],
+) -> str:
+    value = os.getenv(name, default).strip().lower() or default
+    return value if value in allowed else default
 
 
 def _csv_env(name: str, default: tuple[str, ...]) -> tuple[str, ...]:

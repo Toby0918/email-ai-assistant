@@ -20,7 +20,12 @@
   "content_scripts": [
     {
       "matches": ["https://exmail.qq.com/*"],
-      "js": ["content/current_message_collector.js", "content/exmail_adapter.js"],
+      "js": [
+        "content/exmail_visible_context.js",
+        "content/exmail_visible_resource_classifier.js",
+        "content/current_message_collector.js",
+        "content/exmail_adapter.js"
+      ],
       "run_at": "document_idle"
     }
   ]

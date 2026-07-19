@@ -53,6 +53,28 @@ FORBIDDEN_FRONTEND_PATTERNS = {
     "SQLite access in frontend": r"\bsqlite3?\b",
 }
 
+FORBIDDEN_ATTACHMENT_ACQUISITION_PATTERNS = {
+    "downloads API": r"\bchrome\.downloads\b",
+    "File System Access API": (
+        r"\bshow(?:Open|Save)FilePicker\b|\bshowDirectoryPicker\b|"
+        r"\bFileSystem(?:File|Directory)?Handle\b|"
+        r"\bFileSystem(?:WritableFileStream|SyncAccessHandle)\b|"
+        r"\bcreateWritable\b|\bwritable\s*\.\s*write\s*\("
+    ),
+    "Web Storage": r"\blocalStorage\b|\bsessionStorage\b",
+    "IndexedDB": r"\bindexedDB\b",
+    "extension storage": (
+        r"\bchrome\.storage\b|\bchrome\s*\[\s*['\"]storage['\"]\s*\]"
+    ),
+    "local path field": (
+        r"\b(?:local_path|file_path|webkitRelativePath)\b|"
+        r"(?:['\"]path['\"]|\bpath)\s*:|"
+        r"\{\s*path\s*(?=[,}])|"
+        r"\{\s*(?:[A-Za-z_$][\w$]*\s*,\s*)+path\s*(?=[,}])|"
+        r"(?:\.\s*path|\[\s*['\"]path['\"]\s*\])\s*="
+    ),
+}
+
 FORBIDDEN_EMAIL_ACTION_PATTERNS = {
     "automatic send mail action": r"\bsendMail\b",
     "Gmail send action": r"gmail\.users\.messages\.send",
@@ -70,6 +92,13 @@ SECRET_PATTERNS = {
 
 GITIGNORE_PATTERNS = load_gitignore_patterns(ROOT)
 ALLOWED_DOC_STATUSES = {"draft", "active", "deprecated"}
+PERSISTENT_MULTIMODAL_DISCLOSURE = (
+    "After you click Analyze, configured remote AI providers may receive locally deidentified "
+    "current visible email text and selected current-message images or files after local "
+    "screening. Media pixels or document content may contain identifying information and are "
+    "not guaranteed to be fully deidentified. Processing is not local-only, and no "
+    "zero-retention guarantee is made."
+)
 
 
 class PrintCallVisitor(ast.NodeVisitor):
@@ -497,6 +526,80 @@ class StaticLinterConstraintTests(unittest.TestCase):
         )
         self.assertIn("currently opened Tencent Exmail message", manifest["description"])
 
+    def test_attachment_acquisition_guard_covers_persistence_and_path_surfaces(self) -> None:
+        samples = {
+            "downloads API": ("chrome.downloads.download({url});",),
+            "File System Access API": (
+                "await showOpenFilePicker();",
+                "await showSaveFilePicker();",
+                "await showDirectoryPicker();",
+                "const handle = new FileSystemHandle();",
+                "const fileHandle = new FileSystemFileHandle();",
+                "const directoryHandle = new FileSystemDirectoryHandle();",
+                "const stream = new FileSystemWritableFileStream();",
+                "const access = new FileSystemSyncAccessHandle();",
+                "await handle.createWritable();",
+                "await writable.write(bytes);",
+            ),
+            "Web Storage": ("localStorage.setItem('attachment', value);",),
+            "IndexedDB": ("indexedDB.open('attachments');",),
+            "extension storage": (
+                "chrome.storage.local.set({attachment: value});",
+                "chrome['storage'].local.set({attachment: value});",
+            ),
+            "local path field": (
+                "const payload = {'local_path': selectedPath};",
+                "const payload = {file_path: selectedPath};",
+                "const payload = {path};",
+                "const payload = {filename, path};",
+                "payload.path = selectedPath;",
+                "payload['path'] = selectedPath;",
+                "payload.local_path = selectedPath;",
+                "payload['file_path'] = selectedPath;",
+                "const leaked = file.webkitRelativePath;",
+            ),
+        }
+        for label, rule_samples in samples.items():
+            pattern = FORBIDDEN_ATTACHMENT_ACQUISITION_PATTERNS[label]
+            for sample in rule_samples:
+                with self.subTest(label=label, sample=sample):
+                    self.assertIsNotNone(
+                        re.search(pattern, sample, re.IGNORECASE),
+                        f"Attachment guard does not reject {label}: {sample}",
+                    )
+
+    def test_attachment_acquisition_guard_does_not_reject_safe_file_picker_code(self) -> None:
+        safe_samples = (
+            "const file = input.files[0];",
+            "const reader = new FileReader();",
+            "const payload = {attachment_files: files};",
+            "const pathname = new URL(resourceUrl).pathname;",
+            "const responseUrl = response.url;",
+            "process(filename, path, options);",
+            "await response.write(bytes);",
+        )
+        for sample in safe_samples:
+            for label, pattern in FORBIDDEN_ATTACHMENT_ACQUISITION_PATTERNS.items():
+                with self.subTest(label=label, sample=sample):
+                    self.assertIsNone(re.search(pattern, sample, re.IGNORECASE))
+
+    def test_browser_extension_has_no_persistent_attachment_acquisition_surface(self) -> None:
+        extension = ROOT / "frontend" / "browser_extension"
+        for path in extension.rglob("*"):
+            if not path.is_file() or not is_text_file(path):
+                continue
+            text = read_text(path)
+            for rule_name, pattern in FORBIDDEN_ATTACHMENT_ACQUISITION_PATTERNS.items():
+                with self.subTest(rule=rule_name, path=path):
+                    self.assertIsNone(
+                        re.search(pattern, text, re.IGNORECASE),
+                        failure_message(
+                            f"{path} triggers forbidden attachment surface: {rule_name}.",
+                            "Attachment acquisition must remain click-only, in-memory, and path-free.",
+                            "docs/security/email_data_handling.md",
+                        ),
+                    )
+
     def test_analysis_diagnostic_calls_use_only_safe_keywords(self) -> None:
         path = ROOT / "backend" / "email_agent" / "analysis_model_routes.py"
         tree = ast.parse(read_text(path))
@@ -564,6 +667,38 @@ class StaticLinterConstraintTests(unittest.TestCase):
         self.assertIn("defaults to `EMAIL_AGENT_LLM_PROVIDER=disabled`", design)
         self.assertIn("only the default model name when Ollama is explicitly enabled", design)
         self.assertNotIn("defaults to `EMAIL_AGENT_LLM_PROVIDER=ollama`", design)
+
+    def test_multimodal_governance_pins_disclosure_provider_and_budget_boundaries(self) -> None:
+        disclosure_paths = (
+            ROOT / "AGENTS.md",
+            ROOT / "docs" / "product" / "feature_scope.md",
+            ROOT / "docs" / "security" / "email_data_handling.md",
+            ROOT / "docs" / "security" / "privacy_rules.md",
+        )
+        for path in disclosure_paths:
+            with self.subTest(path=path):
+                self.assertIn(PERSISTENT_MULTIMODAL_DISCLOSURE, read_text(path))
+
+        boundary_paths = (
+            ROOT / "docs" / "constraints" / "tooling_constraints.md",
+            ROOT / "docs" / "constraints" / "architecture_constraints.md",
+            ROOT / "docs" / "constraints" / "linter_constraints.md",
+        )
+        for path in boundary_paths:
+            guidance = read_text(path)
+            with self.subTest(path=path):
+                self.assertIn("gpt-5.6-sol", guidance)
+                self.assertIn("60 seconds", guidance)
+                self.assertIn("55 seconds", guidance)
+                self.assertIn("35 seconds", guidance)
+                self.assertIn("12 seconds", guidance)
+                self.assertIn("fixed official endpoint", guidance)
+
+        template = read_text(ROOT / "docs" / "templates" / "agent_task_brief_template.md")
+        self.assertIn("EMAIL_AGENT_OPENAI_MODEL", template)
+        self.assertIn("EMAIL_AGENT_OPENAI_TIMEOUT_SECONDS", template)
+        self.assertIn("EMAIL_AGENT_TEXT_FALLBACK_PROVIDER", template)
+        self.assertIn("exact persistent pre-click disclosure", template)
 
     def test_pinned_dependency_versions_are_consistent_across_active_guidance(self) -> None:
         expected_versions = {

@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-15
+last_update: 2026-07-16
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -210,6 +210,8 @@ Complete this section whenever a task changes remote AI input, runtime knowledge
 
 ```text
 [ ] Provider remains disabled by default; DeepSeek output mode remains conservative by default.
+[ ] OpenAI configuration, when in scope, keeps `EMAIL_AGENT_OPENAI_MODEL=gpt-5.6-sol`, `EMAIL_AGENT_OPENAI_TIMEOUT_SECONDS=35`, and no configurable remote endpoint.
+[ ] Text fallback configuration keeps `EMAIL_AGENT_TEXT_FALLBACK_PROVIDER=disabled` by default and accepts only `disabled` or `deepseek`.
 [ ] Every remote path passes one backend-only deidentification and residual-scan gate.
 [ ] runtime_cards defaults to an immutable empty tuple and accepts only verified RuntimeKnowledgeCard values.
 [ ] Untrusted request payloads lose every reserved private-knowledge field before both analyzer branches; ordinary email fields remain and only the trusted startup tuple may supply runtime_cards.
@@ -226,8 +228,8 @@ Complete this section whenever a task changes remote AI input, runtime knowledge
 [ ] Provider output placeholders, restoration hints and private metadata markers are rejected before parsing.
 [ ] Public API, SQLite, frontend renderer and diagnostic schema remain unchanged.
 [ ] Privacy and budget failures reuse safety_rejected_all/safety and budget_exhausted/budget.
-[ ] Backend/provider/parser/minimum/reserve/frontend budgets are exactly 13/10/8/5/2/15 seconds.
-[ ] Persistent pre-click disclosure uses the approved exact sentence.
+[ ] Frontend POST wait is 60 seconds, backend target is 55 seconds, OpenAI cap is 35 seconds, DeepSeek cap is 10 seconds, fallback minimum remainder is 12 seconds, parser maximum is 8 seconds, response/persistence reserve is 5 seconds, and the separate private-evaluation dataset runner remains 13 seconds.
+[ ] The exact persistent pre-click disclosure uses the approved sentence and states that screened media may still identify people or organizations, processing is not local-only, and no zero-retention guarantee is made.
 [ ] Verification is offline and does not call a live provider, mailbox, vault, DPAPI or BitLocker.
 ```
 

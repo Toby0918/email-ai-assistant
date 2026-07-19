@@ -10,9 +10,11 @@ ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = ROOT / "frontend"
 EXTENSION = FRONTEND / "browser_extension"
 REMOTE_PROCESSING_NOTICE = (
-    "After you click Analyze, a configured remote AI provider receives locally deidentified current "
-    "visible content and, when available, bounded approved knowledge cards. Processing is not "
-    "local-only, and no zero-retention guarantee is made."
+    "After you click Analyze, configured remote AI providers may receive locally deidentified "
+    "current visible email text and selected current-message images or files after local "
+    "screening. Media pixels or document content may contain identifying information and are not "
+    "guaranteed to be fully deidentified. Processing is not local-only, and no zero-retention "
+    "guarantee is made."
 )
 
 
@@ -25,6 +27,26 @@ def all_frontend_source() -> str:
 
 
 class BrowserExtensionStaticTests(unittest.TestCase):
+    def test_popup_manual_attachment_picker_is_collapsed_bounded_and_loaded_before_popup(self) -> None:
+        page = (EXTENSION / "popup.html").read_text(encoding="utf-8")
+        expected_accept = (
+            ".png,.jpg,.jpeg,.gif,.webp,.bmp,.tif,.tiff,.pdf,.xlsx,.docx,"
+            "image/png,image/jpeg,image/gif,image/webp,image/bmp,image/tiff,application/pdf,"
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,"
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        )
+
+        self.assertIn('<details class="manual-attachment-picker">', page)
+        self.assertNotIn('<details class="manual-attachment-picker" open', page)
+        self.assertIn('id="manual-attachment-files"', page)
+        self.assertIn('type="file"', page)
+        self.assertIn("multiple", page)
+        self.assertIn(f'accept="{expected_accept}"', page)
+        self.assertLess(
+            page.index('src="shared/manual_attachment_files.js"'),
+            page.index('src="popup.js"'),
+        )
+
     def test_popup_shows_remote_processing_notice_before_analyze_click(self) -> None:
         page = (EXTENSION / "popup.html").read_text(encoding="utf-8")
         script = (EXTENSION / "popup.js").read_text(encoding="utf-8")
@@ -129,6 +151,9 @@ class BrowserExtensionStaticTests(unittest.TestCase):
             "popup.html",
             "popup.css",
             "popup.js",
+            "content/exmail_visible_context.js",
+            "content/exmail_visible_resource_classifier.js",
+            "content/current_message_collector.js",
             "content/exmail_adapter.js",
             "shared/api_client.js",
             "shared/render_analysis.js",
@@ -137,6 +162,23 @@ class BrowserExtensionStaticTests(unittest.TestCase):
         for relative in expected:
             with self.subTest(relative=relative):
                 self.assertTrue((EXTENSION / relative).exists())
+
+    def test_visible_context_is_exactly_scoped_and_revalidated(self) -> None:
+        path = EXTENSION / "content" / "exmail_visible_context.js"
+        self.assertTrue(path.exists())
+        script = path.read_text(encoding="utf-8")
+        adapter = (EXTENSION / "content" / "exmail_adapter.js").read_text(encoding="utf-8")
+        manifest = (EXTENSION / "manifest.json").read_text(encoding="utf-8")
+
+        self.assertIn("resolveVerifiedDocumentContext", script)
+        self.assertIn("revalidateVerifiedDocumentContext", script)
+        self.assertIn('"mainFrame"', script)
+        self.assertIn("contextToken", script)
+        self.assertIn("resolveVerifiedDocumentContext", adapter)
+        self.assertIn("revalidateVerifiedDocumentContext", adapter)
+        self.assertNotIn("collectAccessibleDocuments", adapter)
+        self.assertNotIn("visitWindow", adapter)
+        self.assertNotIn("all_frames", manifest)
 
     def test_api_client_calls_only_local_backend(self) -> None:
         script = (EXTENSION / "shared" / "api_client.js").read_text(encoding="utf-8")
@@ -244,7 +286,8 @@ class BrowserExtensionStaticTests(unittest.TestCase):
         self.assertIn("attachments", script)
         self.assertIn("view.getSelection", script)
         self.assertIn("selected_text", script)
-        self.assertIn("dom_fallback", script)
+        self.assertIn('source: "dom"', script)
+        self.assertNotIn("dom_fallback", script)
         self.assertIn(
             "Open a Tencent Exmail message or select email body text from that opened message first",
             script,
@@ -255,7 +298,7 @@ class BrowserExtensionStaticTests(unittest.TestCase):
         self.assertNotIn("[role='main']", script)
         self.assertNotIn("firstText(doc, BODY_SELECTORS) ||", script)
         self.assertIn(
-            "return Boolean(isReadMessageDocument(doc) && findBodyElement(doc, allowDocumentBodyFallback));",
+            "findBodyElement(doc, allowDocumentBodyFallback, suppliedBodyElement)",
             script,
         )
         self.assertIn(
@@ -284,6 +327,36 @@ class BrowserExtensionStaticTests(unittest.TestCase):
             with self.subTest(marker=marker):
                 self.assertNotIn(marker, source)
 
+    def test_visible_resource_bounds_and_url_allowlist_remain_exact(self) -> None:
+        collector = (
+            EXTENSION / "content" / "current_message_collector.js"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("const MAX_RESOURCE_COUNT = 5;", collector)
+        self.assertIn("const MAX_RESOURCE_CANDIDATES = 20;", collector)
+        self.assertIn("const MAX_RESOURCE_BYTES = 10 * 1024 * 1024;", collector)
+        self.assertIn("const MAX_TOTAL_RESOURCE_BYTES = 25 * 1024 * 1024;", collector)
+        self.assertIn("const MAX_OVERALL_RESOURCE_TIMEOUT_MS = 20000;", collector)
+        self.assertIn(
+            '["/cgi-bin/download", "/cgi-bin/viewfile"]',
+            collector,
+        )
+        self.assertIn('resolved.protocol !== "https:"', collector)
+        self.assertIn("resolved.username || resolved.password", collector)
+
+    def test_resource_discovery_is_iterative_and_bounded_before_fetch(self) -> None:
+        adapter = (EXTENSION / "content" / "exmail_adapter.js").read_text(encoding="utf-8")
+
+        self.assertIn("const MAX_RESOURCE_PHASE_MS = 20000;", adapter)
+        self.assertIn("const MAX_RESOURCE_DISCOVERY_NODES = 200;", adapter)
+        self.assertIn("const MAX_RESOURCE_DISCOVERY_DEPTH = 20;", adapter)
+        self.assertIn("boundedResourceCandidates", adapter)
+        self.assertIn("overallDeadline: resourceDeadline", adapter)
+        self.assertNotIn(
+            ".flatMap((subtree) => [subtree, ...descendantElements(subtree)])",
+            adapter,
+        )
+
     def test_popup_requests_current_email_after_user_click(self) -> None:
         script = (EXTENSION / "popup.js").read_text(encoding="utf-8")
 
@@ -309,7 +382,9 @@ class BrowserExtensionStaticTests(unittest.TestCase):
         self.assertIn("Open a Tencent Exmail tab first", script)
         self.assertIn("Open a Tencent Exmail message or select email body text from that opened message first", script)
         self.assertIn("Local analysis service unavailable", script)
-        self.assertIn("Analysis failed", script)
+        self.assertIn("safeAnalysisErrorStatus", script)
+        self.assertIn("分析未完成，请重试。", script)
+        self.assertNotIn("data.error.message", script)
         self.assertIn('if (!data.analysis || typeof data.analysis !== "object")', script)
         self.assertIn("Invalid analysis response", script)
 

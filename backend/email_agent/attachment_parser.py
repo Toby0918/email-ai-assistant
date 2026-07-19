@@ -22,6 +22,7 @@ except ImportError:  # pragma: no cover - dependency is pinned but OCR remains o
 
 from .attachment_storage import StoredAttachment
 from .attachment_model_context import AttachmentAnalysisBundle
+from .attachment_media_context import bind_prepared_media_evidence
 from .attachment_worker_control import (
     STARTED,
     START_FAILED,
@@ -72,6 +73,7 @@ def parse_attachments(items: list[StoredAttachment]) -> list[dict[str, object]]:
 def parse_attachment_bundles_compat(items: list[StoredAttachment]) -> list[AttachmentAnalysisBundle]:
     """Build synchronous in-process bundles for display-only compatibility callers."""
     return [_parse_one_bundle(item, f"attachment:{index}") for index, item in enumerate(items)]
+
 
 def parse_attachment_bundles(
     items: list[StoredAttachment],

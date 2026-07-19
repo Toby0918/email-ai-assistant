@@ -15,17 +15,19 @@ SHARED_RENDERER = (
     ROOT / "frontend" / "browser_extension" / "shared" / "render_analysis.js"
 )
 REMOTE_PROCESSING_NOTICE = (
-    "After you click Analyze, a configured remote AI provider receives locally deidentified current "
-    "visible content and, when available, bounded approved knowledge cards. Processing is not "
-    "local-only, and no zero-retention guarantee is made."
+    "After you click Analyze, configured remote AI providers may receive locally deidentified "
+    "current visible email text and selected current-message images or files after local "
+    "screening. Media pixels or document content may contain identifying information and are not "
+    "guaranteed to be fully deidentified. Processing is not local-only, and no zero-retention "
+    "guarantee is made."
 )
 
 
 class FrontendLocalDebugTests(unittest.TestCase):
-    def test_local_debug_analysis_wait_is_15_seconds(self) -> None:
+    def test_local_debug_analysis_wait_is_60_seconds(self) -> None:
         script = (FRONTEND / "app.js").read_text(encoding="utf-8")
 
-        self.assertIn("const ANALYZE_TIMEOUT_MS = 15000;", script)
+        self.assertIn("const ANALYZE_TIMEOUT_MS = 60000;", script)
 
     def test_local_debug_shows_remote_processing_notice_before_analyze_click(self) -> None:
         page = (FRONTEND / "index.html").read_text(encoding="utf-8")
@@ -219,7 +221,7 @@ class FrontendLocalDebugTests(unittest.TestCase):
             const vm = require("vm");
             const renderer = fs.readFileSync(__RENDERER__, "utf8");
             const source = fs.readFileSync(__APP__, "utf8")
-              .replace("const ANALYZE_TIMEOUT_MS = 15000;", "const ANALYZE_TIMEOUT_MS = 20;");
+              .replace(/const ANALYZE_TIMEOUT_MS = \d+;/, "const ANALYZE_TIMEOUT_MS = 20;");
             const listeners = new Map();
             const elements = new Map();
             function element(selector) {
@@ -278,7 +280,7 @@ class FrontendLocalDebugTests(unittest.TestCase):
                 throw new Error("local debug Analyze remained disabled");
               }
               const status = elements.get("#status").textContent;
-              if (!status.includes("timed out") || !status.includes("try again")) {
+              if (status !== "本地分析服务超时，请重试。") {
                 throw new Error(`unsafe timeout status: ${status}`);
               }
               if (status.includes("PRIVATE_LOCAL_DEBUG_TIMEOUT")) {
@@ -451,8 +453,9 @@ class FrontendLocalDebugTests(unittest.TestCase):
 
         self.assertIn("EmailAssistantRender.clearAnalysis(fields)", script)
         self.assertIn("!data.ok", script)
-        self.assertIn('data.error.message', script)
-        self.assertIn('"Analysis failed"', script)
+        self.assertNotIn('data.error.message', script)
+        self.assertIn("safeAnalysisErrorStatus", script)
+        self.assertIn('"分析未完成，请重试。"', script)
         self.assertIn("finally", script)
         self.assertIn("fields.analyzeButton.disabled = false", script)
 

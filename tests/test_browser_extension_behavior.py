@@ -11,6 +11,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ADAPTER = ROOT / "frontend" / "browser_extension" / "content" / "exmail_adapter.js"
+VISIBLE_CONTEXT = ROOT / "frontend" / "browser_extension" / "content" / "exmail_visible_context.js"
 
 
 class BrowserExtensionBehaviorTests(unittest.TestCase):
@@ -22,9 +23,20 @@ class BrowserExtensionBehaviorTests(unittest.TestCase):
         const fs = require("fs");
         const vm = require("vm");
         const adapter = fs.readFileSync({str(ADAPTER)!r}, "utf8");
+        const visibleContext = fs.existsSync({str(VISIBLE_CONTEXT)!r})
+          ? fs.readFileSync({str(VISIBLE_CONTEXT)!r}, "utf8")
+          : "";
 
         class FakeElement {{
-          constructor({{ tag = "div", id = "", className = "", role = "", text = "", children = [] }} = {{}}) {{
+          constructor({{
+            tag = "div",
+            id = "",
+            className = "",
+            role = "",
+            text = "",
+            children = [],
+            rect = {{ left: 0, top: 0, width: 100, height: 20 }},
+          }} = {{}}) {{
             this.tagName = tag.toUpperCase();
             this.id = id;
             this.className = className;
@@ -35,6 +47,14 @@ class BrowserExtensionBehaviorTests(unittest.TestCase):
             this.parentElement = null;
             this.parentNode = null;
             this.nodeType = 1;
+            this.rect = {{
+              left: rect.left,
+              top: rect.top,
+              right: rect.right ?? rect.left + rect.width,
+              bottom: rect.bottom ?? rect.top + rect.height,
+              width: rect.width,
+              height: rect.height,
+            }};
             for (const child of children) {{
               child.parentElement = this;
               child.parentNode = this;
@@ -51,19 +71,47 @@ class BrowserExtensionBehaviorTests(unittest.TestCase):
           querySelector(selector) {{
             return find(this, selector);
           }}
+
+          querySelectorAll(selector) {{
+            return allElements(this).slice(1).filter((element) => matches(element, selector));
+          }}
+
+          getAttribute(name) {{
+            if (name === "id") return this.id || null;
+            if (name === "class") return this.className || null;
+            if (name === "role") return this.role || null;
+            return null;
+          }}
+
+          getBoundingClientRect() {{ return {{ ...this.rect }}; }}
+
+          hasAttribute() {{ return false; }}
         }}
 
         class FakeDocument {{
           constructor({{ title = "", body, selection = null }} = {{}}) {{
             this.title = title;
             this.body = body;
+            this.baseURI = "https://exmail.qq.com/cgi-bin/readmail";
+            this.location = new URL(this.baseURI);
             this.defaultView = {{
+              innerWidth: 1280,
+              innerHeight: 720,
               getSelection: () => selection || emptySelection(),
+              getComputedStyle: () => ({{
+                display: "block",
+                visibility: "visible",
+                opacity: "1",
+              }}),
             }};
           }}
 
           querySelector(selector) {{
             return this.body.querySelector(selector);
+          }}
+
+          querySelectorAll(selector) {{
+            return allElements(this.body).filter((element) => matches(element, selector));
           }}
         }}
 
@@ -76,6 +124,10 @@ class BrowserExtensionBehaviorTests(unittest.TestCase):
         }}
 
         function matches(element, selector) {{
+          const selectors = String(selector).split(",").map((item) => item.trim()).filter(Boolean);
+          if (selectors.length > 1) {{
+            return selectors.some((item) => matches(element, item));
+          }}
           if (selector.startsWith("#")) {{
             return element.id === selector.slice(1);
           }}
@@ -109,6 +161,7 @@ class BrowserExtensionBehaviorTests(unittest.TestCase):
         function dispatch(doc) {{
           let listener;
           const context = {{
+            URL,
             window: {{ document: doc, frames: [] }},
             document: doc,
             chrome: {{
@@ -121,6 +174,7 @@ class BrowserExtensionBehaviorTests(unittest.TestCase):
               }},
             }},
           }};
+          if (visibleContext) vm.runInNewContext(visibleContext, context);
           vm.runInNewContext(adapter, context);
           return new Promise((resolve, reject) => {{
             const keepAlive = listener({{ type: "EXTRACT_CURRENT_EMAIL" }}, {{}}, resolve);
@@ -145,12 +199,21 @@ class BrowserExtensionBehaviorTests(unittest.TestCase):
             "Received below complaint.",
             "Please respond within 24 hours of receipt.",
           ].join("\\n");
+          const currentBodyText = [
+            "Hi Edward,",
+            "Received below complaint.",
+            "Please respond within 24 hours of receipt.",
+          ].join("\\n");
           const messageBody = new FakeElement({{
             tag: "div",
             className: knownBody ? "mail-content" : "",
-            text: bodyText,
+            text: currentBodyText,
           }});
-          const body = new FakeElement({{ tag: "body", text: bodyText, children: [subject, messageBody] }});
+          const header = new FakeElement({{
+            className: "read-header",
+            text: "From: customer@example.test\\nTo: quality@example.test\\nDate: 2026-07-02 09:30",
+          }});
+          const body = new FakeElement({{ tag: "body", text: bodyText, children: [subject, header, messageBody] }});
           return new FakeDocument({{
             title: "Tencent Exmail",
             body,
@@ -172,6 +235,22 @@ class BrowserExtensionBehaviorTests(unittest.TestCase):
           return new FakeDocument({{ title: "Tencent Exmail", body }});
         }}
 
+        function subjectWithoutHeaderDocument() {{
+          const subject = new FakeElement({{ tag: "h1", id: "subject", text: "Synthetic subject" }});
+          const messageBody = new FakeElement({{
+            className: "mail-content",
+            text: "This body must not be accepted without header evidence.",
+          }});
+          return new FakeDocument({{
+            title: "Tencent Exmail",
+            body: new FakeElement({{
+              tag: "body",
+              text: "Synthetic subject\\nThis body must not be accepted without header evidence.",
+              children: [subject, messageBody],
+            }}),
+          }});
+        }}
+
         function attachmentDocument() {{
           const subject = new FakeElement({{
             tag: "h1",
@@ -191,7 +270,11 @@ class BrowserExtensionBehaviorTests(unittest.TestCase):
             className: "mail-content",
             text: bodyText,
           }});
-          const body = new FakeElement({{ tag: "body", text: bodyText, children: [subject, messageBody] }});
+          const header = new FakeElement({{
+            className: "read-header",
+            text: "From: engineer@example.test\\nTo: review@example.test",
+          }});
+          const body = new FakeElement({{ tag: "body", text: bodyText, children: [subject, header, messageBody] }});
           return new FakeDocument({{ title: "Tencent Exmail", body }});
         }}
 
@@ -245,6 +328,10 @@ class BrowserExtensionBehaviorTests(unittest.TestCase):
           body_selector_alone_is_not_message_context: async () => {{
             const result = await dispatch(bodySelectorOnlyDocument());
             if (result.ok) throw new Error("body selector alone should not extract");
+          }},
+          subject_without_header_is_not_message_context: async () => {{
+            const result = await dispatch(subjectWithoutHeaderDocument());
+            if (result.ok) throw new Error("subject without header should not extract");
           }},
           opened_message_extracts_attachment_metadata: async () => {{
             const result = await dispatch(attachmentDocument());
@@ -301,6 +388,9 @@ class BrowserExtensionBehaviorTests(unittest.TestCase):
 
     def test_opened_message_extracts_attachment_metadata(self) -> None:
         self.run_node_case("opened_message_extracts_attachment_metadata")
+
+    def test_subject_without_header_is_not_message_context(self) -> None:
+        self.run_node_case("subject_without_header_is_not_message_context")
 
 
 if __name__ == "__main__":

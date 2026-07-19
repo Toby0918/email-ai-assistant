@@ -14,10 +14,10 @@ import urllib.request
 
 from openai import AsyncOpenAI
 
-from .config import AppConfig
-from .config import load_config
-from .llm_errors import LlmClientError
-from .llm_errors import _deepseek_failure_reason
+from .config import AppConfig, load_config
+from .llm_errors import LlmClientError, _deepseek_failure_reason
+from .model_request import ModelAnalysisRequest
+from .openai_multimodal_client import generate_openai_multimodal_analysis
 
 
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"
@@ -25,7 +25,7 @@ DEEPSEEK_MODELS = frozenset({"deepseek-v4-flash", "deepseek-v4-pro"})
 
 
 def generate_analysis(
-    user_prompt: str,
+    user_prompt: str | ModelAnalysisRequest,
     *,
     system_prompt: str = "",
     config: AppConfig | None = None,
@@ -36,7 +36,7 @@ def generate_analysis(
         raise LlmClientError("LLM provider is disabled.")
     if current.llm_provider == "ollama":
         return _generate_with_ollama(
-            user_prompt,
+            _request_text(user_prompt),
             current,
             _ollama_timeout_seconds(current, timeout_seconds),
         )
@@ -54,16 +54,30 @@ def generate_analysis(
         return asyncio.run(
             _generate_with_deepseek(
                 system_prompt,
-                user_prompt,
+                _request_text(user_prompt),
                 current,
                 float(requested_timeout),
             )
         )
     if current.llm_provider == "openai":
-        if not current.openai_api_key:
-            raise LlmClientError("OpenAI API key is not configured for backend analysis.")
-        raise LlmClientError("OpenAI integration is not enabled in the first skeleton.")
+        requested_timeout = current.openai_timeout_seconds if timeout_seconds is None else timeout_seconds
+        return asyncio.run(
+            generate_openai_multimodal_analysis(
+                user_prompt,
+                api_key=current.openai_api_key,
+                model=current.openai_model,
+                timeout_seconds=requested_timeout,
+            )
+        )
     raise LlmClientError("Unsupported LLM provider configured.")
+
+
+def _request_text(request: str | ModelAnalysisRequest) -> str:
+    if isinstance(request, ModelAnalysisRequest):
+        return request.text
+    if type(request) is str:
+        return request
+    raise LlmClientError("LLM analysis request is invalid.", reason_code="invalid_request")
 
 
 def configured_analysis_engine_label(config: AppConfig | None = None) -> str:

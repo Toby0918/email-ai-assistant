@@ -21,6 +21,7 @@ from backend.email_agent.private_context_gate import (
     build_private_model_context,
     provider_output_is_private_safe,
 )
+from backend.email_agent.multimodal_media import PreparedMediaAsset
 from backend.email_agent.thread_timeline import ThreadSource, TimelineBuild
 from backend.private_knowledge.deidentifier import deidentify_private_text
 from backend.private_knowledge.entity_patterns import PLACEHOLDER
@@ -32,6 +33,57 @@ def budget_with_remaining(seconds: float) -> AnalysisBudget:
 
 
 class PrivateContextGateTests(unittest.TestCase):
+    def test_media_cannot_bypass_failed_text_privacy_preflight(self) -> None:
+        media = PreparedMediaAsset(
+            source_id="attachment:0",
+            provider_filename="image_0.png",
+            mime_type="image/png",
+            kind="image",
+            detail="high",
+            buffer=bytearray(b"synthetic-image"),
+        )
+
+        result = build_private_model_context(
+            PrivateModelRequest(
+                "safe context <unknown_1>",
+                (),
+                prepared_media_assets=(media,),
+            ),
+            rule_result(),
+            (),
+            budget_with_remaining(10.0),
+        )
+
+        self.assertIs(result, PrivateContextFallbackCode.SAFETY)
+
+    def test_successful_privacy_preflight_returns_model_request_with_same_media(self) -> None:
+        media = PreparedMediaAsset(
+            source_id="attachment:0",
+            provider_filename="image_0.png",
+            mime_type="image/png",
+            kind="image",
+            detail="high",
+            buffer=bytearray(b"synthetic-image"),
+        )
+
+        result = build_private_model_context(
+            PrivateModelRequest(
+                "buyer@example.test requests review of PO-ABCD1234",
+                (),
+                prepared_media_assets=(media,),
+            ),
+            rule_result(),
+            (),
+            budget_with_remaining(10.0),
+        )
+
+        self.assertIsInstance(result, PrivateModelContext)
+        assert isinstance(result, PrivateModelContext)
+        self.assertEqual(result.model_request.text, result.text)
+        self.assertIs(result.model_request.media_assets[0], media)
+        self.assertNotIn("buyer@example.test", result.model_request.text)
+        self.assertNotIn("PO-ABCD1234", result.model_request.text)
+
     def test_provider_prompt_uses_generic_references_not_internal_placeholders(self) -> None:
         prompt = (
             "buyer@example.test asks seller@example.test to review "
@@ -136,7 +188,7 @@ class PrivateContextGateTests(unittest.TestCase):
 
         self.assertIs(result, PrivateContextFallbackCode.SAFETY)
 
-    def test_token_safe_bound_prevents_reviewer_partial_email_bypass(self) -> None:
+    def test_token_safe_bound_empty_prompt_fails_closed_without_partial_email(self) -> None:
         bounded = sanitize_remote_text(
             ("x" * 1_988) + "alice@acme.example",
             max_characters=2_000,
@@ -150,9 +202,7 @@ class PrivateContextGateTests(unittest.TestCase):
         )
 
         self.assertEqual(bounded.text, "")
-        self.assertIsInstance(result, PrivateModelContext)
-        assert isinstance(result, PrivateModelContext)
-        self.assertNotIn("alice@" + "acme.exam", result.text)
+        self.assertIs(result, PrivateContextFallbackCode.SAFETY)
     def test_private_route_uses_all_bounded_timeline_participant_display_names(self) -> None:
         sources = tuple(
             ThreadSource(
@@ -279,6 +329,65 @@ class PrivateContextGateTests(unittest.TestCase):
         self.assertNotIn("Contoso", result.text)
         self.assertNotIn("buyer@contoso.example", result.text)
         self.assertIn("an organization", result.text)
+
+    def test_email_address_display_name_is_accepted_and_genericized(self) -> None:
+        header = "duplicate@example.test <duplicate@example.test>"
+        result = build_private_model_context(
+            PrivateModelRequest(
+                '{"to":"duplicate@example.test <duplicate@example.test>",'
+                '"body":"Please ask duplicate@example.test to review."}',
+                (header,),
+            ),
+            rule_result(),
+            (),
+            budget_with_remaining(10.0),
+        )
+
+        self.assertIsInstance(result, PrivateModelContext)
+        assert isinstance(result, PrivateModelContext)
+        self.assertNotIn("duplicate@example.test", result.text)
+        self.assertGreaterEqual(result.text.count("a contact address"), 2)
+
+    def test_aggregate_recipients_with_duplicate_email_display_are_accepted(self) -> None:
+        header = (
+            "Synthetic Buyer <buyer@example.test>, "
+            "duplicate@example.test <duplicate@example.test>, "
+            "Synthetic Reviewer <reviewer@example.test>"
+        )
+        result = build_private_model_context(
+            PrivateModelRequest(
+                '{"to":"' + header + '",'
+                '"body":"Ask Synthetic Buyer and duplicate@example.test to review."}',
+                (header,),
+            ),
+            rule_result(),
+            (),
+            budget_with_remaining(10.0),
+        )
+
+        self.assertIsInstance(result, PrivateModelContext)
+        assert isinstance(result, PrivateModelContext)
+        for raw in (
+            "Synthetic Buyer",
+            "buyer@example.test",
+            "duplicate@example.test",
+            "Synthetic Reviewer",
+            "reviewer@example.test",
+        ):
+            self.assertNotIn(raw, result.text)
+
+    def test_different_email_address_display_name_remains_rejected(self) -> None:
+        result = build_private_model_context(
+            PrivateModelRequest(
+                "visible@example.test <mailbox@example.test>",
+                ("visible@example.test <mailbox@example.test>",),
+            ),
+            rule_result(),
+            (),
+            budget_with_remaining(10.0),
+        )
+
+        self.assertIs(result, PrivateContextFallbackCode.SAFETY)
 
     def test_generic_domain_labels_are_not_treated_as_organizations(self) -> None:
         result = build_private_model_context(

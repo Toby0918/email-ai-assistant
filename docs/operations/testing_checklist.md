@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-15
+last_update: 2026-07-18
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -7,6 +7,40 @@ source_type: operation_guide
 ---
 
 # 测试检查清单
+
+## Option C 多模态离线门
+
+- all providers disabled by default；自动化只使用 synthetic DOM/media fixtures、fake provider 和 injected clock，不读取邮箱、不访问网络、不读取 `.env` 或 key。
+- 覆盖 `exmail_visible_context.js` 的顶层/唯一可见同源 frame、可靠线程分段与 current-only 降级；覆盖 `exmail_visible_resource_classifier.js` 对业务内联图、签名头像、logo、tracker、隐藏/外部/归属歧义资源的分类。
+- 覆盖图片、PDF 页面、DOCX/XLSX 内嵌媒体的清洗、大小限制、临时文件清理与 source 绑定；无文字业务照片只允许视觉定性结论。
+- 覆盖 `openai_multimodal_client.py` 的固定 `https://api.openai.com/v1`、`gpt-5.6-sol`、Responses API、`text={"verbosity":"low"}`、`store=false`、`max_retries=0`、no tools 和 2,400 output tokens。OpenAI omits `text.format`; the JSON-only prompt is enforced by strict local validation.
+- 覆盖 one OpenAI multimodal primary call、eligible failure 后 one DeepSeek text-only fallback、deterministic rules last；privacy/private-artifact/routing/budget block 必须是 zero fallback calls。
+- 预算矩阵固定为 60-second POST wait、55-second backend、35-second OpenAI、10-second DeepSeek、12-second fallback minimum、8-second parser、5-second reserve；前端另有独立的 20-second resource collection。
+- 覆盖 text/hybrid evidence、matching attachment insight 的 visual-only 定性增强、body-only fixed cross-language bridge，以及拒绝 global fields、identity、protected traits、precise facts、commands、commitments 和 outcomes。
+- Tasks 1-7 的离线实现已通过各任务 review-clean 门；Task 8 只对齐文档。Task 9 synthetic provider and current-clicked Tencent smokes are complete；这些有界检查不授权新的 live operation。
+- Task 5 real current-message attachment smoke remains pending、not live-tested，并且只可在离线 Tasks 1-4 评审通过后取得 fresh explicit authorization；此前 Task 9 不构成新附件获取路径的真实邮件验收。
+
+## Labeled MOQ grounding release checks
+
+- Verify the finite accepted labels are `MOQ`, `minimum order qty`, `minimum order quantity`, `最低起订量`, and `最低订购量`; tests use recreated synthetic quantities only.
+- Verify one-to-four alternatives only and the closed canonical unit set; an unknown-unit remains a local negative.
+- Verify parser-owned source spans and that the complete alternative set is indivisible: consumers cannot split or omit one member.
+- Verify bare slash pairs, dates, ratios, phone-like values, contact/signature clauses, compact quotation rows, and pending/non-final claims produce no final labeled MOQ fact.
+- Verify invalid, unitless, unknown-unit, non-final, omitted-member, changed-member, and invented-unit model MOQ claims fail closed.
+- Verify final labeled MOQ closes only the quantity request; sample, attachment, lead-time, quotation, and other open items retain their independent evidence state.
+- Verify provider claim that a locally known MOQ remains pending falls back only for the conflicting public field, while unrelated grounded fields remain eligible.
+- Verify local extraction remains the authority for exact MOQ alternatives; a provider cannot invent, replace, or complete an alternative member.
+
+### Release markers
+
+- Accepted label: `MOQ`
+- Accepted label: `minimum order qty`
+- Accepted label: `minimum order quantity`
+- Accepted label: `最低起订量`
+- Accepted label: `最低订购量`
+- Local unknown-unit rejection.
+- Conflicting public field fallback.
+- Unrelated grounded fields remain eligible.
 
 ## 必测场景
 
@@ -42,7 +76,21 @@ source_type: operation_guide
 - If Tesseract is unavailable, verify image OCR degrades to metadata-only while email-body/rule analysis continues.
 - At 320px width, verify the task card shows conclusion, current request, next step, key facts, and must-check items before any detail section.
 - Verify history, attachments, risk rationale, extra actions, and technical information are closed native `<details>` on first render.
-- Verify extension and local debug use shared `render_analysis.js` plus `analysis_components.css`, and rule fallback shows exactly `未使用 DeepSeek：本次结果由本地规则生成。`.
+- Verify extension and local debug use shared `render_analysis.js` plus `analysis_components.css`.
+- OpenAI success shows `OpenAI GPT-5.6 Sol`; DeepSeek fallback shows exactly `OpenAI 多模态结果未采用，本次使用 DeepSeek 文本回退。`.
+- Rule fallback shows exactly `远程模型结果未采用，本次使用安全规则结果。`; invalid engine metadata shows exactly `分析引擎信息未确认，请人工核查本次结果。`.
+- Loading shows exactly `正在分析当前邮件及所选图片/文件，最长可能需要 60 秒。`.
+- Confirm the persistent disclosure before Analyze is exactly: `After you click Analyze, configured remote AI providers may receive locally deidentified current visible email text and selected current-message images or files after local screening. Media pixels or document content may contain identifying information and are not guaranteed to be fully deidentified. Processing is not local-only, and no zero-retention guarantee is made.`
+
+### Current-message attachment acquisition release gate
+
+- Recreated legacy-control fixtures must prove one same-origin, redirect-failing, current-message-only in-memory fetch after Analyze and zero fetches for missing target, wrong path/origin, body/signature ownership, unsupported metadata, redirect, or stale context.
+- Manual-picker fixtures must prove selection/change performs zero reads, Analyze performs one bounded read, stale revalidation makes zero backend calls, and every exit clears the input and releases arrays.
+- Both routes must preserve 5 files, 10 MiB per file, and 25 MiB total; the manifest permissions remain exactly `activeTab` and `sidePanel`.
+- Static guards must reject `chrome.downloads`, `showOpenFilePicker`, File System Access handles, `localStorage`, `sessionStorage`, `IndexedDB`, `chrome.storage`, and local path fields.
+- Backend tests must prove request `finally` deletes request-local files on success and provider failure. The 24-hour mtime cleanup is crash recovery only; it is not normal retention and is not scheduled.
+- Only `attachment_insights[].status == "parsed"` proves content parsing. Array length, metadata, acquisition, `metadata_only`, `unavailable`, and `failed` do not.
+- Task 5 real current-message attachment smoke remains pending and requires fresh explicit authorization after all offline tasks and review gates pass. It must not navigate, scan, send, or output message content.
 
 ## 安全检查
 

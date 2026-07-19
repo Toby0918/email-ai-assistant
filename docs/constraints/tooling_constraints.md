@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-15
+last_update: 2026-07-16
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -68,6 +68,8 @@ AGENTS.md
 本地 Ollama/Qwen/Gemma 属于后端运行环境能力，不是新增 Python 依赖。`EMAIL_AGENT_OLLAMA_MODEL` 默认是 `qwen3.6:latest`，可选择 `gemma4`；调用失败或输出无效时必须回落到本地规则分析器。`EMAIL_AGENT_OLLAMA_BASE_URL` 只能使用 `localhost` 或字面 loopback IP，不得包含 userinfo，不得指向远程 HTTP(S) 主机；远程 provider 需要单独架构批准和隐私评审。
 
 专用 DeepSeek provider 复用已固定版本的 OpenAI-compatible `openai==2.45.0` SDK，不新增 Python 依赖。禁止安装 third-party DeepSeek SDK，也禁止提供可配置的 arbitrary remote base URL；DeepSeek endpoint 必须由后端代码固定，密钥只允许通过后端 `DEEPSEEK_API_KEY` 提供。
+
+显式 OpenAI 多模态路线同样复用 `openai==2.45.0`，模型 allowlist 只有 `gpt-5.6-sol`。OpenAI uses the fixed official endpoint；禁止 `EMAIL_AGENT_OPENAI_BASE_URL`、arbitrary remote base URL、前端 endpoint 或 SDK retry。安全配置默认是 `EMAIL_AGENT_LLM_PROVIDER=disabled`、`EMAIL_AGENT_OPENAI_MODEL=gpt-5.6-sol`、`EMAIL_AGENT_OPENAI_TIMEOUT_SECONDS=35` 和 `EMAIL_AGENT_TEXT_FALLBACK_PROVIDER=disabled`；文本 fallback allowlist 只有 `disabled` 与 `deepseek`。
 
 ## Authorized mailbox transport policy
 
@@ -526,11 +528,12 @@ Agent 每次开始任务前，必须确认：
 [ ] 涉及 AI 输出时，已确认 JSON schema。
 ```
 
-## 13. Private DeepSeek outbound gate
+## 13. Remote provider outbound gate
 
-- DeepSeek `conservative` and `model_led` requests must pass the same backend-only private outbound gate before the single provider call.
-- The shared analysis budget is exactly 13 seconds. Parser/OCR keeps the hard 8-second deadline; provider timeout is capped at 10 seconds with a 10-second DeepSeek default, a 5-second minimum usable window, and a 2-second response/validation reserve.
-- Browser extension and local debug analysis POST waits are exactly 15 seconds. Visible-resource collection remains a separate cumulative 20-second deadline.
+- OpenAI multimodal and DeepSeek `conservative`/`model_led` requests must pass the same backend-only private outbound gate before any provider call. OpenAI media remains separately screened and is not represented as fully deidentified.
+- The shared backend analysis target is exactly 55 seconds. OpenAI is capped at 35 seconds, DeepSeek at 10 seconds, and the explicit text fallback requires at least 12 seconds remaining immediately before its call. Parser/OCR keeps the hard 8-second deadline and response/persistence keeps a 5-second reserve.
+- Browser extension and local debug analysis POST waits are exactly 60 seconds. Visible-resource collection remains a separate cumulative 20-second deadline. The separate private-evaluation dataset runner remains exactly 13 seconds.
+- OpenAI uses only `gpt-5.6-sol` through the fixed official endpoint; no configurable OpenAI endpoint or base URL exists.
 - The analyzer seam is keyword-only `runtime_cards=()`. It must be an immutable tuple, defaults empty, and accepts only verified `RuntimeKnowledgeCard` objects. It must not read environment variables, paths, keys, bootstrap state, vault state, DPAPI/BitLocker state, or frontend fields.
 - Before either analyzer branch, the API must remove the exact reserved private-knowledge keys from the copied untrusted request. It must retain ordinary current-email fields, and only trusted startup state may supply the internal `runtime_cards=` keyword.
 - Startup authority-envelope and snapshot reads use a bounded descriptor reader with original/resolved path, parent/target identity, pre-open/post-read `fstat`, reparse and exact-size checks. It performs no write and maps races to fixed fail-closed codes.
