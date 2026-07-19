@@ -18,7 +18,7 @@ working tree while keeping it in the operator-approved OneDrive location.
 
 - Type: `chore`
 - Status: `approved`
-- Execution state: `design_only`
+- Execution state: `completed`
 
 ## Goal
 
@@ -172,5 +172,9 @@ The operator selected Option A and approved the complete cleanup design on
 
 ## Execution record
 
-Implementation has not started. It remains gated by written-spec review and an
-approved implementation plan.
+The active database was migrated to the approved project-external OneDrive
+location, the legacy database was resolved under the approved empty-or-migrate
+gate, and all approved generated-artifact counts were removed. Content-free
+verification confirmed the resulting storage and repository state. No private
+database content, email content, credentials, or provider data was inspected or
+emitted.

@@ -218,9 +218,9 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 
 | Status | Count |
 |---|---:|
-| active | 102 |
+| active | 104 |
 | draft | 23 |
-| deprecated | 1 |
+| deprecated | 2 |
 | missing_front_matter | 0 |
 
 ## Recommended Next Steps

@@ -1,12 +1,17 @@
 ---
-last_update: 2026-06-29
-status: active
+last_update: 2026-07-19
+status: deprecated
 owner: "@tobyWang"
 review_cycle: monthly
 source_type: operation_guide
 ---
 
 # File Inventory And Cleanup Record
+
+> Historical record: this inventory is deprecated. For the current repository
+> layout and generated project state, use
+> `docs/operations/project_structure.md` and
+> `docs/operations/project_status_log.md`.
 
 ## Cleanup Goal
 
