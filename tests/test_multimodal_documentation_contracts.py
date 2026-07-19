@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import unittest
 from pathlib import Path
 
@@ -300,6 +301,47 @@ class MultimodalDocumentationContractTests(unittest.TestCase):
         self.assertIn("Task 5 real current-message attachment smoke remains pending", report)
         self.assertIn("fresh explicit authorization", report)
         self.assertNotIn("current-clicked Tencent smoke remains pending", report)
+
+    def test_root_readme_tracks_the_current_multimodal_release(self) -> None:
+        readme = self._read("README.md")
+        manifest = json.loads(self._read("frontend/browser_extension/manifest.json"))
+        env_values = {}
+        for line in self._read(".env.example").splitlines():
+            if line and not line.startswith("#") and "=" in line:
+                name, value = line.split("=", 1)
+                env_values[name] = value
+
+        version = manifest["version"]
+        self.assertEqual(version, "0.2.3")
+        self.assertIn(f"Current unpacked extension version: `{version}`.", readme)
+        for name, expected in (
+            ("EMAIL_AGENT_LLM_PROVIDER", "disabled"),
+            ("EMAIL_AGENT_OPENAI_MODEL", "gpt-5.6-sol"),
+            ("EMAIL_AGENT_OPENAI_TIMEOUT_SECONDS", "35"),
+            ("EMAIL_AGENT_TEXT_FALLBACK_PROVIDER", "disabled"),
+            ("EMAIL_AGENT_DEEPSEEK_MODEL", "deepseek-v4-flash"),
+            ("EMAIL_AGENT_DEEPSEEK_TIMEOUT_SECONDS", "10"),
+            ("EMAIL_AGENT_DEEPSEEK_OUTPUT_MODE", "conservative"),
+        ):
+            with self.subTest(configuration=name):
+                self.assertEqual(env_values[name], expected)
+                self.assertIn(f"| `{name}` | `{expected}` |", readme)
+
+        for marker in (
+            DISCLOSURE,
+            "all providers disabled by default",
+            "Task 9 synthetic provider and current-clicked Tencent smokes are complete",
+            "Task 5 real current-message attachment smoke remains pending",
+            "fresh explicit authorization",
+            "用户点击按钮后分析当前打开的一封邮件。",
+            "不自动扫描邮箱或批量分析所有邮件。",
+            "符合条件时先尝试一次 DeepSeek 文本回退",
+            "该回退被禁用、不合格、预算不足、失败或不安全时才返回规则结果",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, readme)
+        self.assertNotIn("`0.2.2`", readme)
+        self.assertNotIn("has **not** been run by this project task", readme)
 
     def test_all_attachment_status_surfaces_use_the_current_live_boundary(self) -> None:
         for relative in ATTACHMENT_STATUS_SURFACES:
