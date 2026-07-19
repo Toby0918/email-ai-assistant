@@ -523,6 +523,10 @@ class ServiceFacadeTests(unittest.TestCase):
 
     def test_scope_mismatch_stops_before_getpass_and_session_creation(self) -> None:
         events: list[object] = []
+        synthetic_root = (
+            Path(tempfile.gettempdir()).resolve()
+            / "email-ai-assistant-mailbox-facade-tests"
+        )
         scope = AuthorizationScope.create(
             "AUTH-BOUND-2", "two@example.test", hmac_key=b"S" * 32
         )
@@ -539,7 +543,7 @@ class ServiceFacadeTests(unittest.TestCase):
                 events.append("opened-close")
 
         service = MailboxVaultService(
-            project_root=Path("C:/project"),
+            project_root=synthetic_root / "project",
             validate_existing=lambda *_args: object(),
             open_vault=lambda *_args, **_kwargs: RejectingOpened(),
             dpapi_factory=lambda: object(),
@@ -553,7 +557,7 @@ class ServiceFacadeTests(unittest.TestCase):
 
         code = run_cli(
             [
-                "inventory", "--vault", "E:/vault",
+                "inventory", "--vault", str(synthetic_root / "vault"),
                 "--authorization-id", "AUTH-BOUND-2",
                 "--account", "two@example.test",
             ],

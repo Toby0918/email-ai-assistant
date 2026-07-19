@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib
 import io
+import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from dataclasses import replace
@@ -18,9 +19,13 @@ from backend.private_knowledge.runtime_loader import RuntimeKnowledgeLoad
 from backend.private_knowledge.runtime_schema import RuntimeKnowledgeCard
 
 
-PROJECT = Path("C:/Synthetic/Project")
-AUTHORITY = "D:/Private/Authority"
-SNAPSHOT = "E:/Private/Runtime/knowledge.pksnap"
+SYNTHETIC_ROOT = (
+    Path(tempfile.gettempdir()).resolve()
+    / "email-ai-assistant-runtime-bootstrap-tests"
+)
+PROJECT = SYNTHETIC_ROOT / "project"
+AUTHORITY = str(SYNTHETIC_ROOT / "authority")
+SNAPSHOT = str(SYNTHETIC_ROOT / "runtime" / "knowledge.pksnap")
 
 
 def _card() -> RuntimeKnowledgeCard:
@@ -75,7 +80,7 @@ class PrivateKnowledgeRuntimeBootstrapTests(unittest.TestCase):
             (1, AUTHORITY, SNAPSHOT),
             (True, "", SNAPSHOT),
             (True, AUTHORITY, ""),
-            (True, " D:/Private/Authority ", SNAPSHOT),
+            (True, f" {AUTHORITY} ", SNAPSHOT),
         ):
             with self.subTest(enabled=enabled, authority=authority, snapshot=snapshot):
                 protector = Mock()
@@ -172,7 +177,7 @@ class PrivateKnowledgeRuntimeBootstrapTests(unittest.TestCase):
             SecretBytes(b"S" * 32),
             SecretBytes(bytes(range(32))),
         )
-        resolved = Path("F:/Resolved/Runtime/knowledge.pksnap")
+        resolved = SYNTHETIC_ROOT / "resolved" / "knowledge.pksnap"
         loader = Mock(return_value=RuntimeKnowledgeLoad((), "snapshot_loaded"))
 
         cards, _values = self._load(
@@ -208,7 +213,7 @@ class PrivateKnowledgeRuntimeBootstrapTests(unittest.TestCase):
                 self.assertEqual(cards, ())
                 self.assertEqual(bytes(material.snapshot_key), b"\0" * 32)
 
-        private_detail = "E:/Private/Runtime/knowledge.pksnap PRIVATE_CARD_ID"
+        private_detail = f"{SNAPSHOT} PRIVATE_CARD_ID"
         failures = (
             ("protector_factory", RuntimeError(private_detail)),
             ("key_opener", PrivateKnowledgeError("dpapi_unprotect_failed")),

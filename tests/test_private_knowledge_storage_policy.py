@@ -19,8 +19,8 @@ class PrivateKnowledgeStoragePolicyTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary.name).absolute()
-        self.project = Path("C:/synthetic-project")
-        self.synthetic_temp = str(Path("C:/synthetic-system-temp"))
+        self.project = self.root / "synthetic-project"
+        self.synthetic_temp = str(self.root / "synthetic-system-temp")
 
     def tearDown(self) -> None:
         self.temporary.cleanup()
