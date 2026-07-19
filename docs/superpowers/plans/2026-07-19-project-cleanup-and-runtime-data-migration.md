@@ -49,9 +49,12 @@ Run from PowerShell without changing directories through another shell:
 $main = Join-Path $env:USERPROFILE 'OneDrive\文档\DELIFU\email-ai-assistant'
 $work = Join-Path $main '.worktrees\project-cleanup'
 function ConvertTo-NormalPath([string] $Path) {
-    return [IO.Path]::TrimEndingDirectorySeparator(
-        [IO.Path]::GetFullPath($Path)
-    ).Replace('/', '\')
+    $full = [IO.Path]::GetFullPath($Path).Replace('/', '\')
+    $root = [IO.Path]::GetPathRoot($full)
+    while ($full.Length -gt $root.Length -and $full.EndsWith('\')) {
+        $full = $full.Substring(0, $full.Length - 1)
+    }
+    return $full
 }
 $main = ConvertTo-NormalPath $main
 $work = ConvertTo-NormalPath $work
@@ -139,12 +142,14 @@ Expected for this first execution: `SourceRegular=True`, `LegacyRegular=True`, `
 ```powershell
 git -C $main check-ignore -q -- outputs/email_agent.sqlite3
 if ($LASTEXITCODE -ne 0) { throw 'active_database_not_ignored' }
-git -C $main ls-files --error-unmatch -- outputs/email_agent.sqlite3 2>$null
-if ($LASTEXITCODE -eq 0) { throw 'active_database_tracked' }
+$trackedActive = @(git -C $main ls-files -- outputs/email_agent.sqlite3)
+if ($LASTEXITCODE -ne 0) { throw 'active_database_tracking_query_failed' }
+if ($trackedActive.Count -ne 0) { throw 'active_database_tracked' }
 git -C $main check-ignore -q -- scripts/outputs/email_agent.sqlite3
 if ($LASTEXITCODE -ne 0) { throw 'legacy_database_not_ignored' }
-git -C $main ls-files --error-unmatch -- scripts/outputs/email_agent.sqlite3 2>$null
-if ($LASTEXITCODE -eq 0) { throw 'legacy_database_tracked' }
+$trackedLegacy = @(git -C $main ls-files -- scripts/outputs/email_agent.sqlite3)
+if ($LASTEXITCODE -ne 0) { throw 'legacy_database_tracking_query_failed' }
+if ($trackedLegacy.Count -ne 0) { throw 'legacy_database_tracked' }
 ```
 
 Expected: exit `0`; neither database is tracked.
@@ -158,8 +163,11 @@ git -C $work add -- docs/superpowers/plans/2026-07-19-project-cleanup-and-runtim
 if ($LASTEXITCODE -ne 0) { throw 'plan_stage_failed' }
 git -C $work diff --cached --check
 if ($LASTEXITCODE -ne 0) { throw 'plan_staged_diff_check_failed' }
-git -C $work diff --cached --name-only
+$stagedPlan = @(git -C $work diff --cached --name-only)
 if ($LASTEXITCODE -ne 0) { throw 'plan_staged_names_failed' }
+if ($stagedPlan.Count -ne 1 -or $stagedPlan[0] -cne 'docs/superpowers/plans/2026-07-19-project-cleanup-and-runtime-data-migration.md') {
+    throw 'plan_staged_scope_invalid'
+}
 git -C $work commit -m "docs: plan safe project cleanup"
 if ($LASTEXITCODE -ne 0) { throw 'plan_commit_failed' }
 ```
@@ -450,8 +458,16 @@ git -C $work add -- docs/operations/file_inventory.md docs/operations/project_cl
 if ($LASTEXITCODE -ne 0) { throw 'documentation_stage_failed' }
 git -C $work diff --cached --check
 if ($LASTEXITCODE -ne 0) { throw 'documentation_staged_diff_failed' }
-git -C $work diff --cached --name-only
+$stagedDocumentation = @(git -C $work diff --cached --name-only)
 if ($LASTEXITCODE -ne 0) { throw 'documentation_staged_names_failed' }
+$expectedDocumentation = @(
+    'docs/operations/file_inventory.md',
+    'docs/operations/project_cleanup_task_brief.md',
+    'docs/operations/project_status_log.md'
+)
+if (($stagedDocumentation -join "`n") -cne ($expectedDocumentation -join "`n")) {
+    throw 'documentation_staged_scope_invalid'
+}
 git -C $work commit -m "chore: finalize safe project cleanup"
 if ($LASTEXITCODE -ne 0) { throw 'documentation_commit_failed' }
 ```
