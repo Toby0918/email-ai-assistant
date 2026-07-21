@@ -277,13 +277,20 @@ class TencentLegacyContextTests(unittest.TestCase):
             }
 
             function resolveVisibleContext(doc, frames = []) {
+              const loaded = loadVisibleContext(doc, frames);
+              return loaded.api.resolveVerifiedDocumentContext(loaded.rootWindow);
+            }
+
+            function loadVisibleContext(doc, frames = []) {
               const rootWindow = { document: doc, frames };
               const context = { URL, window: rootWindow };
               vm.runInNewContext(visibleContextSource, context, {
                 filename: "exmail_visible_context.js",
               });
-              return rootWindow.EmailAssistantExmailVisibleContext
-                .resolveVerifiedDocumentContext(rootWindow);
+              return {
+                rootWindow,
+                api: rootWindow.EmailAssistantExmailVisibleContext,
+              };
             }
 
             function loadAdapter(doc, collectorOverride = null, frames = []) {
@@ -428,7 +435,27 @@ class TencentLegacyContextTests(unittest.TestCase):
               children.push(subject);
               if (!options.missingHeader && !options.headerInsideBody) children.push(syntheticHeader());
               children.push(...currentBodies);
-              if (!options.omitHistory) children.push(block(oldestText), block(newestText));
+              if (!options.omitHistory) {
+                const historyLayout = options.offscreenHistory ? {
+                  rect: {
+                    left: 0,
+                    top: 900,
+                    right: 100,
+                    bottom: 940,
+                    width: 100,
+                    height: 40,
+                  },
+                } : {};
+                children.push(block(oldestText, historyLayout));
+                if (options.hiddenHistoryBarrier) {
+                  children.push(new FakeElement({
+                    className: "mailbox-region",
+                    text: "Hidden direct sibling barrier",
+                    hidden: true,
+                  }));
+                }
+                children.push(block(newestText, historyLayout));
+              }
               const bodyText = children.map((child) => child.innerText).join("\n\n");
               const envelope = new FakeElement({
                 className: "read-envelope",
@@ -521,6 +548,9 @@ class TencentLegacyContextTests(unittest.TestCase):
             function assertNormalizedResult(result) {
               if (!result.ok) throw new Error(JSON.stringify(result));
               const payload = result.payload;
+              if (payload.thread_context_limited !== false) {
+                throw new Error(`complete history was marked limited: ${JSON.stringify(payload)}`);
+              }
               if (payload.thread_segments.length !== 2) {
                 throw new Error(`expected two segments: ${JSON.stringify(payload)}`);
               }
@@ -556,6 +586,170 @@ class TencentLegacyContextTests(unittest.TestCase):
             }
 
             const cases = {
+              unwrapped_verified_sibling_history_is_collected: async () => {
+                const fixture = mainFrameFixture({ unwrapped: true });
+                const result = await dispatch(loadAdapter(
+                  fixture.topDoc,
+                  null,
+                  [fixture.frameWindow],
+                ));
+                if (!result.ok) throw new Error(JSON.stringify(result));
+                if (
+                  result.payload.thread_segments.length !== 2 ||
+                  result.payload.thread_segments[0].from !== "buyer@example.test" ||
+                  result.payload.thread_segments[1].from !== "sales@example.test"
+                ) {
+                  throw new Error(`verified sibling history was lost: ${JSON.stringify(result)}`);
+                }
+              },
+
+              offscreen_verified_sibling_history_is_still_collected: async () => {
+                const fixture = mainFrameFixture({
+                  unwrapped: true,
+                  offscreenHistory: true,
+                });
+                const result = await dispatch(loadAdapter(
+                  fixture.topDoc,
+                  null,
+                  [fixture.frameWindow],
+                ));
+                if (!result.ok || result.payload.thread_segments.length !== 2) {
+                  throw new Error(`offscreen verified history was lost: ${JSON.stringify(result)}`);
+                }
+              },
+
+              hidden_direct_sibling_is_a_hard_history_barrier: async () => {
+                const fixture = mainFrameFixture({
+                  unwrapped: true,
+                  hiddenHistoryBarrier: true,
+                });
+                const result = await dispatch(loadAdapter(
+                  fixture.topDoc,
+                  null,
+                  [fixture.frameWindow],
+                ));
+                if (!result.ok) throw new Error(JSON.stringify(result));
+                if (
+                  result.payload.thread_segments.length !== 1 ||
+                  result.payload.thread_segments[0].from !== "buyer@example.test" ||
+                  result.payload.thread_context_limited !== true
+                ) {
+                  throw new Error(`history crossed a hidden sibling barrier: ${JSON.stringify(result)}`);
+                }
+              },
+
+              legacy_collector_preserves_verified_context_limit: async () => {
+                const fixture = mainFrameFixture({
+                  unwrapped: true,
+                  hiddenHistoryBarrier: true,
+                });
+                const legacyCollector = {
+                  extractVisibleThreadSegments: () => [],
+                };
+                const result = await dispatch(loadAdapter(
+                  fixture.topDoc,
+                  legacyCollector,
+                  [fixture.frameWindow],
+                ));
+                if (!result.ok || result.payload.thread_context_limited !== true) {
+                  throw new Error(`legacy collector erased verified limitation: ${JSON.stringify(result)}`);
+                }
+              },
+
+              collector_accepts_only_verified_sibling_identities: () => {
+                const fixture = legacyFrameDocument({ unwrapped: true });
+                const verified = resolveVisibleContext(fixture.doc);
+                if (!verified || verified.siblingHistoryRoots.length !== 2) {
+                  throw new Error("fixture did not expose two verified sibling roots");
+                }
+                const context = loadCollector().extractVisibleMessageContext(
+                  fixture.doc,
+                  {
+                    currentMessageRoot: verified.currentMessageRoot,
+                    currentBodyRoot: verified.currentBodyRoot,
+                    currentBodyText: verified.currentBodyText,
+                    threadRoot: verified.threadRoot,
+                    verifiedSiblingHistoryRoots: [verified.siblingHistoryRoots[0]],
+                    verifiedDocumentContext: true,
+                  },
+                );
+                if (
+                  context.thread_segments.length !== 1 ||
+                  context.thread_segments[0].from !== "buyer@example.test"
+                ) {
+                  throw new Error(`collector escaped verified sibling identities: ${JSON.stringify(context)}`);
+                }
+              },
+
+              collector_rejects_unknown_barrier_inside_verified_binding: () => {
+                const fixture = legacyFrameDocument({ unwrapped: true });
+                const verified = resolveVisibleContext(fixture.doc);
+                if (!verified || verified.siblingHistoryRoots.length !== 2) {
+                  throw new Error("fixture did not expose two verified sibling roots");
+                }
+                const barrier = new FakeElement({
+                  className: "mailbox-region",
+                  text: "New unknown direct sibling",
+                });
+                barrier.parentElement = fixture.doc.body;
+                barrier.parentNode = fixture.doc.body;
+                barrier.ownerDocument = fixture.doc;
+                const secondIndex = fixture.doc.body.children.indexOf(
+                  verified.siblingHistoryRoots[1],
+                );
+                fixture.doc.body.children.splice(secondIndex, 0, barrier);
+
+                const context = loadCollector().extractVisibleMessageContext(
+                  fixture.doc,
+                  {
+                    currentMessageRoot: verified.currentMessageRoot,
+                    currentBodyRoot: verified.currentBodyRoot,
+                    currentBodyText: verified.currentBodyText,
+                    threadRoot: verified.threadRoot,
+                    verifiedSiblingHistoryRoots: verified.siblingHistoryRoots,
+                    verifiedDocumentContext: true,
+                  },
+                );
+                if (
+                  context.thread_segments.length !== 0 ||
+                  context.thread_context_limited !== true
+                ) {
+                  throw new Error(`collector crossed an unknown bound barrier: ${JSON.stringify(context)}`);
+                }
+              },
+
+              sibling_history_replacement_invalidates_verified_context: () => {
+                const fixture = mainFrameFixture({ unwrapped: true });
+                const loaded = loadVisibleContext(
+                  fixture.topDoc,
+                  [fixture.frameWindow],
+                );
+                const verified = loaded.api.resolveVerifiedDocumentContext(
+                  loaded.rootWindow,
+                );
+                if (!verified || verified.threadRoot !== fixture.doc.body) {
+                  throw new Error("verified sibling history did not bind the thread root");
+                }
+                if (!loaded.api.revalidateVerifiedDocumentContext(
+                  loaded.rootWindow,
+                  verified,
+                )) {
+                  throw new Error("unchanged sibling history failed revalidation");
+                }
+                const history = fixture.doc.querySelectorAll(".readmail_item")[0];
+                history.innerText = history.innerText.replace(
+                  "Please confirm the initial placement.",
+                  "Replacement history must invalidate the context.",
+                );
+                history.textContent = history.innerText;
+                if (loaded.api.revalidateVerifiedDocumentContext(
+                  loaded.rootWindow,
+                  verified,
+                )) {
+                  throw new Error("stale sibling history remained verified");
+                }
+              },
+
               legacy_main_frame_extracts_current_body_and_full_history: async () => {
                 const fixture = mainFrameFixture();
                 const result = await dispatch(loadAdapter(
@@ -1660,6 +1854,110 @@ class TencentLegacyContextTests(unittest.TestCase):
                   throw new Error("over-limit thread did not fail closed");
                 }
               },
+
+              thread_context_limited_is_strict_for_fallbacks: () => {
+                const api = loadCollector();
+                const noHistory = legacyFrameDocument({ omitHistory: true });
+                const currentOnly = api.extractVisibleMessageContext(
+                  noHistory.doc,
+                  { currentMessageRoot: noHistory.currentBody },
+                );
+                if (currentOnly.thread_context_limited !== false) {
+                  throw new Error(`ordinary current-only context was marked limited: ${JSON.stringify(currentOnly)}`);
+                }
+
+                const complete = legacyDocument("newest-first");
+                const completeContext = api.extractVisibleMessageContext(
+                  complete.doc,
+                  { currentMessageRoot: complete.root },
+                );
+                if (completeContext.thread_context_limited !== false) {
+                  throw new Error(`complete history was marked limited: ${JSON.stringify(completeContext)}`);
+                }
+
+                const tooMany = Array.from({ length: 51 }, (_item, index) => block([
+                  `From: sender${index}@example.test`,
+                  `Date: 2026-06-${String((index % 28) + 1).padStart(2, "0")} 09:00`,
+                  "To: recipient@example.test",
+                  `Subject: Synthetic ${index}`,
+                  `Body ${index}`,
+                ].join("\n")));
+                const boundedRoot = new FakeElement({
+                  className: "mail-content",
+                  text: tooMany.map((item) => item.innerText).join("\n"),
+                  children: tooMany,
+                });
+                const boundedDoc = new FakeDocument(new FakeElement({
+                  tag: "body",
+                  children: [boundedRoot],
+                }));
+                const bounded = api.extractVisibleMessageContext(
+                  boundedDoc,
+                  { currentMessageRoot: boundedRoot },
+                );
+                if (
+                  bounded.thread_context_limited !== true ||
+                  bounded.thread_segments.length !== 0
+                ) {
+                  throw new Error(`over-limit fallback was not marked limited: ${JSON.stringify(bounded)}`);
+                }
+
+                const invalidText = oldestText.replace(
+                  "From: buyer@example.test",
+                  "From: buyer@example.test\nFrom: duplicate@example.test",
+                );
+                const invalidRoot = new FakeElement({
+                  className: "mail-content",
+                  text: invalidText,
+                  children: [block(invalidText)],
+                });
+                const invalidDoc = new FakeDocument(new FakeElement({
+                  tag: "body",
+                  text: invalidText,
+                  children: [invalidRoot],
+                }));
+                const invalid = api.extractVisibleMessageContext(
+                  invalidDoc,
+                  { currentMessageRoot: invalidRoot },
+                );
+                if (
+                  invalid.thread_context_limited !== true ||
+                  invalid.thread_segments.length !== 0
+                ) {
+                  throw new Error(`parse fallback was not marked limited: ${JSON.stringify(invalid)}`);
+                }
+
+                const mixedRoot = new FakeElement({
+                  className: "mail-content",
+                  children: [
+                    structuredBlock({
+                      "data-position": "0",
+                      "data-from": "structured@example.test",
+                      "data-to": "recipient@example.test",
+                      "data-sent-at": "Today",
+                      "data-subject": "Structured",
+                      "data-body-text": "Structured body",
+                    }),
+                    block(oldestText),
+                  ],
+                  aggregateText: true,
+                });
+                const mixedDoc = new FakeDocument(new FakeElement({
+                  tag: "body",
+                  children: [mixedRoot],
+                  aggregateText: true,
+                }));
+                const mixed = api.extractVisibleMessageContext(
+                  mixedDoc,
+                  { currentMessageRoot: mixedRoot },
+                );
+                if (
+                  mixed.thread_context_limited !== true ||
+                  mixed.thread_segments.length !== 0
+                ) {
+                  throw new Error(`mixed-format fallback was not marked limited: ${JSON.stringify(mixed)}`);
+                }
+              },
             };
 
             (async () => {
@@ -1717,8 +2015,32 @@ class TencentLegacyContextTests(unittest.TestCase):
     def test_missing_duplicate_hidden_and_oversized_blocks_fail_safely(self) -> None:
         self.run_node_case("missing_duplicate_hidden_and_oversized_blocks_fail_safely")
 
+    def test_thread_context_limited_is_strict_for_fallbacks(self) -> None:
+        self.run_node_case("thread_context_limited_is_strict_for_fallbacks")
+
     def test_legacy_main_frame_extracts_current_body_and_full_history(self) -> None:
         self.run_node_case("legacy_main_frame_extracts_current_body_and_full_history")
+
+    def test_unwrapped_verified_sibling_history_is_collected(self) -> None:
+        self.run_node_case("unwrapped_verified_sibling_history_is_collected")
+
+    def test_offscreen_verified_sibling_history_is_still_collected(self) -> None:
+        self.run_node_case("offscreen_verified_sibling_history_is_still_collected")
+
+    def test_hidden_direct_sibling_is_a_hard_history_barrier(self) -> None:
+        self.run_node_case("hidden_direct_sibling_is_a_hard_history_barrier")
+
+    def test_legacy_collector_preserves_verified_context_limit(self) -> None:
+        self.run_node_case("legacy_collector_preserves_verified_context_limit")
+
+    def test_collector_accepts_only_verified_sibling_identities(self) -> None:
+        self.run_node_case("collector_accepts_only_verified_sibling_identities")
+
+    def test_collector_rejects_unknown_barrier_inside_verified_binding(self) -> None:
+        self.run_node_case("collector_rejects_unknown_barrier_inside_verified_binding")
+
+    def test_sibling_history_replacement_invalidates_verified_context(self) -> None:
+        self.run_node_case("sibling_history_replacement_invalidates_verified_context")
 
     def test_legacy_qmbox_sibling_download_control_reaches_verified_collector(self) -> None:
         self.run_node_case("legacy_qmbox_sibling_download_control_reaches_verified_collector")

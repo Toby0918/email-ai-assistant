@@ -4,6 +4,7 @@
   const EXMAIL_ORIGIN = "https://exmail.qq.com";
   const MAIN_FRAME_NAME = "mainFrame";
   const MIN_BODY_LENGTH = 5;
+  const MAX_VERIFIED_SIBLING_HISTORY = 50;
   const SUBJECT_SELECTOR_GROUPS = [
     ["#subject"],
     [".mail_subject", ".mail-subject"],
@@ -109,6 +110,15 @@
       actual.subjectIdentity === expected.subjectIdentity &&
       actual.headerIdentity === expected.headerIdentity &&
       actual.currentBodyIdentity === expected.currentBodyIdentity &&
+      actual.threadContextLimited === expected.threadContextLimited &&
+      sameIdentitySequence(
+        actual.siblingHistoryIdentities,
+        expected.siblingHistoryIdentities,
+      ) &&
+      sameTextSequence(
+        actual.siblingHistoryTexts,
+        expected.siblingHistoryTexts,
+      ) &&
       actual.locationHref === expected.locationHref &&
       actual.subjectText === expected.subjectText &&
       actual.headerText === expected.headerText &&
@@ -165,7 +175,18 @@
     if (!commonRoot) {
       return null;
     }
-    const threadRoot = commonRoot === doc.body ? currentMessageRoot : commonRoot;
+    const siblingHistory = commonRoot === doc.body
+      ? verifiedAdjacentSiblingHistory(
+          subject,
+          header,
+          currentMessageRoot,
+          doc,
+        )
+      : { roots: [], limited: false };
+    const siblingHistoryRoots = siblingHistory.roots;
+    const threadRoot = siblingHistoryRoots.length > 0 ? doc.body : (
+      commonRoot === doc.body ? currentMessageRoot : commonRoot
+    );
     const explicitBodies = uniqueElements(
       queryAll(currentMessageRoot, EXPLICIT_CURRENT_BODY_SELECTORS.join(", ")),
     ).filter((element) => (
@@ -194,6 +215,11 @@
       subjectIdentity: subject,
       headerIdentity: header,
       currentBodyIdentity: currentBodyRoot || currentMessageRoot,
+      threadContextLimited: siblingHistory.limited === true,
+      siblingHistoryIdentities: Object.freeze(siblingHistoryRoots.slice()),
+      siblingHistoryTexts: Object.freeze(
+        siblingHistoryRoots.map((element) => normalizedText(element)),
+      ),
       locationHref: documentHref(doc),
       subjectText: normalizedText(subject),
       headerText: normalizedText(header),
@@ -211,8 +237,69 @@
       currentBodyRoot,
       currentBodyText,
       threadRoot,
+      siblingHistoryRoots: Object.freeze(siblingHistoryRoots.slice()),
+      threadContextLimited: siblingHistory.limited === true,
       contextToken,
     });
+  }
+
+  function verifiedAdjacentSiblingHistory(
+    subject,
+    header,
+    currentMessageRoot,
+    doc,
+  ) {
+    const parent = parentOf(currentMessageRoot);
+    if (
+      !parent ||
+      parent !== doc.body ||
+      parentOf(subject) !== parent ||
+      parentOf(header) !== parent
+    ) {
+      return { roots: [], limited: false };
+    }
+    const children = Array.from(parent.children || []);
+    const subjectIndex = children.indexOf(subject);
+    const headerIndex = children.indexOf(header);
+    const currentIndex = children.indexOf(currentMessageRoot);
+    if (
+      subjectIndex < 0 ||
+      headerIndex < 0 ||
+      currentIndex < 0 ||
+      subjectIndex >= currentIndex ||
+      headerIndex >= currentIndex
+    ) {
+      return { roots: [], limited: false };
+    }
+    const history = [];
+    for (const candidate of children.slice(currentIndex + 1)) {
+      if (!hasVisibleStylePathToBody(candidate, doc)) {
+        return { roots: history, limited: true };
+      }
+      if (
+        !matchesAny(candidate, THREAD_SEGMENT_SELECTORS) ||
+        !hasCompleteLegacyHeaderCluster(candidate)
+      ) {
+        return { roots: history, limited: true };
+      }
+      history.push(candidate);
+      if (history.length > MAX_VERIFIED_SIBLING_HISTORY) {
+        return { roots: [], limited: true };
+      }
+    }
+    return { roots: history, limited: false };
+  }
+
+  function sameIdentitySequence(left, right) {
+    return Array.isArray(left) && Array.isArray(right) &&
+      left.length === right.length &&
+      left.every((value, index) => value === right[index]);
+  }
+
+  function sameTextSequence(left, right) {
+    return Array.isArray(left) && Array.isArray(right) &&
+      left.length === right.length &&
+      left.every((value, index) => value === right[index]);
   }
 
   function uniqueSubjectEvidence(doc) {

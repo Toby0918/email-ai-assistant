@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import json
 import unittest
 from contextlib import ExitStack
 from dataclasses import replace
@@ -81,6 +82,13 @@ class MultimodalRouteTests(unittest.TestCase):
                 source_id="attachment:1",
             ),
         )
+        email = self._email(len(bundles))
+        email["thread_segments"] = [{
+            "position": 0,
+            "from": "buyer@example.test",
+            "subject": "Synthetic packaging history",
+            "body_text": "Previous packaging note for review.",
+        }]
 
         def generate(request: object) -> str:
             calls.append(request)
@@ -103,17 +111,30 @@ class MultimodalRouteTests(unittest.TestCase):
                 config=self._openai_config(text_fallback_provider="deepseek"),
                 bundles=bundles,
                 assets=assets,
+                email=email,
             )
 
         self.assertEqual(tuple(type(item) for item in calls), (ModelAnalysisRequest, str))
-        self.assertEqual(result["analysis_engine"], {
-            "source": "ai_model",
-            "label": "DeepSeek V4 Flash text fallback",
-        })
+        self.assertEqual(result["analysis_engine"]["source"], "ai_model")
+        self.assertEqual(
+            result["analysis_engine"]["label"],
+            "DeepSeek V4 Flash text fallback",
+        )
+        self.assertEqual(
+            result["analysis_engine"]["context_scope"], "relevant_history"
+        )
+        self.assertIs(result["analysis_engine"]["context_limited"], False)
         self.assertEqual(len(source_views), 1)
         fallback_sources = source_views[0]
         self.assertNotIn("attachment:0", fallback_sources)
         self.assertEqual(fallback_sources["attachment:1"].grounding_mode, "text")
+        primary_payload = json.loads(calls[0].text)
+        fallback_payload = json.loads(calls[1])
+        self.assertEqual(
+            self._thread_source_projection(primary_payload),
+            self._thread_source_projection(fallback_payload),
+        )
+        self.assertEqual(len(self._thread_source_projection(primary_payload)), 2)
 
     def test_late_openai_failure_makes_zero_deepseek_calls(self) -> None:
         now = [100.0]
@@ -351,6 +372,7 @@ class MultimodalRouteTests(unittest.TestCase):
         bundles: tuple[AttachmentAnalysisBundle, ...] = (),
         assets: tuple[PreparedMediaAsset, ...] = (),
         budget: AnalysisBudget | None = None,
+        email: dict[str, object] | None = None,
     ) -> tuple[dict[str, object], list[dict[str, object]]]:
         source_views: list[dict[str, object]] = []
 
@@ -381,13 +403,29 @@ class MultimodalRouteTests(unittest.TestCase):
                 side_effect=merge,
             ))
             result = analyze_current_email(
-                self._email(len(bundles)),
+                email if email is not None else self._email(len(bundles)),
                 llm_generate=generator,
                 analysis_engine_label="Spoofed engine",
                 config=config,
                 budget=budget,
             )
         return result, source_views
+
+    @staticmethod
+    def _thread_source_projection(payload: dict[str, object]) -> tuple[tuple[object, ...], ...]:
+        sources = payload.get("sources")
+        if not isinstance(sources, list):
+            return ()
+        return tuple(
+            (
+                item.get("source_id"),
+                item.get("message_role"),
+                item.get("history_position"),
+                item.get("text"),
+            )
+            for item in sources
+            if isinstance(item, dict) and item.get("kind") == "thread"
+        )
 
     @staticmethod
     def _openai_config(**changes):

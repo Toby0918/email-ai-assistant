@@ -2209,7 +2209,19 @@ class AnalyzerTests(unittest.TestCase):
     def _expected_model_email_rule_fallback(self) -> dict[str, object]:
         email = self._model_email()
         config = self._deepseek_config()
-        timeline = build_timeline_skeleton([], config.internal_email_domains)
+        timeline = build_timeline_skeleton(
+            [{
+                "position": 1_000_000,
+                "from": str(email["from"]),
+                "to": "",
+                "sent_at": "",
+                "subject": str(email["subject"]),
+                "body_text": clean_email_body(
+                    email.get("body_text"), email.get("body_html")
+                ),
+            }],
+            config.internal_email_domains,
+        )
         fallback = build_rule_based_analysis(
             str(email["subject"]),
             str(email["from"]),

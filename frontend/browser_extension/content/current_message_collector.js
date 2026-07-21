@@ -68,7 +68,17 @@
     if (!currentRoot) {
       return emptyVisibleMessageContext();
     }
-    const threadRoot = verifiedThreadRoot(settings.threadRoot, currentRoot, doc);
+    const siblingRoots = boundSiblingHistoryRoots(settings, currentRoot, doc);
+    const siblingBindingFailed = siblingRoots === null;
+    const verifiedSiblingRoots = siblingRoots || [];
+    const threadRoot = verifiedThreadRoot(
+      settings,
+      currentRoot,
+      doc,
+      verifiedSiblingRoots,
+    );
+    const contextLimited = settings.threadContextLimited === true ||
+      siblingBindingFailed;
     const verifiedCurrentBody = verifiedCurrentBodyText(
       settings,
       currentRoot,
@@ -99,10 +109,24 @@
         currentRoot,
         verifiedCurrentBody,
         verifiedAggregate,
+        threadRoot,
+        doc,
+        verifiedSiblingRoots,
       ),
     );
-    if (!candidates.length || candidates.length > MAX_THREAD_SEGMENTS) {
-      return fallbackVisibleMessageContext(currentRoot, doc, verifiedCurrentBody);
+    if (
+      !candidates.length ||
+      candidates.length > MAX_THREAD_SEGMENTS ||
+      (threadRoot === doc.body && candidates.length !== verifiedSiblingRoots.length)
+    ) {
+      const limited = contextLimited || candidates.length > MAX_THREAD_SEGMENTS ||
+        verifiedSiblingRoots.length > 0;
+      return fallbackVisibleMessageContext(
+        currentRoot,
+        doc,
+        verifiedCurrentBody,
+        limited,
+      );
     }
 
     const structuredFlags = candidates.map((candidate) =>
@@ -117,7 +141,7 @@
       ordered = legacySegments(candidates);
     }
     if (!ordered) {
-      return fallbackVisibleMessageContext(currentRoot, doc, verifiedCurrentBody);
+      return fallbackVisibleMessageContext(currentRoot, doc, verifiedCurrentBody, true);
     }
     const positioned = ordered.map((segment, position) => ({
       position,
@@ -146,6 +170,7 @@
         body_text: latest.body_text,
       },
       thread_segments: positioned,
+      thread_context_limited: contextLimited === true,
     };
   }
 
@@ -153,7 +178,7 @@
     return extractVisibleMessageContext(doc, options).thread_segments;
   }
 
-  function emptyVisibleMessageContext(bodyText) {
+  function emptyVisibleMessageContext(bodyText, contextLimited) {
     return {
       current_message: {
         from: "",
@@ -163,27 +188,77 @@
         body_text: bodyText || "",
       },
       thread_segments: [],
+      thread_context_limited: contextLimited === true,
     };
   }
 
-  function fallbackVisibleMessageContext(currentRoot, doc, verifiedCurrentBody) {
+  function fallbackVisibleMessageContext(
+    currentRoot,
+    doc,
+    verifiedCurrentBody,
+    contextLimited,
+  ) {
     const explicitCurrentBody = uniqueExplicitCurrentBody(currentRoot, doc) ||
       verifiedCurrentBody;
     if (explicitCurrentBody !== null) {
-      return emptyVisibleMessageContext(explicitCurrentBody);
+      return emptyVisibleMessageContext(explicitCurrentBody, contextLimited);
     }
-    return emptyVisibleMessageContext();
+    return emptyVisibleMessageContext("", contextLimited);
   }
 
-  function verifiedThreadRoot(suppliedRoot, currentRoot, doc) {
+  function verifiedThreadRoot(settings, currentRoot, doc, siblingRoots) {
+    const suppliedRoot = settings.threadRoot;
     if (
       suppliedRoot &&
       isInside(currentRoot, suppliedRoot) &&
-      isVisibleWithin(suppliedRoot, suppliedRoot, doc)
+      isVisibleWithin(suppliedRoot, suppliedRoot, doc) &&
+      (
+        suppliedRoot !== doc.body ||
+        (
+          settings.verifiedDocumentContext === true &&
+          parentOf(currentRoot) === doc.body &&
+          siblingRoots.length > 0
+        )
+      )
     ) {
       return suppliedRoot;
     }
     return currentRoot;
+  }
+
+  function boundSiblingHistoryRoots(settings, currentRoot, doc) {
+    if (settings.verifiedDocumentContext !== true) {
+      return [];
+    }
+    const supplied = settings.verifiedSiblingHistoryRoots;
+    if (!Array.isArray(supplied) || supplied.length === 0) {
+      return [];
+    }
+    const unique = Array.from(new Set(supplied));
+    const children = Array.from(doc && doc.body && doc.body.children || []);
+    const currentIndex = children.indexOf(currentRoot);
+    const indexes = unique.map((candidate) => children.indexOf(candidate));
+    const adjacent = currentIndex >= 0
+      ? children.slice(currentIndex + 1, currentIndex + 1 + unique.length)
+      : [];
+    if (
+      unique.length !== supplied.length ||
+      unique.length > MAX_THREAD_SEGMENTS ||
+      currentIndex < 0 ||
+      adjacent.length !== unique.length ||
+      adjacent.some((candidate, index) => candidate !== unique[index]) ||
+      indexes.some((index) => index <= currentIndex) ||
+      indexes.some((index, position) => position > 0 && index <= indexes[position - 1]) ||
+      unique.some((candidate) => (
+        parentOf(candidate) !== doc.body ||
+        !isVisibleWithin(candidate, doc.body, doc) ||
+        !isThreadSegmentElement(candidate) ||
+        !hasCompleteLegacyHeaderBlock(candidate)
+      ))
+    ) {
+      return null;
+    }
+    return unique;
   }
 
   function verifiedCurrentBodyText(settings, currentRoot, threadRoot, doc) {
@@ -222,6 +297,9 @@
     currentRoot,
     verifiedCurrentBody,
     verifiedAggregate,
+    threadRoot,
+    doc,
+    verifiedSiblingRoots,
   ) {
     if (settings.verifiedDocumentContext !== true) {
       return true;
@@ -237,12 +315,30 @@
     ) {
       return true;
     }
+    if (
+      threadRoot === doc.body &&
+      parentOf(currentRoot) === threadRoot &&
+      parentOf(candidate) === threadRoot
+    ) {
+      return verifiedSiblingRoots.includes(candidate);
+    }
     return Boolean(
       currentBody &&
       isInside(currentBody, currentRoot) &&
       !isInside(candidate, currentBody) &&
       !isInside(currentBody, candidate)
     );
+  }
+
+  function isThreadSegmentElement(element) {
+    if (hasAttribute(element, "data-email-thread-segment")) {
+      return true;
+    }
+    const classes = attribute(element, "class").split(/\s+/).filter(Boolean);
+    return [
+      "mail-thread-segment", "mail-thread-item", "mail-reply-item",
+      "mail-conversation-item", "readmail_item",
+    ].some((value) => classes.includes(value));
   }
 
   function uniqueExplicitCurrentBody(currentRoot, doc) {
@@ -279,6 +375,10 @@
     if (String(element && element.tagName || "").toUpperCase() !== "BLOCKQUOTE") {
       return false;
     }
+    return hasCompleteLegacyHeaderBlock(element);
+  }
+
+  function hasCompleteLegacyHeaderBlock(element) {
     const lines = normalizeBodySource(elementRawText(element))
       .split("\n")
       .slice(0, 20)
@@ -1549,6 +1649,10 @@
       current = current.parentElement || current.parentNode;
     }
     return false;
+  }
+
+  function parentOf(element) {
+    return element && (element.parentElement || element.parentNode) || null;
   }
 
   function isHostResourceControl(element) {

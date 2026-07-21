@@ -5,6 +5,11 @@ import unittest
 from unittest.mock import patch
 
 from backend.email_agent.analysis_schema import validate_analysis_result
+from backend.email_agent.attachment_model_context import (
+    MAX_MODEL_CHARACTERS_PER_ATTACHMENT,
+    AttachmentModelCandidate,
+    build_attachment_model_context,
+)
 from backend.email_agent.deepseek_analysis_schema import validate_deepseek_analysis_v1
 from backend.email_agent.model_result_safety import SafeMergeResult, merge_deepseek_analysis_v1
 from backend.email_agent.model_text_safety import validate_public_language
@@ -78,14 +83,6 @@ def _sources() -> dict[str, EvidenceSource]:
         ),
         "thread:1": EvidenceSource(
             "thread:1", "thread", "客户询问预计交期。", "thread"
-        ),
-        "attachment:0": EvidenceSource(
-            "attachment:0",
-            "attachment",
-            "附件包含产品清单。",
-            "attachment:synthetic.xlsx",
-            attachment_index=0,
-            parsed=True,
         ),
     }
 
@@ -202,8 +199,17 @@ class ModelResultSafetyTests(unittest.TestCase):
                 "limitations": [],
             },
         ]
+        self.sources["attachment:0"] = EvidenceSource(
+            "attachment:0",
+            "attachment",
+            "附件包含产品清单。模型表格摘要。模型表格事实。",
+            "attachment:synthetic.xlsx",
+            attachment_index=0,
+            parsed=True,
+        )
         self.sources["attachment:1"] = EvidenceSource(
-            "attachment:1", "attachment", "附件包含 PDF 说明。",
+            "attachment:1", "attachment",
+            "附件包含 PDF 说明。模型 PDF 摘要。模型 PDF 事实。",
             "attachment:notes.pdf", attachment_index=1, parsed=True,
         )
 
@@ -222,6 +228,69 @@ class ModelResultSafetyTests(unittest.TestCase):
             self.envelope["field_evidence"][
                 f"/attachment_augmentations/{index}/key_facts/{fact_index}"
             ] = [source_id]
+
+    def add_visual_coverage(self) -> None:
+        self.fallback["attachment_insights"] = [{
+            "filename": "synthetic.xlsx",
+            "type": "image",
+            "status": "metadata_only",
+            "summary": "Synthetic visual metadata.",
+            "key_facts": [],
+            "limitations": ["Visual review is required."],
+        }]
+        self.add_augmentation("attachment:0", "Damage is visible.", [])
+
+    def assert_truncated_attachment_claim_rejected(
+        self, unsafe_tail: str, unsafe_claim: str,
+    ) -> None:
+        prefix_budget = MAX_MODEL_CHARACTERS_PER_ATTACHMENT - len(unsafe_tail)
+        sentence = "Safe sentence. "
+        sentence_count = (prefix_budget - 3) // len(sentence)
+        filler_length = prefix_budget - (sentence_count * len(sentence)) - 2
+        prefix = (sentence * sentence_count) + ("Z" * filler_length) + ". "
+        self.assertEqual(prefix_budget, len(prefix))
+        raw = (
+            prefix
+            + unsafe_tail
+            + " continuation remains unpunctuated"
+        )
+        context = build_attachment_model_context(
+            (AttachmentModelCandidate("attachment:0", raw),)
+        )
+        self.assertEqual(1, len(context))
+        self.assertTrue(context[0].truncated)
+        self.assertNotIn(unsafe_claim, context[0].text)
+
+        self.fallback["attachment_insights"] = [{
+            "filename": "synthetic.pdf",
+            "type": "pdf",
+            "status": "parsed",
+            "summary": "规则附件摘要。",
+            "key_facts": [],
+            "limitations": ["仅供人工复核。"],
+        }]
+        _prompt, projected_sources = build_deepseek_untrusted_context(
+            subject="Synthetic attachment review",
+            sender="External buyer",
+            recipients=("Internal sales",),
+            cc=(),
+            sent_at="",
+            clean_body="Please review the synthetic attachment.",
+            timeline=self.timeline,
+            attachment_context=context,
+            attachment_public_sources={
+                "attachment:0": "attachment:synthetic.pdf"
+            },
+        )
+        sources = dict(self.sources)
+        sources["attachment:0"] = projected_sources["attachment:0"]
+        self.add_augmentation("attachment:0", unsafe_claim, [])
+
+        result = self.merge(sources=sources)
+
+        self.assertEqual(self.fallback, result.analysis)
+        self.assertEqual(("all",), result.fallback_fields)
+        self.assertFalse(result.used_model)
 
     def test_grounded_model_exact_identifier_and_date_still_use_fallback(self) -> None:
         exact_text = (
@@ -315,7 +384,8 @@ class ModelResultSafetyTests(unittest.TestCase):
             result.analysis["attachment_insights"],
             self.fallback["attachment_insights"],
         )
-        self.assertIn("attachment_insights", result.fallback_fields)
+        self.assertEqual(("all",), result.fallback_fields)
+        self.assertFalse(result.used_model)
         serialized = str(result.analysis["attachment_insights"])
         self.assertNotIn("PO-FAKE9999", serialized)
         self.assertNotIn("2026-08-31", serialized)
@@ -530,6 +600,9 @@ class ModelResultSafetyTests(unittest.TestCase):
         self.assertIn("decision_brief", result.fallback_fields)
 
     def test_decision_brief_source_ids_are_projected_to_public_sources(self) -> None:
+        self.add_attachments()
+        self.add_augmentation("attachment:0", "模型表格摘要。", ["模型表格事实。"])
+        self.add_augmentation("attachment:1", "模型 PDF 摘要。", ["模型 PDF 事实。"])
         brief = self.envelope["analysis"]["decision_brief"]
         brief["next_steps"][0]["source"] = "attachment:0"
         brief["key_facts"] = [{
@@ -557,6 +630,23 @@ class ModelResultSafetyTests(unittest.TestCase):
         if actual:
             self.assertIsNot(actual[0], self.fallback["decision_brief"]["key_facts"][0])
         self.assertNotIn("模型生成值", str(actual))
+
+    def test_local_must_check_and_missing_info_survive_safe_model_brief(self) -> None:
+        local_check = "附件语义复核必须保留。"
+        local_missing = "仍缺少附件适用范围。"
+        fallback_brief = self.fallback["decision_brief"]
+        fallback_brief["must_check"] = [local_check]
+        fallback_brief["missing_info"] = [local_missing]
+        expected_fallback = copy.deepcopy(fallback_brief)
+
+        result = self.merge()
+        actual = result.analysis["decision_brief"]
+
+        self.assertEqual(local_check, actual["must_check"][0])
+        self.assertEqual(local_missing, actual["missing_info"][0])
+        self.assertEqual(expected_fallback, self.fallback["decision_brief"])
+        self.assertIsNot(actual["must_check"], fallback_brief["must_check"])
+        self.assertIsNot(actual["missing_info"], fallback_brief["missing_info"])
 
     def test_unconditional_commitment_and_direct_auto_action_variants_replace_brief(self) -> None:
         phrases = (
@@ -1019,20 +1109,68 @@ class ModelResultSafetyTests(unittest.TestCase):
                 self.assertIn("reply_draft", result.fallback_fields)
                 self.assertNotEqual(("all",), result.fallback_fields)
 
-    def test_safe_attachment_augmentation_replaces_only_model_text(self) -> None:
+    def test_safe_attachment_augmentation_preserves_local_facts(self) -> None:
         self.add_attachments()
+        self.fallback["attachment_insights"][0]["key_facts"] = [
+            "数量为 24 件。",
+            "规则表格事实。",
+        ]
         self.add_augmentation("attachment:0", "模型表格摘要。", ["模型表格事实。"])
+        self.add_augmentation("attachment:1", "模型 PDF 摘要。", ["模型 PDF 事实。"])
 
         result = self.merge()
 
         merged = result.analysis["attachment_insights"]
         self.assertEqual("模型表格摘要。", merged[0]["summary"])
-        self.assertEqual(["模型表格事实。"], merged[0]["key_facts"])
+        self.assertEqual(
+            ["数量为 24 件。", "规则表格事实。", "模型表格事实。"],
+            merged[0]["key_facts"],
+        )
         for key in ("filename", "type", "status", "limitations"):
             self.assertEqual(self.fallback["attachment_insights"][0][key], merged[0][key])
-        self.assertEqual(self.fallback["attachment_insights"][1], merged[1])
-        self.assertIn("attachment_insights", result.fallback_fields)
+        self.assertEqual("模型 PDF 摘要。", merged[1]["summary"])
+        self.assertNotIn("attachment_insights", result.fallback_fields)
         self.assertTrue(result.used_model)
+
+    def test_attachment_fact_union_dedupes_caps_and_deep_copies(self) -> None:
+        self.add_attachments()
+        local_facts = [
+            "Local alpha.",
+            "Model beta.",
+            "Local gamma.",
+            "Local delta.",
+        ]
+        self.fallback["attachment_insights"][0]["key_facts"] = local_facts
+        self.sources["attachment:0"] = EvidenceSource(
+            "attachment:0",
+            "attachment",
+            "Model summary. Model beta. Model epsilon. Model zeta.",
+            "attachment:synthetic.xlsx",
+            attachment_index=0,
+            parsed=True,
+        )
+        self.add_augmentation(
+            "attachment:0",
+            "Model summary.",
+            ["Model beta.", "Model epsilon.", "Model zeta."],
+        )
+        self.add_augmentation(
+            "attachment:1", "模型 PDF 摘要。", ["模型 PDF 事实。"]
+        )
+
+        result = self.merge()
+
+        merged_facts = result.analysis["attachment_insights"][0]["key_facts"]
+        self.assertEqual([*local_facts, "Model epsilon."], merged_facts)
+        self.assertIsNot(
+            merged_facts,
+            self.fallback["attachment_insights"][0]["key_facts"],
+        )
+        merged_facts.append("Mutation probe.")
+        self.assertEqual(
+            local_facts,
+            self.fallback["attachment_insights"][0]["key_facts"],
+        )
 
     def test_invalid_attachment_source_or_target_preserves_fallback(self) -> None:
         cases = ("wrong kind", "unparsed", "label mismatch", "out of range")
@@ -1065,7 +1203,7 @@ class ModelResultSafetyTests(unittest.TestCase):
                 self.assertEqual(
                     self.fallback["attachment_insights"], result.analysis["attachment_insights"]
                 )
-                self.assertIn("attachment_insights", result.fallback_fields)
+                self.assertEqual(("all",), result.fallback_fields)
 
     def test_duplicate_attachment_source_or_index_invalidates_that_attachment(self) -> None:
         cases = ("source", "index")
@@ -1085,9 +1223,9 @@ class ModelResultSafetyTests(unittest.TestCase):
                 self.assertEqual(
                     self.fallback["attachment_insights"], result.analysis["attachment_insights"]
                 )
-                self.assertIn("attachment_insights", result.fallback_fields)
+                self.assertEqual(("all",), result.fallback_fields)
 
-    def test_attachment_grounding_failure_is_local_and_mixed_merge_is_partial(self) -> None:
+    def test_attachment_grounding_failure_fails_closed_for_all_sent_attachments(self) -> None:
         self.add_attachments()
         self.add_augmentation("attachment:0", "模型表格摘要。", ["PO 999999 已完成。"])
         self.add_augmentation("attachment:1", "模型 PDF 摘要。", ["模型 PDF 事实。"])
@@ -1096,10 +1234,144 @@ class ModelResultSafetyTests(unittest.TestCase):
 
         merged = result.analysis["attachment_insights"]
         self.assertEqual(self.fallback["attachment_insights"][0], merged[0])
-        self.assertEqual("模型 PDF 摘要。", merged[1]["summary"])
-        self.assertEqual(["模型 PDF 事实。"], merged[1]["key_facts"])
-        self.assertIn("attachment_insights", result.fallback_fields)
-        self.assertTrue(result.used_model)
+        self.assertEqual(self.fallback["attachment_insights"], merged)
+        self.assertEqual(("all",), result.fallback_fields)
+        self.assertFalse(result.used_model)
+
+    def test_text_attachment_qualitative_claims_must_occur_in_the_bound_source(self) -> None:
+        self.add_attachments()
+        self.add_augmentation(
+            "attachment:0",
+            "The attachment approves every commercial term.",
+            ["The attachment reports no quality concern."],
+        )
+        self.add_augmentation(
+            "attachment:1",
+            "The attachment is unrelated to the visible PDF text.",
+            [],
+        )
+
+        result = self.merge()
+
+        self.assertEqual(self.fallback, result.analysis)
+        self.assertEqual(("all",), result.fallback_fields)
+        self.assertFalse(result.used_model)
+
+    def test_text_attachment_partial_sentence_is_not_verbatim_grounding(self) -> None:
+        self.add_attachments()
+        full_sentence = (
+            "The attachment states payment is due after approval only if "
+            "inspection passes."
+        )
+        self.sources["attachment:0"] = EvidenceSource(
+            "attachment:0",
+            "attachment",
+            full_sentence,
+            "attachment:synthetic.xlsx",
+            attachment_index=0,
+            parsed=True,
+        )
+        self.add_augmentation(
+            "attachment:0",
+            "payment is due after approval",
+            [],
+        )
+        self.add_augmentation(
+            "attachment:1",
+            "模型 PDF 摘要。",
+            ["模型 PDF 事实。"],
+        )
+
+        result = self.merge()
+
+        self.assertEqual(self.fallback, result.analysis)
+        self.assertEqual(("all",), result.fallback_fields)
+        self.assertFalse(result.used_model)
+
+    def test_projection_truncated_tail_cannot_ground_attachment_augmentation(self) -> None:
+        unit = "A safe synthetic detail is complete. "
+        prefix = unit * (
+            (MAX_MODEL_CHARACTERS_PER_ATTACHMENT - 80) // len(unit)
+        )
+        raw = prefix + (
+            "This truncated synthetic tail remains incomplete and must not qualify "
+            "as source evidence "
+        ) * 4
+        context = build_attachment_model_context(
+            (AttachmentModelCandidate("attachment:0", raw),)
+        )
+        self.assertEqual(1, len(context))
+        self.assertTrue(context[0].truncated)
+        trailing_fragment = (
+            "This truncated synthetic tail remains incomplete and must not "
+            "qualify as source"
+        )
+        self.assertNotIn(trailing_fragment, context[0].text)
+        self.assertIn(context[0].text[-1], ".!?。！？")
+
+        self.fallback["attachment_insights"] = [{
+            "filename": "synthetic.pdf",
+            "type": "pdf",
+            "status": "parsed",
+            "summary": "规则附件摘要。",
+            "key_facts": [],
+            "limitations": ["仅供人工复核。"],
+        }]
+        _prompt, projected_sources = build_deepseek_untrusted_context(
+            subject="Synthetic attachment review",
+            sender="External buyer",
+            recipients=("Internal sales",),
+            cc=(),
+            sent_at="",
+            clean_body="Please review the synthetic attachment.",
+            timeline=self.timeline,
+            attachment_context=context,
+            attachment_public_sources={
+                "attachment:0": "attachment:synthetic.pdf"
+            },
+        )
+        self.assertEqual(
+            context[0].text,
+            projected_sources["attachment:0"].grounding_text,
+        )
+        sources = dict(self.sources)
+        sources["attachment:0"] = projected_sources["attachment:0"]
+        self.add_augmentation("attachment:0", trailing_fragment, [])
+
+        result = self.merge(sources=sources)
+
+        self.assertEqual(self.fallback, result.analysis)
+        self.assertEqual(("all",), result.fallback_fields)
+        self.assertFalse(result.used_model)
+
+    def test_projection_rejects_truncated_abbreviation_tail(self) -> None:
+        self.assert_truncated_attachment_claim_rejected(
+            "The material uses approx.",
+            "The material uses approx.",
+        )
+
+    def test_projection_rejects_truncated_decimal_tail(self) -> None:
+        self.assert_truncated_attachment_claim_rejected(
+            "The measurement is 2.5",
+            "The measurement is 2.",
+        )
+
+    def test_projection_rejects_truncated_initialism_tail(self) -> None:
+        self.assert_truncated_attachment_claim_rejected(
+            "The packaging condition is described e.g.",
+            "The packaging condition is described e.",
+        )
+
+    def test_blank_attachment_augmentations_do_not_satisfy_semantic_coverage(self) -> None:
+        self.add_attachments()
+        self.add_augmentation("attachment:0", "   ", [])
+        self.add_augmentation("attachment:1", "", [])
+
+        result = self.merge()
+
+        self.assertEqual(self.fallback, result.analysis)
+        self.assertEqual(("all",), result.fallback_fields)
+        self.assertFalse(result.used_model)
 
     def test_attachment_merge_preserves_public_shape_and_does_not_mutate_inputs(self) -> None:
         self.add_attachments()
@@ -1123,6 +1395,7 @@ class ModelResultSafetyTests(unittest.TestCase):
     def test_visual_source_augments_its_metadata_only_attachment_qualitatively(self) -> None:
         self.add_attachments()
         self.fallback["attachment_insights"][0]["status"] = "metadata_only"
+        self.fallback["attachment_insights"][0]["key_facts"] = []
         self.sources["attachment:0"] = EvidenceSource(
             "attachment:0", "attachment", "", "attachment:synthetic.xlsx",
             attachment_index=0, parsed=True, grounding_mode="visual",
@@ -1130,6 +1403,7 @@ class ModelResultSafetyTests(unittest.TestCase):
         summary = "Damage is visible."
         facts = ["The label is on the upper."]
         self.add_augmentation("attachment:0", summary, facts)
+        self.add_augmentation("attachment:1", "模型 PDF 摘要。", ["模型 PDF 事实。"])
 
         result = self.merge()
 
@@ -1184,13 +1458,14 @@ class ModelResultSafetyTests(unittest.TestCase):
                 result = self.merge()
 
                 self.assertEqual(result.analysis["summary"], self.fallback["summary"])
-                self.assertIn("summary", result.fallback_fields)
+                self.assertEqual(("all",), result.fallback_fields)
 
     def test_multimodal_merge_rejects_fake_text_evidence_but_keeps_related_claim(self) -> None:
         self.sources["attachment:0"] = EvidenceSource(
             "attachment:0", "attachment", "", "attachment:synthetic.xlsx",
             attachment_index=0, parsed=True, grounding_mode="visual",
         )
+        self.add_visual_coverage()
         pointer = "/analysis/summary"
         unsafe = copy.deepcopy(self.envelope)
         unsafe["analysis"]["summary"] = "Alice 是 Jewish，且包装存在破损。"
@@ -1221,6 +1496,7 @@ class ModelResultSafetyTests(unittest.TestCase):
             "attachment:0", "attachment", "", "attachment:synthetic.xlsx",
             attachment_index=0, parsed=True, grounding_mode="visual",
         )
+        self.add_visual_coverage()
         body = "Customer requests a packaging review."
         timeline = TimelineBuild(
             {}, (), (ThreadSource("thread:0", "", "", "", "", body),),
@@ -1247,6 +1523,7 @@ class ModelResultSafetyTests(unittest.TestCase):
             "attachment:0", "attachment", "", "attachment:synthetic.xlsx",
             attachment_index=0, parsed=True, grounding_mode="visual",
         )
+        self.add_visual_coverage()
         positive = "Customer requests a packaging review."
         timeline = TimelineBuild(
             {}, (),
@@ -1268,7 +1545,7 @@ class ModelResultSafetyTests(unittest.TestCase):
 
         self.assertEqual(result.analysis["summary"], self.fallback["summary"])
         self.assertIn("summary", result.fallback_fields)
-        self.assertFalse(result.used_model)
+        self.assertTrue(result.used_model)
 
     def test_multimodal_global_literal_claims_apply_fail_closed_safety_gate(self) -> None:
         claims = (
@@ -1292,6 +1569,7 @@ class ModelResultSafetyTests(unittest.TestCase):
             "attachment:0", "attachment", "", "attachment:synthetic.xlsx",
             attachment_index=0, parsed=True, grounding_mode="visual",
         )
+        self.add_visual_coverage()
 
         for claim in claims:
             with self.subTest(claim=claim):
@@ -1307,13 +1585,14 @@ class ModelResultSafetyTests(unittest.TestCase):
 
                 self.assertEqual(result.analysis["summary"], self.fallback["summary"])
                 self.assertIn("summary", result.fallback_fields)
-                self.assertFalse(result.used_model)
+                self.assertTrue(result.used_model)
 
     def test_multimodal_cross_language_negatives_cannot_merge_model_summary(self) -> None:
         self.sources["attachment:0"] = EvidenceSource(
             "attachment:0", "attachment", "", "attachment:synthetic.xlsx",
             attachment_index=0, parsed=True, grounding_mode="visual",
         )
+        self.add_visual_coverage()
         claim = "邮件请求提供或确认报价信息。"
         negatives = (
             "Customer doesn't request a quote.",
@@ -1338,13 +1617,14 @@ class ModelResultSafetyTests(unittest.TestCase):
 
                 self.assertEqual(result.analysis["summary"], self.fallback["summary"])
                 self.assertIn("summary", result.fallback_fields)
-                self.assertFalse(result.used_model)
+                self.assertTrue(result.used_model)
 
     def test_multimodal_safe_ordinary_chinese_exact_claim_still_merges(self) -> None:
         self.sources["attachment:0"] = EvidenceSource(
             "attachment:0", "attachment", "", "attachment:synthetic.xlsx",
             attachment_index=0, parsed=True, grounding_mode="visual",
         )
+        self.add_visual_coverage()
         claim = "包装状态需要人工核查。"
         self.sources["thread:0"] = EvidenceSource(
             "thread:0", "thread", claim, "thread",
@@ -1363,6 +1643,7 @@ class ModelResultSafetyTests(unittest.TestCase):
             "attachment:0", "attachment", "", "attachment:synthetic.xlsx",
             attachment_index=0, parsed=True, grounding_mode="visual",
         )
+        self.add_visual_coverage()
         summary = "\u5305\u88c5\u72b6\u6001\u9700\u8981\u4eba\u5de5\u6838\u67e5\u3002"
         self.sources["thread:0"] = EvidenceSource(
             "thread:0", "thread", summary, "thread",
@@ -1414,6 +1695,7 @@ class ModelResultSafetyTests(unittest.TestCase):
             attachment_index=0, parsed=True, grounding_mode="hybrid",
         )
         self.add_augmentation("attachment:0", text, [])
+        self.add_augmentation("attachment:1", "模型 PDF 摘要。", ["模型 PDF 事实。"])
 
         accepted = self.merge()
 
@@ -1545,6 +1827,33 @@ class ModelResultSafetyTests(unittest.TestCase):
         self.assertFalse(hasattr(result, "__dict__"))
         with self.assertRaises((AttributeError, TypeError)):
             result.used_model = True
+
+    def test_missing_sent_parsed_attachment_augmentation_fails_closed(self) -> None:
+        self.add_attachments()
+        summary = "\u90ae\u4ef6\u8bf7\u6c42\u4eba\u5de5\u6838\u67e5\u5f53\u524d\u4e8b\u9879\u3002"
+        attachment_summary = "\u9644\u4ef6\u5305\u542b\u5f85\u590d\u6838\u7684\u4e1a\u52a1\u8bf4\u660e\u3002"
+        self.envelope["analysis"]["summary"] = summary
+        self.envelope["field_evidence"]["/analysis/summary"] = ["thread:0"]
+        self.sources["thread:0"] = EvidenceSource(
+            "thread:0", "thread", summary, "thread"
+        )
+        self.sources["attachment:0"] = EvidenceSource(
+            "attachment:0",
+            "attachment",
+            attachment_summary,
+            "attachment:synthetic.xlsx",
+            attachment_index=0,
+            parsed=True,
+        )
+        self.add_augmentation(
+            "attachment:0", attachment_summary, [attachment_summary]
+        )
+
+        result = self.merge()
+
+        self.assertFalse(result.used_model)
+        self.assertEqual(result.fallback_fields, ("all",))
+        self.assertEqual(result.analysis, self.fallback)
 
 
 if __name__ == "__main__":

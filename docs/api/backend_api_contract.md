@@ -95,6 +95,7 @@ operator-only 日志位置、轮转上限和读取命令见 `docs/conventions/lo
   "sent_at": "",
   "body_text": "",
   "body_html": "",
+  "thread_context_limited": false,
   "attachments": [
     {
       "filename": "",
@@ -133,6 +134,15 @@ operator-only 日志位置、轮转上限和读取命令见 `docs/conventions/lo
   "customer_context": {}
 }
 ```
+
+`thread_context_limited` is a backward-compatible optional request boolean. Only
+literal `true` means that the frontend knows visible-thread segmentation or
+collection was incomplete; an omitted value or `false` means no frontend-known
+limitation, while the backend may still mark context limited after its own bounded
+processing. This field carries no diagnostic text, selector, path, URL, exception,
+or message content, and unknown companion fields are discarded. It introduces no
+response schema change; the existing optional paired response metadata remains the
+only public response representation of context scope and limitation.
 
 ### 响应
 
@@ -237,6 +247,7 @@ operator-only 日志位置、轮转上限和读取命令见 `docs/conventions/lo
 - 请求动作只保留固定动词和对象类别，质量问题只保留固定信号标签，截止时间只保留明确 cue 和日期/相对时间。每个构造事实必须再通过精确 schema 清洗后才能进入结果、prompt 和 SQLite。
 - 截止时间、请求动作和质量信号在构造前必须按逗号、分号和 `and/but/however/then` 等边界定位候选所在的有界 clause，并只检查候选前后的有限 tokens。请求动作按原文顺序在同一 clause 内配对动词和其后的对象；后置动词不得绑定前一 clause 的对象。只有 affirmative 动词尚未成功配对任何对象时，才可跨 `but/however` 传给紧随的纯对象 clause；一旦构造事实就必须清空该 pending 动词。反转 clause 也不得删除后续真实动作。`not/never/without/free from`、直引号或弯引号 modal contractions、`absent/repaired/removed/withdrawn/waived/cancelled/revoked` 等反转上下文不得生成正向事实；取消、忽略或跳过的 action request 同样拒绝。质量信号紧邻的 `0/zero/nil/non-` 或 `-free/ free` 表示缺失；解决态词只有在未被局部 `not/never/no longer` 反转时才表示问题已解决。截止时间的 `not required/does not apply/no longer applicable/optional` 表示不存在有效截止要求。其他 clause 的否定不得删除当前 clause 的真实事实。
 - text/hybrid 来源只有在逐字段 evidence 与实际发送的正文投影一致时，才可影响对应模型字段；全局字段不能只靠视觉证据。
+- 达到字符上限的附件模型文本必须删除不完整尾句：缩写、首字母缩略词、小数点、内部句点和截断缓冲区末尾的 ASCII 句点不构成完整句界；无空格中文仍可在 `。！？` 的最后安全边界保留完整句。跨越敏感 token 的截断保护先执行，不能被句界回退绕过。
 - visual-only 只允许生成定性观察并增强其 matching attachment insight；它不能改变附件 status/limitations，也不能支撑 global fields、identity、protected traits、precise facts、commands、commitments 或 outcomes。人物、受保护属性、编号、数量、金额、日期、完成态和业务承诺必须拒绝或由本地确定性事实补充。
 - 只有 `attachment_insights[].status=parsed` 的文本事实可以影响决策摘要、风险、建议动作和回复草稿；视觉增强可在匹配附件中保持 `metadata_only`。其他状态必须返回精确 `limitations`，但不得阻断邮件正文和会话分析。
 - Only `attachment_insights[].status == "parsed"` proves attachment content parsing to the caller. A non-empty insight list, attachment metadata, or a discovered/fetched resource does not prove parsing.
@@ -253,7 +264,7 @@ operator-only 日志位置、轮转上限和读取命令见 `docs/conventions/lo
 
 ### Ephemeral model context
 
-OpenAI 主路线可使用当前可见线程、本地解析出的 ephemeral sanitized attachment context，以及本地筛选的当前邮件媒体。DeepSeek 主路线或 text fallback 只使用同一范围的去标识文本，不接收媒体。上下文有单附件/请求总量上限，移除 URL、密钥、authorization、cookie、token、本地路径、未批准二进制/base64 和 active content。自然语言 credential/password/API-key/session-ID 值即使使用冒号、等号、copula、whitespace-only separator 或引号连接也必须删除；不含值的 reset/rotation/expiry/policy 说明保留。任何实际字符截断必须回退到可证明的完整 token 边界；找不到安全边界时丢弃该字段，不发送截断后的 identifier fragment。整个出站文本还必须经过本地 deidentification 和 residual scan；request-local resolver 在 provider call 前关闭。该上下文及 `runtime_cards` 都不能出现在公开响应、SQLite、frontend renderer、日志或异常；公开 `attachment_insights` 仍是六字段安全投影。
+OpenAI 主路线可使用当前可见线程、本地解析出的 ephemeral sanitized attachment context，以及本地筛选的当前邮件媒体。DeepSeek 主路线或 text fallback 只使用同一范围的去标识文本，不接收媒体。上下文有单附件/请求总量上限，移除 URL、密钥、authorization、cookie、token、本地路径、未批准二进制/base64 和 active content。自然语言 credential/password/API-key/session-ID 值即使使用冒号、等号、copula、whitespace-only separator 或引号连接也必须删除；不含值的 reset/rotation/expiry/policy 说明保留。任何实际字符截断必须先回退到可证明的完整 token 边界，再删除无法证明完整的尾句；无安全 token 或句界时丢弃该字段，不发送截断后的 identifier 或 sentence fragment。整个出站文本还必须经过本地 deidentification 和 residual scan；request-local resolver 在 provider call 前关闭。该上下文及 `runtime_cards` 都不能出现在公开响应、SQLite、frontend renderer、日志或异常；公开 `attachment_insights` 仍是六字段安全投影。
 
 跨语言 grounding 只允许 body-only fixed cross-language bridge：固定模板只能用于 `summary` 和 `priority_reason`，且只能桥接实际发送的去标识正文，不得桥接附件视觉内容、未发送历史、身份或精确事实。
 

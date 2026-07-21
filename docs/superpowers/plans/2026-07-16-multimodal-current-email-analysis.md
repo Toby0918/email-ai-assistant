@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-18
+last_update: 2026-07-20
 status: active
 owner: "@tobyWang"
 review_cycle: weekly
@@ -261,12 +261,17 @@ source_type: operation_guide
 **Smoke sequence:**
 
 - [x] Make one synthetic OpenAI multimodal call with a recreated business-photo fixture. Confirm the accepted engine is OpenAI, output is schema-valid, and no rule fallback occurs. Passed 2026-07-17 with one source-bound attachment augmentation.
-- Status amendment, 2026-07-18: Task 9 synthetic provider and current-clicked Tencent smokes are complete for their bounded checks; the remaining Task 9 gates below stay unchecked and are not marked complete. Task 5 real current-message attachment smoke remains pending, is not live-tested, and requires fresh explicit authorization.
-- [ ] Make one synthetic forced OpenAI failure with eligible budget and confirm exactly one DeepSeek text fallback call.
-- [ ] In the user's already signed-in Tencent Exmail tab, use the visible Analyze control on representative current messages only. Do not navigate, search, enumerate, or scan the mailbox.
-- [ ] Confirm automatic current-body/full-thread extraction, business-photo understanding, signature-media exclusion, attachment analysis, readable layout, exact local facts, engine status, and bounded latency.
-- [ ] Inspect only content-free diagnostics and leakage checks; never print the email, media, prompt, raw output, or credentials.
-- [ ] Stop the test service, disable provider settings unless the operator chooses to keep them, and remove request temporary files.
+- Status amendment, 2026-07-20: the prior bounded smokes remain valid acquisition, routing, status, and cleanup evidence only. Task 9 semantic accuracy repair is offline complete. A parsed attachment status does not prove semantic correctness. The offline plan `docs/superpowers/plans/2026-07-20-task9-semantic-accuracy-repair.md` is review-clean; integration remains separate. Any new live operation still requires fresh explicit authorization. All providers remain disabled by default.
+- [x] Make one synthetic forced OpenAI failure with eligible budget and confirm exactly one DeepSeek text fallback call. The OpenAI attempt was intercepted before network access; the one DeepSeek request was text-only with zero SDK retries and no SQLite write.
+- [x] In the user's already signed-in Tencent Exmail tab, use the visible Analyze control on representative current messages only. The prior bounded operation did not navigate, search, enumerate, or scan the mailbox.
+- [x] Confirm automatic current-body/full-thread extraction, business-photo understanding, signature-media exclusion, attachment analysis, readable layout, exact local facts, engine status, and bounded latency through the completed synthetic/offline contracts and bounded current-message evidence.
+- [x] Inspect only content-free diagnostics and leakage checks; no email, media, prompt, raw output, or credential was printed.
+- [x] Stop the test service, restore provider settings to their disabled defaults, and remove request temporary files.
+- [x] 2026-07-20-task9-semantic-accuracy-repair.md
+- [x] current message and bounded verified history use one backend evidence set
+- [x] every provider-visible parsed attachment is semantically accounted for
+- [x] deterministic reconciliation safeguards survive model merge
+- [x] private human gold-standard contract is documented
 - [ ] Run final diff/status/leakage checks, merge the reviewed commits into local `master`, verify the preserved user change, and push `master` only after all checks pass.
 
 ## Final release criteria

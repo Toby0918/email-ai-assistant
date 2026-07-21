@@ -19,7 +19,7 @@ from .attachment_model_context import (
 from .attachment_storage import StoredAttachment
 
 
-MAX_EXTRACTED_CHARACTERS = 2_000
+MAX_EXTRACTED_CHARACTERS = 8_000
 MAX_XLSX_CELL_CHARACTERS = 1_000
 MAX_XLSX_ROW_CHARACTERS = 1_100
 MAX_SUMMARY_CHARACTERS = 600
@@ -191,7 +191,11 @@ def text_insight(
     candidate_text = fact_text if fact_text is not None else text
     return AttachmentAnalysisBundle(
         display_insight,
-        attachment_model_candidate(source_id, candidate_text),
+        attachment_model_candidate(
+            source_id,
+            candidate_text,
+            parser_limitations=limitations,
+        ),
     )
 
 

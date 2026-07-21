@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-16
+last_update: 2026-07-20
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -241,6 +241,21 @@ Neither build nor run creates a transcript, per-case file, prompt/output export,
 cache, log or resume state. Only the aggregate report persists. External terminal
 capture cannot be prevented by the program. Runner behavior remains sequential
 20 Flash + 180 Flash / 40 Pro, zero retry, and no automatic production model switch.
+
+The planned private-evaluation V2 boundary is documentation-only in Task 9.
+`PrivateEvaluationCaseV2` will bind ordered deidentified thread segments and
+reviewed attachment bindings plus an encrypted `StructuredHumanReferenceV2`.
+Strict candidate/reference separation requires the human reference to be sealed
+before candidate generation with independent business/privacy approval; the interactive
+surface uses a blinded human judge and aggregate-only reporting. V1 compatibility
+is mandatory, with version dispatch and no in-place migration. No current package,
+CLI, repository, or runner may claim V2 support until a separate approved
+implementation adds strict schemas and offline tests.
+
+Every future V2 implementation must prohibit raw ChatGPT transcripts, automatic training,
+automatic upload of a dataset or reference, model self-grading, and an
+automatic production model switch. These are architectural prohibitions, not
+optional operator settings.
 
 ## Authorized mailbox transport policy
 

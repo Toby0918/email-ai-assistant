@@ -361,11 +361,12 @@ def render_boundaries() -> str:
 def render_next_steps(stage: str) -> str:
     if stage == "multimodal_current_email_offline_ready_live_pending":
         steps = [
-            "Keep `EMAIL_AGENT_LLM_PROVIDER=disabled` outside a separately authorized, bounded live test process; offline completion does not authorize live operation.",
-            "Task 9 synthetic provider and current-clicked Tencent smokes are complete; no prior check authorizes another live operation.",
-            "Task 5 real current-message attachment smoke remains pending and requires fresh explicit authorization after offline review; do not navigate, scan, send, or disclose content.",
+            "Keep `EMAIL_AGENT_LLM_PROVIDER=disabled` and `EMAIL_AGENT_TEXT_FALLBACK_PROVIDER=disabled` outside a separately authorized, bounded live test process; all providers remain disabled by default, and offline completion does not authorize live operation.",
+            "Task 9 synthetic provider and current-clicked Tencent smokes are complete. Task 9 forced OpenAI-to-DeepSeek synthetic fallback is complete: one OpenAI attempt was intercepted before network access, exactly one DeepSeek text-only request was made, DeepSeek SDK retries were zero, and no SQLite write occurred. The root `.env` was unchanged.",
+            "Task 9 semantic accuracy repair is offline complete. A parsed attachment status does not prove semantic correctness. The evidence-reconciliation and private human gold-standard gates pass offline and the reviewed repair is integrated into the current release line.",
+            "Any new live operation still requires fresh explicit authorization.",
             "Keep the administrator-only mailbox CLI and click-only current-message runtime as separate authorization surfaces.",
-            "Run the content-free repository leakage scan and complete local human review before any release.",
+            "Run the content-free repository leakage scan and complete final verification before release; preserve unrelated working-copy changes and keep any remote push separate.",
         ]
     elif stage == "authorized_private_analysis_offline_ready":
         steps = [
@@ -449,7 +450,7 @@ The private-knowledge snapshot is verified and read-only; an invalid or missing 
 
 Current-message attachment acquisition recognizes only a verified legacy current-message control after Analyze and keeps automatic bytes in browser memory. The manual picker selection is inert until Analyze. Both paths share 5 files, 10 MiB per file, and 25 MiB total, add no download/storage/filesystem permission, and expose no local path. Backend request-local files are removed from request `finally`; the 24-hour mtime cleanup is crash recovery only, not normal retention or a scheduled job. Only `attachment_insights[].status=parsed` proves content parsing.
 
-Task 9 synthetic provider and current-clicked Tencent smokes are complete. The bounded checks inspected only approved status fields and structural counts; no prior check authorizes another live operation. Task 5 real current-message attachment smoke remains pending and requires fresh explicit authorization after offline Tasks 1-4 pass review. The new attachment acquisition path is not live-tested.
+Prior Task 9 synthetic and current-clicked smokes remain valid acquisition, routing, status, and cleanup evidence only. Task 9 semantic accuracy repair is offline complete. A parsed attachment status does not prove semantic correctness. Current/history evidence alignment, provider-visible attachment coverage, deterministic reconciliation safeguards, and the documented private human gold-standard method now pass the offline gate; the reviewed repair is integrated into the current release line. Any new live operation still requires fresh explicit authorization. All providers remain disabled by default.
 
 The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器扩展, with current-message collection only after an explicit user click.
 

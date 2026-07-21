@@ -147,9 +147,10 @@ class AttachmentModelContextTests(unittest.TestCase):
     def test_attachment_context_uses_token_safe_truncation_at_its_real_limit(self) -> None:
         token = "alice@acme.example"
         token_end = MAX_MODEL_CHARACTERS_PER_ATTACHMENT + 1
-        filler_length = token_end - len("safe ") - 1 - len(token)
+        lead = "A complete sentence. "
+        filler_length = token_end - len(lead) - 1 - len(token)
         raw = (
-            "safe " + ("甲" * filler_length) + " " + token
+            lead + ("甲" * (filler_length - 1)) + ". " + token
             + " trailing " + ("tail " * 30)
         )
 
@@ -164,6 +165,46 @@ class AttachmentModelContextTests(unittest.TestCase):
             len(context[0].text),
             MAX_MODEL_CHARACTERS_PER_ATTACHMENT,
         )
+
+    def test_attachment_context_retains_complete_cjk_sentences_without_spaces(self) -> None:
+        sentence = "完整中文句子。"
+        raw = sentence * (
+            MAX_MODEL_CHARACTERS_PER_ATTACHMENT // len(sentence) + 20
+        )
+
+        context = build_attachment_model_context(
+            (AttachmentModelCandidate("attachment:0", raw),)
+        )
+
+        self.assertEqual(1, len(context))
+        self.assertTrue(context[0].truncated)
+        self.assertTrue(context[0].text)
+        self.assertTrue(context[0].text.endswith("。"))
+        self.assertTrue(raw.startswith(context[0].text))
+        self.assertLessEqual(
+            len(context[0].text),
+            MAX_MODEL_CHARACTERS_PER_ATTACHMENT,
+        )
+
+    def test_attachment_context_prefers_later_cjk_boundary_after_early_space(self) -> None:
+        sentence = "完整中文句子。"
+        for lead in ("标题 ", "标题\n"):
+            with self.subTest(lead=ascii(lead)):
+                raw = lead + sentence * (
+                    MAX_MODEL_CHARACTERS_PER_ATTACHMENT // len(sentence) + 20
+                )
+
+                context = build_attachment_model_context(
+                    (AttachmentModelCandidate("attachment:0", raw),)
+                )
+
+                self.assertEqual(1, len(context))
+                self.assertTrue(context[0].truncated)
+                self.assertGreater(
+                    len(context[0].text),
+                    MAX_MODEL_CHARACTERS_PER_ATTACHMENT - 100,
+                )
+                self.assertTrue(context[0].text.endswith("。"))
 
     def test_normal_long_remote_text_remains_nonempty_and_bounded(self) -> None:
         sanitized = sanitize_remote_text("ordinary word " * 100, max_characters=80)
@@ -188,7 +229,7 @@ class AttachmentModelContextTests(unittest.TestCase):
         self.assertTrue(context[0].link_was_present)
 
     def test_attachment_context_obeys_per_item_total_limits_and_input_order(self) -> None:
-        raw = "ordinary business detail " * 400
+        raw = "Ordinary business detail. " * 400
         candidates = tuple(
             AttachmentModelCandidate(f"attachment:{index}", raw)
             for index in range(5)
@@ -198,7 +239,13 @@ class AttachmentModelContextTests(unittest.TestCase):
 
         self.assertEqual(
             tuple(item.source_id for item in items),
-            ("attachment:0", "attachment:1", "attachment:2", "attachment:3"),
+            (
+                "attachment:0",
+                "attachment:1",
+                "attachment:2",
+                "attachment:3",
+                "attachment:4",
+            ),
         )
         self.assertTrue(
             all(len(item.text) <= MAX_MODEL_CHARACTERS_PER_ATTACHMENT for item in items)
@@ -207,7 +254,7 @@ class AttachmentModelContextTests(unittest.TestCase):
             sum(len(item.text) for item in items),
             MAX_MODEL_CHARACTERS_TOTAL,
         )
-        self.assertTrue(all(item.text.endswith("detail") for item in items))
+        self.assertTrue(all(item.text.endswith("detail.") for item in items))
         self.assertTrue(all(item.truncated for item in items))
 
     def test_empty_sanitized_candidates_are_not_accepted(self) -> None:

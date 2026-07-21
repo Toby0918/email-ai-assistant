@@ -2,9 +2,55 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 
 from .email_facts import EmailFacts, extract_email_facts
+
+
+ATTACHMENT_SEMANTIC_REVIEW = (
+    "已解析附件未提取到结构化业务事实；回复前需人工核查附件是否影响当前结论。"
+)
+QUANTITY_SCOPE_REVIEW = (
+    "邮件正文或不同附件中存在多个不同数量；回复前需人工核对各数值的业务含义和适用范围。"
+)
+_QUANTITY_NUMBER = (
+    r"(?:\d{1,3}(?:,\d{3}){1,3}|\d{1,9})(?:\.\d{1,4})?"
+)
+_QUANTITY_RE = re.compile(
+    r"^(?:Quantity:\s*|MOQ\s+)?"
+    rf"(?P<values>{_QUANTITY_NUMBER}"
+    rf"(?:\s*/\s*{_QUANTITY_NUMBER}){{0,3}})"
+    r"(?:\s*(?P<unit>pc|pcs|piece|pieces|unit|units|set|sets|"
+    r"kg|g|lb|lbs|件|个|套))?$",
+    re.IGNORECASE,
+)
+_QUANTITY_UNITS = {
+    "pc": "count",
+    "pcs": "count",
+    "piece": "count",
+    "pieces": "count",
+    "件": "count",
+    "个": "count",
+    "unit": "count",
+    "units": "count",
+    "set": "sets",
+    "sets": "sets",
+    "套": "sets",
+    "kg": "kg",
+    "g": "g",
+    "lb": "lbs",
+    "lbs": "lbs",
+}
+_BUSINESS_FACT_PREFIXES = (
+    "reference:",
+    "quantity:",
+    "measurement:",
+    "amount:",
+    "deadline:",
+    "requested action:",
+    "quality issue:",
+)
 
 
 @dataclass(frozen=True)
@@ -64,9 +110,34 @@ def attachment_check_items(insights: list[dict[str, object]]) -> list[str]:
         filename = str(insight.get("filename") or "附件")
         if insight.get("status") != "parsed":
             items.append(f"人工核查未完成解析的附件 {filename}")
-        elif insight.get("limitations"):
-            items.append(f"核查附件 {filename} 的解析范围和限制")
+        else:
+            facts = insight.get("key_facts")
+            if not _has_business_attachment_fact(facts):
+                items.append(ATTACHMENT_SEMANTIC_REVIEW)
+            if insight.get("limitations"):
+                items.append(f"核查附件 {filename} 的解析范围和限制")
     return items
+
+
+def cross_source_quantity_check_items(
+    message_facts: EmailFacts,
+    insights: list[dict[str, object]],
+) -> list[str]:
+    """Flag disjoint quantity evidence without guessing which source is right."""
+    sources = [_quantity_values(message_facts.quantities)]
+    sources.extend(
+        values
+        for insight in insights
+        if insight.get("status") == "parsed"
+        for values in [_attachment_quantity_values(insight)]
+        if values
+    )
+    populated = [source for source in sources if source]
+    for index, left in enumerate(populated):
+        for right in populated[index + 1 :]:
+            if _quantity_sources_differ(left, right):
+                return [QUANTITY_SCOPE_REVIEW]
+    return []
 
 
 def attachment_limitation_items(insights: list[dict[str, object]]) -> list[str]:
@@ -101,6 +172,66 @@ def _parsed_attachment_text(insights: list[dict[str, object]]) -> str:
         if isinstance(facts, list):
             values.extend(str(item) for item in facts if isinstance(item, str))
     return _join(*values)
+
+
+def _attachment_quantity_values(
+    insight: dict[str, object],
+) -> dict[str, set[str]]:
+    facts = insight.get("key_facts")
+    if not isinstance(facts, list):
+        return {}
+    return _quantity_values([
+        fact
+        for fact in facts
+        if isinstance(fact, str)
+        and fact.strip().casefold().startswith(("quantity:", "moq "))
+    ])
+
+
+def _has_business_attachment_fact(facts: object) -> bool:
+    if not isinstance(facts, list):
+        return False
+    return any(
+        isinstance(fact, str)
+        and fact.strip().casefold().startswith(_BUSINESS_FACT_PREFIXES)
+        for fact in facts
+    )
+
+
+def _quantity_values(facts: list[str]) -> dict[str, set[str]]:
+    values: dict[str, set[str]] = {}
+    for fact in facts:
+        match = _QUANTITY_RE.fullmatch(fact.strip())
+        if match is None:
+            continue
+        raw_unit = match.group("unit")
+        unit = _QUANTITY_UNITS[raw_unit.casefold()] if raw_unit else "unspecified"
+        normalized = {
+            part.replace(",", "")
+            for part in re.split(r"\s*/\s*", match.group("values"))
+        }
+        values.setdefault(unit, set()).update(normalized)
+    return values
+
+
+def _quantity_sources_differ(
+    left: dict[str, set[str]],
+    right: dict[str, set[str]],
+) -> bool:
+    if "unspecified" in left or "unspecified" in right:
+        left_values = set().union(*left.values())
+        right_values = set().union(*right.values())
+        return _quantity_sets_differ(left_values, right_values)
+    return any(
+        _quantity_sets_differ(left[unit], right[unit])
+        for unit in left.keys() & right.keys()
+    )
+
+
+def _quantity_sets_differ(left: set[str], right: set[str]) -> bool:
+    return left.isdisjoint(right) or not (
+        left.issubset(right) or right.issubset(left)
+    )
 
 
 def _merge_facts(primary: EmailFacts, secondary: EmailFacts) -> EmailFacts:

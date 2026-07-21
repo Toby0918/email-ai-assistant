@@ -60,12 +60,39 @@ ATTACHMENT_TOUCHED_ACTIVE_DOCS = frozenset(
     }
 )
 
+AUTOMATIC_ATTACHMENT_SMOKE_TOUCHED_DOCS = frozenset(
+    {
+        "docs/operations/testing_checklist.md",
+        "docs/product/roadmap.md",
+        "docs/operations/multimodal_current_email_analysis_task_brief.md",
+    }
+)
+
 ATTACHMENT_STATUS_SURFACES = (
     "docs/operations/testing_checklist.md",
     "docs/product/roadmap.md",
     "docs/operations/multimodal_current_email_analysis_task_brief.md",
     "docs/operations/project_status_log.md",
     "scripts/generate_project_status.py",
+)
+
+ATTACHMENT_SMOKE_MARKERS = (
+    "Attachment Task 5 bounded automatic current-message smoke is complete",
+    "two automatic attachment insights reported `parsed`",
+    "zero non-parsed attachment insights",
+    "remote providers were disabled",
+    "request temporary directory returned to zero files",
+)
+
+TASK9_REPAIR_MARKERS = (
+    "Task 9 semantic accuracy repair is offline complete",
+    "parsed attachment status does not prove semantic correctness",
+    "Any new live operation still requires fresh explicit authorization",
+)
+
+STALE_ATTACHMENT_SMOKE_CLAIMS = (
+    "Task 5 real current-message attachment smoke remains pending",
+    "The new attachment acquisition path is not live-tested",
 )
 
 PRIOR_TASK9_STATUS_DOCS = (
@@ -268,7 +295,7 @@ class MultimodalDocumentationContractTests(unittest.TestCase):
             with self.subTest(marker=marker):
                 self.assertIn(marker, text)
 
-    def test_completed_task9_and_pending_attachment_smoke_are_distinguished(self) -> None:
+    def test_bounded_smokes_do_not_close_task9_semantic_gates(self) -> None:
         combined = self._read("docs/product/roadmap.md") + self._read(
             "docs/operations/multimodal_current_email_analysis_task_brief.md"
         )
@@ -277,9 +304,7 @@ class MultimodalDocumentationContractTests(unittest.TestCase):
             "multimodal_current_email_offline_ready_live_pending",
             "Tasks 1-7",
             "review-clean",
-            "Task 9 synthetic provider and current-clicked Tencent smokes are complete",
-            "Task 5 real current-message attachment smoke remains pending",
-            "fresh explicit authorization",
+            *TASK9_REPAIR_MARKERS,
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, combined)
@@ -294,12 +319,13 @@ class MultimodalDocumentationContractTests(unittest.TestCase):
             report,
         )
         self.assertIn("Tasks 1-7", report)
-        self.assertIn(
-            "Task 9 synthetic provider and current-clicked Tencent smokes are complete",
-            report,
-        )
-        self.assertIn("Task 5 real current-message attachment smoke remains pending", report)
-        self.assertIn("fresh explicit authorization", report)
+        for marker in TASK9_REPAIR_MARKERS:
+            with self.subTest(marker=marker):
+                self.assertIn(marker, " ".join(report.split()))
+        self.assertNotIn("remaining Task 9 gate is final master integration", report)
+        for stale_claim in STALE_ATTACHMENT_SMOKE_CLAIMS:
+            with self.subTest(stale_claim=stale_claim):
+                self.assertNotIn(stale_claim, report)
         self.assertNotIn("current-clicked Tencent smoke remains pending", report)
 
     def test_root_readme_tracks_the_current_multimodal_release(self) -> None:
@@ -331,7 +357,8 @@ class MultimodalDocumentationContractTests(unittest.TestCase):
             DISCLOSURE,
             "all providers disabled by default",
             "Task 9 synthetic provider and current-clicked Tencent smokes are complete",
-            "Task 5 real current-message attachment smoke remains pending",
+            "Task 9 semantic accuracy repair is offline complete",
+            "parsed attachment status does not prove semantic correctness",
             "fresh explicit authorization",
             "用户点击按钮后分析当前打开的一封邮件。",
             "不自动扫描邮箱或批量分析所有邮件。",
@@ -342,38 +369,33 @@ class MultimodalDocumentationContractTests(unittest.TestCase):
                 self.assertIn(marker, readme)
         self.assertNotIn("`0.2.2`", readme)
         self.assertNotIn("has **not** been run by this project task", readme)
+        for stale_claim in STALE_ATTACHMENT_SMOKE_CLAIMS:
+            with self.subTest(stale_claim=stale_claim):
+                self.assertNotIn(stale_claim, readme)
 
     def test_all_attachment_status_surfaces_use_the_current_live_boundary(self) -> None:
         for relative in ATTACHMENT_STATUS_SURFACES:
             text = self._read(relative)
             with self.subTest(path=relative, marker="old pending status"):
                 self.assertNotIn("current-clicked Tencent smoke remains pending", text)
-            for marker in (
-                "Task 9 synthetic provider",
-                "current-clicked Tencent smokes are complete",
-                "Task 5 real current-message attachment smoke remains pending",
-                "not live-tested",
-                "fresh explicit authorization",
-            ):
+            for marker in TASK9_REPAIR_MARKERS:
                 with self.subTest(path=relative, marker=marker):
-                    self.assertIn(marker, text)
+                    self.assertIn(marker, " ".join(text.split()))
+            self.assertNotIn("remaining Task 9 gate is final master integration", text)
+            for stale_claim in STALE_ATTACHMENT_SMOKE_CLAIMS:
+                with self.subTest(path=relative, stale_claim=stale_claim):
+                    self.assertNotIn(stale_claim, text)
 
     def test_prior_task9_docs_distinguish_completed_smokes_from_new_task5(self) -> None:
         obsolete_markers = (
             "current-clicked Tencent smoke remains pending",
             "current-clicked Tencent validation remains pending",
         )
-        current_markers = (
-            "Task 9 synthetic provider and current-clicked Tencent smokes are complete",
-            "remaining Task 9 gates",
-            "Task 5 real current-message attachment smoke remains pending",
-            "not live-tested",
-            "fresh explicit authorization",
-        )
+        current_markers = TASK9_REPAIR_MARKERS
         for relative in PRIOR_TASK9_STATUS_DOCS:
             text = self._read(relative)
             with self.subTest(path=relative, marker="approved date"):
-                self.assertIn("\nlast_update: 2026-07-18\n", text[:300])
+                self.assertIn("\nlast_update: 2026-07-20\n", text[:300])
             for marker in obsolete_markers:
                 with self.subTest(path=relative, marker=marker):
                     self.assertNotIn(marker, text)
@@ -401,7 +423,9 @@ class MultimodalDocumentationContractTests(unittest.TestCase):
         for relative in ACTIVE_DOCS:
             text = self._read(relative)
             expected_date = (
-                "2026-07-18"
+                "2026-07-20"
+                if relative in AUTOMATIC_ATTACHMENT_SMOKE_TOUCHED_DOCS
+                else "2026-07-18"
                 if relative in ATTACHMENT_TOUCHED_ACTIVE_DOCS
                 else "2026-07-17"
                 if relative in OPENAI_TOUCHED_ACTIVE_DOCS
@@ -489,8 +513,9 @@ class MultimodalDocumentationContractTests(unittest.TestCase):
                 "request `finally`",
             ),
             "docs/operations/testing_checklist.md": (
-                "fresh explicit authorization",
-                "Task 5 real current-message attachment smoke remains pending",
+                "Attachment Task 5 remains valid acquisition/cleanup evidence only",
+                "parsed attachment status does not prove semantic correctness",
+                "Any new live operation still requires fresh explicit authorization",
                 "24-hour mtime cleanup is crash recovery only",
             ),
             "docs/operations/current_email_grounding_and_attachment_repair_task_brief.md": (

@@ -35,6 +35,11 @@ Analyze 控件前必须持续展示以下 exact persistent disclosure：
 6. The backend uses request-local temporary files and deletes them from request `finally` on success and every failure. The 24-hour mtime cleanup is crash recovery only, not routine retention or a scheduled job.
 7. The UI derives status only from the returned enum: only `attachment_insights[].status == "parsed"` proves content parsing. Discovery, metadata, counts, `metadata_only`, `unavailable`, or `failed` do not.
 
+When verified visible-thread segmentation is incomplete, the frontend may send the
+backward-compatible optional request boolean `thread_context_limited`. Only literal
+`true` is honored. It carries no diagnostic text or page-derived value and does not
+change the public response schema.
+
 ## 共享结果呈现契约
 
 - Chrome / Edge extension 与 local debug page 共同使用 `frontend/browser_extension/shared/render_analysis.js` 和 `frontend/browser_extension/shared/analysis_components.css`，不得维护两套字段解释或 CSS 排版。

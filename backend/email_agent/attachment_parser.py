@@ -6,7 +6,7 @@ import multiprocessing
 import pickle
 import time
 from collections.abc import Callable
-from multiprocessing.connection import BUFSIZE, Connection
+from multiprocessing.connection import Connection
 from multiprocessing.context import BaseContext
 from typing import Any
 
@@ -28,6 +28,10 @@ from .attachment_worker_control import (
     START_FAILED,
     cleanup_process,
     start_process_with_timeout,
+)
+from .attachment_worker_transport import (
+    MAX_WORKER_MESSAGE_BYTES as _MAX_WORKER_MESSAGE_BYTES,
+    receive_worker_message as _receive_message,
 )
 from .attachment_docx import (
     MAX_DOCX_CELLS_PER_ROW,
@@ -56,9 +60,6 @@ MAX_IMAGE_PIXELS = 25_000_000
 OCR_TIMEOUT_SECONDS = 5
 _TIMEOUT_LIMITATION = "Attachment parsing timed out; content was not parsed."
 _WORKER_FAILURE_LIMITATION = "Attachment content could not be parsed in the isolated worker."
-_POLL_INTERVAL_SECONDS = 0.05
-_MAX_WORKER_MESSAGE_BYTES = BUFSIZE // 2
-
 _ALLOWED_SUFFIXES = {
     "pdf": {".pdf"},
     "xlsx": {".xlsx"},
@@ -171,35 +172,6 @@ def _parse_in_worker(
         _safe_call(receive_connection.close)
         if process is not None and start_state in {None, STARTED}:
             cleanup_process(process, max(0.0, deadline - clock()))
-
-
-def _receive_message(
-    process: Any,
-    receive_connection: Connection,
-    deadline: float,
-    clock: Callable[[], float],
-) -> tuple[object | None, bool]:
-    while True:
-        remaining = deadline - clock()
-        if remaining <= 0:
-            return None, True
-        if _process_alive(process) is False:
-            break
-        _safe_call(process.join, min(_POLL_INTERVAL_SECONDS, remaining))
-    try:
-        if clock() >= deadline:
-            return None, True
-        if not receive_connection.poll(0):
-            return None, False
-        payload = receive_connection.recv_bytes(_MAX_WORKER_MESSAGE_BYTES)
-        return pickle.loads(payload), False
-    except Exception:
-        return None, False
-
-
-def _process_alive(process: Any) -> bool | None:
-    value = _safe_call(process.is_alive)
-    return value if isinstance(value, bool) else None
 
 
 def _safe_call(operation: Callable[..., object], *args: object) -> object | None:

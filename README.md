@@ -27,7 +27,7 @@
 - Current unpacked extension version: `0.2.3`.
 - 当前远程分析路线为 one OpenAI multimodal primary call、最多 one eligible DeepSeek text-only fallback、deterministic rules last；all providers disabled by default。
 - Task 9 synthetic provider and current-clicked Tencent smokes are complete；这些有界测试不授权后续新的真实邮箱操作。
-- Task 5 real current-message attachment smoke remains pending，新的自动附件获取路径仍是 not live-tested，并需要 fresh explicit authorization。
+- Task 9 semantic accuracy repair is offline complete；parsed attachment status does not prove semantic correctness。当前/历史证据对齐、附件语义校验和确定性事实协调已通过离线门禁；任何新的真实操作仍需要 fresh explicit authorization。
 
 详细状态、预算与媒体边界见 `docs/operations/project_status_log.md` 和 `docs/decisions/0007-multimodal-current-email-analysis.md`。
 
@@ -171,7 +171,7 @@ Health and troubleshooting:
 - If the extension cannot reach the backend, confirm port `8765`, restart the local service, then reload extension version `0.2.3`.
 - If image text is unavailable, install the Tesseract executable for optional OCR or accept the safe metadata-only degradation.
 
-Automated tests and synthetic fixtures cover the phase-two attachment/thread flow and lifecycle behavior. Task 9 synthetic provider and current-clicked Tencent smokes are complete for their approved bounded checks. Task 5 real current-message attachment smoke remains pending: the new automatic attachment acquisition path is not live-tested and requires fresh explicit authorization. A previous smoke does not authorize mailbox navigation, scanning, sending, or another live provider call.
+Automated tests and synthetic fixtures cover the phase-two attachment/thread flow and lifecycle behavior. Task 9 synthetic provider and current-clicked Tencent smokes are complete for their approved bounded checks, and Task 9 semantic accuracy repair is offline complete. A parsed attachment status does not prove semantic correctness; the evidence-reconciliation and private human gold-standard gates pass offline. Fresh explicit authorization is still required for any new live operation, and no previous smoke authorizes mailbox navigation, scanning, sending, or another live provider call.
 
 ## 可执行检查
 

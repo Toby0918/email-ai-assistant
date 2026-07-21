@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-15
+last_update: 2026-07-20
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -16,6 +16,76 @@ mailbox reader, knowledge authority reader, or production model switch. Automate
 tests use synthetic fake clients only. The evaluator never serializes a rendered
 prompt, raw input, provider response, case-level outcome, human-judge view, or
 source sample.
+
+## Documentation-only V2 gold-standard contract
+
+This section is a documentation-only V2 contract for a future separately
+authorized implementation. Task 9 does not implement V2 and does not open a real
+V2 dataset. Current staging, build, verify, and run code continues to implement
+only the V1 contract below.
+
+V1 compatibility is mandatory: V1 datasets remain valid and readable through the
+V1 path, a future reader must dispatch by the exact schema version, and there is
+no in-place V1-to-V2 migration. A V2 build must create a new encrypted frame with
+a fresh namespace, nonce, V2-specific purpose, and independently reviewed cases;
+it must never rewrite or silently reinterpret a V1 dataset.
+
+### Ordered deidentified evidence
+
+`PrivateEvaluationCaseV2` replaces the single flattened thread field with an
+immutable tuple of `DeidentifiedThreadSegmentV2` values. Segments are ordered
+oldest-to-newest, have contiguous positions, use an opaque random segment ID, and
+carry a fixed role such as `historical_message` or `current_message`. Exactly one
+segment is the current message. Every segment is independently deidentified,
+residual-scanned, bounded, and contains no raw mailbox identifier, address,
+filename, URL, path, source hash, restoration value, or exact business identifier.
+
+Each case is derived from one selected exact current raw record. After local
+deidentification, that record appears exactly once as `current_message` and must not reappear as historical_message.
+The current request must bind to that current_message segment. A missing,
+duplicated, ambiguous, or differently bound current segment must fail closed
+before reference authoring or candidate generation.
+
+The case also contains reviewed attachment bindings as immutable
+`ReviewedAttachmentBindingV2` values. Each binding uses an opaque random binding
+ID, points only to an in-case segment ID, records a fixed attachment kind plus
+content/truncation/limitation state, and carries bounded deidentified extracted or
+visual evidence. It contains no binary, private locator, filename, URL, path,
+cookie, token, mailbox ID, or content-derived hash. An attachment enters V2 only
+after its text or visual evidence and its segment association receive current
+business and privacy_security review; `parsed` status alone is not approval or a
+semantic correctness label.
+
+Both approvals bind one immutable attachment evidence-and-association revision; any evidence, truncation state, limitation, or segment association changes invalidates both approvals and must fail closed until independent reviewers have approved the new revision.
+
+### Encrypted structured human gold
+
+Each case binds an encrypted `StructuredHumanReferenceV2`. It records a bounded
+human-authored current request, resolved historical decisions, cross-source
+findings, required checks, expected category/risks/actions, reply constraints, and
+opaque evidence bindings to the ordered segments or reviewed attachments. It may
+not contain raw quotations or identifiers. Every material reference statement
+must be evidence-bound, and the reference revision requires independent business and privacy_security approvals by distinct actors.
+
+Strict candidate/reference separation applies. The structured reference is
+authored, reviewed, approved, and cryptographically sealed before candidate generation.
+Candidate generation receives only the approved deidentified evidence and cannot access or decrypt the reference, approvals, rubric, or prior verdict.
+A reference author cannot see candidate output; a candidate cannot write, revise,
+or approve the reference. The interactive comparison presents the same complete
+deidentified evidence, the sealed reference criteria, and one unlabeled candidate
+to a blinded human judge without provider and model identity, route, latency,
+fallback label, or previous verdict. The judge remains a human decision maker;
+model self-grading is prohibited.
+
+Only aggregate-only reporting may persist. The prohibited artifacts include raw ChatGPT transcripts
+used as source, reference, fixture, report, or training artifacts. A manually
+consulted second opinion must be rewritten as a new structured human reference and
+approved from the deidentified evidence; its transcript is not retained. The
+prohibited operations include automatic training, automatic upload of a
+dataset/reference as a training corpus, model self-grading, and any automatic production model switch.
+A future training or V2
+execution project requires a new written plan, authorization gate, implementation,
+and offline review; this Task 9 documentation grants none of them.
 
 ## Reviewed evaluation staging
 
@@ -35,7 +105,8 @@ inventory fingerprint before plaintext release, performs no evidence accumulatio
 and retains no domain, message/thread ID, or other raw-derived identifier across
 records. The final case uses fixed identifier-free subject,
 sender, recipients, and time values; only the deidentified full mail text enters
-`thread_text`, and attachments are empty. Any residual or callback failure rejects
+`thread_text`, and attachments are empty. This is intentional V1 behavior, not the
+future reviewed-attachment V2 contract. Any residual or callback failure rejects
 the complete 200-case batch and writes no partial file.
 
 The output suffix is exactly `.pkevalstage`. It uses AES-256-GCM, a fresh random

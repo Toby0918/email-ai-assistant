@@ -54,9 +54,8 @@ class DeepSeekPromptContextTests(unittest.TestCase):
         self,
     ) -> None:
         instruction = (
-            "For each visual source, inspect its media; emit one source-bound "
-            "attachment_augmentations item with evidence for every leaf only if "
-            "a listed observation is visible."
+            "Inspect media; emit one source-bound attachment_augmentations item with "
+            "leaf evidence only for a visible observation."
         )
 
         self.assertIn(instruction, OPENAI_MULTIMODAL_SYSTEM_PROMPT)
@@ -75,7 +74,7 @@ class DeepSeekPromptContextTests(unittest.TestCase):
             OPENAI_MULTIMODAL_SYSTEM_PROMPT,
         )
         self.assertIn(
-            "Each attachment summary/key_facts leaf must exactly use one of these complete",
+            "Visual attachment leaves: use one of these qualitative business observations",
             OPENAI_MULTIMODAL_SYSTEM_PROMPT,
         )
         self.assertIn(
@@ -234,7 +233,10 @@ class DeepSeekPromptContextTests(unittest.TestCase):
             "every claimed source independently supports the claim",
             "Unknown sources are forbidden",
             "unparsed sources are forbidden",
-            "Each attachment augmentation must cite its own parsed attachment source",
+            "Exactly one source-bound augmentation is required per sent attachment",
+            "Text attachment leaves: copy one complete source sentence verbatim; no translation/paraphrase",
+            "message_role=current|history",
+            "history_position is zero-based oldest-to-newest",
         )
 
         for text in required:
@@ -266,6 +268,35 @@ class DeepSeekPromptContextTests(unittest.TestCase):
         )
         self.assertEqual(example["attachment_augmentations"], [])
         self.assertTrue(example["field_evidence"])
+
+    def test_thread_sources_declare_current_role_and_chronological_history(self) -> None:
+        context = dict(self.context)
+        current = self.timeline.sources[0]
+        oldest = ThreadSource(
+            "thread:1", "Buyer", "Sales", "", "Earlier", "Oldest history."
+        )
+        newest = ThreadSource(
+            "thread:2", "Sales", "Buyer", "", "Follow-up", "Newest history."
+        )
+
+        prompt, _ = build_deepseek_untrusted_context(
+            **context,
+            thread_sources=(current, oldest, newest),
+        )
+        thread_sources = [
+            item for item in json.loads(prompt)["sources"]
+            if item["kind"] == "thread"
+        ]
+
+        self.assertEqual(
+            [item["message_role"] for item in thread_sources],
+            ["current", "history", "history"],
+        )
+        self.assertNotIn("history_position", thread_sources[0])
+        self.assertEqual(
+            [item["history_position"] for item in thread_sources[1:]],
+            [0, 1],
+        )
 
     def test_canonical_contract_covers_every_shape_type_enum_and_evidence_rule(self) -> None:
         rendered = render_analysis_contract()

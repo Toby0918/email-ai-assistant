@@ -40,6 +40,18 @@ def safe_decision_brief(
     return result
 
 
+def retain_decision_safeguards(
+    value: Mapping[str, Any], fallback: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Keep deterministic review gates while retaining safe model additions."""
+    result = copy.deepcopy(value)
+    for field in ("must_check", "missing_info"):
+        result[field] = _stable_unique_strings(
+            [*fallback[field], *result[field]]
+        )
+    return result
+
+
 def safe_timeline_interpretation(
     value: dict[str, Any],
     timeline: TimelineBuild,
@@ -98,3 +110,14 @@ def _safe_timeline_updates(
 
 def _safe_chinese(*values: str) -> bool:
     return all(has_chinese(value) and is_safe_model_text(value) for value in values)
+
+
+def _stable_unique_strings(values: Sequence[str]) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        if value in seen:
+            continue
+        seen.add(value)
+        result.append(value)
+    return result

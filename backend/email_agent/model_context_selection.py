@@ -14,6 +14,7 @@ from .thread_timeline import ThreadSource, TimelineBuild, build_timeline_skeleto
 
 MAX_RELEVANT_HISTORY = 8
 MAX_RELEVANT_HISTORY_CHARACTERS = 16_000
+MAX_ADJACENT_HISTORY = 2
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,16 +31,25 @@ def select_model_context(
     *, subject: str, sender: str, recipients: list[str], cc: list[str],
     sent_at: str, clean_body: str, full_timeline: TimelineBuild,
     internal_domains: tuple[str, ...],
+    upstream_context_limited: bool,
 ) -> ModelContextSelection:
     """Keep the current message first and only a bounded relevant history slice."""
+    if type(upstream_context_limited) is not bool:
+        raise TypeError("upstream_context_limited must be a boolean")
     current_segment = _current_segment(
-        subject, sender, recipients, cc, sent_at, clean_body
+        subject, sender, recipients, sent_at, clean_body
     )
-    current_timeline = build_timeline_skeleton([current_segment], internal_domains)
+    current_timeline = build_timeline_skeleton(
+        [], internal_domains, trusted_current_segment=current_segment
+    )
     current_sources = current_timeline.sources
+    base_context_limited = _base_context_limited(
+        upstream_context_limited, full_timeline, current_timeline
+    )
     available = tuple(
         source for source in full_timeline.sources
-        if not _duplicates_current(source, current_segment)
+        if source.source_id != full_timeline.current_source_id
+        and not _duplicates_current(source, current_segment)
     )
     relevant = _select_history(
         available, subject=subject, sender=sender, recipients=recipients, cc=cc,
@@ -48,29 +58,46 @@ def select_model_context(
     if not relevant:
         return ModelContextSelection(
             current_timeline, current_sources, current_timeline, current_sources,
-            "current_only", bool(available),
+            "current_only", base_context_limited or bool(available),
         )
-    timeline = build_timeline_skeleton(
-        [*_segments(relevant), current_segment], internal_domains
+    timeline, current_source = _timeline_with_current(
+        relevant, current_segment, internal_domains
     )
-    current_matches = tuple(
-        source for source in timeline.sources
-        if _duplicates_current(source, current_segment)
-    )
-    if len(current_matches) != 1:
+    if current_source is None:
         return ModelContextSelection(
             current_timeline, current_sources, current_timeline, current_sources,
             "current_only", True,
         )
-    current_source = current_matches[0]
     history_sources = tuple(
         source for source in timeline.sources if source is not current_source
     )
     return ModelContextSelection(
         timeline, (current_source, *history_sources),
         current_timeline, current_sources, "relevant_history",
-        len(relevant) < len(available),
+        base_context_limited or len(relevant) < len(available),
     )
+
+
+def _timeline_with_current(
+    relevant: tuple[ThreadSource, ...], current_segment: dict[str, object],
+    internal_domains: tuple[str, ...],
+) -> tuple[TimelineBuild, ThreadSource | None]:
+    timeline = build_timeline_skeleton(
+        _segments(relevant), internal_domains,
+        trusted_current_segment=current_segment,
+    )
+    current = next(
+        (source for source in timeline.sources
+         if source.source_id == timeline.current_source_id),
+        None,
+    )
+    return timeline, current
+
+
+def _base_context_limited(
+    upstream: bool, full: TimelineBuild, current: TimelineBuild
+) -> bool:
+    return upstream or not full.coverage_complete or not current.coverage_complete
 
 
 def _select_history(
@@ -81,13 +108,25 @@ def _select_history(
     current_text = f"{subject}\n{clean_body}"
     identifiers = _identifiers(current_text)
     topics = frozenset(extract_topics(current_text))
+    body_identifiers = _identifiers(clean_body)
+    body_topics = frozenset(extract_topics(clean_body))
     participants = _participants((sender, *recipients, *cc), internal_domains)
-    candidates = [
-        source for source in sources
-        if _is_relevant(
-            source, identifiers, topics, participants, internal_domains,
-        )
-    ]
+    adjacent_ids = (
+        {source.source_id for source in sources[-MAX_ADJACENT_HISTORY:]}
+        if _needs_adjacent_history(clean_body, body_identifiers, body_topics)
+        else set()
+    )
+    if adjacent_ids:
+        candidates = [
+            source for source in sources if source.source_id in adjacent_ids
+        ]
+    else:
+        candidates = [
+            source for source in sources
+            if _is_relevant(
+                source, identifiers, topics, participants, internal_domains,
+            )
+        ]
     selected: list[ThreadSource] = []
     used = 0
     for source in reversed(candidates):
@@ -100,6 +139,20 @@ def _select_history(
         selected.append(source)
         used += size
     return tuple(reversed(selected))
+
+
+def _needs_adjacent_history(
+    current_body: str,
+    identifiers: frozenset[str],
+    topics: frozenset[str],
+) -> bool:
+    words = current_body.split()
+    return (
+        not identifiers
+        and not topics
+        and len(current_body) <= 320
+        and len(words) <= 40
+    )
 
 
 def _is_relevant(
@@ -135,21 +188,28 @@ def _participants(
 
 
 def _duplicates_current(source: ThreadSource, current: dict[str, object]) -> bool:
+    recipient = source.recipient.strip()
+    timestamp = source.timestamp_text.strip()
+    current_recipient = str(current["to"]).strip()
+    current_timestamp = str(current["sent_at"]).strip()
+    if not recipient or not timestamp or not current_recipient or not current_timestamp:
+        return False
     return (
         source.subject.strip() == str(current["subject"]).strip()
         and source.body.strip() == str(current["body_text"]).strip()
         and source.sender.strip().casefold() == str(current["from"]).strip().casefold()
+        and recipient == current_recipient
+        and timestamp == current_timestamp
     )
 
 
 def _current_segment(
-    subject: str, sender: str, recipients: list[str], cc: list[str],
-    sent_at: str, clean_body: str,
+    subject: str, sender: str, recipients: list[str], sent_at: str,
+    clean_body: str,
 ) -> dict[str, object]:
     return {
-        "position": 1_000_000,
         "from": sender,
-        "to": ", ".join((*recipients, *cc)),
+        "to": ", ".join(recipients),
         "sent_at": sent_at,
         "subject": subject,
         "body_text": clean_body,

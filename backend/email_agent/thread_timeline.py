@@ -50,6 +50,8 @@ class TimelineBuild:
     public_timeline: dict[str, object]
     open_items: tuple[TimelineOpenItem, ...]
     sources: tuple[ThreadSource, ...]
+    current_source_id: str | None = None
+    coverage_complete: bool = True
 
 
 def build_conversation_timeline(
@@ -60,20 +62,26 @@ def build_conversation_timeline(
 
 
 def build_timeline_skeleton(
-    segments: list[dict[str, str]], internal_domains: tuple[str, ...]
+    segments: list[object], internal_domains: tuple[str, ...], *,
+    trusted_current_segment: object | None = None,
 ) -> TimelineBuild:
     """Build the public timeline plus request-local factual source membership."""
-    ordered, timestamps_reliable, segment_coverage_complete = normalize_and_order_segments(segments)
+    ordered, timestamps_reliable, coverage_complete, current_appended = (
+        normalize_and_order_segments(
+        segments, trusted_current_segment=trusted_current_segment
+        )
+    )
     domains = _normalize_domains(internal_domains)
     sources = tuple(_thread_source(segment, index) for index, segment in enumerate(ordered))
     events = [
         _extract_event(segment, domains, source.source_id)
         for segment, source in zip(ordered, sources)
     ]
-    public_timeline, open_items = _summarize_progress(
-        events, timestamps_reliable, segment_coverage_complete
+    public_timeline, open_items, coverage_complete = _summarize_progress(
+        events, timestamps_reliable, coverage_complete
     )
-    return TimelineBuild(public_timeline, open_items, sources)
+    current_source_id = sources[-1].source_id if current_appended and sources else None
+    return TimelineBuild(public_timeline, open_items, sources, current_source_id, coverage_complete)
 
 
 def _thread_source(segment: dict[str, object], index: int) -> ThreadSource:
@@ -127,9 +135,9 @@ def _summarize_progress(
     events: list[dict[str, object]],
     timestamps_reliable: bool,
     segment_coverage_complete: bool,
-) -> tuple[dict[str, object], tuple[TimelineOpenItem, ...]]:
+) -> tuple[dict[str, object], tuple[TimelineOpenItem, ...], bool]:
     if not events:
-        return _unknown_timeline(segment_coverage_complete)
+        return (*_unknown_timeline(segment_coverage_complete), segment_coverage_complete)
 
     commitments = [event for event in events if event["commitment"]]
     request_states, request_coverage_complete = track_request_states(events)
@@ -163,7 +171,7 @@ def _summarize_progress(
             else "low"
         ),
     }
-    return public_timeline, open_items
+    return public_timeline, open_items, coverage_complete and open_item_coverage_complete
 
 
 def _status_and_open_items(

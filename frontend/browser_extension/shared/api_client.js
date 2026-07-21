@@ -91,6 +91,7 @@
       sent_at: stringValue(email.sent_at),
       body_text: stringValue(email.body_text),
       attachments: projectItems(email.attachments, ["filename", "size", "type"]),
+      thread_context_limited: email.thread_context_limited === true,
       thread_segments: projectItems(email.thread_segments, [
         "position", "from", "to", "sent_at", "timestamp_text", "subject", "body_text",
       ]),

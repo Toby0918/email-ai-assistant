@@ -193,7 +193,10 @@ class ModelGroundingTests(unittest.TestCase):
             "attachment:0": EvidenceSource(
                 "attachment:0",
                 "attachment",
-                "General synthetic drawing.",
+                (
+                    "Drawing reviewed. General drawing detail. "
+                    "General fact one. General fact two."
+                ),
                 "attachment:synthetic.pdf",
                 attachment_index=0,
                 parsed=True,
@@ -422,16 +425,17 @@ class ModelGroundingTests(unittest.TestCase):
         self.assertEqual([item.pointer for item in violations], ["/analysis/summary"])
         self.assertNotIn("PRIVATE_SOURCE", violations[0].reason)
 
-    def test_nonparsed_attachment_cannot_support_critical_facts(self) -> None:
+    def test_nonparsed_attachment_cannot_support_text_claims(self) -> None:
         envelope = valid_envelope()
         add_attachment_augmentation(envelope)
         pointer = "/attachment_augmentations/0/summary"
-        set_pointer(envelope, pointer, "Part PART-302 measures 12 x 30 mm.")
+        fact = "The drawing describes the sample packaging."
+        set_pointer(envelope, pointer, fact)
         sources = dict(self.sources)
         sources["attachment:0"] = EvidenceSource(
             "attachment:0",
             "attachment",
-            "Part PART-302 measures 12 x 30 mm.",
+            fact,
             "attachment:synthetic.pdf",
             attachment_index=0,
             parsed=False,
@@ -451,7 +455,7 @@ class ModelGroundingTests(unittest.TestCase):
         envelope = valid_envelope()
         add_attachment_augmentation(envelope)
         pointer = "/attachment_augmentations/0/summary"
-        fact = "Part PART-302 measures 12 x 30 mm."
+        fact = "The drawing describes the sample packaging."
         set_pointer(envelope, pointer, fact)
         sources = dict(self.sources)
         sources["thread:1"] = EvidenceSource(

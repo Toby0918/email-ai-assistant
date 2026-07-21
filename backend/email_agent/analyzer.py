@@ -21,7 +21,7 @@ from .attachment_model_context import AttachmentAnalysisBundle
 from .attachment_parser import bind_prepared_media_evidence, parse_attachment_bundles
 from .attachment_storage import StoredAttachment
 from .config import AppConfig, load_config
-from .email_cleaner import clean_email_body
+from .email_cleaner import clean_email_body, clean_thread_segment_text
 from .model_context_selection import select_model_context
 from .multimodal_media import (
     PreparedMediaAsset,
@@ -31,6 +31,7 @@ from .multimodal_media import (
 from .prompt_context import normalize_text_list
 from .resource_limitations import resource_limitation_insights
 from .rule_analyzer import build_rule_based_analysis
+from .thread_segments import MAX_THREAD_SEGMENTS
 from .thread_timeline import TimelineBuild, build_timeline_skeleton
 
 
@@ -54,7 +55,14 @@ def analyze_current_email(
     clean_body = clean_email_body(email.get("body_text"), email.get("body_html"))
     if not clean_body:
         raise AnalysisError("Email body is empty.")
-    timeline = _build_timeline(email.get("thread_segments"), current_config)
+    recipients = normalize_text_list(email.get("to"))
+    cc = normalize_text_list(email.get("cc"))
+    sent_at = _optional_text(email.get("sent_at"), 160)
+    timeline = _build_timeline(
+        email.get("thread_segments"), current_config,
+        subject=subject, sender=sender, recipients=recipients, cc=cc,
+        sent_at=sent_at, clean_body=clean_body,
+    )
     items = _stored_attachments(email.get("stored_attachments"))
     bundles = _parse_bundles(items, current_budget)
     prepared_media = _prepare_media(items)
@@ -68,6 +76,7 @@ def analyze_current_email(
         context = _route_context(
             email, subject, sender, clean_body, timeline, bundles, insights,
             fallback, current_config, current_budget, runtime_cards, prepared_media,
+            recipients=recipients, cc=cc, sent_at=sent_at,
         )
         return route_analysis(context, llm_generate, analysis_engine_label)
     finally:
@@ -80,10 +89,8 @@ def _route_context(
     insights: list[dict[str, object]], fallback: dict[str, Any],
     config: AppConfig, budget: AnalysisBudget, runtime_cards: tuple[object, ...],
     prepared_media: tuple[PreparedMediaAsset, ...],
+    *, recipients: list[str], cc: list[str], sent_at: str,
 ) -> AnalysisRouteContext:
-    recipients = normalize_text_list(email.get("to"))
-    cc = normalize_text_list(email.get("cc"))
-    sent_at = _optional_text(email.get("sent_at"), 160)
     model_context = select_model_context(
         subject=subject,
         sender=sender,
@@ -93,6 +100,7 @@ def _route_context(
         clean_body=clean_body,
         full_timeline=timeline,
         internal_domains=config.internal_email_domains,
+        upstream_context_limited=email.get("thread_context_limited") is True,
     )
     return AnalysisRouteContext(
         subject=subject, sender=sender, clean_body=clean_body,
@@ -106,12 +114,88 @@ def _route_context(
     )
 
 
-def _build_timeline(value: Any, config: AppConfig) -> TimelineBuild:
-    segments = value if isinstance(value, list) else []
+def _build_timeline(
+    value: Any, config: AppConfig, *, subject: str, sender: str,
+    recipients: list[str], cc: list[str], sent_at: str, clean_body: str,
+) -> TimelineBuild:
+    current = _current_timeline_segment(
+        subject=subject, sender=sender, recipients=recipients,
+        sent_at=sent_at, clean_body=clean_body,
+    )
+    segments = _timeline_segments(
+        value, current=current,
+    )
     try:
-        return build_timeline_skeleton(segments, config.internal_email_domains)
+        return build_timeline_skeleton(
+            segments,
+            config.internal_email_domains,
+            trusted_current_segment=current,
+        )
     except Exception:
-        return TimelineBuild(_failed_public_timeline(), (), ())
+        return TimelineBuild(
+            _failed_public_timeline(), (), (), coverage_complete=False
+        )
+
+
+def _timeline_segments(
+    value: Any, *, current: dict[str, object],
+) -> list[object]:
+    supplied = value if isinstance(value, list) else []
+    input_over_limit = len(supplied) > MAX_THREAD_SEGMENTS
+    candidates = supplied[-MAX_THREAD_SEGMENTS:] if input_over_limit else supplied
+    history = [
+        segment for segment in candidates
+        if not _raw_segment_duplicates_current(segment, current)
+    ]
+    if not input_over_limit:
+        return history
+    # Preserve the normalizer's incomplete-count signal even if an exact
+    # current-message duplicate was removed from the bounded history slice.
+    padding = [None] * (MAX_THREAD_SEGMENTS + 1 - len(history))
+    return [*history, *padding]
+
+
+def _current_timeline_segment(
+    *, subject: str, sender: str, recipients: list[str], sent_at: str,
+    clean_body: str,
+) -> dict[str, object]:
+    return {
+        "from": sender,
+        "to": ", ".join(recipients),
+        "sent_at": sent_at,
+        "subject": subject,
+        "body_text": clean_body,
+    }
+
+
+def _raw_segment_duplicates_current(segment: object, current: dict[str, object]) -> bool:
+    if not isinstance(segment, dict):
+        return False
+    recipient = segment.get("to")
+    timestamp = segment.get("sent_at")
+    current_recipient = str(current["to"]).strip()
+    current_timestamp = str(current["sent_at"]).strip()
+    if not (
+        isinstance(recipient, str)
+        and recipient.strip()
+        and current_recipient
+        and isinstance(timestamp, str)
+        and timestamp.strip()
+        and current_timestamp
+    ):
+        return False
+    body = clean_thread_segment_text(
+        segment.get("body_text"), segment.get("body_html")
+    )
+    current_body = clean_thread_segment_text(str(current["body_text"]))
+    return (
+        body == current_body
+        and str(segment.get("subject") or "").strip() == current["subject"]
+        and str(segment.get("from") or "").strip().casefold()
+        == str(current["from"]).strip().casefold()
+        and recipient.strip() == current_recipient
+        and timestamp.strip() == current_timestamp
+    )
 
 
 def _failed_public_timeline() -> dict[str, object]:

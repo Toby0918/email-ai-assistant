@@ -7,12 +7,20 @@ from typing import Any
 
 from .analysis_schema import validate_analysis_result
 from .deepseek_analysis_schema import validate_deepseek_analysis_v1, validate_envelope_evidence
-from .model_context_projection import safe_decision_brief, safe_timeline_interpretation
+from .evidence_source import EvidenceSource
+from .model_attachment_safety import (
+    require_complete_attachment_coverage,
+    safe_attachment_augmentations,
+)
+from .model_context_projection import (
+    retain_decision_safeguards,
+    safe_decision_brief,
+    safe_timeline_interpretation,
+)
 from .model_exact_fact_safety import contains_model_authored_exact_fact
 from .model_grounding import find_grounding_violations
 from .model_known_fact_consistency import known_moq_conflicting_fields
 from .model_text_safety import has_chinese, is_safe_model_text, looks_english, validate_public_language
-from .prompt_context import EvidenceSource
 from .thread_timeline import TimelineBuild
 _FIELDS = (
     "summary", "priority", "priority_reason", "category", "tags", "decision_brief",
@@ -36,27 +44,22 @@ def merge_deepseek_analysis_v1(
         private, raw = _validated_private(envelope, fallback)
         normalized_evidence = _validate_global_inputs(private, evidence, sources)
         violations = {item.pointer for item in find_grounding_violations(private, normalized_evidence, sources)}
+        require_complete_attachment_coverage(
+            private,
+            fallback,
+            sources,
+            violations,
+            normalized_evidence,
+        )
         public = _public_fallback(fallback)
         kept: set[str] = set()
         analysis = private["analysis"]
         raw_analysis = raw["analysis"]
         _merge_direct(public, analysis, violations, kept)
-        brief = safe_decision_brief(analysis["decision_brief"], sources, violations)
-        if brief is None:
-            kept.add("decision_brief")
-        else:
-            brief["key_facts"] = copy.deepcopy(
-                fallback["decision_brief"]["key_facts"]
-            )
-            public["decision_brief"] = brief
-        merged_timeline = safe_timeline_interpretation(
-            analysis["timeline_interpretation"], timeline, violations, normalized_evidence
+        _merge_context_fields(
+            public, fallback, analysis, timeline, sources,
+            violations, normalized_evidence, kept,
         )
-        if merged_timeline is None:
-            kept.add("conversation_timeline")
-            public["conversation_timeline"] = copy.deepcopy(timeline.public_timeline)
-        else:
-            public["conversation_timeline"] = merged_timeline
         _merge_extended(public, fallback, private, raw_analysis, sources, violations, kept)
         _retain_backend_exact_fact_fields(
             public, fallback, analysis, raw_analysis, kept,
@@ -74,6 +77,28 @@ def merge_deepseek_analysis_v1(
         return SafeMergeResult(public, used_model, fields)
     except Exception:
         return SafeMergeResult(_public_fallback(fallback), False, ("all",))
+
+
+def _merge_context_fields(
+    public: dict[str, Any], fallback: Mapping[str, Any], analysis: Mapping[str, Any],
+    timeline: TimelineBuild, sources: Mapping[str, EvidenceSource], violations: set[str],
+    evidence: Mapping[str, Sequence[str]], kept: set[str],
+) -> None:
+    brief = safe_decision_brief(analysis["decision_brief"], sources, violations)
+    if brief is None:
+        kept.add("decision_brief")
+    else:
+        brief = retain_decision_safeguards(brief, fallback["decision_brief"])
+        brief["key_facts"] = copy.deepcopy(fallback["decision_brief"]["key_facts"])
+        public["decision_brief"] = brief
+    merged_timeline = safe_timeline_interpretation(
+        analysis["timeline_interpretation"], timeline, violations, evidence,
+    )
+    if merged_timeline is None:
+        kept.add("conversation_timeline")
+        public["conversation_timeline"] = copy.deepcopy(timeline.public_timeline)
+    else:
+        public["conversation_timeline"] = merged_timeline
 def _validated_private(envelope: object, fallback: Mapping[str, Any]
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     raw = copy.deepcopy(envelope)
@@ -132,12 +157,14 @@ def _merge_extended(public, fallback, private, raw_analysis, sources, violations
         "risk_flags": _safe_risks(raw_analysis["risk_flags"], fallback["risk_flags"], violations),
         "suggested_actions": _safe_actions(private["analysis"]["suggested_actions"], fallback["suggested_actions"], violations),
         "reply_draft": _safe_draft(raw_analysis["reply_draft"], fallback["reply_draft"], violations),
-        "attachment_insights": _safe_attachments(private["attachment_augmentations"], fallback["attachment_insights"], sources, violations),
+        "attachment_insights": safe_attachment_augmentations(private["attachment_augmentations"], fallback["attachment_insights"], sources, violations),
     }
     for field, (value, fell_back) in values.items():
         public[field] = value
         if fell_back:
             kept.add(field)
+
+
 def _retain_backend_exact_fact_fields(
     public: dict[str, Any], fallback: Mapping[str, Any],
     analysis: Mapping[str, Any], raw_analysis: Mapping[str, Any],
@@ -238,42 +265,6 @@ def _safe_draft(
     if _DRAFT_REASON not in result["review_reasons"]:
         result["review_reasons"].append(_DRAFT_REASON)
     return result, True
-
-def _safe_attachments(
-    items: object, fallback: object, sources: Mapping[str, EvidenceSource],
-    violations: set[str],
-) -> tuple[list[dict[str, Any]], bool]:
-    result = copy.deepcopy(fallback)
-    if not isinstance(items, list) or not isinstance(result, list):
-        return result, True
-    ids = [item.get("source_id") if isinstance(item, dict) else None for item in items]
-    indexes = [sources[value].attachment_index if value in sources else None for value in ids]
-    accepted: set[int] = set()
-    rejected = False
-    for position, item in enumerate(items):
-        source_id, index = ids[position], indexes[position]
-        source = sources.get(source_id) if isinstance(source_id, str) else None
-        valid_index = isinstance(index, int) and not isinstance(index, bool) and 0 <= index < len(result)
-        valid = (
-            source is not None and source.kind == "attachment" and source.parsed
-            and valid_index and ids.count(source_id) == 1 and indexes.count(index) == 1
-            and (
-                result[index]["status"] == "parsed"
-                or source.grounding_mode in {"visual", "hybrid"}
-                and result[index]["status"] == "metadata_only"
-            )
-            and source.public_source == "attachment:" + result[index]["filename"]
-            and is_safe_model_text(item["summary"], item["key_facts"])
-            and not contains_model_authored_exact_fact(item)
-            and not any(value.startswith(f"/attachment_augmentations/{position}/") for value in violations)
-        )
-        if not valid:
-            rejected = True
-            continue
-        result[index]["summary"] = copy.deepcopy(item["summary"])
-        result[index]["key_facts"] = copy.deepcopy(item["key_facts"])
-        accepted.add(index)
-    return result, rejected or len(accepted) < len(result)
 
 def _public_fallback(value: Mapping[str, Any]) -> dict[str, Any]:
     return {field: copy.deepcopy(value[field]) for field in _FIELDS}

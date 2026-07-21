@@ -1,7 +1,7 @@
 # Option C Multimodal Development Progress
 
 Updated: 2026-07-17
-State: TASK 8 COMPLETE - OFFLINE GATES PASSED - REVIEW CLEAN; TASK 9 PENDING SEPARATE AUTHORIZATION
+State: TASK 9 SEMANTIC ACCURACY REPAIR IN PROGRESS - LIVE SMOKES DO NOT CLOSE SEMANTIC GATES
 
 ## Resume location
 
@@ -28,9 +28,9 @@ The user approved option C:
 - DeepSeek retained as an explicitly enabled text-only fallback.
 - Deterministic rules remain the final fallback.
 - Exact order IDs, dates, amounts, quantities, and tracking values remain locally authoritative.
-- Live API calls and clicked-current-email smoke were approved in principle,
-  but Task 9 remains blocked until a separate, current explicit authorization
-  after the offline gates and Task 8 record review.
+- The operator separately authorized the Task 9 synthetic API smoke and one
+  current-clicked-email read-only check. Navigation, mailbox scanning, and
+  sending remain prohibited.
 - No mailbox traversal, scanning, navigation, automatic action, or access to any message other than the one the user clicks.
 - Cost is not a constraint, but credentials and real content must never be printed, logged, committed, or exposed to Codex output.
 
@@ -441,7 +441,7 @@ Task 5: complete (commits b2dbbec..559b595, review clean)
 Task 6: complete through 2a114ce (review clean)
 Task 7: complete (commits cb85dc2 + ca8a722, review clean)
 Task 8: complete (commits d915894 + 5ac408f + 99e9ed4, offline gates passed; review clean)
-Task 9: pending (separate explicit authorization required before any live access)
+Task 9: in progress (synthetic OpenAI visual gate passed; current-clicked Tencent smoke pending)
 
 ## Historical Task 1 boundary
 
@@ -551,13 +551,297 @@ and passed clean re-review.
 
 1. Preserve the root-checkout deployment-notes modification and keep all
    review-package files unstaged.
-2. Stop before Task 9. Do not access a provider, browser, mailbox, key, `.env`,
-   network, or local service until the operator separately authorizes the final
-   smoke phase.
+2. Ask the operator to open one representative message before resuming the
+   current-clicked Tencent smoke. Do not navigate, enumerate, scan, or send.
+3. Keep providers disabled outside the bounded Task 9 test process.
 
 ## Stop condition
 
-Task 8 implementation documentation and gate records are review clean, and all
-offline release gates passed. Stop before Task 9: provider, browser, mailbox,
-key, `.env`, network, and local service access remain prohibited until separate
-explicit operator authorization.
+The synthetic OpenAI visual gate is complete. Stop the current-clicked Tencent
+smoke whenever no single message is already open; never navigate from an inbox
+list to select one. Task 9 remains incomplete until that read-only path and the
+remaining release gates are completed.
+
+## Task 9 live-smoke diagnostic boundary
+
+- The operator separately authorized one synthetic API smoke and a current-clicked
+  message read-only test, with navigation, mailbox scanning, and sending prohibited.
+- Backend-only presence checks confirmed both OpenAI and DeepSeek keys are available
+  from the ignored root `.env`; no key value entered tool output, logs, or Git.
+- The first inline harness stopped before a provider call because the fixed Python
+  runtime needed the project and global dependency paths, and Windows spawn cannot
+  reload a `<stdin>` main module. A file-backed, synthetic-only ignored runner then
+  passed the attachment-worker and temporary-cleanup offline preflight and received
+  a clean independent safety review.
+- The separately authorized single OpenAI diagnostic retry returned the validated
+  rule fallback with fixed diagnostic `provider_http_error` at stage `provider` for
+  `gpt-5.6-sol`. Attachment handling completed, schema validation passed, and the
+  request-local temporary directory was empty afterward. No raw provider output,
+  prompt, media, key, exception detail, or synthetic analysis text was printed.
+- Current official OpenAI documentation confirms that `gpt-5.6-sol` supports image
+  input, Responses, structured output, low reasoning effort, and the request fields
+  used by the client. After the operator confirmed project billing and separately
+  authorized one status-only diagnostic probe, `GET /v1/models/gpt-5.6-sol`
+  returned HTTP 200. The probe did not read the response body, did not retry or
+  follow redirects, and emitted only the status and fixed `model_accessible`
+  classification. This rules out missing model visibility for the configured key;
+  the failed `POST /responses` smoke remains a request-level rejection to diagnose.
+- The operator then authorized continued content-free diagnosis. A synthetic minimal
+  `POST /v1/responses` returned HTTP 200, and the complete production instructions
+  plus structured text message also returned HTTP 200. Adding only
+  `text.format.type=json_object` changed the same request to HTTP 400. The complete
+  production parameter set without that legacy format returned HTTP 200 for both
+  text-only and one locally generated no-text PNG input. No response body, prompt,
+  model output, key, media bytes, or provider exception text was printed or retained.
+  This isolated the first live-gate failure to the legacy JSON-object response
+  format. After explicit approval, the client omitted `text.format` while
+  retaining the JSON-only prompt and all strict local validators.
+- The next synthetic run reached a valid provider envelope but omitted visual
+  attachment augmentation. Root-cause tracing showed that the internal
+  `UNTRUSTED_MEDIA` marker was either absent from the provider prompt or, when
+  included directly, correctly rejected by the residual privacy scan.
+- The final fix projects that exact internal marker to one fixed, deidentified
+  natural-language source description only for OpenAI. DeepSeek still excludes
+  visual-only sources, and internal grounding mode is derived from provenance,
+  not from matching untrusted text. The OpenAI-only prompt now requires one
+  source-bound attachment augmentation with evidence for every leaf when a
+  listed observation is visible.
+- The final recreated no-text business-photo smoke passed: OpenAI was the
+  accepted engine, the public schema was valid, no fallback event occurred,
+  one attachment augmentation contained four canonical visual observations
+  with four evidence pointers, source binding was valid, and the request-local
+  temporary directory was empty afterward.
+- One authorized Chrome read-only check found the browser at the inbox list
+  with no message open. No email was selected, opened, read, or analyzed; no
+  navigation, mailbox scan, or send action occurred. The current-clicked
+  Tencent smoke therefore remains pending rather than failed.
+- The temporary test service was stopped and its project-external Task 9 data
+  directory was removed. DeepSeek live fallback, merge, and push were not
+  performed. Task 9 remains incomplete.
+
+## Task 9 current-message extraction repair
+
+- The operator opened one representative Tencent message and clicked Analyze.
+  The injected extension returned an empty body, so the backend rejected the
+  request before any provider call.
+- A content-free structural probe identified the supported host shape as one
+  visible `.readmailinfo` header next to `#mailContentContainer.qmbox`, with the
+  current body followed by nested complete-header `BLOCKQUOTE` history. No
+  message text, identity, attachment name, or provider output was printed or
+  retained.
+- Test-first fixtures now cover that host shape, oldest-to-newest nested history,
+  current-body line preservation, current business-image collection, and
+  complete-header historical-image exclusion.
+- The adapter, popup, and API client now independently reject an empty current
+  body. Empty extraction cannot return `ok:true`, call the backend, or execute
+  `fetch`; no whole-page fallback was added.
+- The browser-extension discovery suite passes 172 tests; the complete suite
+  passes 1,399 tests with one environment skip. JavaScript syntax checks,
+  `git diff --check`, and the maintenance/leakage scan pass, and the independent
+  vertical review is GO with no Critical or Important findings.
+- The live smoke remains incomplete until the operator reloads the unpacked
+  extension from this worktree, refreshes the already-open message so the new
+  content scripts are injected, and clicks Analyze again. Navigation, mailbox
+  scanning, and sending remain prohibited.
+
+## Task 9 current-click live-smoke completion
+
+- The operator reloaded the unpacked extension, refreshed the already-open
+  Tencent message, and clicked Analyze. No navigation, mailbox scan, send,
+  delete, move, or archive action was performed.
+- The newest project-external SQLite projection records `ai_model` with label
+  `OpenAI GPT-5.6 Sol`, rather than `rule_fallback`. The same public projection
+  contains one attachment insight, a reply draft, and the mandatory human-review
+  flag. Optional context metadata is intentionally absent from the public SQLite
+  projection and was not treated as a failure.
+- The sanitized diagnostics contain no new fallback event for this request.
+  Verification inspected only fixed engine/status fields and structural counts;
+  no real subject, address, body, attachment name, model output, key, or other
+  identifiable email content was printed or copied into the repository.
+- The authorized synthetic provider smoke and the authorized current-clicked
+  Tencent smoke are now complete. Providers remain disabled outside the bounded
+  test service, and the browser extension remains click-only for the currently
+  visible message.
+- Post-smoke release verification used the pinned Python 3.12.13 runtime and
+  passed all 1,404 tests with one environment skip. JavaScript syntax checks and
+  `git diff --check` passed, and the fail-on-high maintenance scan reported no
+  cleanup findings. The bounded local service health endpoint remained healthy.
+
+## Current-email grounding and attachment repair execution
+
+- Approved plans committed at `470f329` after a clean 1,404-test baseline.
+- MOQ Task 1 is in progress under Subagent-Driven Development.
+- Per-task base for MOQ Task 1: `470f329c7ef0f058a6052205598f5bf6609b5c0d`.
+- Live attachment smoke remains outside the offline execution boundary and
+  requires a fresh, explicit operator authorization after Tasks 1-4 are clean.
+
+### MOQ repair task ledger
+
+- Task 1 complete and review-clean through `2cb1652`; controller verification:
+  6 focused tests passed and task files are clean.
+- Task 2 in progress; per-task base is `2cb1652`.
+
+- Task 2 complete and review-clean through `6c78104`; controller verification:
+  166 combined focused and regression tests passed.
+- Task 3 in progress; per-task base is `6c78104`.
+
+- Task 3 complete and review-clean through `6bac7c8`; controller verification:
+  187 Task 3 tests passed, mechanical limit restored to 299 lines, and the
+  full repository suite later passed 1,426 tests with one environment skip.
+- Prior verified Plan C working changes were isolated in checkpoint `3d41525`
+  after full tests, all extension JavaScript checks, leakage scan, maintenance
+  scan, and `git diff --check` passed.
+- MOQ Task 4 in progress; per-task base is `3d41525`.
+
+- MOQ Task 4 complete and review-clean through `42f103c`; its latest full gate
+  passed 1,427 tests with one environment skip plus maintenance, leakage, and
+  diff checks.
+- The labeled-MOQ plan is complete.
+- Attachment Task 1 in progress; per-task base is `42f103c`.
+
+- Attachment Task 1 complete and review-clean through `0c3a54f`; controller
+  verification passed 92 focused tests, both changed JavaScript syntax checks,
+  and `git diff --check`. The final frozen gate reported no Critical or
+  Important findings.
+- Attachment Task 2 in progress; per-task base is `0c3a54f`.
+
+- Attachment Task 2 complete and review-clean through `e0c41b6`; controller
+  verification passed 190 browser-extension tests, 49 architecture/static
+  tests, both JavaScript syntax checks, and `git diff --check`. The bounded
+  re-review reported no Critical, Important, or Minor findings.
+- Attachment Task 3 in progress; per-task base is `e0c41b6`.
+
+- Attachment Task 3 complete and review-clean through `5adabf9`; controller
+  verification passed the 38-test task matrix, 49 architecture/static tests,
+  renderer JavaScript syntax, and `git diff --check`. Independent review
+  approved the no-download-to-parsed vertical path and isolated success/failure
+  request-temp cleanup proof with no findings.
+- Attachment Task 4 in progress; per-task base is `5adabf9`.
+
+- Attachment Task 4 complete and frozen through `3fab43c`; final controller
+  verification passed 56 documentation/static/status tests and the 195-test
+  Task 4 matrix. The frozen gate found no Critical or Important issues. The
+  latest full suite passed 1,452 tests with one environment skip; all extension
+  JavaScript syntax checks, leakage scan, maintenance `--fail-on-high`, and
+  `git diff --check` passed.
+- Offline attachment Tasks 1-4 are complete. Task 5 remains not live-tested and
+  requires fresh explicit authorization; no live operation was performed.
+- Broad branch review found one documentation-only Important: two historical
+  surfaces still described the already-completed bounded Task 9 current-click
+  smoke as pending. Strict TDD corrected those surfaces in `440eac9`; the
+  bounded re-review approved the fix with no Critical or Important findings.
+  Remaining Task 9 gates stay unchecked, while the new Attachment Task 5 remains
+  pending, not live-tested, and gated by fresh explicit authorization.
+- Final controller verification at `440eac9` passed 1,453 tests with one
+  environment skip, all nine browser-extension JavaScript syntax checks, the
+  41-test leakage/closeout/maintenance/status matrix, deterministic project
+  status generation, maintenance `--fail-on-high`, and `git diff --check`.
+  Offline Tasks 1-4 and the final offline branch gate are complete. No browser,
+  mailbox, provider, API, navigation, scan, send, or network operation occurred.
+
+### Attachment Task 5 bounded real smoke
+
+- The operator supplied fresh explicit authorization for one current-clicked
+  attachment smoke with no navigation, mailbox scan, send action, or content
+  output. The verified worktree service started with the existing provider-
+  disabled default and a zero-file request-temp baseline.
+- The automatic acquisition attempt produced one fixed `resource_unavailable`
+  result: one attachment insight was `unavailable`, none were `parsed`, and the
+  request-temp file count returned to zero.
+- Following the approved Task 5 fallback, the operator selected a supported
+  current-message local file through the explicit picker. The final result had
+  two attachment insights: one `parsed` manual attachment and one remaining
+  `unavailable` automatic candidate. The request-temp file count again returned
+  to zero. No filename, subject, address, body, attachment text, summary, draft,
+  credential, provider payload, or other identifiable content was inspected or
+  recorded here.
+- The bounded service was identity-checked by executable, command, and port
+  ownership, then stopped. Manual picker acquisition, backend parsing, truthful
+  `parsed` status, and request-finally cleanup are live-verified. Automatic
+  Tencent control acquisition is not live-verified successful and requires a
+  separately authorized content-free diagnostic/fix cycle if it is to be
+  pursued further.
+
+### Attachment Task 6 bounded automatic-acquisition repair
+
+- A content-free current-message diagnostic isolated three pre-fetch blockers:
+  one exact Tencent legacy wrapper, a rendered attachment anchor below the
+  viewport, and absent attachment type metadata. No message or attachment
+  content was recorded.
+- The operator approved only the bounded offline repair. Commits `6d39860` and
+  `baf5d62` implement exact one-wrapper ownership, attachment-only off-viewport
+  layout, and one-fetch response type validation with fail-closed metadata and
+  Content-Disposition handling.
+- Strict TDD recorded the expected RED failures. Controller verification passed
+  177 focused tests, the implementation/fix full-suite evidence passed 1,459
+  tests with one environment skip, and all changed JavaScript syntax and diff
+  checks passed. Independent re-review reported no Critical, Important, or
+  Minor findings.
+- This task performed no real browser, mailbox, attachment, provider, API,
+  navigation, scan, send, persistence, or network operation. Automatic Tencent
+  attachment acquisition remains not live-verified successful and requires a
+  fresh explicit authorization before any new current-message smoke.
+
+### Attachment Task 5 automatic-acquisition retest
+
+- The operator supplied fresh authorization and performed exactly one manual
+  Analyze click on the already-open current message. No navigation, mailbox
+  scan, send, delete, move, archive, or manual attachment picker occurred.
+- The bounded worktree service ran with remote providers disabled. Exactly one
+  new public analysis record was created; both automatic attachment insights
+  reported `parsed`, with zero non-parsed insights.
+- The request temporary directory returned to zero files and the bounded
+  loopback service was stopped with zero remaining listeners. Only aggregate
+  status and counts were inspected; no message or attachment content, names,
+  summary, draft, identifiers, credentials, or provider payload were read or
+  recorded here.
+
+### Automatic attachment smoke closeout
+
+- Closeout Task 1 is in progress under Subagent-Driven Development; per-task
+  base is `481ea07`.
+- The pre-task baseline passed 1,459 tests with one environment skip under
+  Python 3.12.13 using the existing locked dependency locations. No dependency
+  was installed or changed.
+
+## Task 9 forced OpenAI-to-DeepSeek synthetic fallback smoke
+
+- The operator authorized exactly one synthetic provider fallback operation.
+  The fixed `example.test` request contained no attachments or media and did
+  not use a browser, mailbox, server, or SQLite path.
+- The bounded helper intercepted exactly one OpenAI attempt in process before
+  any OpenAI network operation, then delegated exactly one text-only request to
+  the production DeepSeek route. The DeepSeek SDK retry count was zero.
+- The accepted terminal engine was `ai_model` with label
+  `DeepSeek V4 Flash text fallback`; the public schema was valid and zero
+  terminal rule-fallback diagnostics were emitted.
+- Only fixed aggregate fields were inspected. No key, prompt, provider raw
+  output, synthetic body, exception detail, or private content was printed or
+  persisted. The root `.env` hash was unchanged and no automatic retry ran.
+- The one-shot helper and its isolated regression test were removed after the
+  authorized operation. Normal provider defaults remain disabled outside that
+  bounded process.
+
+## Task 9 semantic accuracy repair
+
+- Task 9 semantic accuracy repair is offline complete. A parsed attachment status does not prove semantic correctness.
+- The earlier bounded smokes proved acquisition, parsing status, provider routing,
+  and temporary cleanup only. Operator review subsequently found that historical
+  evidence was not consistently used and attachment interpretation was incorrect.
+- The offline plan in
+  `docs/superpowers/plans/2026-07-20-task9-semantic-accuracy-repair.md`: one
+  current-plus-history evidence set, explicit source roles, complete model-visible
+  attachment coverage, deterministic reconciliation safeguards, and a documented
+  private human gold-standard method is implemented and independently review-clean.
+- No new live browser, mailbox, provider, SQLite, attachment, or network operation
+  is authorized by this repair record.
+- TDD and independent reviews closed the thread completeness/order, Tencent DOM,
+  attachment process transport/grounding, deterministic reconciliation, and private
+  human-reference gates with no remaining Critical or Important findings.
+- Final adversarial review also closed deterministic attachment-fact replacement,
+  projection-created partial tails, abbreviation/initialism/decimal boundaries, and
+  long CJK attachment truncation with and without early whitespace. The final
+  independent verdict is READY with no Critical, Important, or Minor findings.
+- The first controller full-suite pass completed 1,509 tests with one environment
+  skip. Final status generation, leakage, maintenance, JavaScript, and diff gates are
+  recorded by the Task 9 closeout verification rather than by any live operation.

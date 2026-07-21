@@ -23,11 +23,42 @@ _HEADER_FROM_RE = re.compile(
 
 def normalize_and_order_segments(
     segments: object,
-) -> tuple[list[dict[str, object]], bool, bool]:
+    *,
+    trusted_current_segment: object | None = None,
+) -> tuple[list[dict[str, object]], bool, bool, bool]:
     segment_count_complete = not isinstance(segments, list) or len(segments) <= MAX_THREAD_SEGMENTS
     normalized, text_coverage_complete = _normalize_segments(segments)
-    ordered, timestamps_reliable = _order_segments(normalized)
-    return ordered, timestamps_reliable, segment_count_complete and text_coverage_complete
+    current_appended = False
+    current_complete = True
+    current = None
+    if trusted_current_segment is not None:
+        current, current_complete = _normalize_segment(
+            trusted_current_segment, len(normalized)
+        )
+        if current is not None:
+            current["timestamp"] = _parse_timestamp(current["timestamp_text"])
+    ordered, history_timestamps_reliable = _order_segments(
+        normalized, prefer_position=current is not None
+    )
+    if current is not None:
+        ordered.append(current)
+        current_appended = True
+    all_timestamps_available = bool(ordered) and all(
+        _is_aware(segment["timestamp"]) for segment in ordered
+    )
+    chronological = all_timestamps_available and _timestamps_nondecreasing(ordered)
+    timestamps_reliable = history_timestamps_reliable and chronological
+    position_timestamp_conflict = (
+        current is not None and all_timestamps_available and not chronological
+    )
+    coverage_complete = (
+        segment_count_complete
+        and text_coverage_complete
+        and current_complete
+        and (trusted_current_segment is None or current_appended)
+        and not position_timestamp_conflict
+    )
+    return ordered, timestamps_reliable, coverage_complete, current_appended
 
 
 def _normalize_segments(segments: object) -> tuple[list[dict[str, object]], bool]:
@@ -109,15 +140,27 @@ def _fingerprint(segment: dict[str, object]) -> tuple[str, str, str, str, str, i
     )
 
 
-def _order_segments(segments: list[dict[str, object]]) -> tuple[list[dict[str, object]], bool]:
+def _order_segments(
+    segments: list[dict[str, object]], *, prefer_position: bool = False
+) -> tuple[list[dict[str, object]], bool]:
     for segment in segments:
         segment["timestamp"] = _parse_timestamp(segment["timestamp_text"])
-    timestamps_reliable = bool(segments) and all(_is_aware(segment["timestamp"]) for segment in segments)
+    timestamps_reliable = all(_is_aware(segment["timestamp"]) for segment in segments)
+    if prefer_position and segments and all(
+        segment["position"] is not None for segment in segments
+    ):
+        ordered = sorted(segments, key=lambda item: (item["position"], item["index"]))
+        return ordered, timestamps_reliable and _timestamps_nondecreasing(ordered)
     if timestamps_reliable:
         return sorted(segments, key=lambda item: (item["timestamp"], item["index"])), True
     if segments and all(segment["position"] is not None for segment in segments):
         return sorted(segments, key=lambda item: (item["position"], item["index"])), False
     return segments, False
+
+
+def _timestamps_nondecreasing(segments: list[dict[str, object]]) -> bool:
+    timestamps = [segment["timestamp"] for segment in segments]
+    return all(first <= second for first, second in zip(timestamps, timestamps[1:]))
 
 
 def _parse_timestamp(value: object) -> datetime | None:
