@@ -1,0 +1,5 @@
+# Project-only Codex skill policy for D:/Projects/email_ai_assistant.
+# Matt Pocock skills use their installed native activation metadata.
+
+[plugins."superpowers@openai-curated-remote"]
+enabled = false

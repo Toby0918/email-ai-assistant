@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-21
+last_update: 2026-07-22
 status: active
 owner: "@tobyWang"
 review_cycle: weekly
@@ -15,9 +15,9 @@ source_type: operation_guide
 
 | Field | Value |
 |---|---|
-| Generated on | 2026-07-21 |
+| Generated on | 2026-07-22 |
 | Current stage | multimodal_current_email_offline_ready_live_pending |
-| Git branch | master |
+| Git branch | agent/remove-superpowers-remnants |
 | Git HEAD reference | Run `git rev-parse --short HEAD` in this workspace |
 | Working tree status | Run `git status --short --ignored` in this workspace |
 
@@ -139,12 +139,6 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 | `docs/operations/documentation_rules.md` | yes |
 | `docs/operations/first_version_task_brief.md` | yes |
 | `docs/operations/tencent_exmail_browser_extension_task_brief.md` | yes |
-| `docs/superpowers/plans/2026-07-14-authorized-mailbox-ingest-knowledge-deepseek.md` | yes |
-| `docs/superpowers/plans/2026-07-14-mailbox-vault.md` | yes |
-| `docs/superpowers/plans/2026-07-14-private-knowledge.md` | yes |
-| `docs/superpowers/plans/2026-07-14-private-deepseek-evaluation.md` | yes |
-| `docs/superpowers/plans/2026-07-16-multimodal-current-email-analysis.md` | yes |
-| `docs/superpowers/plans/2026-07-17-current-message-attachment-acquisition.md` | yes |
 | `docs/templates/agent_task_brief_template.md` | yes |
 | `docs/templates/cleanup_task_template.md` | yes |
 | `scripts/repo_utils.py` | yes |
@@ -218,9 +212,9 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 
 | Status | Count |
 |---|---:|
-| active | 107 |
+| active | 83 |
 | draft | 23 |
-| deprecated | 2 |
+| deprecated | 1 |
 | missing_front_matter | 0 |
 
 ## Recommended Next Steps

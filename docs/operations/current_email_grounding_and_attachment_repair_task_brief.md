@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-18
+last_update: 2026-07-21
 status: active
 owner: "@tobyWang"
 review_cycle: weekly
@@ -61,8 +61,8 @@ Related documents:
 - `docs/decisions/0007-multimodal-current-email-analysis.md`
 - `docs/security/email_data_handling.md`
 - `docs/api/backend_api_contract.md`
-- `docs/superpowers/specs/2026-07-17-labeled-moq-grounding-design.md`
-- `docs/superpowers/specs/2026-07-17-current-message-attachment-acquisition-design.md`
+- `docs/operations/multimodal_current_email_analysis_task_brief.md`
+- `docs/operations/task9_semantic_accuracy_repair_task_brief.md`
 
 ## 7. Scope
 
@@ -193,8 +193,11 @@ No provider contract expansion. Documentation may clarify that locally extracted
 
 ## 13. Test plan
 
-- Follow `docs/superpowers/plans/2026-07-17-labeled-moq-grounding.md`.
-- Follow `docs/superpowers/plans/2026-07-17-current-message-attachment-acquisition.md`.
+- Validate the deterministic grounding, source-evidence binding, and exact-fact
+  acceptance criteria in this brief and ADR 0007.
+- Validate the current-message attachment acquisition and fail-closed visibility
+  boundaries in this brief, the backend API contract, and the email-data policy.
+- Implementation and verification evidence is preserved by commit `dc9f5e8`.
 - Run all focused commands with the pinned Python 3.12.13 runtime and correct dependency paths.
 - Run no real provider, mailbox, attachment download, or live browser test without a separate explicit authorization.
 

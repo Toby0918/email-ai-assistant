@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-13
+last_update: 2026-07-21
 status: active
 owner: "@tobyWang"
 review_cycle: weekly
@@ -50,8 +50,6 @@ The enabled DeepSeek configuration still produces `analysis_engine.source=rule_f
 References:
 
 - `AGENTS.md`
-- `docs/superpowers/specs/2026-07-13-deepseek-fallback-diagnostics-design.md`
-- `docs/superpowers/specs/2026-07-12-deepseek-led-email-analysis-design.md`
 - `docs/operations/deepseek_api_analysis_task_brief.md`
 - `docs/conventions/logging.md`
 - `docs/security/api_key_rules.md`
@@ -84,6 +82,14 @@ No frontend, prompt, schema, database, attachment parser, or mailbox integration
 3. Configure a standard-library rotating file handler only on the dedicated diagnostic logger before the local service starts; never attach it to root.
 4. Keep the public response and deterministic fallback byte-for-byte compatible with current behavior.
 5. Document the operator command for reading only the newest diagnostic event.
+
+The route/stage mapping contract remains exact. `response_incomplete` and
+`response_empty` use `stage=response`; every other `LlmClientError` reason uses
+`stage=provider`. In conservative mode, `parse_legacy_result` performs JSON
+parsing, repair, and public schema validation only. The exported
+`validate_conservative_language` validator runs in a separate route `_run_stage`,
+so failures remain distinct as `public_schema_invalid` / `schema` and
+`public_language_invalid` / `language`.
 
 ## 9. Data And Interface Changes
 
@@ -199,8 +205,6 @@ Actual modified files:
 - docs/operations/deployment_notes.md
 - docs/api/backend_api_contract.md
 - docs/operations/deepseek_fallback_diagnostics_task_brief.md
-- docs/superpowers/plans/2026-07-13-deepseek-fallback-diagnostics.md
-- docs/superpowers/specs/2026-07-13-deepseek-fallback-diagnostics-design.md
 - docs/operations/project_status_log.md (generator only)
 
 Actual commits:
@@ -223,17 +227,17 @@ Actual commits:
 
 Final review closure:
 - C1 is closed by the dedicated non-root diagnostic sink in `f4a75dd`; OpenAI, HTTPX, HTTP core, arbitrary backend, and non-canonical direct records cannot write the bounded diagnostic log.
-- I1 is closed by the fixed `WARNING` diagnostic logger and handler threshold in `f4a75dd`, independent of the general DEBUG/INFO/WARNING/ERROR/CRITICAL/invalid level. The later cached-`exc_text` review gap is closed in production and tests by `9378c8d`, and its active-plan contract is closed by `7d832df`.
+- I1 is closed by the fixed `WARNING` diagnostic logger and handler threshold in `f4a75dd`, independent of the general DEBUG/INFO/WARNING/ERROR/CRITICAL/invalid level. The later cached-`exc_text` review gap is closed in production and tests by `9378c8d`; its canonical documentation contract is recorded in this brief and `docs/conventions/logging.md`.
 - I2 and I3 are closed by `e10c480`: incomplete/empty responses now use `stage=response`, and conservative language failures now use `public_language_invalid/language` separately from schema failures.
-- The final logging review found no remaining Critical or Important issue after those remediations; its sole report-only line-count correction is reflected in `.superpowers/sdd/final-logging-fix-report.md`. The final route independent review passed spec compliance and code quality with no findings. Therefore C1, I1, I2, and I3 from `.superpowers/sdd/final-branch-review.md` are all closed.
+- The final logging review found no remaining Critical or Important issue after those remediations. The final route independent review passed spec compliance and code quality with no findings. Therefore C1, I1, I2, and I3 are closed in the canonical task record.
 
 Test results:
-- Task-level RED/GREEN evidence is recorded in `.superpowers/sdd/task-1-report.md` through `task-4-report.md`.
+- Historical task-level RED/GREEN evidence remains recoverable from Git history; this brief retains the canonical acceptance and release record.
 - Task 5 documentation RED: 8 tests ran; the new contract produced 17 expected missing-marker failures while the other 7 tests passed.
 - Task 5 documentation GREEN: 8 tests ran, all passed.
 - Focused documentation and mechanical verification: 49 tests ran, all passed.
 - Full suite: the first 683-test run had the known shared 8-second XLSX boundary downgrade on the fifth synthetic file; the unchanged test then passed alone in 7.653 seconds, and a fresh complete run passed all 683 tests.
-- Logging remediation release verification: the latest complete logging-remediation suite passed all 685 tests; the focused privacy, lifecycle, cached-exception, entrypoint, static, analyzer, and documentation checks also passed as recorded in `.superpowers/sdd/final-logging-fix-report.md`.
+- Logging remediation release verification: the latest complete logging-remediation suite passed all 685 tests; the focused privacy, lifecycle, cached-exception, entrypoint, static, analyzer, and documentation checks also passed.
 - Route remediation release verification: 98 focused tests passed and the complete suite passed all 691 tests.
 - Maintenance scans for the Task 5, logging-remediation, and route-remediation release gates reported `No cleanup findings detected.`
 - The corresponding `git diff --check` commands exited `0`; the route status generator also exited `0` and left `docs/operations/project_status_log.md` unchanged.

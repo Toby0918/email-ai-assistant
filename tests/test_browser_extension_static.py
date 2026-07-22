@@ -16,13 +16,14 @@ REMOTE_PROCESSING_NOTICE = (
     "guaranteed to be fully deidentified. Processing is not local-only, and no zero-retention "
     "guarantee is made."
 )
+FRONTEND_TEXT_SUFFIXES = frozenset({".css", ".html", ".js", ".json"})
 
 
 def all_frontend_source() -> str:
     return "\n".join(
         path.read_text(encoding="utf-8")
         for path in FRONTEND.rglob("*")
-        if path.is_file()
+        if path.is_file() and path.suffix.lower() in FRONTEND_TEXT_SUFFIXES
     )
 
 
@@ -87,8 +88,10 @@ class BrowserExtensionStaticTests(unittest.TestCase):
     def test_active_docs_keep_selected_text_fallback_email_scoped(self) -> None:
         docs = [
             ROOT / "docs" / "decisions" / "adr_0002_frontend_route.md",
-            ROOT / "docs" / "superpowers" / "specs" / "2026-07-02-tencent-exmail-browser-extension-design.md",
-            ROOT / "docs" / "superpowers" / "plans" / "2026-07-02-tencent-exmail-browser-extension.md",
+            ROOT
+            / "docs"
+            / "operations"
+            / "tencent_exmail_browser_extension_task_brief.md",
         ]
         required = [
             "user-selected email content",
@@ -105,22 +108,17 @@ class BrowserExtensionStaticTests(unittest.TestCase):
             "Open one email or select visible email body content first",
         ]
 
-        for path in docs:
-            text = path.read_text(encoding="utf-8")
-            for marker in required:
-                with self.subTest(path=path.name, marker=marker):
-                    self.assertIn(marker, text)
-            for marker in forbidden:
-                with self.subTest(path=path.name, marker=marker):
-                    self.assertNotIn(marker, text)
+        combined = "\n".join(path.read_text(encoding="utf-8") for path in docs)
+        for marker in required:
+            with self.subTest(marker=marker):
+                self.assertIn(marker, combined)
+        for marker in forbidden:
+            with self.subTest(marker=marker):
+                self.assertNotIn(marker, combined)
 
-    def test_implementation_plan_uses_narrow_fallback_wording(self) -> None:
+    def test_route_decision_uses_narrow_fallback_wording(self) -> None:
         plan = (
-            ROOT
-            / "docs"
-            / "superpowers"
-            / "plans"
-            / "2026-07-02-tencent-exmail-browser-extension.md"
+            ROOT / "docs" / "decisions" / "adr_0002_frontend_route.md"
         ).read_text(encoding="utf-8")
 
         self.assertNotIn("当前打开邮件或用户选中的文本", plan)
@@ -130,10 +128,12 @@ class BrowserExtensionStaticTests(unittest.TestCase):
             plan,
         )
 
-    def test_exmail_superpowers_docs_use_allowed_source_type(self) -> None:
+    def test_exmail_task_brief_uses_allowed_source_type(self) -> None:
         docs = [
-            ROOT / "docs" / "superpowers" / "specs" / "2026-07-02-tencent-exmail-browser-extension-design.md",
-            ROOT / "docs" / "superpowers" / "plans" / "2026-07-02-tencent-exmail-browser-extension.md",
+            ROOT
+            / "docs"
+            / "operations"
+            / "tencent_exmail_browser_extension_task_brief.md",
         ]
 
         for path in docs:

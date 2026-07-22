@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-15
+last_update: 2026-07-21
 status: active
 owner: "@tobyWang"
 review_cycle: weekly
@@ -43,9 +43,10 @@ that receives only `UsefulnessJudgeView`. Persist only the aggregate report.
 
 ## 6. Background and references
 
-Binding references are `AGENTS.md`, the active 2026-07-15 six-slice plan,
-`.superpowers/sdd/real-mailbox-task-2b-brief.md`, ADR 0006, the three active
-constraint documents, and `docs/operations/private_deepseek_evaluation.md`.
+Binding references are `AGENTS.md`,
+`docs/operations/real_mailbox_scan_driven_plugin_task_brief.md`, ADR 0006, the
+three active constraint documents, and
+`docs/operations/private_deepseek_evaluation.md`.
 
 Task 2A already creates an encrypted, deidentified `EvaluationStageV1` with
 exactly 200 cases. The evaluator never receives raw mailbox or vault access.
@@ -194,7 +195,7 @@ required because the implementation is isolated and default-off.
 
 ## 18. Post-execution record
 
-To be completed in `.superpowers/sdd/real-mailbox-task-2b-report.md` with the
-commit hash, exact RED/GREEN commands, independent review, changed-file leakage
-result and residual risks. No real mailbox, vault, private stage/dataset or
-provider evidence may be copied into that report.
+Implementation and its follow-up hardening are preserved by commits `d684178`
+and `f17e0bb`. This brief records the approved boundaries and verification scope.
+No real mailbox, vault, private stage/dataset, or provider evidence was copied
+into repository documentation or commit history.

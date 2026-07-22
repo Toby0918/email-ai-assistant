@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-20
+last_update: 2026-07-21
 status: active
 owner: "@tobyWang"
 review_cycle: weekly
@@ -32,9 +32,9 @@ documentation and the status generator. Task 9 synthetic provider and
 current-clicked Tencent smokes are complete; the bounded checks inspected only
 approved status fields and structural counts. Attachment Task 5 bounded automatic
 current-message smoke is complete for one representative current message. Task 9
-forced OpenAI-to-DeepSeek synthetic fallback is complete. The remaining Task 9
-gate is final master integration. Any new live operation still requires fresh
-explicit authorization.
+forced OpenAI-to-DeepSeek synthetic fallback is complete. Task 9 semantic
+accuracy repair is offline complete and integrated on master in commit `673278b`.
+Any new live operation still requires fresh explicit authorization.
 
 ## 4. Goal
 
@@ -68,7 +68,7 @@ Relevant documents:
 - `docs/data/analysis_result_schema.md`
 - `docs/api/backend_api_contract.md`
 - `docs/decisions/0005-deepseek-led-analysis.md`
-- `docs/superpowers/specs/2026-07-09-phase-two-attachment-thread-analysis-design.md`
+- `docs/operations/phase_two_attachment_thread_task_brief.md`
 
 ## 7. Scope
 
@@ -265,7 +265,8 @@ Tasks 1-7 completed their offline implementation and review gates on 2026-07-16:
   zero files, and the bounded service stopped. This single-message check does not
   establish semantic correctness. Task 9 semantic accuracy repair is offline complete.
   A parsed attachment status does not prove semantic correctness. The completed offline repair follows
-  `docs/superpowers/plans/2026-07-20-task9-semantic-accuracy-repair.md`; any new live
+  `docs/operations/task9_semantic_accuracy_repair_task_brief.md` and is preserved by
+  commit `673278b`; any new live
   operation still requires fresh explicit authorization. All providers remain
   disabled by default.
 - No provider, network, browser, mailbox, real email, key, `.env`, or live API was

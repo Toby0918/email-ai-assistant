@@ -44,7 +44,6 @@ OPENAI_CONTRACT_DOCS = (
     "docs/operations/testing_checklist.md",
     "docs/operations/multimodal_current_email_analysis_task_brief.md",
     "docs/decisions/0007-multimodal-current-email-analysis.md",
-    "docs/superpowers/plans/2026-07-16-multimodal-current-email-analysis.md",
 )
 
 OPENAI_TOUCHED_ACTIVE_DOCS = frozenset(OPENAI_CONTRACT_DOCS[1:5])
@@ -95,10 +94,10 @@ STALE_ATTACHMENT_SMOKE_CLAIMS = (
     "The new attachment acquisition path is not live-tested",
 )
 
-PRIOR_TASK9_STATUS_DOCS = (
-    "docs/decisions/0007-multimodal-current-email-analysis.md",
-    "docs/superpowers/plans/2026-07-16-multimodal-current-email-analysis.md",
-)
+PRIOR_TASK9_STATUS_DOCS = {
+    "docs/decisions/0007-multimodal-current-email-analysis.md": "2026-07-21",
+    "docs/operations/task9_semantic_accuracy_repair_task_brief.md": "2026-07-21",
+}
 
 
 class MultimodalDocumentationContractTests(unittest.TestCase):
@@ -392,16 +391,17 @@ class MultimodalDocumentationContractTests(unittest.TestCase):
             "current-clicked Tencent validation remains pending",
         )
         current_markers = TASK9_REPAIR_MARKERS
-        for relative in PRIOR_TASK9_STATUS_DOCS:
+        for relative, approved_date in PRIOR_TASK9_STATUS_DOCS.items():
             text = self._read(relative)
+            normalized_text = " ".join(text.split())
             with self.subTest(path=relative, marker="approved date"):
-                self.assertIn("\nlast_update: 2026-07-20\n", text[:300])
+                self.assertIn(f"\nlast_update: {approved_date}\n", text[:300])
             for marker in obsolete_markers:
                 with self.subTest(path=relative, marker=marker):
-                    self.assertNotIn(marker, text)
+                    self.assertNotIn(marker, normalized_text)
             for marker in current_markers:
                 with self.subTest(path=relative, marker=marker):
-                    self.assertIn(marker, text)
+                    self.assertIn(marker, normalized_text)
 
     def test_status_generator_tracks_task_2_through_7_handoff_files(self) -> None:
         source = self._read("scripts/generate_project_status.py")
@@ -423,7 +423,10 @@ class MultimodalDocumentationContractTests(unittest.TestCase):
         for relative in ACTIVE_DOCS:
             text = self._read(relative)
             expected_date = (
-                "2026-07-20"
+                "2026-07-21"
+                if relative
+                == "docs/operations/multimodal_current_email_analysis_task_brief.md"
+                else "2026-07-20"
                 if relative in AUTOMATIC_ATTACHMENT_SMOKE_TOUCHED_DOCS
                 else "2026-07-18"
                 if relative in ATTACHMENT_TOUCHED_ACTIVE_DOCS

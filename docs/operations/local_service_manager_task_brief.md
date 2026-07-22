@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-01
+last_update: 2026-07-21
 status: active
 owner: "@tobyWang"
 review_cycle: weekly
@@ -139,8 +139,8 @@ Actual changed files:
 - docs/operations/setup_checklist.md
 - docs/operations/troubleshooting.md
 - docs/operations/local_service_manager_task_brief.md
-- docs/superpowers/specs/2026-07-01-local-service-manager-design.md
-- docs/superpowers/plans/2026-07-01-local-service-manager.md
+
+Historical implementation evidence is preserved by commit `ef1fcaf`.
 
 Test results:
 - `python scripts/manage_local_service.py --help`: passed.

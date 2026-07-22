@@ -107,12 +107,6 @@ KEY_FILES = [
     "docs/operations/documentation_rules.md",
     "docs/operations/first_version_task_brief.md",
     "docs/operations/tencent_exmail_browser_extension_task_brief.md",
-    "docs/superpowers/plans/2026-07-14-authorized-mailbox-ingest-knowledge-deepseek.md",
-    "docs/superpowers/plans/2026-07-14-mailbox-vault.md",
-    "docs/superpowers/plans/2026-07-14-private-knowledge.md",
-    "docs/superpowers/plans/2026-07-14-private-deepseek-evaluation.md",
-    "docs/superpowers/plans/2026-07-16-multimodal-current-email-analysis.md",
-    "docs/superpowers/plans/2026-07-17-current-message-attachment-acquisition.md",
     "docs/templates/agent_task_brief_template.md",
     "docs/templates/cleanup_task_template.md",
     "scripts/repo_utils.py",
@@ -199,12 +193,9 @@ GUARDRAILS = [
 ]
 
 AUTHORIZED_PRIVATE_INGEST_FILES = {
+    "docs/constraints/architecture_constraints.md",
     "docs/operations/authorized_mailbox_ingest_task_brief.md",
     "docs/decisions/0006-authorized-mailbox-ingest-and-private-knowledge.md",
-    "docs/superpowers/plans/2026-07-14-authorized-mailbox-ingest-knowledge-deepseek.md",
-    "docs/superpowers/plans/2026-07-14-mailbox-vault.md",
-    "docs/superpowers/plans/2026-07-14-private-knowledge.md",
-    "docs/superpowers/plans/2026-07-14-private-deepseek-evaluation.md",
 }
 
 AUTHORIZED_PRIVATE_READY_FILES = {

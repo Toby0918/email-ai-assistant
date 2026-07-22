@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-19
+last_update: 2026-07-21
 status: active
 owner: "@tobyWang"
 review_cycle: as_needed
@@ -45,9 +45,9 @@ scan must no longer inspect the active runtime database as an in-repository
 
 - The main checkout contains seven ignored `__pycache__` directories with 294
   files totaling 4,211,847 bytes.
-- `.superpowers/sdd` contains 70 ignored, unreferenced `review-*.diff` files
-  totaling 9,161,324 bytes; tracked task records and referenced ignored records
-  must remain.
+- The then-current legacy agent execution cache contained 70 ignored,
+  unreferenced `review-*.diff` files totaling 9,161,324 bytes; that cleanup
+  retained tracked task records and referenced ignored records.
 - `outputs/cleanup_report.md` is an ignored temporary report and
   `outputs/local_debug_service.err.log` is an ignored zero-byte file.
 - `outputs/email_agent.sqlite3` is the configured active database and is ignored
@@ -92,8 +92,8 @@ worktree.
 - Delete or migrate: `scripts/outputs/email_agent.sqlite3`.
 - Modify only the local setting: `.env` key `EMAIL_AGENT_SQLITE_PATH`.
 - Delete the seven inventoried `__pycache__` directories.
-- Delete ignored `.superpowers/sdd/review-*.diff` files only after proving each
-  candidate is untracked, ignored, under the exact SDD directory, and has zero
+- Delete ignored legacy review-diff files only after proving each candidate is
+  untracked, ignored, under the exact approved cache directory, and has zero
   tracked references.
 - Delete: `outputs/cleanup_report.md`.
 - Delete: `outputs/local_debug_service.err.log`.
@@ -101,9 +101,8 @@ worktree.
 ### Tracked changes
 
 - Create this task brief.
-- Create
-  `docs/superpowers/specs/2026-07-19-project-cleanup-and-runtime-data-migration-design.md`.
-- Later create the approved implementation plan.
+- Create the approved cleanup design and implementation plan. Their historical
+  review and execution evidence is preserved by commits `bb24071` and `af5a840`.
 - Modify `docs/operations/file_inventory.md` only to mark it deprecated and add
   a supersession notice.
 - Regenerate `docs/operations/project_status_log.md` after implementation.
@@ -131,8 +130,8 @@ worktree.
 - [x] The active worktree, user modification, runtime diagnostic log, `.venv`,
   `.idea`, and audit records remain untouched.
 - [x] No recursive delete may target the repository root, `.worktrees`,
-  `.superpowers/sdd`, `outputs`, or any computed directory without an exact
-  allowlist check.
+  `outputs`, any agent execution cache, or any computed directory without an
+  exact allowlist check.
 - [x] No external vault, `.pkeval*`, private knowledge store, or key material is
   inspected or changed.
 

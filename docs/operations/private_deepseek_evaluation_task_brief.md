@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-14
+last_update: 2026-07-21
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -47,7 +47,8 @@ safety 和 public merge 门禁，并且只写聚合指标与固定错误码。
 相关文档:
 
 - `AGENTS.md`
-- `docs/superpowers/plans/2026-07-14-authorized-mailbox-ingest-knowledge-deepseek.md`
+- `docs/operations/authorized_mailbox_ingest_task_brief.md`
+- `docs/decisions/0006-authorized-mailbox-ingest-and-private-knowledge.md`
 - `docs/operations/private_deepseek_evaluation.md`
 - `docs/constraints/tooling_constraints.md`
 - `docs/constraints/architecture_constraints.md`

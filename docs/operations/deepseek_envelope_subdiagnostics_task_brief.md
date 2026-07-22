@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-14
+last_update: 2026-07-21
 status: active
 owner: "@tobyWang"
 review_cycle: weekly
@@ -52,8 +52,8 @@ does not identify the rejected structural boundary.
 References:
 
 - `AGENTS.md`
-- `docs/superpowers/specs/2026-07-13-deepseek-envelope-subdiagnostics-design.md`
-- `docs/superpowers/specs/2026-07-13-deepseek-fallback-diagnostics-design.md`
+- `docs/decisions/0005-deepseek-led-analysis.md`
+- `docs/api/backend_api_contract.md`
 - `docs/operations/deepseek_fallback_diagnostics_task_brief.md`
 - `docs/conventions/logging.md`
 - `docs/operations/troubleshooting.md`
@@ -74,8 +74,6 @@ Expected modifications:
 - `docs/operations/troubleshooting.md`
 - `docs/operations/deployment_notes.md`
 - `docs/api/backend_api_contract.md`
-- `docs/superpowers/specs/2026-07-13-deepseek-envelope-subdiagnostics-design.md`
-- `docs/superpowers/plans/2026-07-14-deepseek-envelope-subdiagnostics.md`
 - this task brief and project status log
 
 No frontend, database, provider client, prompt, model context, attachment parser,
@@ -231,8 +229,6 @@ Actual modified files:
 - docs/operations/deployment_notes.md
 - docs/operations/project_status_log.md
 - docs/operations/troubleshooting.md
-- docs/superpowers/plans/2026-07-14-deepseek-envelope-subdiagnostics.md
-- docs/superpowers/specs/2026-07-13-deepseek-envelope-subdiagnostics-design.md
 - tests/test_analysis_diagnostics.py
 - tests/test_analyzer.py
 - tests/test_deepseek_analysis_schema.py
@@ -240,10 +236,10 @@ Actual modified files:
 - tests/test_logging_config.py
 - tests/test_static_linter_constraints.py
 
-Local-only verification artifacts:
-- .superpowers/sdd/task-5-report.md
-- .superpowers/sdd/task-6-report.md
-- outputs/cleanup_report.md
+Durable implementation and verification evidence:
+- c30e624 documented the canonical envelope-subdiagnostic contract.
+- 1e9c939 and 6a483a4 recorded its focused verification.
+- 07fac44 preserved the final hardening pass.
 
 Test results:
 - Focused Python suites: 104/104 passed in 4.782s with the provider disabled.

@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-20
+last_update: 2026-07-21
 status: active
 owner: "@tobyWang"
 review_cycle: quarterly
@@ -70,7 +70,7 @@ Attachment acquisition amendment, 2026-07-18:
 - The JSON-only system prompt is enforced by the duplicate-key-safe local parser and the private-envelope, schema, evidence, privacy, grounding, and safety validators. The dynamic evidence-pointer map has not yet passed a strict Structured Outputs compatibility gate, so this release does not switch to `json_schema`.
 - Live compatibility amendment, 2026-07-17: `text.format.type=json_object` was rejected by the live GPT-5.6 Sol Responses route, while the same bounded request without `text.format` was accepted. The provider-format override is therefore omitted without weakening any local validation gate.
 - Visual live amendment, 2026-07-17: the internal `UNTRUSTED_MEDIA` marker correctly failed the residual privacy scan and therefore never leaves the backend. OpenAI instead receives one fixed deidentified natural-language source description; DeepSeek continues to omit visual-only sources. The OpenAI-only prompt requires one source-bound attachment augmentation with evidence for every leaf when a listed observation is visible. A recreated no-text business-photo smoke passed this route with no rule fallback.
-- Task 9 amendment, 2026-07-20: prior synthetic and current-clicked smokes remain valid evidence for acquisition, routing, status, and cleanup only. Task 9 semantic accuracy repair is offline complete. A parsed attachment status does not prove semantic correctness. Offline release gates now enforce current/history evidence alignment, explicit attachment semantic coverage, deterministic reconciliation safeguards, and the private human gold-standard contract in `docs/superpowers/plans/2026-07-20-task9-semantic-accuracy-repair.md`. Any new live operation still requires fresh explicit authorization. All providers remain disabled by default.
+- Task 9 amendment, 2026-07-20: prior synthetic and current-clicked smokes remain valid evidence for acquisition, routing, status, and cleanup only. Task 9 semantic accuracy repair is offline complete. A parsed attachment status does not prove semantic correctness. Offline release gates now enforce current/history evidence alignment, explicit attachment semantic coverage, deterministic reconciliation safeguards, and the private human gold-standard contract in `docs/operations/task9_semantic_accuracy_repair_task_brief.md`. Any new live operation still requires fresh explicit authorization. All providers remain disabled by default.
 - Text and each media item are paired with an opaque source marker. Visual media reuses existing attachment evidence IDs.
 - Visual sources may ground qualitative business observations such as packaging damage, label position, component presence, layout, or visible quality condition. They cannot ground a person identity, protected attribute, exact identifier, date, amount, quantity, tracking value, or consequential commitment.
 - Exact business facts remain local-rule-owned and are merged only from verified deterministic extraction.

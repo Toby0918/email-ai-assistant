@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-20
+last_update: 2026-07-21
 status: active
 owner: "@tobyWang"
 review_cycle: weekly
@@ -13,6 +13,10 @@ source_type: operation_guide
 Repair Task 9 so that completion means the current request, bounded visible history,
 and parsed attachments were reconciled into the result. A `parsed` attachment status
 is acquisition evidence only and is never a semantic-accuracy acceptance signal.
+
+Task 9 semantic accuracy repair is offline complete. A parsed attachment status does
+not prove semantic correctness. Any new live operation still requires fresh explicit
+authorization.
 
 ## Type and state
 
@@ -33,6 +37,10 @@ The future real-mail evaluation method is also fixed here: locally deidentified 
 threads plus reviewed attachment evidence, an independently authored human reference,
 business and privacy approval, blinded candidate judging, and aggregate-only reports.
 This is an evaluation and knowledge-improvement workflow, not automatic model training.
+Extraction, semantic correctness, and human usefulness are three separate measurements.
+The release evidence covers the current message, bounded verified history, and every
+sent parsed attachment. This evaluation method cannot guarantee that a probabilistic
+model is correct on every future email.
 
 ## Non-goals
 
