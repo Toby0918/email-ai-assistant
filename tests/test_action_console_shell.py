@@ -65,13 +65,36 @@ class ActionConsoleShellTests(unittest.TestCase):
         console_rule = _rule_body(component_css, ".action-console")
         self.assertIn("min-width: 0", console_rule)
         self.assertIn("overflow-wrap: anywhere", console_rule)
+        self.assertIn("min-height: 44px", _rule_body(component_css, "input"))
 
         self.assertNotRegex(popup_css, r"overflow-y\s*:\s*(?:auto|scroll|hidden)")
         self.assertNotRegex(_rule_body(popup_css, ".popup-shell"), r"max-height\s*:")
+        self.assertNotIn("overflow: hidden", debug_css)
+
+        compose_rule = _rule_body(debug_css, ".compose-panel")
+        self.assertNotRegex(compose_rule, r"max-height\s*:")
+        self.assertNotRegex(compose_rule, r"overflow-y\s*:")
 
         result_rule = _rule_body(debug_css, ".result-panel")
         self.assertRegex(result_rule, r"max-height\s*:\s*calc\(100vh\s*-\s*48px\)")
         self.assertRegex(result_rule, r"overflow-y\s*:\s*auto")
+
+        shell_rule = _rule_body(debug_css, ".shell")
+        column_minimums = [
+            int(value)
+            for value in re.findall(r"minmax\((\d+)px\s*,", shell_rule)
+        ]
+        gap_match = re.search(r"gap\s*:\s*(\d+)px", shell_rule)
+        padding_match = re.search(r"padding\s*:\s*(\d+)px", shell_rule)
+        self.assertEqual(len(column_minimums), 2)
+        self.assertIsNotNone(gap_match)
+        self.assertIsNotNone(padding_match)
+        minimum_wide_width = (
+            sum(column_minimums)
+            + int(gap_match.group(1))
+            + 2 * int(padding_match.group(1))
+        )
+        self.assertLessEqual(minimum_wide_width, 761)
 
         narrow_match = re.search(
             r"@media\s*\(max-width:\s*760px\)\s*\{(?P<body>.*)\}\s*$",

@@ -159,6 +159,10 @@ details > summary {
   padding-left: 11px;
 }
 
+input {
+  min-height: 44px;
+}
+
 button,
 .button-like,
 details > summary {
