@@ -153,6 +153,31 @@ The write-only current-evidence boundary is executable, not a review convention.
 validation, immutable/redacted values, one append call, and fixed content-free
 failures. `test_current_evidence_handoff_is_contract_only_and_write_only` in
 `tests/test_architecture_constraints.py` pins the exact package import allowlist,
-single public append function, forbidden reader/store/mailbox/authority markers,
-and the public exports. The static-linter governance test keeps the API, security,
-tooling, logging, task template, and project-structure descriptions synchronized.
+single public append function, exact import bindings and call-target allowlists,
+the fixed full binding-inventory fingerprint (including Store counts and non-name
+mutation targets), forbidden-capability references, reader/store/mailbox/authority
+markers, and the public exports. Alias, rebinding, augmented/type-alias/global/
+delete forms, and dynamic call construction therefore fail even when a forbidden
+receiver name is hidden. The handoff function body is structurally pinned to
+validated construction, exactly one `append(evidence)` try/except, and a fixed
+result, so raw input cannot replace the immutable contract. The
+mailbox transport suite tokenizes every administrator script and root wrapper plus
+executable normal API, frontend, cleanup, local-service, and workflow surfaces. It
+includes surface-root-relative module paths, executable docstrings, bytes,
+reassigned/deep-chain constants, constant-valued f-strings, literal `join` calls,
+Python format/percent forms, folded single- and multiline Python/frontend literal
+concatenations, JS array joins/templates, and decoded constant JS escapes,
+path-inherited mailbox context, compact lowercase compounds, natural sync
+morphology, contextual refresh/delta/pull/update aliases, quote style,
+snake/kebab/camel case, imports, and routes. Only direct
+literal status prose at the canonical generator path is ignored, and only while
+the sole `build_project_status` call flows through the exact consecutive `Path`
+output binding, fixed parent creation, and `output.write_text` statements in
+`main`, with exactly one `output` Store, no rebinding, one module-level function
+definition, and one direct Load reference. The administrator CLI constants, unique
+parser attribute/call, exact command loop, `build_parser` AST, reflection strings,
+binding/mutation targets, and runtime choices are also pinned; semantic aliases
+such as refresh/delta/pull/update cannot extend issue #10. Contract placeholder and
+residual scans use the NFKC validation view, closing compatibility-form PII escapes.
+The static-linter governance test keeps the API, security, tooling, logging, task
+template, and project-structure descriptions synchronized.

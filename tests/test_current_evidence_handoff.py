@@ -116,6 +116,14 @@ class CurrentEvidenceHandoffTests(unittest.TestCase):
             "Authorization from purchasing is required before production.",
             "The response contains basic packaging guidance.",
             "Bearer authorization must be documented.",
+            "API key rotation policy is under review.",
+            "Password reset status is complete.",
+            "Access token expiration is handled by the provider boundary.",
+            "Private key rotation is never delegated to the browser.",
+            "Token expiry is tomorrow.",
+            "Cookie policy needs review.",
+            "Session ID expiry is documented.",
+            "Customer identity must be verified before import.",
         )
         appended: list[CurrentClickEvidenceV1] = []
 
@@ -224,6 +232,22 @@ class CurrentEvidenceHandoffTests(unittest.TestCase):
                 "thread_segments.0.text",
                 "Reply to private.person@example.com.",
             ),
+            "compatibility-form email address": (
+                "thread_segments.0.text",
+                "Reply to ａｌｉｃｅ＠ｅｘａｍｐｌｅ．ｃｏｍ.",
+            ),
+            "compatibility-form phone number": (
+                "thread_segments.0.text",
+                "Call ＋１（６１７）５５５－１２１２.",
+            ),
+            "compatibility-form URL": (
+                "thread_segments.0.text",
+                "Open ｈｔｔｐｓ：／／ｅｘａｍｐｌｅ．ｃｏｍ.",
+            ),
+            "compatibility-form placeholder": (
+                "thread_segments.0.text",
+                "The request came from ＜ＰＥＲＳＯＮ＿１＞.",
+            ),
             "raw local path": (
                 "attachment_evidence.0.text",
                 r"The source is C:\private\quote.pdf.",
@@ -236,9 +260,65 @@ class CurrentEvidenceHandoffTests(unittest.TestCase):
                 "thread_segments.0.text",
                 "Subject: Sample request",
             ),
+            "full-width-colon raw message header": (
+                "thread_segments.0.text",
+                "Subject： Sample request",
+            ),
+            "compatibility-form raw message header": (
+                "thread_segments.0.text",
+                "Ｓｕｂｊｅｃｔ﹕ Sample request",
+            ),
             "raw thread identifier": (
                 "thread_segments.0.text",
                 "Thread ID: abc12345",
+            ),
+            "raw mailbox UID": (
+                "thread_segments.0.text",
+                "Mailbox UID: 12345",
+            ),
+            "full-width-colon mailbox UID": (
+                "thread_segments.0.text",
+                "Mailbox UID： 12345",
+            ),
+            "raw folder identifier": (
+                "thread_segments.0.text",
+                "folder_id: 12345",
+            ),
+            "raw customer identifier": (
+                "thread_segments.0.text",
+                "customer_id: C12345",
+            ),
+            "full-width-colon customer identifier": (
+                "thread_segments.0.text",
+                "customer_id： C12345",
+            ),
+            "raw mailbox UID assignment": (
+                "thread_segments.0.text",
+                "mailbox_uid=12345",
+            ),
+            "raw mailbox UID without separator": (
+                "thread_segments.0.text",
+                "Mailbox UID 12345",
+            ),
+            "raw spaced folder identifier": (
+                "thread_segments.0.text",
+                "folder id = 12345",
+            ),
+            "raw hyphenated customer identifier": (
+                "thread_segments.0.text",
+                "customer-id: C12345",
+            ),
+            "policy-prefixed customer identifier": (
+                "thread_segments.0.text",
+                "Customer ID policy-12345",
+            ),
+            "policy-word customer identifier": (
+                "thread_segments.0.text",
+                "Customer ID policy 12345",
+            ),
+            "policy-sentence customer identifier": (
+                "thread_segments.0.text",
+                "Customer ID policy is 12345",
             ),
             "prefixed API secret": (
                 "thread_segments.0.text",
@@ -247,6 +327,94 @@ class CurrentEvidenceHandoffTests(unittest.TestCase):
             "labeled API secret": (
                 "thread_segments.0.text",
                 "api_key: synthetic-secret-value",
+            ),
+            "space-labeled password": (
+                "thread_segments.0.text",
+                "Password sunshine",
+            ),
+            "full-width-colon password": (
+                "thread_segments.0.text",
+                "Password： sunshine",
+            ),
+            "compatibility-form password": (
+                "thread_segments.0.text",
+                "Ｐａｓｓｗｏｒｄ﹕ sunshine",
+            ),
+            "space-labeled password in a sentence": (
+                "thread_segments.0.text",
+                "Password sunshine must remain private.",
+            ),
+            "short space-labeled password": (
+                "thread_segments.0.text",
+                "Password abc123",
+            ),
+            "hyphen-separated password": (
+                "thread_segments.0.text",
+                "Password - sunshine",
+            ),
+            "space-labeled API key": (
+                "thread_segments.0.text",
+                "API key abc12345",
+            ),
+            "full-width-colon API key": (
+                "thread_segments.0.text",
+                "API key： abc12345",
+            ),
+            "hyphen-separated API key": (
+                "thread_segments.0.text",
+                "API key - abc12345",
+            ),
+            "space-labeled access token": (
+                "thread_segments.0.text",
+                "access token abc12345",
+            ),
+            "generic space-labeled token": (
+                "thread_segments.0.text",
+                "Token abc12345",
+            ),
+            "full-width-colon token": (
+                "thread_segments.0.text",
+                "Token： abc12345",
+            ),
+            "reset-prefixed password value": (
+                "thread_segments.0.text",
+                "Password reset-me-now",
+            ),
+            "rotation-prefixed API key value": (
+                "thread_segments.0.text",
+                "API key rotation-secret-value",
+            ),
+            "expired-prefixed token value": (
+                "thread_segments.0.text",
+                "Token expired-secret-value",
+            ),
+            "reset-word password value": (
+                "thread_segments.0.text",
+                "Password reset sunshine",
+            ),
+            "rotation-word API key value": (
+                "thread_segments.0.text",
+                "API key rotation abc12345",
+            ),
+            "expired-word token value": (
+                "thread_segments.0.text",
+                "Token expired abc12345",
+            ),
+            "reset-status password value": (
+                "thread_segments.0.text",
+                "Password reset status is sunshine",
+            ),
+            "rotation-policy API key value": (
+                "thread_segments.0.text",
+                "API key rotation policy is abc12345",
+            ),
+            "rotation-policy private key value": (
+                "thread_segments.0.text",
+                "Private key rotation is abc12345",
+            ),
+            "expiration-policy access token value": (
+                "thread_segments.0.text",
+                "Access token expiration is abc12345",
             ),
             "authorization credential": (
                 "thread_segments.0.text",
@@ -283,6 +451,38 @@ class CurrentEvidenceHandoffTests(unittest.TestCase):
             "hidden control character": (
                 "thread_segments.0.text",
                 "The request contains an escape\x1bsequence.",
+            ),
+            "soft-hyphen format control": (
+                "thread_segments.0.text",
+                "Pass\u00adword sunshine",
+            ),
+            "Arabic-letter-mark format control": (
+                "thread_segments.0.text",
+                "Pass\u061cword sunshine",
+            ),
+            "Mongolian-vowel-separator format control": (
+                "thread_segments.0.text",
+                "Pass\u180eword sunshine",
+            ),
+            "unpaired surrogate control": (
+                "thread_segments.0.text",
+                "Password\ud800 sunshine",
+            ),
+            "combining-grapheme-joiner control": (
+                "thread_segments.0.text",
+                "Pass\u034fword sunshine",
+            ),
+            "variation-selector control": (
+                "thread_segments.0.text",
+                "Pass\ufe0fword sunshine",
+            ),
+            "Mongolian-variation-selector control": (
+                "thread_segments.0.text",
+                "Pass\u180bword sunshine",
+            ),
+            "Hangul-filler control": (
+                "thread_segments.0.text",
+                "Pass\u3164word sunshine",
             ),
             "unparsed attachment": (
                 "attachment_evidence.0.parse_status",

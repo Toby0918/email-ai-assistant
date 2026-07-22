@@ -181,7 +181,30 @@ Not applicable. This task does not change stage evaluation.
 
 Not applicable. This task does not change private evaluation datasets or judging.
 
-## 20. Post-execution record
+## 20. Bounded corpus-to-runtime handoff checklist
+
+- [x] Any future manual incremental sync remains administrator-triggered,
+  read-only, fixed-endpoint, and gated by the exact current inventory fingerprint.
+- [x] No sync path was added, and executable guards keep that future path out of
+  the browser, normal API, cleanup, scheduler, poller, and background tasks.
+- [x] `CurrentClickEvidenceV1` is restricted to one explicit Analyze click and
+  validated current-visible sources; runtime construction remains future issue
+  #18 scope and is not wired by this task.
+- [x] The contract contains only bounded deidentified text and opaque indices;
+  it rejects raw headers, identifiers, attachment bytes/names/URLs/paths,
+  mappings, provider payloads, and private-knowledge metadata.
+- [x] Normal runtime receives only a write-only append callable and no
+  reader/search/path/key/repository/raw-vault/authority capability.
+- [x] Validation and append failures use fixed content-free codes; no public
+  analysis integration was added, so evidence submission cannot alter its result.
+- [x] Evidence ingress cannot publish knowledge, mutate authority, rebuild a
+  snapshot, or trigger reload, polling, or hot update.
+- [x] Public HTTP, SQLite, frontend, provider-disabled fallback, and startup-only
+  knowledge loading remain unchanged.
+- [x] Tests use only synthetic data and access no mailbox, vault, provider,
+  DPAPI, BitLocker, or ignored SQLite file.
+
+## 21. Post-execution record
 
 Implementation changes:
 
@@ -192,24 +215,48 @@ Implementation changes:
   schema, provider route, or mailbox operation was added.
 - Added behavioral, architecture, transport, documentation, and status-generator
   tests using synthetic values only.
+- Closed final review gaps for mailbox/folder/customer identifiers,
+  NFKC-normalized Unicode separators/labels, and short space-labeled credentials
+  while preserving documented credential-policy prose. Unicode `Cf` format
+  controls, `Cs` surrogates, and explicit default-ignorable non-`Cf` ranges now
+  fail closed. Placeholder and residual-PII scans use the NFKC validation view.
+- Expanded executable guards to use exact import bindings, call-target allowlists,
+  a fixed complete binding-inventory fingerprint, and forbidden-capability
+  references in every
+  current-evidence module. Sync exposure now covers all administrator scripts and
+  wrappers plus browser, API, cleanup, local-service, and scheduled workflow
+  surfaces, including surface-root-relative path context, executable docstrings,
+  bytes/f-strings, literal concatenations, compact lowercase compounds, and natural
+  morphology. The binding fingerprint includes Store counts and non-name mutation
+  targets; the status-prose exception pins one unrebound `output` Store and the
+  exact consecutive canonical `Path` output flow, with no function alias/reference
+  escape, plus unique unrebound `pathlib.Path` and `ROOT` bindings and no
+  attribute/subscript capability mutation. The complete `parse_args` and `main`
+  structures and sole `argparse` binding are pinned, and custom `write_text`
+  definitions are rejected. A reviewed full-generator AST SHA-256 fingerprint
+  makes any other code-shape change fail closed. The handoff body and complete administrator CLI command/parser surface
+  are structurally/runtime pinned, including reflection and mutation targets. Sync
+  scanning covers constant reassignment/deep chains, join/format/percent forms,
+  multiline frontend concatenation, JS array/template/escape forms, and
+  module-script extensions.
 
 Final verification and independent review:
 
-- Final focused handoff/architecture/transport/docs suite: 134 tests passed in
+- Final focused handoff/architecture/transport/docs suite: 122 tests passed in
   the repository `.venv`.
-- Full discovery: 1,535 tests passed, 1 expected skip.
+- Full discovery: 1,537 tests passed, 1 expected skip.
 - Maintenance report: no cleanup findings.
 - Repository leakage scan: total 0.
 - JavaScript syntax, manifest JSON, compileall, and `git diff --check`: passed.
-- Standards review found two documentation synchronization defects; both were
-  fixed, and the standards re-review reported zero findings.
-- Specification review found artifact rejection gaps, then false positives and
-  one pure-alphabetic auth-token bypass. Focused RED -> GREEN cases fixed each
-  issue, and the final specification re-review reported zero findings.
-- The default interpreter could not collect provider-facing tests because it
-  lacks `openai`; no dependency was installed. The existing `.venv` has the
-  required `openai==2.45.0` and was used for authoritative verification. Its
-  Python reports 3.12.6; Python 3.12.13 is not installed in this workspace.
+- Standards review findings, including the missing bounded-handoff completion
+  checklist, were fixed; the final standards re-review reported zero findings.
+- Specification review found artifact rejection gaps, false positives, one
+  pure-alphabetic auth-token bypass, and incomplete package/sync guard coverage.
+  Focused RED -> GREEN cases fixed each issue; the final specification re-review
+  reported zero findings.
+- The authoritative `.venv` reports Python 3.12.13 and SQLite 3.50.4, contains
+  the exact locked direct dependencies including `openai==2.45.0`, and does not
+  inherit system packages.
 
 Deferred follow-on scope:
 

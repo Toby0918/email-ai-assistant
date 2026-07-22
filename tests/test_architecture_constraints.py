@@ -7,6 +7,7 @@ Run:
 from __future__ import annotations
 
 import ast
+import hashlib
 import importlib.util
 import re
 import tempfile
@@ -64,6 +65,30 @@ SMTP_CONSTRUCTORS = {"SMTP", "SMTP_SSL"}
 
 GITIGNORE_PATTERNS = load_gitignore_patterns(ROOT)
 
+_CURRENT_EVIDENCE_ALLOWED_SEARCH_TARGETS = {
+    "PLACEHOLDER.search",
+    "_SAFE_CREDENTIAL_POLICY_PROSE.search",
+    "pattern.search",
+}
+_CURRENT_EVIDENCE_FORBIDDEN_LOAD_NAMES = {
+    "__builtins__", "__import__", "breakpoint", "delattr", "eval", "exec",
+    "getattr", "globals", "input", "locals", "open", "print", "setattr",
+    "vars",
+}
+_CURRENT_EVIDENCE_FORBIDDEN_ATTRIBUTES = {
+    "account", "authority", "candidate", "chmod", "chown", "commit",
+    "connect", "cursor", "database", "delete", "environ", "environment",
+    "execute", "fetch", "filesystem", "flush", "folder", "get", "getenv",
+    "glob", "historical", "history", "imap", "inbox", "iterdir", "key",
+    "key_store", "list", "load", "mailbox", "mkdir", "open", "patch",
+    "path", "poll", "post", "provider", "put", "query", "raw", "raw_vault",
+    "read", "reader", "recv", "reload", "remove", "rename", "repository",
+    "request", "restoration", "rglob", "rmdir", "rmtree", "rollback",
+    "schedule", "search", "send", "snapshot", "sqlite", "stat", "store",
+    "touch", "truncate", "unlink", "update", "urlopen", "vault", "walk",
+    "watch", "write",
+}
+
 
 def parse_import_roots(path: Path) -> set[str]:
     # Import roots are enough to enforce the project's layer boundaries.
@@ -101,6 +126,196 @@ def parse_called_names(path: Path) -> set[str]:
         elif isinstance(node.func, ast.Attribute):
             names.add(node.func.attr)
     return names
+
+
+def parse_call_targets(path: Path) -> set[str]:
+    if not path.exists():
+        return set()
+    tree = ast.parse(read_text(path))
+    return {
+        _call_target(node.func)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+    }
+
+
+def _call_target(value: ast.expr) -> str:
+    if isinstance(value, ast.Name):
+        return value.id
+    if isinstance(value, ast.Attribute):
+        return f"{_expression_target(value.value)}.{value.attr}"
+    return f"<{type(value).__name__}>"
+
+
+def _expression_target(value: ast.expr) -> str:
+    if isinstance(value, ast.Name):
+        return value.id
+    if isinstance(value, ast.Attribute):
+        return f"{_expression_target(value.value)}.{value.attr}"
+    if isinstance(value, ast.Call):
+        return f"{_call_target(value.func)}()"
+    return f"<{type(value).__name__}>"
+
+
+def parse_bound_names(path: Path) -> set[str]:
+    return set(parse_name_bindings(path))
+
+
+def _bound_target_names(target: ast.expr) -> set[str]:
+    if isinstance(target, ast.Name):
+        return {target.id}
+    if isinstance(target, ast.Starred):
+        return _bound_target_names(target.value)
+    if isinstance(target, (ast.List, ast.Tuple)):
+        return {
+            name
+            for item in target.elts
+            for name in _bound_target_names(item)
+        }
+    return set()
+
+
+def parse_name_bindings(path: Path) -> dict[str, list[str]]:
+    tree = ast.parse(read_text(path))
+    bindings: dict[str, list[str]] = {}
+
+    def add(name: str, kind: str) -> None:
+        bindings.setdefault(name, []).append(kind)
+
+    for node in ast.walk(tree):
+        if isinstance(node, ast.arg):
+            add(node.arg, "argument")
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            add(node.name, "function")
+        elif isinstance(node, ast.ClassDef):
+            add(node.name, "class")
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                add(
+                    alias.asname or alias.name.split(".", 1)[0],
+                    f"import:{alias.name}:{alias.asname or ''}",
+                )
+        elif isinstance(node, ast.ImportFrom):
+            for alias in node.names:
+                add(
+                    alias.asname or alias.name,
+                    f"from:{node.level}:{node.module or ''}:{alias.name}:"
+                    f"{alias.asname or ''}",
+                )
+        elif isinstance(node, ast.Assign):
+            for target in node.targets:
+                for name in _bound_target_names(target):
+                    add(name, "assignment")
+        elif isinstance(node, (ast.AnnAssign, ast.NamedExpr)):
+            for name in _bound_target_names(node.target):
+                add(name, type(node).__name__)
+        elif isinstance(node, ast.AugAssign):
+            for name in _bound_target_names(node.target):
+                add(name, "AugAssign")
+        elif isinstance(node, (ast.For, ast.AsyncFor, ast.comprehension)):
+            for name in _bound_target_names(node.target):
+                add(name, type(node).__name__)
+        elif isinstance(node, (ast.With, ast.AsyncWith)):
+            for item in node.items:
+                if item.optional_vars is not None:
+                    for name in _bound_target_names(item.optional_vars):
+                        add(name, "with")
+        elif isinstance(node, ast.ExceptHandler) and node.name:
+            add(node.name, "exception")
+        elif isinstance(node, (ast.MatchAs, ast.MatchStar)) and node.name:
+            add(node.name, type(node).__name__)
+        elif isinstance(node, ast.MatchMapping) and node.rest:
+            add(node.rest, "MatchMapping")
+        elif isinstance(node, (ast.Global, ast.Nonlocal)):
+            for name in node.names:
+                add(name, type(node).__name__)
+        elif isinstance(node, ast.Delete):
+            for target in node.targets:
+                for name in _bound_target_names(target):
+                    add(name, "Delete")
+        elif isinstance(node, ast.TypeAlias):
+            for name in _bound_target_names(node.name):
+                add(name, "TypeAlias")
+    return bindings
+
+
+def parse_forbidden_current_evidence_references(path: Path) -> set[str]:
+    tree = ast.parse(read_text(path))
+    references: set[str] = set()
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Name)
+            and isinstance(node.ctx, ast.Load)
+            and node.id in _CURRENT_EVIDENCE_FORBIDDEN_LOAD_NAMES
+        ):
+            references.add(node.id)
+        elif (
+            isinstance(node, ast.Attribute)
+            and node.attr in _CURRENT_EVIDENCE_FORBIDDEN_ATTRIBUTES
+        ):
+            target = _expression_target(node)
+            if target not in _CURRENT_EVIDENCE_ALLOWED_SEARCH_TARGETS:
+                references.add(target)
+    return references
+
+
+def binding_inventory_fingerprint(path: Path) -> str:
+    tree = ast.parse(read_text(path))
+    bindings = "\n".join(
+        "{}\0{}".format(name, "\0".join(kinds))
+        for name, kinds in sorted(parse_name_bindings(path).items())
+    )
+    stores = "\n".join(
+        f"{name}\0{count}"
+        for name, count in sorted(
+            {
+                selected.id: sum(
+                    1
+                    for candidate in ast.walk(tree)
+                    if isinstance(candidate, ast.Name)
+                    and isinstance(candidate.ctx, ast.Store)
+                    and candidate.id == selected.id
+                )
+                for selected in ast.walk(tree)
+                if isinstance(selected, ast.Name)
+                and isinstance(selected.ctx, ast.Store)
+            }.items()
+        )
+    )
+    mutations = "\n".join(parse_non_name_mutation_targets(path))
+    canonical = f"[bindings]\n{bindings}\n[stores]\n{stores}\n[mutations]\n{mutations}"
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+def parse_non_name_mutation_targets(path: Path) -> list[str]:
+    tree = ast.parse(read_text(path))
+    observed: list[str] = []
+    for node in ast.walk(tree):
+        targets: list[ast.expr] = []
+        if isinstance(node, ast.Assign):
+            targets.extend(node.targets)
+        elif isinstance(
+            node,
+            (ast.AnnAssign, ast.AugAssign, ast.NamedExpr, ast.For, ast.AsyncFor),
+        ):
+            targets.append(node.target)
+        elif isinstance(node, ast.comprehension):
+            targets.append(node.target)
+        elif isinstance(node, (ast.With, ast.AsyncWith)):
+            targets.extend(
+                item.optional_vars
+                for item in node.items
+                if item.optional_vars is not None
+            )
+        elif isinstance(node, ast.Delete):
+            targets.extend(node.targets)
+        for target in targets:
+            observed.extend(
+                f"{type(node).__name__}:{_expression_target(candidate)}"
+                for candidate in ast.walk(target)
+                if isinstance(candidate, (ast.Attribute, ast.Subscript))
+            )
+    return sorted(observed)
 
 
 def parse_import_modules(
@@ -449,6 +664,154 @@ class ArchitectureConstraintTests(unittest.TestCase):
         self.assertIn("startup-only runtime bootstrap", architecture)
         self.assertIn("no reload, polling, hot update, or status endpoint", architecture)
 
+    def test_current_evidence_call_allowlist_rejects_alias_and_dynamic_targets(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "sample.py"
+            source.write_text(
+                "def probe(repository):\n"
+                "    PLACEHOLDER.search('safe')\n"
+                "    repository.search('private')\n"
+                "    open('private-store')\n"
+                "    operation = open\n"
+                "    reader = repository.read\n"
+                "    operation('private-store')\n"
+                "    reader()\n"
+                "    getattr(repository, 'reload')()\n"
+                "    tuple_reader, = (repository.read,)\n"
+                "    tuple_reader()\n"
+                "    (dynamic := open)('private-store')\n"
+                "    [open][0]('private-store')\n"
+                "    len = repository.read\n"
+                "    len()\n"
+                "    any = open\n"
+                "    any(())\n"
+                "    append = __builtins__['open']\n"
+                "    append('private-store')\n"
+                "    value = 'safe'\n"
+                "    value.strip = repository.poll\n"
+                "    value.strip()\n"
+                "def shadow(PLACEHOLDER, operation=open):\n"
+                "    PLACEHOLDER.search('private')\n"
+                "    operation('private-store')\n",
+                encoding="utf-8",
+            )
+
+            unexpected = parse_call_targets(source) - {"PLACEHOLDER.search"}
+            bound_names = parse_bound_names(source)
+            forbidden_references = parse_forbidden_current_evidence_references(
+                source
+            )
+            non_name_mutations = parse_non_name_mutation_targets(source)
+
+            binding_source = Path(directory) / "bindings.py"
+            binding_source.write_text(
+                "import safe_module as PLACEHOLDER\n"
+                "def function_scope(manager, capability):\n"
+                "    for PLACEHOLDER in (capability,):\n"
+                "        PLACEHOLDER.search('private')\n"
+                "    with manager as PLACEHOLDER:\n"
+                "        pass\n"
+                "    try:\n"
+                "        pass\n"
+                "    except Exception as PLACEHOLDER:\n"
+                "        pass\n"
+                "    return [PLACEHOLDER for PLACEHOLDER in (capability,)]\n"
+                "def PLACEHOLDER():\n"
+                "    pass\n"
+                "class PLACEHOLDER:\n"
+                "    pass\n",
+                encoding="utf-8",
+            )
+            binding_kinds = parse_name_bindings(binding_source)["PLACEHOLDER"]
+
+            uncommon_source = Path(directory) / "uncommon_bindings.py"
+            uncommon_source.write_text(
+                "def mutate(capability):\n"
+                "    global receiver\n"
+                "    receiver += capability\n"
+                "    type alias_receiver = tuple[int]\n",
+                encoding="utf-8",
+            )
+            uncommon_bindings = parse_name_bindings(uncommon_source)
+
+            capability_source = Path(directory) / "capability_attributes.py"
+            capability_source.write_text(
+                "def inspect(append):\n"
+                "    return (append.path, append.key, append.candidate, "
+                "append.restoration, append.raw_vault, append.mailbox, "
+                "append.authority, append.snapshot, append.repository)\n",
+                encoding="utf-8",
+            )
+            capability_references = (
+                parse_forbidden_current_evidence_references(capability_source)
+            )
+
+        self.assertEqual(
+            unexpected,
+            {
+                "<Call>",
+                "<NamedExpr>",
+                "<Subscript>",
+                "any",
+                "append",
+                "getattr",
+                "len",
+                "open",
+                "operation",
+                "reader",
+                "repository.search",
+                "tuple_reader",
+                "value.strip",
+            },
+        )
+        self.assertIn("PLACEHOLDER", bound_names)
+        self.assertEqual(
+            forbidden_references,
+            {
+                "__builtins__",
+                "getattr",
+                "open",
+                "repository.poll",
+                "repository.read",
+                "repository.search",
+            },
+        )
+        self.assertEqual(non_name_mutations, ["Assign:value.strip"])
+        self.assertEqual(
+            set(binding_kinds),
+            {
+                "For",
+                "class",
+                "comprehension",
+                "exception",
+                "function",
+                "import:safe_module:PLACEHOLDER",
+                "with",
+            },
+        )
+        self.assertEqual(
+            uncommon_bindings["receiver"],
+            ["Global", "AugAssign"],
+        )
+        self.assertEqual(
+            uncommon_bindings["alias_receiver"],
+            ["TypeAlias"],
+        )
+        self.assertEqual(
+            capability_references,
+            {
+                "append.authority",
+                "append.candidate",
+                "append.key",
+                "append.mailbox",
+                "append.path",
+                "append.raw_vault",
+                "append.repository",
+                "append.restoration",
+                "append.snapshot",
+            },
+        )
+
     def test_current_evidence_handoff_is_contract_only_and_write_only(self) -> None:
         package = ROOT / "backend" / "current_evidence"
         artifact_policy = package / "artifact_policy.py"
@@ -461,9 +824,10 @@ class ArchitectureConstraintTests(unittest.TestCase):
         self.assertTrue(package_init.is_file())
 
         allowed_imports = {
-            artifact_policy.resolve(): {"__future__", "re"},
+            artifact_policy.resolve(): {"__future__", "re", "unicodedata"},
             contract.resolve(): {
-                "__future__", "dataclasses", "datetime", "re", "uuid",
+                "__future__", "dataclasses", "datetime", "re", "unicodedata",
+                "uuid",
                 "backend.current_evidence.artifact_policy",
                 "backend.private_knowledge.entity_patterns",
                 "backend.private_knowledge.residual_scanner",
@@ -477,18 +841,200 @@ class ArchitectureConstraintTests(unittest.TestCase):
                 "backend.current_evidence.handoff",
             },
         }
+        expected_import_bindings = {
+            artifact_policy.resolve(): {
+                "annotations": ["from:0:__future__:annotations:"],
+                "re": ["import:re:"],
+                "unicodedata": ["import:unicodedata:"],
+            },
+            contract.resolve(): {
+                "PLACEHOLDER": [
+                    "from:0:backend.private_knowledge.entity_patterns:"
+                    "PLACEHOLDER:"
+                ],
+                "annotations": ["from:0:__future__:annotations:"],
+                "dataclass": ["from:0:dataclasses:dataclass:"],
+                "datetime": ["from:0:datetime:datetime:"],
+                "field": ["from:0:dataclasses:field:"],
+                "has_forbidden_artifact": [
+                    "from:1:artifact_policy:has_forbidden_artifact:"
+                ],
+                "re": ["import:re:"],
+                "scan_residuals": [
+                    "from:0:backend.private_knowledge.residual_scanner:"
+                    "scan_residuals:"
+                ],
+                "timedelta": ["from:0:datetime:timedelta:"],
+                "unicodedata": ["import:unicodedata:"],
+                "uuid": ["import:uuid:"],
+            },
+            handoff.resolve(): {
+                "Callable": ["from:0:collections.abc:Callable:"],
+                "CurrentClickEvidenceV1": [
+                    "from:1:contract:CurrentClickEvidenceV1:"
+                ],
+                "CurrentEvidenceError": [
+                    "from:1:contract:CurrentEvidenceError:"
+                ],
+                "annotations": ["from:0:__future__:annotations:"],
+                "dataclass": ["from:0:dataclasses:dataclass:"],
+            },
+            package_init.resolve(): {
+                "CurrentClickEvidenceV1": [
+                    "from:1:contract:CurrentClickEvidenceV1:"
+                ],
+                "submit_current_click_evidence": [
+                    "from:1:handoff:submit_current_click_evidence:"
+                ],
+            },
+        }
         for path in package.rglob("*.py"):
             imports = parse_import_modules(path)
+            import_bindings = {
+                name: kinds
+                for name, kinds in parse_name_bindings(path).items()
+                if all(
+                    kind.startswith(("from:", "import:"))
+                    for kind in kinds
+                )
+            }
             with self.subTest(path=path):
                 self.assertEqual(imports, allowed_imports[path.resolve()])
+                self.assertEqual(
+                    import_bindings,
+                    expected_import_bindings[path.resolve()],
+                )
                 self.assertNotIn("backend.mailbox_ingest", read_text(path))
 
-        self.assertTrue(
-            parse_called_names(handoff).isdisjoint({
-                "read", "get", "list", "search", "query", "find", "open",
-                "load", "delete", "remove", "connect", "reload", "poll",
-                "watch", "schedule",
-            })
+        expected_call_targets = {
+            artifact_policy.resolve(): {
+                "_SAFE_CREDENTIAL_POLICY_PROSE.search",
+                "any",
+                "pattern.search",
+                "re.compile",
+                "unicodedata.category",
+                "unicodedata.normalize",
+            },
+            contract.resolve(): {
+                "AttachmentEvidence", "CurrentEvidenceError", "PLACEHOLDER.search",
+                "ThreadEvidence", "_attachment_evidence", "_exact_mapping",
+                "_safe_text", "_source_id", "_thread_segments", "_timestamp",
+                "_uuid4", "any", "dataclass", "datetime.fromisoformat",
+                "enumerate", "field", "has_forbidden_artifact", "int",
+                "isinstance", "item.to_mapping", "items.append", "len",
+                "object.__new__", "object.__setattr__", "parsed.isoformat",
+                "parsed.isoformat().replace", "parsed.utcoffset",
+                "pattern.fullmatch", "re.compile", "scan_residuals", "set",
+                "str", "super", "super().__init__", "timedelta", "tuple",
+                "unicodedata.normalize", "uuid.UUID", "value.endswith",
+                "value.rsplit", "value.strip",
+            },
+            handoff.resolve(): {
+                "CurrentClickEvidenceV1.from_mapping", "CurrentEvidenceError",
+                "_EvidenceSubmissionResult", "append", "dataclass",
+            },
+            package_init.resolve(): set(),
+        }
+        expected_binding_fingerprints = {
+            artifact_policy.resolve(): (
+                "3cfc02385d84418ea2595d043ab877acee481beb3960f65e645eda37ad1a60dc"
+            ),
+            contract.resolve(): (
+                "2212fd36b03fc72caf8c8f907036b59a7ace4bacea4487e258a072edc4e6a839"
+            ),
+            handoff.resolve(): (
+                "daf883b1bf7772119851627a6cde09d9c1dd90e9571c44cd595633fcd3d76d09"
+            ),
+            package_init.resolve(): (
+                "812fdf2d6df5c9ba478de7e5b56a3c16aec361ab6c5e5225a74262b5a8b5435b"
+            ),
+        }
+        for path in package.rglob("*.py"):
+            with self.subTest(exact_call_targets=path):
+                self.assertEqual(
+                    parse_call_targets(path),
+                    expected_call_targets[path.resolve()],
+                )
+                self.assertEqual(
+                    parse_forbidden_current_evidence_references(path),
+                    set(),
+                )
+                self.assertEqual(
+                    binding_inventory_fingerprint(path),
+                    expected_binding_fingerprints[path.resolve()],
+                    parse_name_bindings(path),
+                )
+        builtins = {
+            "any", "enumerate", "int", "isinstance", "len", "object", "set",
+            "str", "super", "tuple",
+        }
+        for path in package.rglob("*.py"):
+            self.assertEqual(
+                builtins & parse_bound_names(path),
+                set(),
+                path,
+            )
+        self.assertEqual(
+            parse_name_bindings(contract).get("PLACEHOLDER"),
+            ["from:0:backend.private_knowledge.entity_patterns:PLACEHOLDER:"],
+        )
+        self.assertEqual(
+            parse_name_bindings(artifact_policy).get(
+                "_SAFE_CREDENTIAL_POLICY_PROSE"
+            ),
+            ["assignment"],
+        )
+        self.assertEqual(
+            parse_name_bindings(artifact_policy).get("pattern"),
+            ["comprehension"],
+        )
+        self.assertEqual(
+            parse_name_bindings(artifact_policy).get("character"),
+            ["comprehension"],
+        )
+        self.assertEqual(
+            parse_name_bindings(contract).get("pattern"),
+            ["argument"],
+        )
+        self.assertEqual(
+            parse_name_bindings(handoff).get("append"),
+            ["argument"],
+        )
+        handoff_tree = ast.parse(read_text(handoff))
+        submit = next(
+            node
+            for node in handoff_tree.body
+            if isinstance(node, ast.FunctionDef)
+            and node.name == "submit_current_click_evidence"
+        )
+        self.assertEqual(
+            [argument.arg for argument in submit.args.args],
+            ["value"],
+        )
+        self.assertEqual(
+            [argument.arg for argument in submit.args.kwonlyargs],
+            ["append"],
+        )
+        self.assertEqual(submit.args.defaults, [])
+        self.assertEqual(submit.args.kw_defaults, [None])
+        self.assertEqual(
+            [ast.unparse(statement) for statement in submit.body],
+            [
+                "evidence = CurrentClickEvidenceV1.from_mapping(value)",
+                "try:\n    append(evidence)\nexcept Exception:\n    raise "
+                "CurrentEvidenceError('evidence_append_failed') from None",
+                "return _EvidenceSubmissionResult()",
+            ],
+        )
+        artifact_tree = ast.parse(read_text(artifact_policy))
+        self.assertEqual(
+            [
+                node.target.id
+                for node in ast.walk(artifact_tree)
+                if isinstance(node, ast.comprehension)
+                and isinstance(node.target, ast.Name)
+            ],
+            ["character", "pattern"],
         )
         self.assertEqual(
             {
@@ -521,11 +1067,13 @@ class ArchitectureConstraintTests(unittest.TestCase):
             with self.subTest(exports=path):
                 self.assertEqual(public_exports, expected)
         self.assertTrue(
-            parse_called_names(artifact_policy).issubset({"any", "compile", "search"})
+            parse_called_names(artifact_policy).issubset(
+                {"any", "category", "compile", "normalize", "search"}
+            )
         )
         capability_sources = (contract, handoff, package_init)
         for marker in (
-            "mailbox_ingest", "raw_vault", "authority", "runtime_loader",
+            "mailbox_ingest", "raw_vault", "raw-vault", "authority", "runtime_loader",
             "runtime_bootstrap", "repository", "sqlite", "pathlib", "getenv",
             "environ", "dpapi", "key_store", "snapshot", "provider",
         ):
@@ -533,6 +1081,12 @@ class ArchitectureConstraintTests(unittest.TestCase):
                 self.assertNotIn(marker, "\n".join(
                     read_text(path).lower() for path in capability_sources
                 ))
+        package_source = "\n".join(
+            read_text(path).lower() for path in package.rglob("*.py")
+        )
+        for marker in ("hot_update", "hotupdate", "hot-update"):
+            with self.subTest(forbidden_hot_update_surface=marker):
+                self.assertNotIn(marker, package_source)
 
         architecture = " ".join(read_text(
             ROOT / "docs" / "constraints" / "architecture_constraints.md"

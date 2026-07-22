@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
@@ -174,11 +175,12 @@ def _source_id(value: object, pattern: re.Pattern[str], index: int) -> str:
 def _safe_text(value: object, maximum: int) -> str:
     if not isinstance(value, str) or not 1 <= len(value) <= maximum:
         raise CurrentEvidenceError()
+    normalized = unicodedata.normalize("NFKC", value)
     if (
         value != value.strip()
-        or PLACEHOLDER.search(value)
+        or PLACEHOLDER.search(normalized)
         or has_forbidden_artifact(value)
-        or scan_residuals(value)
+        or scan_residuals(normalized)
     ):
         raise CurrentEvidenceError()
     return value

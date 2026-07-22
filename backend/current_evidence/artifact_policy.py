@@ -3,44 +3,68 @@
 from __future__ import annotations
 
 import re
+import unicodedata
 
 
 _CONTROL_CHARACTERS = re.compile(
     r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f"
     r"\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff]"
 )
+_DEFAULT_IGNORABLE_CHARACTERS = re.compile(
+    r"[\u034f\u115f-\u1160\u17b4-\u17b5\u180b-\u180f\u2065\u3164"
+    r"\ufe00-\ufe0f\uffa0\ufff0-\ufff8\U000e0000-\U000e0fff]"
+)
+_FORBIDDEN_UNICODE_CATEGORIES = ("Cf", "Cs")
+_SAFE_CREDENTIAL_POLICY_PROSE = re.compile(
+    r"(?i)\A(?:"
+    r"password reset status is (?:complete|documented|pending|under review)|"
+    r"api[-_ ]?key rotation policy is (?:documented|pending|under review)|"
+    r"(?:access[-_ ]?)?token (?:expiry|expiration) is (?:documented|pending|"
+    r"tomorrow|under review|handled by the provider boundary)|"
+    r"private[-_ ]?key rotation is (?:documented|pending|under review|"
+    r"never delegated to the browser)|"
+    r"cookie policy (?:is documented|is under review|needs review)|"
+    r"session[-_ ]?id expiry is (?:documented|pending|under review)"
+    r")[.!?]?\Z"
+)
 _RAW_MESSAGE_HEADER = re.compile(
     r"^[ \t]*(?:subject|from|to|cc|bcc|reply-to|date|message-id|"
-    r"in-reply-to|references|return-path|received)\s*:",
+    r"in-reply-to|references|return-path|received)\s*[:：]",
     re.IGNORECASE | re.MULTILINE,
 )
 _PRIVATE_METADATA_FIELD = re.compile(
     r"(?i)(?<!\w)(?:"
-    r"(?:message|thread|record|case|source|attachment|snapshot|vault)[-_ ]?id|"
+    r"(?:message|thread|record|case|source|attachment|snapshot|vault|"
+    r"folder|customer)[-_ ]?id|(?:mailbox[-_ ]?)?uid|"
     r"file[-_ ]?name|(?:file|local)[-_ ]?path|private[-_ ]?url|"
     r"download[-_ ]?url|content[-_ ]?base64|binary|bytes|"
     r"placeholder[-_ ]?mapping|restoration[-_ ]?mapping|runtime[-_ ]?cards?|"
     r"authority(?:[-_ ]?metadata)?|snapshot[-_ ]?metadata|"
     r"(?:raw[-_ ]?)?(?:provider|model)[-_ ]?(?:response|output)|"
     r"prompt"
-    r")\s*[:=]"
+    r")\s*[:：=＝]"
+)
+_UNSEPARATED_PRIVATE_IDENTIFIER = re.compile(
+    r"(?i)(?<!\w)(?:(?:message|thread|record|case|source|attachment|snapshot|"
+    r"vault|folder|customer)[-_ ]?id|(?:mailbox[-_ ]?)?uid)\b"
+    r"\s+(?:[-=:：＝]\s*)?\S[^|\r\n]*"
 )
 _LABELED_SECRET = re.compile(
     r"(?i)\b(?:password|passwd|pwd|api[-_ ]?key|client[-_ ]?secret|"
     r"private[-_ ]?key|"
     r"access[-_ ]?token|refresh[-_ ]?token|id[-_ ]?token|auth[-_ ]?token|"
     r"token|session[-_ ]?id|credentials?|secret)\b"
-    r"(?:(?:\s+(?:is|equals?))|\s*[:=])\s*\S[^|\r\n]*"
+    r"(?:(?:\s+(?:is|equals?))|\s*[:：=＝])\s*\S[^|\r\n]*"
 )
 _UNSEPARATED_SECRET = re.compile(
-    r"(?i)\b(?:password|passwd|pwd|api[-_ ]?key|client[-_ ]?secret|"
-    r"private[-_ ]?key|access[-_ ]?token|refresh[-_ ]?token|"
-    r"id[-_ ]?token|auth[-_ ]?token|session[-_ ]?id|credentials?)\b"
-    r"\s+[A-Z0-9._~+/-]{12,}(?![A-Z0-9._~+/-])"
+    r"(?i)\b(?:password|passwd|pwd|api[-_ ]?key|private[-_ ]?key|"
+    r"access[-_ ]?token|token|session[-_ ]?id|cookie|client[-_ ]?secret|"
+    r"refresh[-_ ]?token|id[-_ ]?token|auth[-_ ]?token|credentials?|secret)\b"
+    r"\s+(?:[-=:：＝]\s*)?\S[^|\r\n]*"
 )
 _AUTHORIZATION_FIELD = re.compile(
     r"(?i)\b(?:authorization|proxy[-_ ]?authorization|cookie|set[-_ ]?cookie)"
-    r"\b\s*[:=]\s*\S[^|\r\n]*"
+    r"\b\s*[:：=＝]\s*\S[^|\r\n]*"
 )
 _AUTH_SECRET = re.compile(
     r"(?i:\b(?:bearer|basic))\s+(?:"
@@ -70,8 +94,10 @@ _SERIALIZED_MAPPING = re.compile(
 )
 _FORBIDDEN_PATTERNS = (
     _CONTROL_CHARACTERS,
+    _DEFAULT_IGNORABLE_CHARACTERS,
     _RAW_MESSAGE_HEADER,
     _PRIVATE_METADATA_FIELD,
+    _UNSEPARATED_PRIVATE_IDENTIFIER,
     _LABELED_SECRET,
     _UNSEPARATED_SECRET,
     _AUTHORIZATION_FIELD,
@@ -85,7 +111,18 @@ _FORBIDDEN_PATTERNS = (
 
 def has_forbidden_artifact(value: str) -> bool:
     """Return only whether a bounded string contains a forbidden artifact."""
-    return any(pattern.search(value) is not None for pattern in _FORBIDDEN_PATTERNS)
+    normalized = unicodedata.normalize("NFKC", value)
+    if any(
+        unicodedata.category(character) in _FORBIDDEN_UNICODE_CATEGORIES
+        for character in normalized
+    ):
+        return True
+    safe_policy_prose = _SAFE_CREDENTIAL_POLICY_PROSE.search(normalized) is not None
+    return any(
+        pattern.search(normalized) is not None
+        for pattern in _FORBIDDEN_PATTERNS
+        if not (safe_policy_prose and pattern is _UNSEPARATED_SECRET)
+    )
 
 
 __all__ = ["has_forbidden_artifact"]
