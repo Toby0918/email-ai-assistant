@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-16
+last_update: 2026-07-20
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -398,6 +398,15 @@ already-deidentified input and production-gated public output. The program write
 no transcript and cannot prevent external terminal capture. Only the aggregate-only
 report persists; exact 20 Flash + 180 Flash / 40 Pro, zero retry, and no automatic
 production model switch remain mechanically pinned.
+
+For the documentation-only V2 contract, focused documentation tests must pin
+`PrivateEvaluationCaseV2`, ordered deidentified thread segments, reviewed attachment bindings,
+`StructuredHumanReferenceV2`, candidate/reference separation,
+a blinded human judge, aggregate-only reporting, and V1 compatibility. No runtime
+V2 mechanical rule is activated in Task 9. A later approved implementation must add
+schema/import/serialization guards before any V2 dataset can be created or opened,
+and those guards must prohibit raw ChatGPT transcripts, automatic training,
+automatic upload, model self-grading, and an automatic production model switch.
 
 ## 14. 修改规则
 

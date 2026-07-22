@@ -158,6 +158,27 @@ def _shared_deadline_target(
     _hang_target(item, source_id, _deadline, send_connection)
 
 
+def _near_limit_payload_target(
+    item: StoredAttachment,
+    source_id: str,
+    _deadline: float,
+    send_connection: Connection,
+) -> None:
+    bundle = AttachmentAnalysisBundle(
+        _display(item),
+        AttachmentModelCandidate(
+            source_id,
+            "X" * attachment_parser.MAX_EXTRACTED_CHARACTERS,
+        ),
+    )
+    try:
+        send_connection.send_bytes(
+            pickle.dumps(bundle, protocol=pickle.HIGHEST_PROTOCOL)
+        )
+    finally:
+        send_connection.close()
+
+
 class _TrackedProcess:
     def __init__(self, process: multiprocessing.Process, *, ignore_terminate: bool = False) -> None:
         self._process = process
@@ -309,7 +330,18 @@ class _ReadyConnection:
 
     def recv_bytes(self, _maxlength: int | None = None) -> bytes:
         self.recv_calls += 1
-        return b""
+        return pickle.dumps("ready-message", protocol=pickle.HIGHEST_PROTOCOL)
+
+
+class _LateReadyConnection(_ReadyConnection):
+    def poll(self, _timeout: float = 0.0) -> bool:
+        self.poll_calls += 1
+        return self.poll_calls >= 2
+
+
+class _StoppedProcess:
+    def is_alive(self) -> bool:
+        return False
 
 
 class _AlwaysAliveProcess:
@@ -539,7 +571,7 @@ class _BlockingLifecycleContext:
 
 
 class AttachmentParserProcessTests(unittest.TestCase):
-    def test_receive_never_reads_a_ready_pipe_while_process_is_alive(self) -> None:
+    def test_receive_reads_a_ready_pipe_while_process_is_alive(self) -> None:
         process = _AlwaysAliveProcess()
         connection = _ReadyConnection()
         clock_values = iter((99.0, 101.0))
@@ -551,17 +583,84 @@ class AttachmentParserProcessTests(unittest.TestCase):
             lambda: next(clock_values),
         )
 
-        self.assertTrue(timed_out)
-        self.assertIsNone(message)
-        self.assertEqual(connection.recv_calls, 0)
-        self.assertGreaterEqual(len(process.join_timeouts), 1)
+        self.assertFalse(timed_out)
+        self.assertEqual(message, "ready-message")
+        self.assertEqual(connection.recv_calls, 1)
 
-    def test_worker_message_limit_is_strictly_below_pipe_capacity(self) -> None:
+    def test_real_spawn_receives_near_limit_payload_without_waiting_for_exit(self) -> None:
+        with TemporaryDirectory() as directory:
+            item = self._item(directory, "near-limit.pdf")
+            context = _SpawnContextWrapper(_near_limit_payload_target)
+            started = time.monotonic()
+
+            result = self._parse_bundles(
+                [item],
+                deadline=started + 3.0,
+                mp_context=context,
+            )
+
+            self.assertLess(time.monotonic() - started, 2.5)
+            self.assertEqual(result[0].display_insight["status"], "parsed")
+            self.assertEqual(
+                len(result[0].model_candidate.text),
+                attachment_parser.MAX_EXTRACTED_CHARACTERS,
+            )
+            self.assertTrue(self._wait_until(
+                lambda: all(
+                    process.close_calls == 1 and not process.is_alive()
+                    for process in context.processes
+                )
+            ))
+            self._assert_all_pipes_closed(context.pipes)
+
+    def test_receive_performs_final_poll_after_worker_exit(self) -> None:
+        connection = _LateReadyConnection()
+
+        message, timed_out = attachment_parser._receive_message(
+            _StoppedProcess(),
+            connection,
+            100.0,
+            lambda: 99.0,
+        )
+
+        self.assertFalse(timed_out)
+        self.assertEqual("ready-message", message)
+        self.assertEqual(2, connection.poll_calls)
+        self.assertEqual(1, connection.recv_calls)
+
+    def test_worker_message_limit_is_fixed_and_bounded(self) -> None:
         limit = getattr(attachment_parser, "_MAX_WORKER_MESSAGE_BYTES", None)
 
         self.assertIsInstance(limit, int)
-        self.assertGreater(limit, 0)
-        self.assertLess(limit, BUFSIZE)
+        self.assertGreater(limit, attachment_parser.MAX_EXTRACTED_CHARACTERS)
+        self.assertLessEqual(limit, BUFSIZE * 2)
+
+    def test_worker_preserves_one_maximum_bounded_private_candidate(self) -> None:
+        with TemporaryDirectory() as directory:
+            item = self._item(directory, "maximum-bounded.pdf")
+            bounded = AttachmentAnalysisBundle(
+                _display(item),
+                AttachmentModelCandidate(
+                    "attachment:0",
+                    "X" * attachment_parser.MAX_EXTRACTED_CHARACTERS,
+                ),
+            )
+            connection = _CaptureSendConnection()
+
+            with patch.object(attachment_parser, "_parse_one_bundle", return_value=bounded):
+                attachment_parser._attachment_worker(
+                    item,
+                    "attachment:0",
+                    time.monotonic() + 3,
+                    connection,
+                )
+
+        transferred = pickle.loads(connection.sent_bytes[0])
+        self.assertEqual(transferred.display_insight["status"], "parsed")
+        self.assertEqual(
+            len(transferred.model_candidate.text),
+            attachment_parser.MAX_EXTRACTED_CHARACTERS,
+        )
 
     def test_worker_sends_only_bounded_serialized_bytes(self) -> None:
         with TemporaryDirectory() as directory:
@@ -706,7 +805,10 @@ class AttachmentParserProcessTests(unittest.TestCase):
             elapsed = time.monotonic() - started
 
             self.assertLess(elapsed, 0.2)
-            self.assertEqual(result[0].display_insight["limitations"], [TIMEOUT_LIMITATION])
+            self.assertEqual(
+                result[0].display_insight["limitations"],
+                [WORKER_FAILURE_LIMITATION],
+            )
             self.assertTrue(process.stopped.wait(timeout=2.0))
             self.assertTrue(process.closed.wait(timeout=2.0))
             self.assertGreaterEqual(process.terminate_calls, 1)

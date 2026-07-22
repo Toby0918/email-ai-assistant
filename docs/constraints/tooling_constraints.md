@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-16
+last_update: 2026-07-20
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -606,6 +606,19 @@ Agent 每次开始任务前，必须确认：
 - Provider behavior remains sequential 20 Flash + 180 Flash and up to 40 approved
   Pro comparisons, zero retry, no automatic production model switch, and
   aggregate-only persistence.
+- Task 9's `PrivateEvaluationCaseV2` is a documentation-only future contract. It
+  adds no CLI flag, dataset reader, migration command, provider call, or real-data
+  operation. Current tooling keeps V1 compatibility and must reject rather than
+  reinterpret an unknown schema.
+- A future V2 tool must consume ordered deidentified thread segments, reviewed attachment bindings,
+  and an encrypted `StructuredHumanReferenceV2`. Strict
+  candidate/reference separation requires the reference to be sealed before
+  candidate generation under independent business/privacy approval. A blinded human judge
+  performs the comparison without provider/model/route identity, and
+  the workflow retains aggregate-only reporting.
+- Tooling must never persist raw ChatGPT transcripts or perform automatic training,
+  automatic upload of a dataset/reference as a training corpus, model self-grading,
+  or an automatic production model switch.
 
 ## 14. 执行后检查
 

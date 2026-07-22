@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-14
+last_update: 2026-07-21
 status: active
 owner: "@tobyWang"
 review_cycle: weekly
@@ -73,8 +73,8 @@ nested analysis contract enforced after the call.
 References:
 
 - `AGENTS.md`
-- `docs/superpowers/specs/2026-07-14-deepseek-analysis-contract-alignment-design.md`
-- `docs/superpowers/specs/2026-07-13-deepseek-envelope-subdiagnostics-design.md`
+- `docs/decisions/0005-deepseek-led-analysis.md`
+- `docs/decisions/0006-authorized-mailbox-ingest-and-private-knowledge.md`
 - `docs/operations/deepseek_envelope_subdiagnostics_task_brief.md`
 - `docs/prompts/analyzer_prompt.md`
 - `docs/data/analysis_result_schema.md`
@@ -94,7 +94,6 @@ Expected additions:
 - `backend/email_agent/private_knowledge_context.py`
 - `tests/test_private_context_gate.py`
 - `tests/test_private_knowledge_context.py`
-- `docs/superpowers/plans/2026-07-14-deepseek-analysis-contract-alignment.md`
 
 Expected modifications:
 
@@ -345,6 +344,8 @@ service if the provider route must be stopped; rule analysis remains available.
 ## 17. Execution Record
 
 ```text
+Implementation and its default-off private-context gate are preserved by commit 0ef09c9.
+
 Actual modified files:
 - backend/email_agent/deepseek_analysis_contract.py
 - backend/email_agent/private_context_gate.py

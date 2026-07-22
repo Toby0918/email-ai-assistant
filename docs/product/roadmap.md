@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-18
+last_update: 2026-07-20
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -43,7 +43,7 @@ source_type: product_spec
 
 ## 阶段 2.3：附件辅助分析
 
-- 自动化和合成样例范围已实现；Task 9 synthetic provider and current-clicked Tencent smokes are complete。Task 5 real current-message attachment smoke remains pending，且必须在离线 Tasks 1-4 评审通过后取得 fresh explicit authorization。
+- 自动化和合成样例范围已实现；先前 Task 9 smoke 仅证明获取、路由、状态和清理。Task 9 semantic accuracy repair is offline complete. A parsed attachment status does not prove semantic correctness. 完整会话、附件覆盖、确定性核对和私有人工金标准合同门已离线通过；分支集成及任何新真实操作仍需单独授权。
 - 在用户明确点击后，支持当前打开邮件中可见的图片、PDF、XLSX 和 DOCX 资源的受限传输和后端解析。
 - 附件内容提取、OCR 和临时文件清理必须在后端完成，前端不调用 AI 或本地模型。
 - 请求临时文件在每次请求的 `finally` 中删除；SQLite 只保存最终结构化分析结果，不保存附件二进制或私有下载信息。
@@ -53,7 +53,7 @@ source_type: product_spec
 
 ## 阶段 2.4：可安装原型
 
-- Chrome / Edge unpacked extension `0.2.3` 已完成仓库内自动化和合成稳定验证；此前 Task 9 current-click smoke 已完成，新的 Task 5 attachment smoke 仍待 fresh explicit authorization。
+- Chrome / Edge unpacked extension `0.2.3` 已完成仓库内自动化和合成稳定验证；此前有界 smoke 不构成语义验收。Task 9 semantic accuracy repair is offline complete. A parsed attachment status does not prove semantic correctness. Any new live operation still requires fresh explicit authorization.
 - 已增加扩展版本号、安装/reload 说明、本地服务健康检查、生命周期安全诊断和排障路径。
 - 已形成可重复执行的 release checklist、rollback 步骤和 staged-snapshot 检查。
 - 继续禁止自动发送、删除、归档、移动、转发或回复邮件。
@@ -75,7 +75,7 @@ source_type: product_spec
 - 当前状态标识为 `multimodal_current_email_offline_ready_live_pending`。
 - Tasks 1-7 已在合成 fixture、fake provider 和静态/机械测试下 implemented and review-clean；Task 8 对齐活动文档与状态生成器。
 - Option C 路由为显式启用的 OpenAI `gpt-5.6-sol` 多模态主调用，eligible failure 后最多一次 DeepSeek text-only fallback，最后才是确定性规则；all providers disabled by default。
-- Task 9 synthetic provider and current-clicked Tencent smokes are complete；新的 Task 5 real current-message attachment smoke remains pending、not live-tested，并需要 fresh explicit authorization。此前 smoke 不构成新附件获取路径的真实邮件验收。
+- Task 9 synthetic provider and current-clicked Tencent smokes remain bounded operational evidence only. Task 9 semantic accuracy repair is offline complete. A parsed attachment status does not prove semantic correctness. The evidence-reconciliation and private human gold-standard gates pass offline; integration remains separate. Any new live operation still requires fresh explicit authorization. All providers remain disabled by default.
 - 真实邮箱管理员扫描、用户点击的当前邮件分析和最多两段 provider 路由继续使用独立授权门；离线完成不授权任何真实调用。
 
 ## 阶段 4：团队协作能力

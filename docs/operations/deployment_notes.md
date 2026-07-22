@@ -1,4 +1,4 @@
-﻿---
+---
 last_update: 2026-07-15
 status: active
 owner: "@tobyWang"

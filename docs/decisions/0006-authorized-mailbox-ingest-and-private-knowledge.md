@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-15
+last_update: 2026-07-20
 status: active
 owner: "@tobyWang"
 review_cycle: quarterly
@@ -145,6 +145,31 @@ stops before the next provider call. The evaluator creates no transcript, per-ca
 record, prompt/output export, cache or log; only the aggregate-only report persists.
 It cannot prevent external terminal capture. The fixed 20 Flash + 180 Flash / 40
 Pro sequence, zero retry and no automatic production model switch remain binding.
+
+### Planned V2 human-gold extension
+
+Task 9 adds a documentation-only V2 contract and no runtime capability. It does
+not implement V2 and does not open a real V2 dataset. V1 compatibility is an
+architectural requirement: current V1 datasets remain supported, and there is no
+in-place migration or implicit reinterpretation.
+
+The future `PrivateEvaluationCaseV2` binds ordered deidentified thread segments
+oldest-to-newest, reviewed attachment bindings, and an encrypted
+`StructuredHumanReferenceV2`. The reference must be evidence-bound, finalized
+before candidate generation, and carry independent business and privacy_security approvals by
+distinct actors. Strict candidate/reference separation keeps authoring and
+generation roles apart. Candidate generation receives only the approved deidentified evidence and cannot access or decrypt the reference, approvals, rubric, or prior verdict.
+A blinded human judge receives the approved deidentified
+thread/attachment evidence, sealed reference criteria, and an unlabeled candidate,
+while provider and model identity and routing metadata remain hidden. Evaluation
+continues to use aggregate-only reporting.
+
+The prohibited artifacts include raw ChatGPT transcripts; they are not durable
+evaluation evidence. The rejected operations include automatic training,
+automatic upload of cases or references as a training corpus, model self-grading,
+and any automatic production model switch. Any future V2
+implementation, dataset opening, provider run, or training workflow requires a
+separate approved plan and authorization.
 
 ## Alternatives Considered
 

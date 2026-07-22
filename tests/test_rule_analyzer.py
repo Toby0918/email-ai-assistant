@@ -469,6 +469,218 @@ class RuleAnalyzerTests(unittest.TestCase):
         self.assertIn("200 pcs", draft)
         self.assertNotIn("USD 1.00", draft)
 
+    def test_parsed_attachment_without_structured_facts_requires_semantic_review(self) -> None:
+        result = build_rule_based_analysis(
+            subject="Please review the attached quotation",
+            sender="buyer@example.test",
+            clean_body="Please confirm the revised offer.",
+            attachment_insights=[
+                {
+                    "filename": "quotation.pdf",
+                    "type": "pdf",
+                    "status": "parsed",
+                    "summary": "PDF text was extracted.",
+                    "key_facts": [],
+                    "limitations": [],
+                }
+            ],
+        )
+
+        must_check = result["decision_brief"]["must_check"]
+
+        self.assertIn(
+            "已解析附件未提取到结构化业务事实；回复前需人工核查附件是否影响当前结论。",
+            must_check,
+        )
+
+    def test_image_dimensions_alone_do_not_count_as_business_facts(self) -> None:
+        result = build_rule_based_analysis(
+            subject="Please review the product photo",
+            sender="buyer@example.test",
+            clean_body="Please check the attached image.",
+            attachment_insights=[
+                {
+                    "filename": "product.png",
+                    "type": "image",
+                    "status": "parsed",
+                    "summary": "OCR completed without a structured business fact.",
+                    "key_facts": ["Image dimensions: 1280 x 720."],
+                    "limitations": [],
+                }
+            ],
+        )
+
+        self.assertIn(
+            "已解析附件未提取到结构化业务事实；回复前需人工核查附件是否影响当前结论。",
+            result["decision_brief"]["must_check"],
+        )
+
+    def test_message_and_attachment_quantity_difference_requires_scope_review(self) -> None:
+        result = build_rule_based_analysis(
+            subject="Revised MOQ",
+            sender="buyer@example.test",
+            clean_body="Best MOQ is 1008/1024 pcs.",
+            attachment_insights=[
+                {
+                    "filename": "quotation.pdf",
+                    "type": "pdf",
+                    "status": "parsed",
+                    "summary": "A quotation table was parsed.",
+                    "key_facts": ["Quantity: 500 pcs"],
+                    "limitations": [],
+                }
+            ],
+        )
+
+        must_check = result["decision_brief"]["must_check"]
+
+        self.assertIn(
+            "邮件正文或不同附件中存在多个不同数量；回复前需人工核对各数值的业务含义和适用范围。",
+            must_check,
+        )
+
+    def test_unitless_attachment_quantity_is_compared_with_message_count(self) -> None:
+        result = build_rule_based_analysis(
+            subject="Revised MOQ",
+            sender="buyer@example.test",
+            clean_body="Best MOQ is 1008 pcs.",
+            attachment_insights=[
+                {
+                    "filename": "quotation.pdf",
+                    "type": "pdf",
+                    "status": "parsed",
+                    "summary": "A quotation table was parsed.",
+                    "key_facts": ["Quantity: 500"],
+                    "limitations": [],
+                }
+            ],
+        )
+
+        self.assertIn(
+            "邮件正文或不同附件中存在多个不同数量；回复前需人工核对各数值的业务含义和适用范围。",
+            result["decision_brief"]["must_check"],
+        )
+
+    def test_pieces_and_units_are_comparable_count_units(self) -> None:
+        result = build_rule_based_analysis(
+            subject="Revised MOQ",
+            sender="buyer@example.test",
+            clean_body="Best MOQ is 1008 pcs.",
+            attachment_insights=[
+                {
+                    "filename": "quotation.pdf",
+                    "type": "pdf",
+                    "status": "parsed",
+                    "summary": "A quotation table was parsed.",
+                    "key_facts": ["Quantity: 500 units"],
+                    "limitations": [],
+                }
+            ],
+        )
+
+        self.assertIn(
+            "邮件正文或不同附件中存在多个不同数量；回复前需人工核对各数值的业务含义和适用范围。",
+            result["decision_brief"]["must_check"],
+        )
+
+    def test_decimal_mass_quantities_are_compared(self) -> None:
+        result = build_rule_based_analysis(
+            subject="Material quantity review",
+            sender="buyer@example.test",
+            clean_body="Required quantity is 1.5 kg.",
+            attachment_insights=[
+                {
+                    "filename": "material-sheet.pdf",
+                    "type": "pdf",
+                    "status": "parsed",
+                    "summary": "The material sheet was parsed.",
+                    "key_facts": ["Quantity: 2.5 kg"],
+                    "limitations": [],
+                }
+            ],
+        )
+
+        self.assertIn(
+            "邮件正文或不同附件中存在多个不同数量；回复前需人工核对各数值的业务含义和适用范围。",
+            result["decision_brief"]["must_check"],
+        )
+
+    def test_partially_overlapping_quantity_sets_require_scope_review(self) -> None:
+        result = build_rule_based_analysis(
+            subject="Revised MOQ",
+            sender="buyer@example.test",
+            clean_body="Best MOQ is 1008/1024 pcs.",
+            attachment_insights=[
+                {
+                    "filename": "quotation.pdf",
+                    "type": "pdf",
+                    "status": "parsed",
+                    "summary": "A quotation table was parsed.",
+                    "key_facts": ["Quantity: 1008 pcs", "Quantity: 2048 pcs"],
+                    "limitations": [],
+                }
+            ],
+        )
+
+        self.assertIn(
+            "邮件正文或不同附件中存在多个不同数量；回复前需人工核对各数值的业务含义和适用范围。",
+            result["decision_brief"]["must_check"],
+        )
+
+    def test_overlapping_message_and_attachment_quantity_does_not_raise_difference(self) -> None:
+        result = build_rule_based_analysis(
+            subject="Revised MOQ",
+            sender="buyer@example.test",
+            clean_body="Best MOQ is 1008/1024 pcs.",
+            attachment_insights=[
+                {
+                    "filename": "quotation.pdf",
+                    "type": "pdf",
+                    "status": "parsed",
+                    "summary": "A quotation table was parsed.",
+                    "key_facts": ["Quantity: 1008 pcs"],
+                    "limitations": [],
+                }
+            ],
+        )
+
+        must_check = result["decision_brief"]["must_check"]
+
+        self.assertNotIn(
+            "邮件正文或不同附件中存在多个不同数量；回复前需人工核对各数值的业务含义和适用范围。",
+            must_check,
+        )
+
+    def test_different_attachment_quantities_require_scope_review(self) -> None:
+        result = build_rule_based_analysis(
+            subject="Please compare the attachments",
+            sender="buyer@example.test",
+            clean_body="Please review both files before replying.",
+            attachment_insights=[
+                {
+                    "filename": "option-a.xlsx",
+                    "type": "xlsx",
+                    "status": "parsed",
+                    "summary": "Option A was parsed.",
+                    "key_facts": ["Quantity: 48 pcs"],
+                    "limitations": [],
+                },
+                {
+                    "filename": "option-b.xlsx",
+                    "type": "xlsx",
+                    "status": "parsed",
+                    "summary": "Option B was parsed.",
+                    "key_facts": ["Quantity: 96 pcs"],
+                    "limitations": [],
+                },
+            ],
+        )
+
+        self.assertIn(
+            "邮件正文或不同附件中存在多个不同数量；回复前需人工核对各数值的业务含义和适用范围。",
+            result["decision_brief"]["must_check"],
+        )
+
     def test_combined_quality_and_delivery_email_returns_multiple_specific_actions(self) -> None:
         result = build_rule_based_analysis(
             subject="Quality issue and shipment follow up",

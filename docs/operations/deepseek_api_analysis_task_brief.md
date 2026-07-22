@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-15
+last_update: 2026-07-21
 status: active
 owner: "@tobyWang"
 review_cycle: weekly
@@ -290,7 +290,7 @@ Set `EMAIL_AGENT_LLM_PROVIDER=disabled` and restart the backend to immediately r
 - The user accepted DeepSeek remote processing and the documented default context caching for the current visible thread and bounded attachment extraction on 2026-07-12.
 - The user approved DeepSeek-led analysis while keeping all mailbox operation permissions forbidden on 2026-07-12.
 - The approval is operator-wide for this local installation whenever both `deepseek` and `model_led` are configured; every Analyze click under that configuration may send the current visible message scope to DeepSeek and is disclosed persistently before the click.
-- The written design specification passed the Superpowers review gate and the user instructed implementation to start.
+- The written design specification passed independent review, and the user instructed implementation to start.
 
 ## 16. Pre-Execution Checklist
 
@@ -333,7 +333,7 @@ Task 14 final verification evidence:
 - Explicit frontend scan found no DeepSeek/OpenAI/Ollama/Qwen/Gemma endpoint, key, SDK, environment, or direct-provider markers.
 - Current frontend constants are `MAX_ANALYZE_TIMEOUT_MS = 15000`, `ANALYZE_TIMEOUT_MS = 15000`, and `MAX_OVERALL_RESOURCE_TIMEOUT_MS = 20000`; the 15-second POST wait remains independent of the 20-second resource collection limit.
 - The post-edit Task 14 date/front-matter assertion passed. DeepSeek documentation, static, architecture, mechanical, and status-generator guards then ran 44 tests and passed.
-- git diff --check passed before this execution-record edit. Final post-edit diff and staged-snapshot evidence is recorded in .superpowers/sdd/task-14-report.md.
+- `git diff --check` passed before and after the execution-record edit; the completed Task 14 state is preserved by commit `f07ec03`.
 
 Final review fix wave (2026-07-13):
 - Final review fix wave: complete.
@@ -349,7 +349,7 @@ Final review fix wave (2026-07-13):
 - All seven JavaScript syntax checks and manifest JSON parsing passed.
 - Status generation exited 0 with active 66, draft 27, deprecated 0, and missing_front_matter 0; the generated/current date is 2026-07-13.
 - Offline evaluator CLI exited 0 with the exact report above. Maintenance scan exited 0 with no cleanup findings, and `git diff --check` exited 0.
-- Detailed RED/GREEN and final verification evidence is recorded in `.superpowers/sdd/final-review-fix-report.md`.
+- The detailed RED/GREEN and final verification summary is preserved above and by the corresponding hardening commits, including `9378107`, `f13aef8`, and `9372ac4`.
 
 Independent full-branch review constraint follow-up (2026-07-13):
 - One Important documentation/guard inconsistency was confirmed after the eight runtime fixes: DeepSeek existed in the backend route and ADR, but `AGENTS.md`, active architecture/linter constraints, and adjacent key/privacy rules still described only OpenAI/local providers.

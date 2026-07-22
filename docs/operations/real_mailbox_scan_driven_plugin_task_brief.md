@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-15
+last_update: 2026-07-21
 status: active
 owner: "@tobyWang"
 review_cycle: weekly
@@ -64,7 +64,7 @@ Binding references:
 - `docs/operations/authorized_mailbox_ingest_task_brief.md`
 - `docs/decisions/0006-authorized-mailbox-ingest-and-private-knowledge.md`
 - `docs/templates/agent_task_brief_template.md`
-- `docs/superpowers/plans/2026-07-15-real-mailbox-scan-driven-plugin-deepseek-completion.md`
+- `docs/operations/private_deepseek_evaluation.md`
 
 ## 7. Scope
 
@@ -295,9 +295,11 @@ Actual tracked Task 1 files:
 - `docs/operations/private_deepseek_evaluation.md`
 - `docs/operations/real_mailbox_scan_driven_plugin_task_brief.md`
 - `docs/operations/testing_checklist.md`
-- `docs/superpowers/plans/2026-07-15-real-mailbox-scan-driven-plugin-deepseek-completion.md`
 - `tests/test_administrator_module_entrypoints.py`
 - `tests/test_rollout_closeout_contracts.py`
+
+Task 1 documentation and entrypoint evidence is preserved by commits `bb35d59`
+and `544c0ff`; final rollout closeout evidence is preserved by `9bf17e3`.
 
 Recorded verification before review hardening:
 

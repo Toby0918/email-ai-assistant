@@ -380,6 +380,8 @@ class BrowserExtensionTask6ContractTests(unittest.TestCase):
                   sent_at: "2026-07-11 10:00", timestamp_text: "Today", subject: "Re: Synthetic",
                   body_text: "Thread body", hidden_id: "PRIVATE_HIDDEN_ID",
                 }],
+                thread_context_limited: true,
+                thread_context_diagnostic: "PRIVATE_THREAD_DIAGNOSTIC",
                 attachment_files: [{
                   filename: "visible.pdf", type: "pdf", size: 3, content_base64: "AQID",
                   authorization: "PRIVATE_AUTHORIZATION", download_url: "PRIVATE_DOWNLOAD_URL",
@@ -404,7 +406,7 @@ class BrowserExtensionTask6ContractTests(unittest.TestCase):
 
               const expectedTopLevel = [
                 "attachment_files", "attachments", "body_text", "cc", "from", "resource_limitations",
-                "sent_at", "subject", "thread_segments", "to", "user_confirmed",
+                "sent_at", "subject", "thread_context_limited", "thread_segments", "to", "user_confirmed",
               ];
               const keys = Object.keys(requestBody).sort();
               if (JSON.stringify(keys) !== JSON.stringify(expectedTopLevel)) {
@@ -436,11 +438,15 @@ class BrowserExtensionTask6ContractTests(unittest.TestCase):
               if (requestBody.resource_limitations.length !== 1) {
                 throw new Error(`non-frontend limitation code crossed boundary: ${JSON.stringify(requestBody.resource_limitations)}`);
               }
+              if (requestBody.thread_context_limited !== true) {
+                throw new Error(`thread limitation boolean was not projected: ${JSON.stringify(requestBody)}`);
+              }
               const serialized = JSON.stringify(requestBody);
               for (const marker of [
                 "PRIVATE_COOKIE", "PRIVATE_HIDDEN_ID", "PRIVATE_AUTHORIZATION",
                 "PRIVATE_DOWNLOAD_URL", "PRIVATE_LIMITATION_URL", "PRIVATE_LIMITATION_TOKEN",
                 "PRIVATE_UNKNOWN_CODE", "PRIVATE_FORGED_OPERATIONAL", "PRIVATE_TOKEN", "PRIVATE_EXTRA",
+                "PRIVATE_THREAD_DIAGNOSTIC",
               ]) {
                 if (serialized.includes(marker)) throw new Error(`private marker leaked: ${marker}`);
               }

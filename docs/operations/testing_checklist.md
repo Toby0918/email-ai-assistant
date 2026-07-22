@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-18
+last_update: 2026-07-20
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -17,8 +17,9 @@ source_type: operation_guide
 - 覆盖 one OpenAI multimodal primary call、eligible failure 后 one DeepSeek text-only fallback、deterministic rules last；privacy/private-artifact/routing/budget block 必须是 zero fallback calls。
 - 预算矩阵固定为 60-second POST wait、55-second backend、35-second OpenAI、10-second DeepSeek、12-second fallback minimum、8-second parser、5-second reserve；前端另有独立的 20-second resource collection。
 - 覆盖 text/hybrid evidence、matching attachment insight 的 visual-only 定性增强、body-only fixed cross-language bridge，以及拒绝 global fields、identity、protected traits、precise facts、commands、commitments 和 outcomes。
-- Tasks 1-7 的离线实现已通过各任务 review-clean 门；Task 8 只对齐文档。Task 9 synthetic provider and current-clicked Tencent smokes are complete；这些有界检查不授权新的 live operation。
-- Task 5 real current-message attachment smoke remains pending、not live-tested，并且只可在离线 Tasks 1-4 评审通过后取得 fresh explicit authorization；此前 Task 9 不构成新附件获取路径的真实邮件验收。
+- Tasks 1-7 的离线实现已通过各任务 review-clean 门；Task 8 只对齐文档。Task 9 synthetic provider and current-clicked Tencent smokes are complete。
+- Task 9 forced OpenAI-to-DeepSeek synthetic fallback is complete: one OpenAI attempt was intercepted before network access, exactly one DeepSeek text-only request was made, DeepSeek SDK retries were zero, and no SQLite write occurred. The root `.env` was unchanged.
+- Attachment Task 5 remains valid acquisition/cleanup evidence only. Task 9 semantic accuracy repair is offline complete. A parsed attachment status does not prove semantic correctness. Current/history alignment, attachment coverage, deterministic reconciliation, and private human gold-standard gates now pass offline; branch integration and any new live operation still require their own authorization. Any new live operation still requires fresh explicit authorization. All providers remain disabled by default.
 
 ## Labeled MOQ grounding release checks
 
@@ -90,7 +91,7 @@ source_type: operation_guide
 - Static guards must reject `chrome.downloads`, `showOpenFilePicker`, File System Access handles, `localStorage`, `sessionStorage`, `IndexedDB`, `chrome.storage`, and local path fields.
 - Backend tests must prove request `finally` deletes request-local files on success and provider failure. The 24-hour mtime cleanup is crash recovery only; it is not normal retention and is not scheduled.
 - Only `attachment_insights[].status == "parsed"` proves content parsing. Array length, metadata, acquisition, `metadata_only`, `unavailable`, and `failed` do not.
-- Task 5 real current-message attachment smoke remains pending and requires fresh explicit authorization after all offline tasks and review gates pass. It must not navigate, scan, send, or output message content.
+- The bounded smoke proved acquisition, parsing status, routing, and cleanup only. Task 9 semantic accuracy repair is offline complete. A parsed attachment status does not prove semantic correctness. No follow-up operation may navigate, scan, send, or output message content without fresh authorization; all providers remain disabled by default.
 
 ## 安全检查
 

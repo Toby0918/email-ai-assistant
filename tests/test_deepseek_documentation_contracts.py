@@ -23,13 +23,11 @@ TARGET_DOCS = (
     "docs/security/email_data_handling.md",
     "docs/decisions/0005-deepseek-led-analysis.md",
     "docs/operations/deepseek_api_analysis_task_brief.md",
-    "docs/superpowers/specs/2026-07-12-deepseek-led-email-analysis-design.md",
 )
 BUDGET_ORDER_DOCS = (
     "docs/api/backend_api_contract.md",
     "docs/decisions/0005-deepseek-led-analysis.md",
     "docs/operations/deepseek_api_analysis_task_brief.md",
-    "docs/superpowers/specs/2026-07-12-deepseek-led-email-analysis-design.md",
 )
 FALLBACK_DIAGNOSTIC_CONTRACTS = {
     "docs/conventions/logging.md": (
@@ -54,7 +52,7 @@ FALLBACK_DIAGNOSTIC_CONTRACTS = {
         "Logs must not contain API keys, prompts, email or thread content, "
         "attachment names or content, provider output, raw exception text, "
         "tracebacks, URLs, paths, or customer identifiers.",
-        "dedicated diagnostic sink", "never attached to the root logger", "`propagate=False`", "fixed `WARNING` threshold", "exact fallback-event template", "exact built-in allowlisted arguments", "OpenAI, HTTPX, HTTP core", "DEBUG, INFO, WARNING, ERROR, CRITICAL, or an invalid level",
+        "dedicated diagnostic sink", "never attached to the root logger", "`propagate=False`", "fixed `WARNING` threshold", "exact fallback-event template", "exact built-in allowlisted arguments", "OpenAI, HTTPX, HTTP core", "DEBUG, INFO, WARNING, ERROR, CRITICAL, or an invalid level", "record.exc_info is not None", "record.exc_text is not None", "record.stack_info is not None",
     ),
     "docs/operations/troubleshooting.md": (
         "analysis_fallback",
@@ -103,8 +101,6 @@ FALLBACK_DIAGNOSTIC_CONTRACTS = {
         "SQLite",
         "frontend",
     ),
-    "docs/superpowers/specs/2026-07-13-deepseek-fallback-diagnostics-design.md": ("dedicated diagnostic sink", "never attached to the root logger", "`propagate=False`", "fixed `WARNING` threshold", "exact fallback-event template", "exact built-in allowlisted arguments", "DEBUG, INFO, WARNING, ERROR, CRITICAL, or an invalid level"),
-    "docs/superpowers/plans/2026-07-13-deepseek-fallback-diagnostics.md": ("dedicated diagnostic sink", "never attached to the root logger", "`propagate=False`", "fixed `WARNING` threshold", "exact fallback-event template", "exact built-in allowlisted arguments", "PRIVATE_OPENAI_BODY", "DEBUG, INFO, WARNING, ERROR, CRITICAL, and an invalid level", "or record.exc_info is not None", "or record.exc_text is not None", "or record.stack_info is not None"),
 }
 ENVELOPE_SUBDIAGNOSTIC_DOCS = (
     "docs/conventions/logging.md",
@@ -112,13 +108,9 @@ ENVELOPE_SUBDIAGNOSTIC_DOCS = (
     "docs/operations/deployment_notes.md",
     "docs/api/backend_api_contract.md",
     "docs/operations/deepseek_envelope_subdiagnostics_task_brief.md",
-    "docs/superpowers/specs/2026-07-13-deepseek-envelope-subdiagnostics-design.md",
-    "docs/superpowers/plans/2026-07-14-deepseek-envelope-subdiagnostics.md",
 )
 ENGLISH_ENVELOPE_SUBDIAGNOSTIC_DOCS = (
     "docs/operations/deepseek_envelope_subdiagnostics_task_brief.md",
-    "docs/superpowers/specs/2026-07-13-deepseek-envelope-subdiagnostics-design.md",
-    "docs/superpowers/plans/2026-07-14-deepseek-envelope-subdiagnostics.md",
 )
 
 
@@ -279,14 +271,9 @@ class DeepSeekDocumentationContractTests(unittest.TestCase):
             self.assertIn(marker, adr)
 
         brief = self._read("docs/operations/deepseek_api_analysis_task_brief.md")
-        design = self._read(
-            "docs/superpowers/specs/2026-07-12-deepseek-led-email-analysis-design.md"
-        )
         self.assertRegex(brief, r"(?s)## 3\. Current Status\s+```text\s+active\s+```")
         self.assertIn("Written design review: complete", brief)
         self.assertIn("Final review fix wave: complete", brief)
-        self.assertIn("Written review: complete", design)
-        self.assertIn("Final review fix wave: complete", design)
 
     def test_dynamic_provider_claims_use_only_rechecked_official_sources(self) -> None:
         for relative in TARGET_DOCS:
@@ -360,9 +347,11 @@ class DeepSeekDocumentationContractTests(unittest.TestCase):
             with self.subTest(path="docs/operations/troubleshooting.md", weakened=weakened):
                 self.assertNotIn(weakened, troubleshooting)
 
-        plan = self._read("docs/superpowers/plans/2026-07-13-deepseek-fallback-diagnostics.md")
+        active_contract = self._read("docs/conventions/logging.md") + self._read(
+            "docs/operations/deepseek_fallback_diagnostics_task_brief.md"
+        )
         for insecure_recipe in ("logging.getLogger('synthetic').warning", "logging.basicConfig(", "handlers=handlers"):
-            self.assertNotIn(insecure_recipe, plan)
+            self.assertNotIn(insecure_recipe, active_contract)
 
     def test_envelope_subdiagnostic_contract_is_explicit(self) -> None:
         markers = (
@@ -430,13 +419,11 @@ class DeepSeekDocumentationContractTests(unittest.TestCase):
         self.assertIn("不是 public response field", api_contract)
 
     def test_fallback_route_stage_mapping_is_explicit(self) -> None:
-        design = self._read(
-            "docs/superpowers/specs/2026-07-13-deepseek-fallback-diagnostics-design.md"
+        contract = " ".join(
+            self._read(
+                "docs/operations/deepseek_fallback_diagnostics_task_brief.md"
+            ).split()
         )
-        plan = self._read(
-            "docs/superpowers/plans/2026-07-13-deepseek-fallback-diagnostics.md"
-        )
-        task_three = plan.split("### Task 3:", 1)[1].split("### Task 4:", 1)[0]
         markers = (
             "`response_incomplete` and `response_empty`",
             "`stage=response`",
@@ -448,15 +435,11 @@ class DeepSeekDocumentationContractTests(unittest.TestCase):
             "`public_schema_invalid` / `schema`",
             "`public_language_invalid` / `language`",
         )
-        for relative, text in (
-            ("active design", design),
-            ("execution plan Task 3", task_three),
-        ):
-            for marker in markers:
-                with self.subTest(document=relative, marker=marker):
-                    self.assertIn(marker, text)
+        for marker in markers:
+            with self.subTest(document="active task brief", marker=marker):
+                self.assertIn(marker, contract)
         self.assertNotIn(
-            'code=exc.reason_code, stage="provider"', task_three
+            'code=exc.reason_code, stage="provider"', contract
         )
 
 

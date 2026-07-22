@@ -21,16 +21,6 @@ POLICY_DOCS = (
 UID_BOUNDARY_DOCS = (
     ROOT / "docs" / "constraints" / "architecture_constraints.md",
     ROOT / "docs" / "operations" / "authorized_mailbox_ingest_task_brief.md",
-    ROOT
-    / "docs"
-    / "superpowers"
-    / "plans"
-    / "2026-07-14-authorized-mailbox-ingest-knowledge-deepseek.md",
-    ROOT
-    / "docs"
-    / "superpowers"
-    / "plans"
-    / "2026-07-14-mailbox-vault.md",
 )
 
 ALLOWED_IMAP_OPERATIONS = (

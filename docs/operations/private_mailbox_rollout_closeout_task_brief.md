@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-15
+last_update: 2026-07-21
 status: active
 owner: "@tobyWang"
 review_cycle: weekly
@@ -58,7 +58,7 @@ This closeout follows:
 - `docs/operations/authorized_mailbox_ingest_task_brief.md`
 - `docs/operations/deepseek_analysis_contract_alignment_task_brief.md`
 - `docs/operations/private_deepseek_evaluation_task_brief.md`
-- `docs/superpowers/plans/2026-07-14-authorized-mailbox-ingest-knowledge-deepseek.md`
+- the completed closeout evidence preserved by commit `9bf17e3`
 - the operations, documentation, CI, static, architecture, and mechanical
   constraints referenced by those documents.
 

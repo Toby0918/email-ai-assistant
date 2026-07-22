@@ -1,5 +1,5 @@
 ---
-last_update: 2026-06-30
+last_update: 2026-07-21
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -19,9 +19,13 @@ Task name: Weekly Cleanup Agent
 Automation id: weekly-cleanup-agent
 Schedule: Every Monday at 09:00
 Timezone: America/New_York
-Workspace: C:\Users\33506\OneDrive\文档\DELIFU\email-ai-assistant
+Workspace: D:\Projects\email-ai-assistant
 Prompt source: docs/operations/codex_cleanup_task.md
 ```
+
+迁移说明（2026-07-21）：自动任务已临时暂停，因为 Codex 项目 ID 仍绑定旧的
+C 盘工作区。用户在 Codex 中重新打开 `D:\Projects\email-ai-assistant` 后，必须将
+`weekly-cleanup-agent` 重新绑定到新项目 ID，核对 Workspace 后再恢复为 `ACTIVE`。
 
 Codex 本地配置文件通常位于：
 

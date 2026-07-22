@@ -92,10 +92,27 @@ class GenerateProjectStatusTests(unittest.TestCase):
         self.assertIn("repository leakage scan", report)
         self.assertIn("human_judge_unavailable", report)
         self.assertIn(
-            "Task 9 synthetic provider and current-clicked Tencent smokes are complete",
+            "Task 9 semantic accuracy repair is offline complete",
             report,
         )
-        self.assertIn("no prior check authorizes another live operation", report)
+        self.assertIn(
+            "Task 9 forced OpenAI-to-DeepSeek synthetic fallback is complete",
+            report,
+        )
+        self.assertIn("one OpenAI attempt was intercepted before network access", report)
+        self.assertIn("exactly one DeepSeek text-only request", report)
+        self.assertIn("DeepSeek SDK retries were zero", report)
+        self.assertIn(
+            "parsed attachment status does not prove semantic correctness", report
+        )
+        self.assertIn("integrated into the current release line", report)
+        self.assertNotIn("integration remains separate", report)
+        self.assertNotIn("integrate the reviewed work into `master`", report)
+        self.assertNotIn("remaining Task 9 gate is final master integration", report)
+        self.assertIn(
+            "Any new live operation still requires fresh explicit authorization",
+            report,
+        )
         self.assertNotIn("current-clicked Tencent smoke remains pending", report)
 
     def test_attachment_acquisition_safeguards_and_live_gate_are_reported(self) -> None:
@@ -109,11 +126,16 @@ class GenerateProjectStatusTests(unittest.TestCase):
             "request `finally`",
             "24-hour mtime cleanup is crash recovery only",
             "Only `attachment_insights[].status=parsed` proves content parsing",
-            "Task 5 real current-message attachment smoke remains pending",
-            "fresh explicit authorization",
+            "Task 9 semantic accuracy repair is offline complete",
+            "parsed attachment status does not prove semantic correctness",
+            "Any new live operation still requires fresh explicit authorization",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, report)
+        self.assertNotIn(
+            "Task 5 real current-message attachment smoke remains pending", report
+        )
+        self.assertNotIn("The new attachment acquisition path is not live-tested", report)
 
     def test_status_log_uses_stable_head_reference(self) -> None:
         module = load_script_module(SCRIPT, "generate_project_status")
@@ -244,10 +266,19 @@ class GenerateProjectStatusTests(unittest.TestCase):
         self.assertIn("Tasks 1-7", report)
         self.assertIn("60/55/35/10/12/8/5", report)
         self.assertIn(
-            "Task 9 synthetic provider and current-clicked Tencent smokes are complete",
+            "Task 9 semantic accuracy repair is offline complete",
             report,
         )
-        self.assertIn("Task 5 real current-message attachment smoke remains pending", report)
+        self.assertIn(
+            "Task 9 forced OpenAI-to-DeepSeek synthetic fallback is complete",
+            report,
+        )
+        self.assertIn("exactly one DeepSeek text-only request", report)
+        self.assertIn("DeepSeek SDK retries were zero", report)
+        self.assertIn(
+            "parsed attachment status does not prove semantic correctness", report
+        )
+        self.assertNotIn("remaining Task 9 gate is final master integration", report)
         self.assertNotIn("15/13/10/5", report)
 
     def test_main_writes_requested_output(self) -> None:

@@ -1147,7 +1147,10 @@ class AttachmentParserTests(unittest.TestCase):
             reader = MagicMock()
             reader.pages = pages
 
-            with patch.object(attachment_parser, "PdfReader", return_value=reader):
+            with patch.object(attachment_parser, "PdfReader", return_value=reader), patch(
+                "backend.email_agent.attachment_docx.MAX_PDF_PAGE_CHARACTERS",
+                attachment_parser.MAX_EXTRACTED_CHARACTERS,
+            ):
                 with patch.object(
                     attachment_parser,
                     "_text_insight",
@@ -1168,7 +1171,7 @@ class AttachmentParserTests(unittest.TestCase):
             first_sheet = MagicMock()
             first_sheet.title = "Dense"
             first_sheet.iter_rows.return_value = iter(
-                [("A" * 5_000,), ("B" * 5_000,), (unread_cell,)]
+                [("A" * 1_000,)] * 8 + [(unread_cell,)]
             )
             second_sheet = MagicMock()
             second_sheet.title = "Unreached"
@@ -1194,8 +1197,7 @@ class AttachmentParserTests(unittest.TestCase):
         with TemporaryDirectory() as directory:
             stored = self._write(directory, "dense.docx", "docx", self._docx_bytes())
             paragraphs = [
-                _ObservedParagraph("A" * 5_000),
-                _ObservedParagraph("B" * 5_000),
+                *(_ObservedParagraph("A" * 1_000) for _ in range(8)),
                 _ObservedParagraph("UNREACHED"),
             ]
             document = MagicMock()
@@ -1211,7 +1213,7 @@ class AttachmentParserTests(unittest.TestCase):
 
             collected = text_insight.call_args.args[1]
             self.assertLessEqual(len(collected), attachment_parser.MAX_EXTRACTED_CHARACTERS)
-            self.assertEqual(paragraphs[2].read_count, 0)
+            self.assertEqual(paragraphs[-1].read_count, 0)
             self.assertIn("Character limit", " ".join(result[0]["limitations"]))
 
     def test_ocr_text_is_bounded_before_summary_processing(self) -> None:
@@ -1596,9 +1598,10 @@ class AttachmentParserTests(unittest.TestCase):
         cases = ((False, False), (True, True))
         for has_remaining_page, expected_limit in cases:
             with self.subTest(has_remaining_page=has_remaining_page):
-                pages = [MagicMock(), MagicMock()]
-                pages[0].extract_text.return_value = "A" * 1_000
-                pages[1].extract_text.return_value = "B" * 999
+                pages = [MagicMock()]
+                pages[0].extract_text.return_value = (
+                    "A" * attachment_parser.MAX_EXTRACTED_CHARACTERS
+                )
                 if has_remaining_page:
                     remaining_page = MagicMock()
                     remaining_page.extract_text.return_value = "UNREACHED"
@@ -1607,7 +1610,10 @@ class AttachmentParserTests(unittest.TestCase):
                 reader.pages = pages
                 with TemporaryDirectory() as directory:
                     stored = self._write(directory, "exact.pdf", "pdf", b"synthetic")
-                    with patch.object(attachment_parser, "PdfReader", return_value=reader):
+                    with patch.object(attachment_parser, "PdfReader", return_value=reader), patch(
+                        "backend.email_agent.attachment_docx.MAX_PDF_PAGE_CHARACTERS",
+                        attachment_parser.MAX_EXTRACTED_CHARACTERS,
+                    ):
                         result = parse_attachments([stored])
 
                 self.assertEqual(self._has_character_limit(result[0]), expected_limit)
@@ -1619,8 +1625,8 @@ class AttachmentParserTests(unittest.TestCase):
         for has_remaining_paragraph, expected_limit in cases:
             with self.subTest(has_remaining_paragraph=has_remaining_paragraph):
                 paragraphs = [
-                    _ObservedParagraph("A" * 1_000),
-                    _ObservedParagraph("B" * 999),
+                    *(_ObservedParagraph("A" * 1_000) for _ in range(7)),
+                    _ObservedParagraph("B" * 993),
                 ]
                 if has_remaining_paragraph:
                     paragraphs.append(_ObservedParagraph("UNREACHED"))
@@ -1633,7 +1639,7 @@ class AttachmentParserTests(unittest.TestCase):
 
                 self.assertEqual(self._has_character_limit(result[0]), expected_limit)
                 if has_remaining_paragraph:
-                    self.assertEqual(paragraphs[2].read_count, 0)
+                    self.assertEqual(paragraphs[-1].read_count, 0)
 
     def test_xlsx_exact_row_budget_reports_only_when_cell_is_omitted(self) -> None:
         cases = ((False, False), (True, True))
@@ -1663,7 +1669,7 @@ class AttachmentParserTests(unittest.TestCase):
             with self.subTest(remaining_kind=remaining_kind):
                 first_sheet = MagicMock()
                 first_sheet.title = "S"
-                rows = [("A" * 1_000,), ("B" * 993,)]
+                rows = [("A" * 996,)] * 7 + [("B" * 997,)]
                 if remaining_kind == "row":
                     rows.append(("UNREACHED",))
                 first_sheet.iter_rows.return_value = iter(rows)

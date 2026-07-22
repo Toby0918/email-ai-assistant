@@ -211,21 +211,6 @@ class StaticLinterConstraintTests(unittest.TestCase):
 
     def test_raw_vault_to_knowledge_handoff_is_narrowly_documented(self) -> None:
         governance_paths = (
-            ROOT
-            / "docs"
-            / "superpowers"
-            / "plans"
-            / "2026-07-14-authorized-mailbox-ingest-knowledge-deepseek.md",
-            ROOT
-            / "docs"
-            / "superpowers"
-            / "plans"
-            / "2026-07-14-mailbox-vault.md",
-            ROOT
-            / "docs"
-            / "superpowers"
-            / "plans"
-            / "2026-07-14-private-knowledge.md",
             ROOT / "docs" / "constraints" / "architecture_constraints.md",
             ROOT
             / "docs"
@@ -249,6 +234,7 @@ class StaticLinterConstraintTests(unittest.TestCase):
             "read_one_record",
             "write_encrypted_candidate_batch",
             "synthetic",
+            "releases raw plaintext and the ephemeral mapping before the next record",
         )
 
         for path in governance_paths:
@@ -257,41 +243,10 @@ class StaticLinterConstraintTests(unittest.TestCase):
                 with self.subTest(path=path, marker=marker):
                     self.assertIn(marker, text)
 
-        master_plan = read_text(governance_paths[0])
-        master_markers = (
-            "- Modify: `scripts/manage_mailbox_vault.py`",
-            "- Create: `tests/test_manage_mailbox_vault_stage_knowledge.py`",
-            "stage_knowledge(",
-            "read_one_record",
-            "write_encrypted_candidate_batch",
-            "- Create: `docs/superpowers/plans/2026-07-14-deepseek-analysis-contract-alignment.md`",
-        )
-        for marker in master_markers:
-            with self.subTest(path=governance_paths[0], marker=marker):
-                self.assertIn(marker, master_plan)
-        self.assertNotIn(
-            "- Modify: `docs/superpowers/plans/2026-07-14-deepseek-analysis-contract-alignment.md`",
-            master_plan,
-        )
-        architecture = " ".join(read_text(governance_paths[3]).split())
+        architecture = " ".join(read_text(governance_paths[0]).split())
         self.assertIn(
             "scripts/manage_mailbox_vault.py -> backend.private_knowledge",
             architecture,
-        )
-        self.assertIn(
-            "raw-plaintext and ephemeral-mapping release before the next record",
-            " ".join(master_plan.split()),
-        )
-        private_plan = " ".join(read_text(governance_paths[2]).split())
-        self.assertIn(
-            "Add RED staging tests in "
-            "`tests/test_manage_mailbox_vault_stage_knowledge.py`",
-            private_plan,
-        )
-        self.assertIn(
-            "then add the administrator-only `stage-knowledge` handoff to "
-            "`scripts/manage_mailbox_vault.py`",
-            private_plan,
         )
 
     def test_raw_vault_to_evaluation_stage_handoff_is_narrowly_documented(self) -> None:
@@ -405,7 +360,6 @@ class StaticLinterConstraintTests(unittest.TestCase):
             ROOT / "docs" / "operations" / "project_structure.md",
             ROOT / "docs" / "templates" / "agent_task_brief_template.md",
             ROOT / "docs" / "conventions" / "logging.md",
-            ROOT / "docs" / "superpowers" / "plans" / "2026-07-15-real-mailbox-scan-driven-plugin-deepseek-completion.md",
         )
         combined = " ".join(
             " ".join(read_text(path).split()) for path in active_paths
@@ -655,18 +609,17 @@ class StaticLinterConstraintTests(unittest.TestCase):
                 self.assertIn("arbitrary remote base URL", guidance)
                 self.assertIn("third-party DeepSeek SDK", guidance)
 
-    def test_active_phase_two_design_keeps_provider_disabled_by_default(self) -> None:
-        design = read_text(
-            ROOT
-            / "docs"
-            / "superpowers"
-            / "specs"
-            / "2026-07-09-phase-two-attachment-thread-analysis-design.md"
+    def test_active_phase_two_brief_keeps_provider_disabled_by_default(self) -> None:
+        brief = read_text(
+            ROOT / "docs" / "operations" / "phase_two_attachment_thread_task_brief.md"
         )
 
-        self.assertIn("defaults to `EMAIL_AGENT_LLM_PROVIDER=disabled`", design)
-        self.assertIn("only the default model name when Ollama is explicitly enabled", design)
-        self.assertNotIn("defaults to `EMAIL_AGENT_LLM_PROVIDER=ollama`", design)
+        self.assertIn("The provider remains disabled by default", brief)
+        self.assertIn(
+            "`qwen3.6:latest` is the default configured model when Ollama is explicitly enabled",
+            brief,
+        )
+        self.assertNotIn("defaults to `EMAIL_AGENT_LLM_PROVIDER=ollama`", brief)
 
     def test_multimodal_governance_pins_disclosure_provider_and_budget_boundaries(self) -> None:
         disclosure_paths = (
@@ -716,7 +669,6 @@ class StaticLinterConstraintTests(unittest.TestCase):
             ROOT / "README.md",
             ROOT / "docs" / "constraints" / "tooling_constraints.md",
             ROOT / "docs" / "operations" / "phase_two_attachment_thread_task_brief.md",
-            ROOT / "docs" / "superpowers" / "plans" / "2026-07-09-phase-two-attachment-thread-analysis.md",
         ]
 
         for package, version in expected_versions.items():
@@ -727,8 +679,8 @@ class StaticLinterConstraintTests(unittest.TestCase):
             if package == "cryptography":
                 package_guidance_files = [
                     ROOT / "AGENTS.md",
+                    ROOT / "README.md",
                     ROOT / "docs" / "constraints" / "tooling_constraints.md",
-                    ROOT / "docs" / "superpowers" / "plans" / "2026-07-14-mailbox-vault.md",
                 ]
             for path in package_guidance_files:
                 with self.subTest(package=package, path=path):

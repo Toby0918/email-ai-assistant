@@ -106,6 +106,24 @@ class RolloutCloseoutContractTests(unittest.TestCase):
         self.assertIn("human_judge_unavailable", report)
         self.assertIn("does not switch production models", report)
         self.assertIn("repository leakage scan", report)
+        for required in (
+            "Task 9 forced OpenAI-to-DeepSeek synthetic fallback is complete",
+            "one OpenAI attempt was intercepted before network access",
+            "exactly one DeepSeek text-only request",
+            "DeepSeek SDK retries were zero",
+            "no SQLite write occurred",
+            "Task 9 semantic accuracy repair is offline complete",
+            "parsed attachment status does not prove semantic correctness",
+            "integrated into the current release line",
+            "Any new live operation still requires fresh explicit authorization",
+        ):
+            with self.subTest(required=required):
+                self.assertIn(required, report)
+        self.assertNotIn(
+            "Task 5 real current-message attachment smoke remains pending", report
+        )
+        self.assertNotIn("The new attachment acquisition path is not live-tested", report)
+        self.assertNotIn("integration remains separate", report)
 
     def test_testing_checklist_has_complete_offline_release_sequence(self) -> None:
         text = (ROOT / "docs" / "operations" / "testing_checklist.md").read_text(
@@ -176,7 +194,13 @@ class RolloutCloseoutContractTests(unittest.TestCase):
         self.assertIn("authorized_private_analysis_offline_ready", text)
         self.assertIn("multimodal_current_email_offline_ready_live_pending", text)
         self.assertIn("Task 9", text)
-        self.assertIn("not live-tested", text)
+        self.assertIn(
+            "Task 9 semantic accuracy repair is offline complete",
+            text,
+        )
+        self.assertIn(
+            "parsed attachment status does not prove semantic correctness", text
+        )
         self.assertIn("offline completion does not equal live authorization", text)
         self.assertNotIn("current status is `authorized_private_ingest_build`", text)
 

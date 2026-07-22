@@ -6,9 +6,8 @@ from typing import Any
 
 from .email_facts import EmailFacts
 from .rule_context import (
-    attachment_check_items,
-    attachment_limitation_items,
-    parsed_attachment_fact_items,
+    attachment_check_items, attachment_limitation_items,
+    cross_source_quantity_check_items, parsed_attachment_fact_items,
 )
 from .rule_keywords import RISK_LABELS
 
@@ -33,7 +32,7 @@ def build_decision_brief(
         "requested_outcome": _requested_outcome(category, text, facts, is_quote, conversation_timeline),
         "next_steps": _decision_steps(actions, conversation_timeline),
         "key_facts": _key_facts(facts, attachment_insights),
-        "must_check": _must_check(category, risks, text, attachment_insights),
+        "must_check": _must_check(category, risks, text, facts, attachment_insights),
         "missing_info": _missing_info(category, risks, text, facts, attachment_insights),
         "reply_recommendation": {
             "should_reply": reply_type != "no_reply",
@@ -180,6 +179,7 @@ def _must_check(
     category: str,
     risks: list[dict[str, str]],
     text: str,
+    facts: EmailFacts,
     attachment_insights: list[dict[str, object]],
 ) -> list[str]:
     items: list[str] = []
@@ -198,6 +198,7 @@ def _must_check(
     if _contains(text, "attachment", "attached", "附件", "pdf", "xlsx"):
         items.append("附件内容是否需要人工打开核查")
     items.extend(attachment_check_items(attachment_insights))
+    items.extend(cross_source_quantity_check_items(facts, attachment_insights))
     return _unique(items) or ["邮件事实和内部负责人"]
 
 

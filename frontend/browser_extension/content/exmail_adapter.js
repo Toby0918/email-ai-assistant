@@ -157,6 +157,10 @@
       currentMessageRoot: verifiedContext ? verifiedContext.currentMessageRoot : null,
       currentBodyRoot: verifiedContext ? verifiedContext.currentBodyRoot : null,
       threadRoot: verifiedContext ? verifiedContext.threadRoot : null,
+      siblingHistoryRoots: verifiedContext ? verifiedContext.siblingHistoryRoots : [],
+      threadContextLimited: Boolean(
+        verifiedContext && verifiedContext.threadContextLimited === true,
+      ),
       verifiedContext: verifiedContext || null,
     };
   }
@@ -165,11 +169,13 @@
     const payload = {
       ...extraction.result.payload,
       thread_segments: [],
+      thread_context_limited: extraction.threadContextLimited === true,
       attachment_files: [],
       resource_limitations: [],
     };
     const collector = window.EmailAssistantCurrentMessageCollector;
     if (!collector || !extraction.currentMessageRoot) {
+      payload.thread_context_limited = true;
       payload.resource_limitations.push(
         safeResourceLimitation(
           "resource_unavailable",
@@ -185,12 +191,15 @@
         currentBodyRoot: extraction.currentBodyRoot,
         currentBodyText: extraction.verifiedContext && extraction.verifiedContext.currentBodyText,
         threadRoot: extraction.threadRoot,
+        verifiedSiblingHistoryRoots: extraction.siblingHistoryRoots,
+        threadContextLimited: extraction.threadContextLimited,
         verifiedDocumentContext: true,
       };
       const messageContext = typeof collector.extractVisibleMessageContext === "function"
         ? collector.extractVisibleMessageContext(extraction.document, collectionOptions)
         : {
             current_message: null,
+            thread_context_limited: extraction.threadContextLimited === true,
             thread_segments: collector.extractVisibleThreadSegments(
               extraction.document,
               collectionOptions,
@@ -200,6 +209,10 @@
         messageContext && messageContext.thread_segments,
         ["position", "from", "to", "sent_at", "timestamp_text", "subject", "body_text"],
       );
+      payload.thread_context_limited = Boolean(
+        extraction.threadContextLimited === true ||
+        messageContext && messageContext.thread_context_limited === true,
+      );
       applyCurrentMessageContext(payload, messageContext && messageContext.current_message, {
         preserveSelectedBody: extraction.result.source === "selected_text",
         preserveVerifiedMetadata: Boolean(extraction.verifiedContext),
@@ -207,6 +220,7 @@
       });
     } catch (error) {
       payload.thread_segments = [];
+      payload.thread_context_limited = true;
       payload.body_text = safeCurrentBodyAfterCollectorFailure(extraction);
       payload.resource_limitations.push(
         safeResourceLimitation("resource_unavailable", "Visible thread segments could not be collected safely."),
@@ -214,6 +228,7 @@
     }
 
     if (!revalidateExtractionContext(extraction)) {
+      payload.thread_context_limited = true;
       payload.resource_limitations.push(
         safeResourceLimitation(
           "resource_unavailable",
@@ -849,6 +864,7 @@
     const email = payload || {};
     const source = JSON.stringify([
       fingerprintValues([email.subject, email.from, email.to, email.cc, email.sent_at, email.body_text]),
+      fingerprintValues([email.thread_context_limited === true]),
       fingerprintItems(email.attachments, ["filename", "size", "type"]),
       fingerprintItems(email.thread_segments, [
         "position", "from", "to", "sent_at", "timestamp_text", "subject", "body_text",

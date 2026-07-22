@@ -18,15 +18,6 @@ TASK_BRIEF = (
     / "operations"
     / "real_mailbox_scan_driven_plugin_task_brief.md"
 )
-IMPLEMENTATION_PLAN = (
-    ROOT
-    / "docs"
-    / "superpowers"
-    / "plans"
-    / "2026-07-15-real-mailbox-scan-driven-plugin-deepseek-completion.md"
-)
-
-
 class AdministratorModuleEntrypointTests(unittest.TestCase):
     def _run_module(self, module: str, *arguments: str) -> subprocess.CompletedProcess[str]:
         environment = os.environ.copy()
@@ -116,24 +107,24 @@ class AdministratorModuleEntrypointTests(unittest.TestCase):
         self.assertEqual(result.stderr, "")
 
     def test_governance_documents_capture_the_approved_six_slice_boundary(self) -> None:
-        for path in (TASK_BRIEF, IMPLEMENTATION_PLAN):
-            with self.subTest(path=path):
-                self.assertTrue(path.is_file(), f"missing governance document: {path}")
-                text = path.read_text(encoding="utf-8")
-                for required in (
-                    "Slice 1: Administrator entrypoints and governance",
-                    "Slice 2: Evaluation staging, dataset build, and interactive judge",
-                    "Slice 3: Read-only runtime knowledge snapshot bootstrap",
-                    "Slice 4: Tencent context extraction, privacy diagnostics, and rule facts",
-                    "Slice 5: Task-card extension UI",
-                    "Slice 6: Full verification, project status, and live inventory readiness",
-                    "rolling 24-month",
-                    "imap.exmail.qq.com:993",
-                    "inventory fingerprint",
-                    "no raw mail to Codex, DeepSeek, Git, or public SQLite",
-                    "separate live credential and fingerprint gate",
-                ):
-                    self.assertIn(required, text)
+        self.assertTrue(
+            TASK_BRIEF.is_file(), f"missing governance document: {TASK_BRIEF}"
+        )
+        text = TASK_BRIEF.read_text(encoding="utf-8")
+        for required in (
+            "Slice 1: Administrator entrypoints and governance",
+            "Slice 2: Evaluation staging, dataset build, and interactive judge",
+            "Slice 3: Read-only runtime knowledge snapshot bootstrap",
+            "Slice 4: Tencent context extraction, privacy diagnostics, and rule facts",
+            "Slice 5: Task-card extension UI",
+            "Slice 6: Full verification, project status, and live inventory readiness",
+            "rolling 24-month",
+            "imap.exmail.qq.com:993",
+            "inventory fingerprint",
+            "no raw mail to Codex, DeepSeek, Git, or public SQLite",
+            "separate live credential and fingerprint gate",
+        ):
+            self.assertIn(required, text)
 
         brief = TASK_BRIEF.read_text(encoding="utf-8")
         self.assertEqual(

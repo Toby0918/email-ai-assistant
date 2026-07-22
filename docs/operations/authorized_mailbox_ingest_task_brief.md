@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-15
+last_update: 2026-07-20
 status: active
 owner: "@tobyWang"
 review_cycle: weekly
@@ -150,6 +150,34 @@ repr, logs, and output contain only fixed codes/counts and never case/record IDs
 paths, text, matches, exception detail, or a partial stage file. Parser and local
 validation failure is exactly `argument_invalid`. The evaluator
 never imports or reads the raw vault.
+
+### Future real-mail V2 evaluation boundary
+
+Task 9 records a documentation-only V2 contract; it does not implement V2 and it
+does not open a real V2 dataset. V1 compatibility remains binding: the existing V1
+staging/dataset flow stays valid, and a future V2 flow may neither mutate V1 nor
+silently promote a V1 case.
+
+A future `PrivateEvaluationCaseV2` must preserve ordered deidentified thread
+segments oldest-to-newest and reviewed attachment bindings, rather than flattening
+history or treating `parsed` as semantic proof. Its encrypted
+`StructuredHumanReferenceV2` is completed before candidate generation, uses opaque
+evidence bindings, and requires independent business and privacy_security approvals
+by distinct actors. Strict candidate/reference separation prevents a candidate,
+provider, or reference author from rewriting both sides of the comparison.
+Candidate generation receives only the approved deidentified evidence and cannot access or decrypt the reference, approvals, rubric, or prior verdict.
+The blinded human judge sees the complete approved deidentified evidence and an
+unlabeled candidate, but not provider and model identity or routing metadata.
+Only aggregate-only reporting may persist.
+
+The prohibited artifacts include raw ChatGPT transcripts. The prohibited
+operations include automatic training, automatic upload of cases or references
+as a training corpus, model self-grading, and any automatic production model switch.
+A manually obtained second opinion can inform a newly authored and
+independently approved structured reference, but the transcript itself cannot enter
+the vault handoff, dataset, repository, report, or training material. V2
+implementation, live dataset creation, provider calls, and any training use require
+new separate written authorization.
 
 ## 7. Expected Scope
 

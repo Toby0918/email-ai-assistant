@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-18
+last_update: 2026-07-21
 status: active
 owner: "@tobyWang"
 review_cycle: weekly
@@ -30,10 +30,11 @@ The operator approved option C on 2026-07-16. Tasks 1-7 are implemented and
 review-clean with synthetic fixtures and fake providers. Task 8 aligned active
 documentation and the status generator. Task 9 synthetic provider and
 current-clicked Tencent smokes are complete; the bounded checks inspected only
-approved status fields and structural counts. The separate Task 5 real
-current-message attachment smoke remains pending and requires fresh explicit
-authorization after its offline Tasks 1-4 are review-clean. No prior check
-authorizes another live operation.
+approved status fields and structural counts. Attachment Task 5 bounded automatic
+current-message smoke is complete for one representative current message. Task 9
+forced OpenAI-to-DeepSeek synthetic fallback is complete. Task 9 semantic
+accuracy repair is offline complete and integrated on master in commit `673278b`.
+Any new live operation still requires fresh explicit authorization.
 
 ## 4. Goal
 
@@ -67,7 +68,7 @@ Relevant documents:
 - `docs/data/analysis_result_schema.md`
 - `docs/api/backend_api_contract.md`
 - `docs/decisions/0005-deepseek-led-analysis.md`
-- `docs/superpowers/specs/2026-07-09-phase-two-attachment-thread-analysis-design.md`
+- `docs/operations/phase_two_attachment_thread_task_brief.md`
 
 ## 7. Scope
 
@@ -252,11 +253,23 @@ Tasks 1-7 completed their offline implementation and review gates on 2026-07-16:
   fixed cross-language bridge (`186713c` plus review fixes and gate).
 - Task 7 added the shared task-card UI, exact engine/fallback states, and the
   60-second pending explanation (`cb85dc2` plus security fix and gate).
-- The current stage remains `multimodal_current_email_offline_ready_live_pending`
-  because the new Task 5 real current-message attachment smoke remains pending
-  and requires fresh explicit authorization. Task 9 synthetic provider and
-  current-clicked Tencent smokes are complete; they do not validate the new
-  attachment acquisition path or authorize another live operation.
+- The current stage remains `multimodal_current_email_offline_ready_live_pending`.
+  Status amendment, 2026-07-19: Task 9 forced OpenAI-to-DeepSeek synthetic
+  fallback is complete: one OpenAI attempt was intercepted before network access,
+  exactly one DeepSeek text-only request was made, DeepSeek SDK retries were zero,
+  and no SQLite write occurred. The root `.env` was unchanged. Attachment Task 5
+  bounded automatic current-message smoke is complete for one representative
+  current message. Exactly one new public analysis record contained two automatic
+  attachment insights reported `parsed` and zero non-parsed attachment insights,
+  remote providers were disabled, the request temporary directory returned to
+  zero files, and the bounded service stopped. This single-message check does not
+  establish semantic correctness. Task 9 semantic accuracy repair is offline complete.
+  A parsed attachment status does not prove semantic correctness. The completed offline repair follows
+  `docs/operations/task9_semantic_accuracy_repair_task_brief.md` and is preserved by
+  commit `673278b`; any new live
+  operation still requires fresh explicit authorization. All providers remain
+  disabled by default.
 - No provider, network, browser, mailbox, real email, key, `.env`, or live API was
   accessed during Tasks 1-8. Task 9 used only the separately authorized bounded
-  checks recorded above. The new attachment acquisition smoke is not live-tested.
+  checks recorded above; the separate provider-disabled Attachment Task 5 smoke
+  is recorded in the preceding status amendment.

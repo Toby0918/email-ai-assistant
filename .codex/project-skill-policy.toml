@@ -1,0 +1,74 @@
+version = 2
+created_at = "2026-07-21"
+scope = "project"
+project_root = "D:/Projects/email_ai_assistant"
+enforcement_config = "D:/Projects/email_ai_assistant/.codex/config.toml"
+activation_requires_new_session = true
+
+[policy]
+mode = "matt-pocock-primary"
+global_config_modified = false
+installed_skill_files_modified = false
+
+[matt_pocock.counts]
+installed = 41
+available = 41
+disabled = 0
+project_disabled = 0
+implicit = 17
+explicit_only = 24
+
+[matt_pocock.inventory]
+excluded_non_upstream = ["netease-uu-booster"]
+
+[matt_pocock.skills]
+implicit = [
+  "code-review",
+  "codebase-design",
+  "design-an-interface",
+  "diagnosing-bugs",
+  "domain-modeling",
+  "git-guardrails-claude-code",
+  "grilling",
+  "migrate-to-shoehorn",
+  "obsidian-vault",
+  "prototype",
+  "qa",
+  "request-refactor-plan",
+  "research",
+  "resolving-merge-conflicts",
+  "scaffold-exercises",
+  "setup-pre-commit",
+  "tdd",
+]
+explicit_only = [
+  "ask-matt",
+  "batch-grill-me",
+  "claude-handoff",
+  "edit-article",
+  "grill-me",
+  "grill-with-docs",
+  "handoff",
+  "implement",
+  "improve-codebase-architecture",
+  "loop-me",
+  "setup-matt-pocock-skills",
+  "setup-ts-deep-modules",
+  "teach",
+  "to-questionnaire",
+  "to-spec",
+  "to-tickets",
+  "triage",
+  "ubiquitous-language",
+  "wayfinder",
+  "wizard",
+  "writing-beats",
+  "writing-fragments",
+  "writing-great-skills",
+  "writing-shape",
+]
+
+[superpowers]
+plugin_id = "superpowers@openai-curated-remote"
+version = "6.1.1"
+disabled = true

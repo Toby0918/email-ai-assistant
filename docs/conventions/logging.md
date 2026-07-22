@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-15
+last_update: 2026-07-21
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -190,6 +190,11 @@ unexpected_analysis_error
 诊断是本地运行信息，不得进入 `public API`、`SQLite` 或 `frontend`。日志函数只接收上面的固定枚举、allowlisted detail 和非负耗时，不能接收请求、邮件、线程、附件、Prompt、provider response、异常对象、URL、路径或客户字段。
 
 Writing handler 只接受 exact fallback-event template 和 exact built-in allowlisted arguments；它拒绝 OpenAI, HTTPX, HTTP core、任意 backend/application logger、child logger、direct free-form diagnostic record、非 WARNING record、字符串子类、`bool`、exception 和 stack information。因此一般服务 level 配置为 DEBUG, INFO, WARNING, ERROR, CRITICAL, or an invalid level 时，每个真实 fallback 仍恰好写一条 canonical event；accepted model output 写零条 fallback event。
+
+Cached exception state is rejected explicitly: the handler must reject a record
+when `record.exc_info is not None`, `record.exc_text is not None`, or
+`record.stack_info is not None`. A formatter or earlier handler therefore cannot
+turn cached exception or stack data into an accepted diagnostic event.
 
 Logs must not contain API keys, prompts, email or thread content, attachment names or content, provider output, raw exception text, tracebacks, URLs, paths, or customer identifiers.
 

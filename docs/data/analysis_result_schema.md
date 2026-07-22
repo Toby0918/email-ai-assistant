@@ -148,7 +148,7 @@ Private outbound gate 的 `runtime_cards`、approved knowledge rendering、deide
 ## 语言规则
 
 - `summary`、`priority_reason`、`decision_brief` 中面向用户的结论和动作、`conversation_timeline` 中的说明和动作、`risk_flags.evidence`、`risk_flags.recommendation`、`suggested_actions.description` 和 `reply_draft.review_reasons` 面向用户展示，使用中文。
-- `attachment_insights.summary` 使用固定的解析状态说明；`key_facts` 每个附件最多 5 项，只能保留后端构造的 `Reference`、`Quantity`、`Measurement`、`Amount`、`Deadline`、`Requested action` 或 `Quality issue` 事实，不得保留任意原文行或连续原文。`limitations` 必须精确说明未解析、截断、OCR 不可用或格式不支持等限制。
+- `attachment_insights.summary` 使用固定的解析状态说明；`key_facts` 每个附件最多 5 项。本地构造的 `Reference`、`Quantity`、`Measurement`、`Amount`、`Deadline`、`Requested action` 或 `Quality issue` 事实必须按原值深拷贝并优先保留；经过完整句、来源、隐私和安全校验的模型定性补充只能去重追加到剩余槽位，不得替换本地事实，也不得保留任意未验证原文行或连续原文。`limitations` 必须精确说明未解析、截断、OCR 不可用或格式不支持等限制。
 - `reply_draft.subject` 和 `reply_draft.body` 是用户审核后可复制的外部邮件草稿，保持英文。
 - `priority`、`category`、`risk_flags.type`、`risk_flags.level` 和 `suggested_actions.type` 保持英文枚举值，由前端负责展示为中文标签。
 
