@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-20
+last_update: 2026-07-22
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -332,6 +332,78 @@ Executable constraints must enforce all of the following:
 - OpenAI model configuration remains exactly `gpt-5.6-sol` through the fixed official endpoint, with no configurable OpenAI base URL.
 
 These guards belong in `tests/test_architecture_constraints.py`, the frontend static suites, and the public response/persistence canaries. They must run with synthetic data and no network.
+
+### Current-click evidence mechanical guards
+
+`backend.current_evidence` is a closed, contract-only package. Its public surface
+is exactly `CurrentClickEvidenceV1` and `submit_current_click_evidence`. Only
+`backend.current_evidence.contract` may import the pure private-knowledge entity
+pattern and residual-scanner modules; no reader, path, key, repository, raw-vault,
+or authority import is allowed anywhere in the package.
+
+`backend.current_evidence.artifact_policy` may import only `re` and `unicodedata`,
+export only its boolean predicate, and call only NFKC normalization, regex
+compile/search, Unicode category inspection, plus `any`. All normalized `Cf` format
+controls and `Cs` surrogate code points fail closed. Explicit default-ignorable
+non-`Cf` ranges (joiners, variation selectors, fillers, tags, and reserved
+default-ignorables) also fail closed without rejecting all combining marks. It may contain
+forbidden metadata words solely as rejection patterns and must never expose a
+match, matched text, capture, source, or capability.
+
+`submit_current_click_evidence` may validate a mapping and invoke one injected
+append callable. Exact import bindings and call-target allowlists cover every
+package module. A complete binding inventory plus a forbidden-capability reference
+scan rejects alias/rebinding and dynamic target construction; a fixed fingerprint
+pins every binding name, kind, Store occurrence count, and non-name mutation target.
+Covered forms include `for`, comprehension, `with`, exception, import,
+default-argument, tuple, walrus, augmented assignment, type alias, global/nonlocal,
+delete, attribute, and subscript forms.
+Read/get/list/search/query/open/load, mailbox ingest, SQLite, provider, environment,
+scheduler, polling, reload, and hot-update surfaces remain forbidden; only the named
+pure regex predicates used for local artifact validation may call `search`. A
+separate executable-source guard covers all
+administrator scripts and wrappers plus normal API, cleanup, local-service,
+browser, and scheduled-workflow surfaces. It scans path parts relative to the
+explicit protected-surface root, executable docstrings, UTF-8 bytes literals,
+multi-value/deep-chain constant propagation, constant-valued f-strings, literal
+`join`/`format`/percent-format calls, folded single- or multiline Python/frontend
+concatenations, JS constant array joins/templates, and bounded JS escape decoding;
+legacy octal escapes fail closed.
+Protected mailbox/account/folder
+path context applies to plain synchronize/resynchronize commands, and compact
+lowercase route/call compounds plus auto/re/sync morphology are rejected while
+`async`, `fsync`, `synchronous`, and unrelated generic synchronization prose remain
+allowed. Refresh/delta/pull/update are also rejected whenever the executable
+fragment carries mailbox/account/IMAP context, or its protected relative path has
+strong mailbox/account/folder/IMAP/inbox/vault context, without making the generic
+`backend/email_agent` path reject unrelated update/refresh uses. The status
+generator exception applies only at the canonical generator path, only to literal
+prose in the direct `build_project_status` f-string result, only while the complete
+generator AST matches its reviewed SHA-256 fingerprint, and only when its sole
+call flows through the exact consecutive `Path` output binding, fixed parent
+creation, and `output.write_text` statements in `main`. `output` must have exactly
+one Store and no other binding or deletion. The complete `parse_args` and `main`
+signatures and bodies are pinned, including the sole canonical `argparse` import.
+The canonical `pathlib.Path` import and
+`ROOT = Path(__file__).resolve().parents[1]` binding are unique and unrebound;
+attribute mutations, protected subscript mutations, and custom `write_text`
+definitions are rejected. Custom/rebound receivers, executable sinks, aliases,
+higher-order references, and other strings remain guarded. The
+administrator CLI command constants and mutation/binding inventory, sole
+`commands.add_parser(command)` attribute reference, exact command-loop iterable,
+complete `build_parser` AST fingerprint, computed reflection strings, and runtime
+parser choices are frozen for issue #10; equivalent refresh/delta/pull/update
+surfaces require a later approved issue. Contract and
+append failures expose only fixed
+`evidence_contract_invalid` or `evidence_append_failed` codes. Frontend, public
+HTTP payloads, public SQLite rows, provider routing, and the startup-only snapshot
+loader do not gain current-evidence fields or capabilities. Tests use synthetic
+content with both remote provider routes disabled.
+
+Before placeholder and residual-PII scanning, contract text is NFKC-normalized for
+validation only. Fullwidth or compatibility-form email, phone, URL, and placeholder
+text therefore fails, while the original bounded text is retained only after the
+normalized view passes every check.
 
 ### Private evaluation mechanical guards
 

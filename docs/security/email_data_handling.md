@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-18
+last_update: 2026-07-22
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -143,6 +143,29 @@ Official sources rechecked 2026-07-12：
 - 当前 [DeepSeek Privacy Policy](https://cdn.deepseek.com/policies/en-US/deepseek-privacy-policy.html)说明其服务可能收集 text input、prompt、uploaded files 等 `Prompts or Inputs`，并说明其收集的数据在 People's Republic of China 处理和存储。该政策同时提示开发者需要向下游用户做自己的披露。
 
 因此本项目对 DeepSeek 路线作 no zero-retention guarantee，不声称 local-only，也不声称 guaranteed cache deletion。规则 fallback 是不允许内容离开本机时的默认选择。自动质量门是 50-case production-route offline replay：通过 injected raw private response 运行真实解析、来源/evidence、grounding、merge、语言和 routing/fallback 代码，不需要 key、网络或 live provider；任何 live synthetic API 比较仍需单独批准。
+
+## Write-only current-click evidence
+
+ADR 0008 allows a future implementation to derive `CurrentClickEvidenceV1` only
+after the same explicit Analyze click and only from the already validated current
+visible thread and accepted current-message attachment text. The contract contains
+bounded deidentified text and opaque local source indices; it is not raw thread,
+attachment bytes, filenames, URLs, or paths. It also rejects headers, mailbox or
+provider identifiers, placeholders, restoration mappings, runtime-card metadata,
+and residual identifying patterns.
+
+The validator also fails closed on raw message-header labels, private metadata
+fields, labeled/prefixed credentials, auth/JWT material, Base64-like payloads,
+serialized mapping shapes, hidden controls, and explicit provider/model response
+fields. Detection returns only a boolean; matched content is not exposed.
+
+Normal runtime may receive only an injected write-only append callable. It cannot
+open, read, search, enumerate, update, or delete the separate evidence inbox and
+receives no path, key, repository, raw-vault, authority-store, or mailbox object.
+Append failure is content-free and must not replace, delay, or alter the public
+analysis result. Issue #10 defines this contract and guard only; future issue #18
+owns the inbox and post-result orchestration. Public HTTP, SQLite, frontend, and
+provider-disabled deterministic fallback remain unchanged.
 
 ## 删除
 

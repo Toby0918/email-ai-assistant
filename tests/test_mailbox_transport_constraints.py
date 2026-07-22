@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import ast
+import hashlib
 import re
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -11,6 +13,10 @@ from scripts.repo_utils import read_text
 
 
 ROOT = Path(__file__).resolve().parents[1]
+
+STATUS_GENERATOR_AST_SHA256 = (
+    "f7669b6269903684ec559b4dcd30ca3e6e5c9da945c26b9f9931f15951c346d4"
+)
 
 POLICY_DOCS = (
     ROOT / "docs" / "constraints" / "tooling_constraints.md",
@@ -90,6 +96,890 @@ STATIC_BODY_PEEK_SELECTOR = re.compile(
     r"^\(BODY\.PEEK\[(?:HEADER|[1-9][0-9]*(?:\.[1-9][0-9]*)*)\](?:<[0-9]+\.[1-9][0-9]*>)?\)$",
     re.IGNORECASE,
 )
+
+_DIRECT_SYNC_WORD = re.compile(r"^(?:auto|re)?sync(?:s|ed|ing|er|ers|able)?$")
+_CONTEXTUAL_SYNC_WORD = re.compile(
+    r"^(?:auto|re)?synchron(?:ize|izes|ized|izing|izer|izers|"
+    r"ise|ises|ised|ising|iser|isers|ization|izations|isation|isations)$"
+)
+_CONTEXTUAL_INCREMENTAL_WORD = re.compile(
+    r"^(?:delta|pull(?:ed|ing)?|refresh(?:ed|ing)?|update(?:d|ing)?)$"
+)
+_SYNC_CONTEXT_WORDS = {
+    "account", "accounts", "corpus", "email", "emails", "folder", "folders",
+    "imap", "inbox", "incremental", "mailbox", "mailboxes", "message",
+    "messages", "vault",
+}
+_SYNC_STRONG_PATH_CONTEXT_WORDS = {
+    "account", "accounts", "folder", "folders", "imap", "inbox", "mailbox",
+    "mailboxes", "vault",
+}
+_SYNC_TEXT_SUFFIXES = {
+    ".bat", ".cjs", ".cmd", ".css", ".html", ".js", ".json", ".jsx",
+    ".mjs", ".ps1", ".ts", ".tsx", ".yaml", ".yml",
+}
+_MAX_LITERAL_VARIANTS = 64
+_QUOTED_LITERAL = r'''(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`)'''
+_QUOTED_LITERAL_CHAIN = re.compile(
+    rf"{_QUOTED_LITERAL}(?:\s*\+\s*{_QUOTED_LITERAL})+",
+    re.DOTALL,
+)
+_QUOTED_LITERAL_PART = re.compile(_QUOTED_LITERAL, re.DOTALL)
+_JS_ARRAY_LITERAL_JOIN = re.compile(
+    rf"\[(?P<items>\s*{_QUOTED_LITERAL}(?:\s*,\s*{_QUOTED_LITERAL})*\s*)\]"
+    rf"\s*\.join\(\s*(?P<separator>{_QUOTED_LITERAL})\s*\)",
+    re.DOTALL,
+)
+_JS_TEMPLATE_LITERAL = re.compile(r"`(?:\\.|[^`\\])*`", re.DOTALL)
+_JS_CONSTANT_INTERPOLATION = re.compile(
+    rf"\$\{{\s*(?P<value>{_QUOTED_LITERAL})\s*\}}",
+    re.DOTALL,
+)
+
+
+def _decode_javascript_literal(token: str) -> str | None:
+    if len(token) < 2 or token[0] not in "'\"`" or token[-1] != token[0]:
+        return None
+    content = token[1:-1]
+    decoded: list[str] = []
+    index = 0
+    simple = {
+        "0": "\0", "b": "\b", "f": "\f", "n": "\n", "r": "\r",
+        "t": "\t", "v": "\v", "\\": "\\", "'": "'", '"': '"',
+        "`": "`", "/": "/",
+    }
+    while index < len(content):
+        character = content[index]
+        if character != "\\":
+            decoded.append(character)
+            index += 1
+            continue
+        index += 1
+        if index >= len(content):
+            return None
+        marker = content[index]
+        if marker in "01234567" and (
+            marker != "0"
+            or (
+                index + 1 < len(content)
+                and content[index + 1].isdigit()
+            )
+        ):
+            return None
+        if marker in simple:
+            decoded.append(simple[marker])
+            index += 1
+            continue
+        if marker in "\r\n":
+            if marker == "\r" and index + 1 < len(content) and content[index + 1] == "\n":
+                index += 1
+            index += 1
+            continue
+        if marker == "x":
+            digits = content[index + 1:index + 3]
+            if len(digits) != 2 or not re.fullmatch(r"[0-9A-Fa-f]{2}", digits):
+                return None
+            decoded.append(chr(int(digits, 16)))
+            index += 3
+            continue
+        if marker == "u":
+            if index + 1 < len(content) and content[index + 1] == "{":
+                closing = content.find("}", index + 2)
+                if closing < 0:
+                    return None
+                digits = content[index + 2:closing]
+                index = closing + 1
+            else:
+                digits = content[index + 1:index + 5]
+                index += 5
+            if (
+                not 1 <= len(digits) <= 6
+                or not re.fullmatch(r"[0-9A-Fa-f]+", digits)
+            ):
+                return None
+            codepoint = int(digits, 16)
+            if codepoint > 0x10FFFF or 0xD800 <= codepoint <= 0xDFFF:
+                return None
+            decoded.append(chr(codepoint))
+            continue
+        decoded.append(marker)
+        index += 1
+    return "".join(decoded)
+
+
+def _decoded_javascript_literal_or_failure(token: str) -> str:
+    decoded = _decode_javascript_literal(token)
+    return decoded if decoded is not None else "sync"
+
+
+def _term_tokens(value: str) -> set[str]:
+    separated = re.sub(r"(?<=[a-z0-9])(?=[A-Z])", " ", value)
+    return {
+        part.casefold()
+        for part in re.split(r"[^A-Za-z0-9]+", separated)
+        if part
+    }
+
+
+def _combine_literal_variants(
+    parts: list[set[str]],
+    *,
+    separator: str = "",
+) -> set[str]:
+    combined = {""}
+    for index, variants in enumerate(parts):
+        candidate = {
+            prefix + (separator if index else "") + suffix
+            for prefix in combined
+            for suffix in variants
+        }
+        if len(candidate) > _MAX_LITERAL_VARIANTS:
+            return {"sync"}
+        combined = candidate
+    return combined
+
+
+def _literal_variant_tuples(parts: list[set[str]]) -> set[tuple[str, ...]]:
+    combined: set[tuple[str, ...]] = {()}
+    for variants in parts:
+        candidate = {
+            (*prefix, suffix)
+            for prefix in combined
+            for suffix in variants
+        }
+        if len(candidate) > _MAX_LITERAL_VARIANTS:
+            return {("sync",)}
+        combined = candidate
+    return combined
+
+
+def _literal_strings(
+    node: ast.AST,
+    constants: dict[str, set[str]] | None = None,
+) -> set[str]:
+    if isinstance(node, ast.Constant) and isinstance(node.value, str):
+        return {node.value}
+    if isinstance(node, ast.Constant) and isinstance(node.value, bytes):
+        try:
+            return {node.value.decode("utf-8")}
+        except UnicodeDecodeError:
+            return set()
+    if isinstance(node, ast.Name) and constants is not None:
+        return constants.get(node.id, set())
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        left = _literal_strings(node.left, constants)
+        right = _literal_strings(node.right, constants)
+        if left and right:
+            return _combine_literal_variants([left, right])
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Mod):
+        templates = _literal_strings(node.left, constants)
+        right_parts = (
+            [_literal_strings(item, constants) for item in node.right.elts]
+            if isinstance(node.right, ast.Tuple)
+            else [_literal_strings(node.right, constants)]
+        )
+        if templates and right_parts and all(right_parts):
+            formatted: set[str] = set()
+            for template in templates:
+                for values in _literal_variant_tuples(right_parts):
+                    argument: object = values if len(right_parts) > 1 else values[0]
+                    try:
+                        formatted.add(template % argument)
+                    except (TypeError, ValueError):
+                        continue
+            return formatted
+    if isinstance(node, ast.JoinedStr):
+        parts: list[set[str]] = []
+        for part in node.values:
+            selected = (
+                _literal_strings(part.value, constants)
+                if isinstance(part, ast.FormattedValue)
+                else _literal_strings(part, constants)
+            )
+            if not selected:
+                return set()
+            parts.append(selected)
+        return _combine_literal_variants(parts)
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "join"
+        and len(node.args) == 1
+        and not node.keywords
+        and isinstance(node.args[0], (ast.List, ast.Tuple, ast.Set))
+    ):
+        separators = _literal_strings(node.func.value, constants)
+        parts = [
+            _literal_strings(item, constants)
+            for item in node.args[0].elts
+        ]
+        if separators and parts and all(parts):
+            joined: set[str] = set()
+            for separator in separators:
+                joined.update(
+                    _combine_literal_variants(parts, separator=separator)
+                )
+                if len(joined) > _MAX_LITERAL_VARIANTS:
+                    return {"sync"}
+            return joined
+    if (
+        isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "format"
+        and not node.keywords
+    ):
+        templates = _literal_strings(node.func.value, constants)
+        parts = [_literal_strings(argument, constants) for argument in node.args]
+        if templates and all(parts):
+            formatted: set[str] = set()
+            for template in templates:
+                for values in _literal_variant_tuples(parts):
+                    try:
+                        formatted.add(template.format(*values))
+                    except (IndexError, KeyError, ValueError):
+                        continue
+            return formatted
+    return set()
+
+
+def _python_literal_constants(tree: ast.AST) -> dict[str, set[str]]:
+    constants: dict[str, set[str]] = {}
+    assignments = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.Assign, ast.AnnAssign, ast.NamedExpr))
+    ]
+    for _pass in range(len(assignments) + 1):
+        updated = {name: set(values) for name, values in constants.items()}
+        for node in ast.walk(tree):
+            targets: list[ast.expr] = []
+            value: ast.AST | None = None
+            if isinstance(node, ast.Assign):
+                targets.extend(node.targets)
+                value = node.value
+            elif isinstance(node, ast.AnnAssign):
+                targets.append(node.target)
+                value = node.value
+            elif isinstance(node, ast.NamedExpr):
+                targets.append(node.target)
+                value = node.value
+            if value is None:
+                continue
+            selected = _literal_strings(value, constants)
+            if not selected:
+                continue
+            for target in targets:
+                if isinstance(target, ast.Name):
+                    merged = updated.setdefault(target.id, set()) | selected
+                    updated[target.id] = (
+                        merged
+                        if len(merged) <= _MAX_LITERAL_VARIANTS
+                        else {"sync"}
+                    )
+        if updated == constants:
+            break
+        constants = updated
+    return constants
+
+
+def _python_executable_fragments(
+    path: Path,
+) -> list[str]:
+    tree = ast.parse(read_text(path))
+    constants = _python_literal_constants(tree)
+    generated_prose = _generated_status_prose_nodes(path, tree)
+    fragments: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            fragments.append(node.name)
+        elif isinstance(node, ast.arg):
+            fragments.append(node.arg)
+        elif isinstance(node, ast.Name):
+            fragments.append(node.id)
+        elif isinstance(node, ast.Attribute):
+            fragments.append(node.attr)
+        elif isinstance(node, ast.alias):
+            fragments.extend((node.name, node.asname or ""))
+        elif isinstance(node, ast.ImportFrom):
+            fragments.append(node.module or "")
+        literals = _literal_strings(node, constants)
+        if id(node) not in generated_prose:
+            fragments.extend(literals)
+    return fragments
+
+
+def _text_executable_fragments(value: str) -> list[str]:
+    fragments = value.splitlines()
+    fragments.extend(
+        re.sub(r"[\s'\"`+]", "", line)
+        for line in value.splitlines()
+    )
+    fragments.extend(
+        decoded if decoded is not None else "sync"
+        for part in _QUOTED_LITERAL_PART.finditer(value)
+        for decoded in [_decode_javascript_literal(part.group(0))]
+    )
+    fragments.extend(
+        "".join(
+            _decoded_javascript_literal_or_failure(part.group(0))
+            for part in _QUOTED_LITERAL_PART.finditer(chain.group(0))
+        )
+        for chain in _QUOTED_LITERAL_CHAIN.finditer(value)
+    )
+    for joined in _JS_ARRAY_LITERAL_JOIN.finditer(value):
+        items = [
+            _decoded_javascript_literal_or_failure(part.group(0))
+            for part in _QUOTED_LITERAL_PART.finditer(joined.group("items"))
+        ]
+        separator = _decode_javascript_literal(joined.group("separator"))
+        if separator is None:
+            separator = "sync"
+        fragments.append(separator.join(items))
+    for template in _JS_TEMPLATE_LITERAL.finditer(value):
+        content = template.group(0)[1:-1]
+        if "${" not in content:
+            continue
+        expanded = _JS_CONSTANT_INTERPOLATION.sub(
+            lambda match: (
+                _decoded_javascript_literal_or_failure(match.group("value"))
+            ),
+            content,
+        )
+        if "${" not in expanded:
+            decoded = _decode_javascript_literal(f"`{expanded}`")
+            fragments.append(decoded if decoded is not None else "sync")
+    return fragments
+
+
+def _binding_sites(tree: ast.AST, name: str) -> list[ast.AST]:
+    sites: list[ast.AST] = []
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Name)
+            and node.id == name
+            and isinstance(node.ctx, (ast.Store, ast.Del))
+        ):
+            sites.append(node)
+        elif isinstance(node, ast.arg) and node.arg == name:
+            sites.append(node)
+        elif isinstance(node, ast.alias):
+            bound_name = node.asname or node.name.split(".", 1)[0]
+            if bound_name == name:
+                sites.append(node)
+        elif isinstance(node, ast.ExceptHandler) and node.name == name:
+            sites.append(node)
+        elif isinstance(node, (ast.Global, ast.Nonlocal)) and name in node.names:
+            sites.append(node)
+        elif isinstance(node, (ast.MatchAs, ast.MatchStar)) and node.name == name:
+            sites.append(node)
+        elif isinstance(node, ast.MatchMapping) and node.rest == name:
+            sites.append(node)
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            if node.name == name:
+                sites.append(node)
+    return sites
+
+
+def _generated_status_prose_nodes(path: Path, tree: ast.AST) -> set[int]:
+    if path.resolve() != (ROOT / "scripts" / "generate_project_status.py").resolve():
+        return set()
+    status_ast_digest = hashlib.sha256(
+        ast.dump(tree, include_attributes=False).encode("utf-8")
+    ).hexdigest()
+    if status_ast_digest != STATUS_GENERATOR_AST_SHA256:
+        return set()
+    reflective_names = {
+        "__import__", "compile", "delattr", "eval", "exec", "getattr",
+        "globals", "locals", "setattr", "vars",
+    }
+    reflective_attributes = {
+        "__code__", "__dict__", "__getattribute__", "__globals__",
+        "__setattr__", "__delattr__",
+    }
+    constants = _python_literal_constants(tree)
+    if (
+        any(
+            isinstance(node, ast.Name)
+            and isinstance(node.ctx, ast.Load)
+            and node.id in reflective_names
+            for node in ast.walk(tree)
+        )
+        or any(
+            isinstance(node, ast.Attribute)
+            and node.attr in reflective_attributes
+            for node in ast.walk(tree)
+        )
+        or any(
+            "build_project_status" in _literal_strings(node, constants)
+            for node in ast.walk(tree)
+        )
+    ):
+        return set()
+    parents = {
+        child: parent
+        for parent in ast.walk(tree)
+        for child in ast.iter_child_nodes(parent)
+    }
+    path_imports = [
+        node
+        for node in tree.body
+        if isinstance(node, ast.ImportFrom)
+        and node.level == 0
+        and node.module == "pathlib"
+        and len(node.names) == 1
+        and node.names[0].name == "Path"
+        and node.names[0].asname is None
+    ]
+    if len(path_imports) != 1 or any(
+        isinstance(node, ast.alias)
+        and node not in path_imports[0].names
+        and (
+            node.asname == "Path"
+            or (node.asname is None and node.name.split(".", 1)[0] == "Path")
+        )
+        for node in ast.walk(tree)
+    ):
+        return set()
+    if _binding_sites(tree, "Path") != [path_imports[0].names[0]]:
+        return set()
+    argparse_imports = [
+        node
+        for node in tree.body
+        if isinstance(node, ast.Import)
+        and len(node.names) == 1
+        and node.names[0].name == "argparse"
+        and node.names[0].asname is None
+    ]
+    if (
+        len(argparse_imports) != 1
+        or _binding_sites(tree, "argparse") != [argparse_imports[0].names[0]]
+    ):
+        return set()
+    root_assignments = [
+        node
+        for node in tree.body
+        if isinstance(node, ast.Assign)
+        and len(node.targets) == 1
+        and isinstance(node.targets[0], ast.Name)
+        and node.targets[0].id == "ROOT"
+    ]
+    if (
+        len(root_assignments) != 1
+        or ast.unparse(root_assignments[0].value)
+        != "Path(__file__).resolve().parents[1]"
+    ):
+        return set()
+    canonical_root_target = root_assignments[0].targets[0]
+    if _binding_sites(tree, "ROOT") != [canonical_root_target]:
+        return set()
+    if any(
+        isinstance(node, ast.Name)
+        and node.id == "ROOT"
+        and isinstance(node.ctx, (ast.Store, ast.Del))
+        and node is not canonical_root_target
+        for node in ast.walk(tree)
+    ) or any(
+        (
+            isinstance(node, ast.arg)
+            and node.arg == "ROOT"
+        )
+        or (
+            isinstance(node, ast.alias)
+            and (
+                node.asname == "ROOT"
+                or (
+                    node.asname is None
+                    and node.name.split(".", 1)[0] == "ROOT"
+                )
+            )
+        )
+        or (
+            isinstance(node, ast.ExceptHandler)
+            and node.name == "ROOT"
+        )
+        or (
+            isinstance(node, (ast.Global, ast.Nonlocal))
+            and "ROOT" in node.names
+        )
+        or (
+            isinstance(node, (ast.MatchAs, ast.MatchStar))
+            and node.name == "ROOT"
+        )
+        or (
+            isinstance(node, ast.MatchMapping)
+            and node.rest == "ROOT"
+        )
+        or (
+            isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+            and node.name == "ROOT"
+        )
+        for node in ast.walk(tree)
+    ):
+        return set()
+    canonical_path_loads = [
+        node
+        for node in ast.walk(root_assignments[0].value)
+        if isinstance(node, ast.Name)
+        and node.id == "Path"
+        and isinstance(node.ctx, ast.Load)
+    ]
+    if len(canonical_path_loads) != 1:
+        return set()
+    canonical_path_load = canonical_path_loads[0]
+    for node in ast.walk(tree):
+        if not (
+            isinstance(node, ast.Name)
+            and node.id == "Path"
+            and isinstance(node.ctx, ast.Load)
+        ):
+            continue
+        if node is canonical_path_load:
+            continue
+        keyword = parents.get(node)
+        call = parents.get(keyword) if isinstance(keyword, ast.keyword) else None
+        if not (
+            isinstance(keyword, ast.keyword)
+            and keyword.arg == "type"
+            and keyword.value is node
+            and isinstance(call, ast.Call)
+            and isinstance(call.func, ast.Attribute)
+            and call.func.attr == "add_argument"
+            and isinstance(call.func.value, ast.Name)
+            and call.func.value.id == "parser"
+            and any(
+                isinstance(argument, ast.Constant)
+                and argument.value == "--output"
+                for argument in call.args
+            )
+        ):
+            return set()
+    if any(
+        isinstance(node, ast.Name)
+        and node.id == "Path"
+        and isinstance(node.ctx, (ast.Store, ast.Del))
+        for node in ast.walk(tree)
+    ) or any(
+        (
+            isinstance(node, ast.arg)
+            and node.arg == "Path"
+        )
+        or (
+            isinstance(node, ast.ExceptHandler)
+            and node.name == "Path"
+        )
+        or (
+            isinstance(node, (ast.Global, ast.Nonlocal))
+            and "Path" in node.names
+        )
+        or (
+            isinstance(node, (ast.MatchAs, ast.MatchStar))
+            and node.name == "Path"
+        )
+        or (
+            isinstance(node, ast.MatchMapping)
+            and node.rest == "Path"
+        )
+        or (
+            isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+            and node.name == "Path"
+        )
+        for node in ast.walk(tree)
+    ) or any(
+        isinstance(node, ast.Attribute)
+        and isinstance(node.ctx, (ast.Store, ast.Del))
+        for node in ast.walk(tree)
+    ) or any(
+        isinstance(node, ast.Subscript)
+        and isinstance(node.ctx, (ast.Store, ast.Del))
+        and isinstance(node.slice, ast.Constant)
+        and node.slice.value in {"ROOT", "Path", "argparse", "write_text"}
+        for node in ast.walk(tree)
+    ) or any(
+        isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+        and node.name == "write_text"
+        for node in ast.walk(tree)
+    ):
+        return set()
+    expected_parse_args = ast.parse(
+        "def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:\n"
+        "    parser = argparse.ArgumentParser()\n"
+        "    parser.add_argument('--output', type=Path, "
+        "default=ROOT / 'docs' / 'operations' / 'project_status_log.md')\n"
+        "    return parser.parse_args(argv)\n"
+    ).body[0]
+    expected_main = ast.parse(
+        "def main(argv: Sequence[str] | None = None) -> int:\n"
+        "    args = parse_args(argv)\n"
+        "    output = args.output if args.output.is_absolute() "
+        "else ROOT / args.output\n"
+        "    output.parent.mkdir(parents=True, exist_ok=True)\n"
+        "    output.write_text(build_project_status(), encoding='utf-8')\n"
+        "    return 0\n"
+    ).body[0]
+    parse_args_definitions = [
+        node
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == "parse_args"
+    ]
+    main_definitions = [
+        node
+        for node in tree.body
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == "main"
+    ]
+    if (
+        len(parse_args_definitions) != 1
+        or len(main_definitions) != 1
+        or _binding_sites(tree, "parse_args") != [parse_args_definitions[0]]
+        or _binding_sites(tree, "main") != [main_definitions[0]]
+        or ast.dump(parse_args_definitions[0], include_attributes=False)
+        != ast.dump(expected_parse_args, include_attributes=False)
+        or ast.dump(main_definitions[0], include_attributes=False)
+        != ast.dump(expected_main, include_attributes=False)
+    ):
+        return set()
+    status_calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id == "build_project_status"
+    ]
+    if len(status_calls) != 1:
+        return set()
+    status_call = status_calls[0]
+    status_definitions = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name == "build_project_status"
+    ]
+    if (
+        len(status_definitions) != 1
+        or status_definitions[0] not in tree.body
+        or status_definitions[0].decorator_list
+        or any(
+            isinstance(node, ast.Name)
+            and node.id == "build_project_status"
+            and isinstance(node.ctx, (ast.Store, ast.Del))
+            for node in ast.walk(tree)
+        )
+        or any(
+            isinstance(node, ast.alias)
+            and (
+                node.asname == "build_project_status"
+                or (
+                    node.asname is None
+                    and node.name.split(".", 1)[0] == "build_project_status"
+                )
+            )
+            for node in ast.walk(tree)
+        )
+    ):
+        return set()
+    status_loads = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Name)
+        and isinstance(node.ctx, ast.Load)
+        and node.id == "build_project_status"
+    ]
+    if len(status_loads) != 1 or status_loads[0] is not status_call.func:
+        return set()
+    if any(
+        isinstance(node, ast.Attribute)
+        and node.attr == "build_project_status"
+        for node in ast.walk(tree)
+    ):
+        return set()
+    sink = parents.get(status_call)
+    if not (
+        isinstance(sink, ast.Call)
+        and isinstance(sink.func, ast.Attribute)
+        and sink.func.attr == "write_text"
+        and isinstance(sink.func.value, ast.Name)
+        and sink.func.value.id == "output"
+        and sink.args
+        and sink.args[0] is status_call
+    ):
+        return set()
+    output_assignments = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Assign)
+        and any(
+            isinstance(target, ast.Name) and target.id == "output"
+            for target in node.targets
+        )
+    ]
+    if len(output_assignments) != 1 or ast.unparse(output_assignments[0].value) != (
+        "args.output if args.output.is_absolute() else ROOT / args.output"
+    ):
+        return set()
+    owner = parents.get(sink)
+    while owner is not None and not isinstance(
+        owner,
+        (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda),
+    ):
+        owner = parents.get(owner)
+    if not isinstance(owner, ast.FunctionDef) or owner.name != "main":
+        return set()
+    output_bindings: list[str] = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Name) and node.id == "output" and isinstance(
+            node.ctx,
+            (ast.Store, ast.Del),
+        ):
+            output_bindings.append(type(node.ctx).__name__)
+        elif isinstance(node, ast.arg) and node.arg == "output":
+            output_bindings.append("argument")
+        elif isinstance(node, ast.alias) and (
+            node.asname == "output"
+            or (node.asname is None and node.name.split(".", 1)[0] == "output")
+        ):
+            output_bindings.append("import")
+        elif isinstance(node, ast.ExceptHandler) and node.name == "output":
+            output_bindings.append("exception")
+        elif isinstance(node, (ast.Global, ast.Nonlocal)) and "output" in node.names:
+            output_bindings.append(type(node).__name__)
+        elif isinstance(node, (ast.MatchAs, ast.MatchStar)) and node.name == "output":
+            output_bindings.append(type(node).__name__)
+        elif isinstance(node, ast.MatchMapping) and node.rest == "output":
+            output_bindings.append("MatchMapping")
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            if node.name == "output":
+                output_bindings.append(type(node).__name__)
+    if output_bindings != ["Store"]:
+        return set()
+    sink_statement = parents.get(sink)
+    if not (
+        isinstance(sink_statement, ast.Expr)
+        and sink_statement.value is sink
+        and output_assignments[0] in owner.body
+        and sink_statement in owner.body
+    ):
+        return set()
+    output_index = owner.body.index(output_assignments[0])
+    if output_index + 2 >= len(owner.body):
+        return set()
+    mkdir_statement = owner.body[output_index + 1]
+    if (
+        ast.unparse(mkdir_statement)
+        != "output.parent.mkdir(parents=True, exist_ok=True)"
+        or owner.body[output_index + 2] is not sink_statement
+    ):
+        return set()
+    generated_prose: set[int] = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Return) or not isinstance(node.value, ast.JoinedStr):
+            continue
+        parent = parents.get(node)
+        while parent is not None and not isinstance(
+            parent,
+            (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda),
+        ):
+            parent = parents.get(parent)
+        if not isinstance(parent, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        if parent.name != "build_project_status":
+            continue
+        generated_prose.update(
+            id(part)
+            for part in node.value.values
+            if isinstance(part, ast.Constant) and isinstance(part.value, str)
+        )
+    return generated_prose
+
+
+def _sync_exposure_terms(
+    value: str,
+    *,
+    inherited_context: bool = False,
+    inherited_semantic_context: bool = False,
+) -> set[str]:
+    terms = _term_tokens(value)
+    direct = {term for term in terms if _DIRECT_SYNC_WORD.fullmatch(term)}
+    contextual = {
+        term
+        for term in terms
+        if _CONTEXTUAL_SYNC_WORD.fullmatch(term)
+    }
+    has_context = inherited_context or bool(terms.intersection(_SYNC_CONTEXT_WORDS))
+    if not has_context:
+        contextual.clear()
+    semantic_aliases = (
+        {
+            term
+            for term in terms
+            if _CONTEXTUAL_INCREMENTAL_WORD.fullmatch(term)
+        }
+        if terms.intersection(_SYNC_CONTEXT_WORDS) or inherited_semantic_context
+        else set()
+    )
+    compound: set[str] = set()
+    for term in terms:
+        for context in _SYNC_CONTEXT_WORDS:
+            candidates = []
+            if term.startswith(context):
+                candidates.append(term.removeprefix(context))
+            if term.endswith(context):
+                candidates.append(term.removesuffix(context))
+            compound.update(
+                candidate
+                for candidate in candidates
+                if _DIRECT_SYNC_WORD.fullmatch(candidate)
+                or _CONTEXTUAL_SYNC_WORD.fullmatch(candidate)
+                or _CONTEXTUAL_INCREMENTAL_WORD.fullmatch(candidate)
+            )
+    return direct | contextual | semantic_aliases | compound
+
+
+def _incremental_sync_exposures(
+    path: Path,
+    *,
+    surface_root: Path,
+) -> set[str]:
+    relative_parts = path.resolve().relative_to(surface_root.resolve()).parts
+    path_terms = {
+        term
+        for part in relative_parts
+        for term in _term_tokens(part)
+    }
+    path_has_context = bool(path_terms.intersection(_SYNC_CONTEXT_WORDS))
+    path_has_semantic_context = bool(
+        path_terms.intersection(_SYNC_STRONG_PATH_CONTEXT_WORDS)
+    )
+    fragments = (
+        _python_executable_fragments(path)
+        if path.suffix.casefold() == ".py"
+        else _text_executable_fragments(read_text(path))
+    )
+    fragments.extend(relative_parts)
+    return {
+        exposure
+        for fragment in fragments
+        for exposure in _sync_exposure_terms(
+            fragment,
+            inherited_context=path_has_context,
+            inherited_semantic_context=path_has_semantic_context,
+        )
+    }
+
+
+def _issue_ten_protected_surfaces() -> tuple[Path, ...]:
+    paths = {
+        *(path for path in (ROOT / "scripts").rglob("*")
+          if path.is_file() and path.suffix.casefold() in {".bat", ".cmd", ".ps1", ".py"}),
+        *(ROOT / "backend" / "email_agent").rglob("*.py"),
+        *(path for path in (ROOT / "frontend").rglob("*")
+          if path.is_file() and path.suffix.casefold() in _SYNC_TEXT_SUFFIXES),
+        *(ROOT / ".github" / "workflows").glob("*.yml"),
+        *(ROOT / ".github" / "workflows").glob("*.yaml"),
+        *(path for path in ROOT.iterdir()
+          if path.is_file() and path.suffix.casefold() in {".bat", ".cmd", ".ps1"}),
+    }
+    return tuple(sorted(paths, key=lambda path: path.as_posix().casefold()))
 
 
 def _call_name(value: ast.expr) -> str | None:
@@ -686,6 +1576,648 @@ def _source_transport_violations(
 
 
 class MailboxTransportConstraintTests(unittest.TestCase):
+    def test_incremental_sync_guard_detects_executable_spelling_variants(self) -> None:
+        samples = {
+            "single_quote.py": "commands.add_parser('sync')\n",
+            "double_quote.py": 'commands.add_parser("sync")\n',
+            "snake_case.py": "incremental_sync = True\n",
+            "camel_case.js": "syncMailbox();\n",
+            "synchronize_inbox.js": "synchronizeInbox();\n",
+            "synchronize_imap.py": "synchronizeImap()\n",
+            "resync_mailbox.py": "resyncMailbox()\n",
+            "resynchronize_mailbox.py": "resynchronizeMailbox()\n",
+            "mailbox_syncer.py": "mailboxSyncer()\n",
+            "mailbox_synchronizer.py": "mailboxSynchronizer()\n",
+            "synchronizing_mailbox.py": "synchronizingMailbox()\n",
+            "synchronized_mailbox.py": "synchronizedMailbox()\n",
+            "resynchronizing_inbox.py": "resynchronizingInbox()\n",
+            "synchronize_account.py": "synchronizeAccount()\n",
+            "autosync_mailbox.py": "autosyncMailbox()\n",
+            "autosynchronize_mailbox.py": "run_import()\n",
+            "route.html": "/api/mailbox-sync\n",
+            "compact_route.html": "/api/mailboxsync\n",
+            "compact_call.js": "syncmailbox();\n",
+            "refresh_mailbox.js": "refreshMailbox();\n",
+            "compact_refresh_mailbox.js": "refreshmailbox();\n",
+            "delta_mailbox.js": "deltaMailbox();\n",
+            "pull_mailbox.js": "pullMailbox();\n",
+            "mailbox_update_route.html": "/api/mailbox-update\n",
+            "scheduled.yml": "steps:\n  - run: mailbox synchronize\n",
+            "relative_import.py": "from .mailbox_sync import run as task\n",
+            "absolute_import.py": "from backend.mailbox_sync import run as task\n",
+            "constant_concat.py": "commands.add_parser('sy' + 'nc')\n",
+            "bytes_literal.py": "commands.add_parser(b'mailbox sync')\n",
+            "constant_fstring.py": (
+                "commands.add_parser(f'{\"sy\"}nc')\n"
+            ),
+            "variable_fstring.py": (
+                "part = 'sy'\ncommands.add_parser(f'{part}nc')\n"
+            ),
+            "reassigned_fstring.py": (
+                "part = 'unused'\npart = 'sy'\n"
+                "commands.add_parser(f'{part}nc')\n"
+            ),
+            "deep_constant_chain.py": (
+                "a = 'sy'\nb = a\nc = b\nd = c\ne = d\nf = e\n"
+                "commands.add_parser(f'{f}nc')\n"
+            ),
+            "literal_join.py": (
+                "commands.add_parser(''.join(('sy', 'nc')))\n"
+            ),
+            "literal_format.py": (
+                "commands.add_parser('s{}nc'.format('y'))\n"
+            ),
+            "literal_percent.py": (
+                "commands.add_parser('%s%s' % ('sy', 'nc'))\n"
+            ),
+            "javascript_concat.js": '"mailbox-" + "sy" + "nc";\n',
+            "javascript_multiline_concat.js": (
+                '"mailbox-" +\n    "sy" +\n    "nc";\n'
+            ),
+            "javascript_array_join.js": "['sy', 'nc'].join('');\n",
+            "javascript_template.js": "`mailbox-${'sy'}${'nc'}`;\n",
+            "javascript_unicode_escape.js": '"\\u0073ync";\n',
+            "javascript_hex_escape.js": '"\\x73ync";\n',
+            "javascript_octal_escape.js": '"\\163ync";\n',
+            "javascript_join_escape.js": (
+                '["s\\u0079", "nc"].join("");\n'
+            ),
+            "javascript_template_escape.js": (
+                '`mailbox-${"s\\u0079"}${"nc"}`;\n'
+            ),
+            "module_surface.mjs": "syncmailbox();\n",
+            "executable_docstring.py": (
+                "\"\"\"sync\"\"\"\ncommands.add_parser(__doc__)\n"
+            ),
+            "scripts/mailbox_sync/run.py": "run_import()\n",
+            "scripts/manage_mailbox_vault.py": (
+                "commands.add_parser('synchronize')\n"
+            ),
+            "scripts/mailbox_vault/resynchronize.py": (
+                "commands.add_parser('resynchronize')\n"
+            ),
+            "scripts/mailbox/refresh.py": "run_import()\n",
+        }
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            for name, source in samples.items():
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text(source, encoding="utf-8")
+                with self.subTest(name=name):
+                    self.assertTrue(
+                        _incremental_sync_exposures(path, surface_root=root)
+                    )
+
+            benign = root / "benign.py"
+            benign.write_text(
+                "import os\n"
+                "async def wait_for_io():\n"
+                "    os.fsync(1)\n"
+                "    return 'synchronous'\n"
+                "def synchronize():\n"
+                "    return 'synchronization complete'\n"
+                "mailbox_label = 'current mailbox'\n"
+                "def synchronize_clock():\n"
+                "    return None\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                _incremental_sync_exposures(benign, surface_root=root),
+                set(),
+            )
+
+            checkout = root / "mailbox_sync" / "checkout"
+            checkout.mkdir(parents=True)
+            checkout_benign = checkout / "benign.py"
+            checkout_benign.write_text(
+                "def synchronize_clock():\n    return 'synchronous'\n",
+                encoding="utf-8",
+            )
+            self.assertEqual(
+                _incremental_sync_exposures(
+                    checkout_benign,
+                    surface_root=checkout,
+                ),
+                set(),
+            )
+
+            status_generator = root / "generate_project_status.py"
+            status_generator.write_text(
+                "def build_project_status(count):\n"
+                "    return f'Manual mailbox sync remains future scope: {count}'\n",
+                encoding="utf-8",
+            )
+            self.assertTrue(
+                _incremental_sync_exposures(
+                    status_generator,
+                    surface_root=root,
+                )
+            )
+
+            canonical_status_path = ROOT / "scripts" / "generate_project_status.py"
+            canonical_status_source = read_text(canonical_status_path)
+            safe_status_tree = ast.parse(canonical_status_source)
+            unsafe_path_sink_rebinding_tree = ast.parse(
+                canonical_status_source.replace(
+                    "ROOT = Path(__file__).resolve().parents[1]\n",
+                    "ROOT = Path(__file__).resolve().parents[1]\n"
+                    "Path.write_text = staticmethod(subprocess.run)\n",
+                    1,
+                )
+            )
+            unsafe_root_rebinding_tree = ast.parse(
+                canonical_status_source.replace(
+                    "ROOT = Path(__file__).resolve().parents[1]\n",
+                    "ROOT = Path(__file__).resolve().parents[1]\n"
+                    "ROOT = executor\n",
+                    1,
+                )
+            )
+            unsafe_module_path_rebinding_tree = ast.parse(
+                canonical_status_source.replace(
+                    "ROOT = Path(__file__).resolve().parents[1]\n",
+                    "sys.modules[__name__].Path = EvilPath\n"
+                    "ROOT = Path(__file__).resolve().parents[1]\n",
+                    1,
+                )
+            )
+            unsafe_module_root_rebinding_tree = ast.parse(
+                canonical_status_source.replace(
+                    "ROOT = Path(__file__).resolve().parents[1]\n",
+                    "ROOT = Path(__file__).resolve().parents[1]\n"
+                    "sys.modules[__name__].ROOT = executor\n",
+                    1,
+                )
+            )
+            unsafe_path_capability_mutation_tree = ast.parse(
+                canonical_status_source.replace(
+                    "ROOT = Path(__file__).resolve().parents[1]\n",
+                    "ROOT = Path(__file__).resolve().parents[1]\n"
+                    "type(ROOT).__truediv__ = replacement\n",
+                    1,
+                )
+            )
+            unsafe_evil_output_tree = ast.parse(
+                canonical_status_source.replace(
+                    "def build_project_status() -> str:\n",
+                    "class EvilOutput:\n"
+                    "    def write_text(self, value, **kwargs):\n"
+                    "        return subprocess.run(value)\n"
+                    "def build_project_status() -> str:\n",
+                    1,
+                ).replace(
+                    "    args = parse_args(argv)\n",
+                    "    args = parse_args(argv)\n"
+                    "    args.output = EvilOutput()\n",
+                    1,
+                )
+            )
+            unsafe_status_decorator_tree = ast.parse(
+                canonical_status_source.replace(
+                    "def build_project_status() -> str:\n",
+                    "@execute_result\n"
+                    "def build_project_status() -> str:\n",
+                    1,
+                )
+            )
+            unsafe_status_tree = ast.parse(
+                "def build_project_status(count):\n"
+                "    return f'Manual mailbox sync remains future scope: {count}'\n"
+                "def execute_status(subprocess):\n"
+                "    subprocess.run(build_project_status())\n"
+            )
+            unsafe_receiver_tree = ast.parse(
+                "def build_project_status(count):\n"
+                "    return f'Manual mailbox sync remains future scope: {count}'\n"
+                "def main(args, executor):\n"
+                "    output = (args.output if args.output.is_absolute() "
+                "else ROOT / args.output)\n"
+                "    executor.write_text(build_project_status())\n"
+            )
+            unsafe_for_rebinding_tree = ast.parse(
+                "def build_project_status(count):\n"
+                "    return f'Manual mailbox sync remains future scope: {count}'\n"
+                "def main(args, executor):\n"
+                "    output = (args.output if args.output.is_absolute() "
+                "else ROOT / args.output)\n"
+                "    output.parent.mkdir(parents=True, exist_ok=True)\n"
+                "    for output in (executor,):\n"
+                "        output.write_text(build_project_status())\n"
+            )
+            unsafe_with_rebinding_tree = ast.parse(
+                "def build_project_status(count):\n"
+                "    return f'Manual mailbox sync remains future scope: {count}'\n"
+                "def main(args, executor):\n"
+                "    output = (args.output if args.output.is_absolute() "
+                "else ROOT / args.output)\n"
+                "    output.parent.mkdir(parents=True, exist_ok=True)\n"
+                "    with executor as output:\n"
+                "        output.write_text(build_project_status())\n"
+            )
+            unsafe_status_alias_tree = ast.parse(
+                "def build_project_status():\n"
+                "    return f'Manual mailbox sync remains future scope: {UNKNOWN}'\n"
+                "def main(args, subprocess):\n"
+                "    output = (args.output if args.output.is_absolute() "
+                "else ROOT / args.output)\n"
+                "    output.parent.mkdir(parents=True, exist_ok=True)\n"
+                "    output.write_text(build_project_status())\n"
+                "    runner = build_project_status\n"
+                "    subprocess.run(runner())\n"
+            )
+            unsafe_status_reflection_tree = ast.parse(
+                "def build_project_status():\n"
+                "    return f'Manual mailbox sync remains future scope: {UNKNOWN}'\n"
+                "def main(args, subprocess):\n"
+                "    output = (args.output if args.output.is_absolute() "
+                "else ROOT / args.output)\n"
+                "    output.parent.mkdir(parents=True, exist_ok=True)\n"
+                "    output.write_text(build_project_status())\n"
+                "    runner = globals()['build_project_status']\n"
+                "    subprocess.run(runner())\n"
+            )
+            self.assertTrue(
+                _generated_status_prose_nodes(
+                    canonical_status_path,
+                    safe_status_tree,
+                )
+            )
+            self.assertEqual(
+                _generated_status_prose_nodes(
+                    canonical_status_path,
+                    unsafe_path_sink_rebinding_tree,
+                ),
+                set(),
+            )
+            self.assertEqual(
+                _generated_status_prose_nodes(
+                    canonical_status_path,
+                    unsafe_root_rebinding_tree,
+                ),
+                set(),
+            )
+            for unsafe_tree in (
+                unsafe_module_path_rebinding_tree,
+                unsafe_module_root_rebinding_tree,
+                unsafe_path_capability_mutation_tree,
+                unsafe_evil_output_tree,
+                unsafe_status_decorator_tree,
+            ):
+                self.assertEqual(
+                    _generated_status_prose_nodes(
+                        canonical_status_path,
+                        unsafe_tree,
+                    ),
+                    set(),
+                )
+            self.assertEqual(
+                _generated_status_prose_nodes(
+                    canonical_status_path,
+                    unsafe_status_tree,
+                ),
+                set(),
+            )
+            self.assertEqual(
+                _generated_status_prose_nodes(
+                    canonical_status_path,
+                    unsafe_receiver_tree,
+                ),
+                set(),
+            )
+            self.assertEqual(
+                _generated_status_prose_nodes(
+                    canonical_status_path,
+                    unsafe_for_rebinding_tree,
+                ),
+                set(),
+            )
+            self.assertEqual(
+                _generated_status_prose_nodes(
+                    canonical_status_path,
+                    unsafe_with_rebinding_tree,
+                ),
+                set(),
+            )
+            self.assertEqual(
+                _generated_status_prose_nodes(
+                    canonical_status_path,
+                    unsafe_status_alias_tree,
+                ),
+                set(),
+            )
+            self.assertEqual(
+                _generated_status_prose_nodes(
+                    canonical_status_path,
+                    unsafe_status_reflection_tree,
+                ),
+                set(),
+            )
+
+    def test_issue_ten_ratifies_future_manual_sync_without_adding_a_command(self) -> None:
+        adr = read_text(
+            ROOT / "docs" / "decisions" /
+            "0008-bounded-corpus-to-runtime-handoffs.md"
+        )
+        cli_path = ROOT / "scripts" / "manage_mailbox_vault.py"
+        cli = read_text(cli_path)
+        cli_tree = ast.parse(cli)
+
+        for marker in (
+            "administrator-triggered incremental synchronization",
+            "manual",
+            "read-only",
+            "exact current inventory fingerprint",
+            "fixed `imap.exmail.qq.com:993` endpoint",
+            "no browser, normal API, scheduler, cleanup, polling, or background trigger",
+            "not implemented by this decision",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, adr)
+        protected_surfaces = _issue_ten_protected_surfaces()
+        self.assertTrue(
+            {
+                path
+                for path in (ROOT / "scripts").rglob("*")
+                if path.is_file()
+                and path.suffix.casefold() in {".bat", ".cmd", ".ps1", ".py"}
+            }.issubset(protected_surfaces)
+        )
+        self.assertTrue(
+            {
+                path
+                for path in (ROOT / "frontend").rglob("*")
+                if path.is_file()
+                and path.suffix.casefold() in _SYNC_TEXT_SUFFIXES
+            }.issubset(protected_surfaces)
+        )
+        self.assertTrue(
+            {
+                path
+                for path in ROOT.iterdir()
+                if path.is_file()
+                and path.suffix.casefold() in {".bat", ".cmd", ".ps1"}
+            }.issubset(protected_surfaces)
+        )
+        for path in protected_surfaces:
+            with self.subTest(incremental_sync_surface=path):
+                self.assertEqual(
+                    _incremental_sync_exposures(path, surface_root=ROOT),
+                    set(),
+                )
+        self.assertIn(
+            'NETWORK_COMMANDS = frozenset({"inventory", "scan", "attachments"})',
+            cli,
+        )
+        assignments = {
+            target.id: node.value
+            for node in cli_tree.body
+            if isinstance(node, ast.Assign)
+            for target in node.targets
+            if isinstance(target, ast.Name)
+        }
+        self.assertEqual(
+            ast.literal_eval(assignments["COMMANDS"]),
+            (
+                "init",
+                "inventory",
+                "scan",
+                "attachments",
+                "verify",
+                "purge-expired",
+                "revoke",
+                "rewrap-recovery",
+            ),
+        )
+        self.assertEqual(
+            ast.literal_eval(assignments["STAGE_COMMAND"]),
+            "stage-knowledge",
+        )
+        self.assertEqual(
+            ast.literal_eval(assignments["STAGE_EVALUATION_COMMAND"]),
+            "stage-evaluation",
+        )
+        network_value = assignments["NETWORK_COMMANDS"]
+        self.assertIsInstance(network_value, ast.Call)
+        self.assertIsInstance(network_value.func, ast.Name)
+        self.assertEqual(network_value.func.id, "frozenset")
+        self.assertEqual(
+            frozenset(ast.literal_eval(network_value.args[0])),
+            frozenset({"inventory", "scan", "attachments"}),
+        )
+        add_parser_attributes = [
+            node
+            for node in ast.walk(cli_tree)
+            if isinstance(node, ast.Attribute)
+            and node.attr == "add_parser"
+        ]
+        add_parser_calls = [
+            node
+            for node in ast.walk(cli_tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "add_parser"
+        ]
+        self.assertEqual(len(add_parser_calls), 1)
+        self.assertEqual(add_parser_attributes, [add_parser_calls[0].func])
+        self.assertFalse(
+            any(
+                isinstance(node, ast.Constant)
+                and node.value == "add_parser"
+                for node in ast.walk(cli_tree)
+            )
+        )
+        self.assertEqual(
+            ast.unparse(add_parser_calls[0]),
+            "commands.add_parser(command)",
+        )
+        command_loop = next(
+            node
+            for node in ast.walk(cli_tree)
+            if isinstance(node, ast.For)
+            and add_parser_calls[0] in set(ast.walk(node))
+        )
+        self.assertEqual(ast.unparse(command_loop.target), "command")
+        self.assertEqual(
+            ast.unparse(command_loop.iter),
+            "(*COMMANDS, STAGE_COMMAND, STAGE_EVALUATION_COMMAND)",
+        )
+        build_parser_node = next(
+            node
+            for node in cli_tree.body
+            if isinstance(node, ast.FunctionDef)
+            and node.name == "build_parser"
+        )
+        self.assertEqual(
+            hashlib.sha256(
+                ast.dump(build_parser_node, include_attributes=False).encode(
+                    "utf-8"
+                )
+            ).hexdigest(),
+            "8018f90f2e93b2822b4e15b31a282bae401612ac78e9656874a3b4cc2c7bb1c4",
+        )
+        cli_constants = _python_literal_constants(cli_tree)
+        protected_literal_names = {
+            "COMMANDS",
+            "NETWORK_COMMANDS",
+            "STAGE_COMMAND",
+            "STAGE_EVALUATION_COMMAND",
+            "add_parser",
+        }
+        self.assertFalse(
+            any(
+                protected_literal_names.intersection(
+                    _literal_strings(node, cli_constants)
+                )
+                for node in ast.walk(cli_tree)
+            )
+        )
+        from scripts.manage_mailbox_vault import build_parser
+
+        parser = build_parser()
+        command_choices = next(
+            action.choices
+            for action in parser._actions
+            if action.dest == "command"
+        )
+        self.assertEqual(
+            set(command_choices),
+            {
+                "attachments",
+                "init",
+                "inventory",
+                "purge-expired",
+                "revoke",
+                "rewrap-recovery",
+                "scan",
+                "stage-evaluation",
+                "stage-knowledge",
+                "verify",
+            },
+        )
+        protected_constants = {
+            "COMMANDS",
+            "NETWORK_COMMANDS",
+            "STAGE_COMMAND",
+            "STAGE_EVALUATION_COMMAND",
+        }
+        initial_targets = {
+            target.id: target
+            for node in cli_tree.body
+            if isinstance(node, ast.Assign)
+            for target in node.targets
+            if isinstance(target, ast.Name)
+            and target.id in protected_constants
+        }
+        mutation_targets: list[ast.expr] = []
+        for node in ast.walk(cli_tree):
+            if isinstance(node, ast.Assign):
+                mutation_targets.extend(node.targets)
+            elif isinstance(
+                node,
+                (
+                    ast.AnnAssign,
+                    ast.AugAssign,
+                    ast.NamedExpr,
+                    ast.For,
+                    ast.AsyncFor,
+                    ast.comprehension,
+                ),
+            ):
+                mutation_targets.append(node.target)
+            elif isinstance(node, (ast.With, ast.AsyncWith)):
+                mutation_targets.extend(
+                    item.optional_vars
+                    for item in node.items
+                    if item.optional_vars is not None
+                )
+            elif isinstance(node, ast.Delete):
+                mutation_targets.extend(node.targets)
+            elif isinstance(node, ast.TypeAlias):
+                mutation_targets.append(node.name)
+        for name in protected_constants:
+            stores = [
+                node
+                for node in ast.walk(cli_tree)
+                if isinstance(node, ast.Name)
+                and node.id == name
+                and isinstance(node.ctx, ast.Store)
+            ]
+            self.assertEqual(stores, [initial_targets[name]], name)
+            self.assertFalse(
+                any(
+                    target is not initial_targets[name]
+                    and any(
+                        (
+                            isinstance(child, ast.Name)
+                            and child.id == name
+                        )
+                        or (
+                            isinstance(child, ast.Attribute)
+                            and child.attr == name
+                        )
+                        for child in ast.walk(target)
+                    )
+                    for target in mutation_targets
+                ),
+                name,
+            )
+            self.assertFalse(
+                any(
+                    (
+                        isinstance(node, ast.arg)
+                        and node.arg == name
+                    )
+                    or (
+                        isinstance(node, ast.alias)
+                        and (node.asname or node.name.split(".", 1)[0]) == name
+                    )
+                    or (
+                        isinstance(node, ast.ExceptHandler)
+                        and node.name == name
+                    )
+                    or (
+                        isinstance(node, (ast.Global, ast.Nonlocal))
+                        and name in node.names
+                    )
+                    or (
+                        isinstance(node, (ast.MatchAs, ast.MatchStar))
+                        and node.name == name
+                    )
+                    or (
+                        isinstance(node, ast.MatchMapping)
+                        and node.rest == name
+                    )
+                    or (
+                        isinstance(
+                            node,
+                            (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef),
+                        )
+                        and node.name == name
+                    )
+                    for node in ast.walk(cli_tree)
+                ),
+                name,
+            )
+        for name, expected_parent in (
+            ("commands", ast.Assign),
+            ("command", ast.For),
+        ):
+            stores = [
+                node
+                for node in ast.walk(cli_tree)
+                if isinstance(node, ast.Name)
+                and node.id == name
+                and isinstance(node.ctx, ast.Store)
+            ]
+            self.assertEqual(len(stores), 1, name)
+            parents = {
+                child: parent
+                for parent in ast.walk(cli_tree)
+                for child in ast.iter_child_nodes(parent)
+            }
+            self.assertIsInstance(parents[stores[0]], expected_parent, name)
+
     def test_transport_guard_rejects_write_dynamic_and_nonpeek_calls(self) -> None:
         samples = {
             "write method": "self._imap_client.store('1', '+FLAGS', '(Seen)')",

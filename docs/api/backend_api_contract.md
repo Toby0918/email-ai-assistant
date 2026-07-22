@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-18
+last_update: 2026-07-22
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -297,6 +297,21 @@ OpenAI 主路线可使用当前可见线程、本地解析出的 ephemeral sanit
 ### Operational rollback flags
 
 将 `EMAIL_AGENT_LLM_PROVIDER=disabled` 后重启可恢复规则-only 路线。将 `EMAIL_AGENT_TEXT_FALLBACK_PROVIDER=disabled` 可关闭第二次 provider 调用；将 `EMAIL_AGENT_DEEPSEEK_OUTPUT_MODE=conservative` 可关闭 DeepSeek-led consequential fields。这些切换都不改变公开 API 或邮箱动作边界。
+
+### Internal current-evidence seam
+
+`CurrentClickEvidenceV1` is not an HTTP request or response field. Issue #10 adds
+only a strict internal value contract and an opaque append capability; it does not
+wire that capability into this endpoint. Future issue #18 may invoke the seam only
+after the public analysis result has completed and must keep append failure from
+changing that result.
+
+The HTTP handler, browser, and request payload never receive an evidence-inbox
+path, key, repository, reader, search surface, raw-vault handle, authority object,
+or mailbox capability. No evidence contract or receipt is saved in public SQLite,
+rendered by the frontend, sent to a provider, returned by `/api/analyze-current-email`,
+or exposed by `/api/health`. Provider-disabled rule fallback and all existing
+response fields remain unchanged.
 
 ## GET /api/health
 

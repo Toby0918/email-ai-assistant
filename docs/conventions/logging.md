@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-21
+last_update: 2026-07-22
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -239,3 +239,13 @@ persists. The program cannot prevent external terminal or operating-system captu
 operators must treat the terminal as a private surface.
 
 预期的 provider/validation fallback 路径不得使用 `logger.exception`，不得插值 `raw exception`，也不得设置 `exc_info=True`。自动测试仅使用合成对象并拦截 provider client；Automated verification does not call DeepSeek.
+
+## 10. Current-evidence handoff is content-free
+
+The contract-only current-evidence package writes no log records. Validation
+failure exposes only `evidence_contract_invalid`; an injected append callback
+failure exposes only `evidence_append_failed`. Callers must not log callback
+exceptions, exception chains, contract repr details, deidentified text, opaque
+submission/source IDs, timestamps, receipts, inbox paths, keys, or repository
+state. A callback failure must be discarded without `logger.exception`,
+`exc_info=True`, traceback output, or dynamic exception interpolation.

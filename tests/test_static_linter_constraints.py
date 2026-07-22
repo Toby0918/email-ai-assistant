@@ -209,6 +209,72 @@ class StaticLinterConstraintTests(unittest.TestCase):
         self.assertIn("untrusted request payload", linter)
         self.assertIn("prevalidated snapshot target", linter)
 
+    def test_bounded_current_evidence_handoff_is_narrowly_documented(self) -> None:
+        expected_markers = {
+            ROOT / "AGENTS.md": (
+                "`CurrentClickEvidenceV1`",
+                "write-only deidentified current-click evidence",
+                "future issue #17",
+                "future issue #18",
+            ),
+            ROOT / "docs" / "constraints" / "tooling_constraints.md": (
+                "`backend.current_evidence`",
+                "opaque append capability",
+                "no read, get, list, search, query, path, key, repository",
+            ),
+            ROOT / "docs" / "constraints" / "linter_constraints.md": (
+                "`CurrentClickEvidenceV1`",
+                "`submit_current_click_evidence`",
+                "no reader, path, key, repository, raw-vault, or authority import",
+            ),
+            ROOT / "docs" / "security" / "email_data_handling.md": (
+                "`CurrentClickEvidenceV1`",
+                "same explicit Analyze click",
+                "not raw thread, attachment bytes, filenames, URLs, or paths",
+            ),
+            ROOT / "docs" / "security" / "private_knowledge_handling.md": (
+                "`CurrentClickEvidenceV1`",
+                "separate evidence inbox",
+                "write-only append capability",
+            ),
+            ROOT / "docs" / "api" / "backend_api_contract.md": (
+                "`CurrentClickEvidenceV1`",
+                "not an HTTP request or response field",
+                "opaque append capability",
+            ),
+            ROOT / "docs" / "operations" /
+            "authorized_mailbox_ingest_task_brief.md": (
+                "future issue #17",
+                "does not add a `sync` command",
+                "exact current inventory fingerprint",
+            ),
+            ROOT / "docs" / "operations" / "project_structure.md": (
+                "`backend/current_evidence/`",
+                "contract-only",
+                "`submit_current_click_evidence`",
+            ),
+            ROOT / "docs" / "templates" / "agent_task_brief_template.md": (
+                "`CurrentClickEvidenceV1`",
+                "manual incremental sync",
+                "write-only append",
+            ),
+            ROOT / "docs" / "conventions" / "logging.md": (
+                "`evidence_contract_invalid`",
+                "`evidence_append_failed`",
+                "must not log callback exceptions",
+            ),
+            ROOT / "docs" / "constraints" / "mechanical_rule_translation.md": (
+                "`tests/test_current_evidence_handoff.py`",
+                "`test_current_evidence_handoff_is_contract_only_and_write_only`",
+                "write-only current-evidence boundary",
+            ),
+        }
+        for path, markers in expected_markers.items():
+            text = " ".join(read_text(path).split())
+            for marker in markers:
+                with self.subTest(path=path, marker=marker):
+                    self.assertIn(marker, text)
+
     def test_raw_vault_to_knowledge_handoff_is_narrowly_documented(self) -> None:
         governance_paths = (
             ROOT / "docs" / "constraints" / "architecture_constraints.md",

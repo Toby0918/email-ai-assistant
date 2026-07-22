@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-15
+last_update: 2026-07-22
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -23,6 +23,11 @@ email-ai-assistant/
   .gitignore
 
   backend/
+    current_evidence/
+      __init__.py
+      artifact_policy.py
+      contract.py
+      handoff.py
     email_agent/
       __init__.py
       config.py
@@ -256,6 +261,16 @@ scripts/manage_private_knowledge.py
 scripts/evaluate_private_deepseek.py
 scripts/repository_leakage_scan.py
 ```
+
+- `backend/current_evidence/` is a contract-only, write-only ingress boundary.
+  `artifact_policy.py` rejects raw headers, private metadata, credentials,
+  serialized mappings, Base64-like payloads, and hidden controls without
+  returning matched content. `contract.py` validates immutable
+  `CurrentClickEvidenceV1` values and
+  `submit_current_click_evidence` invokes one injected append callable. The package
+  contains no inbox repository, reader, path, key, mailbox, authority, provider,
+  scheduler, polling, or reload surface. Issue #10 does not wire it into normal
+  runtime; future issue #18 owns that orchestration and storage.
 
 - `backend/mailbox_ingest/` 只可被 `scripts/manage_mailbox_vault.py` 导入，负责
   固定只读 IMAP、授权/fingerprint、外置加密 vault、附件第二遍和恢复封装。

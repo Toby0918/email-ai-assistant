@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-21
+last_update: 2026-07-22
 status: active
 owner: "@tobyWang"
 review_cycle: quarterly
@@ -11,6 +11,10 @@ source_type: decision_record
 ## Status
 
 Accepted by the operator on 2026-07-16. Implementation and release verification are in progress.
+
+Partially superseded by ADR 0008 only for the post-analysis internal write-only
+deidentified evidence append named there. Acquisition timing/scope, media limits,
+provider routing, validation, fallback, budgets, and public schemas remain active.
 
 ## Context
 

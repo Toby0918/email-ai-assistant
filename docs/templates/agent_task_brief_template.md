@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-16
+last_update: 2026-07-22
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -268,7 +268,24 @@ also complete this checklist:
 [ ] The implementation creates no transcript and documents that it cannot prevent external terminal capture.
 ```
 
-## 20. 执行后记录
+## 20. Bounded corpus-to-runtime handoff checklist
+
+Complete this section whenever a task changes manual incremental sync or the
+current-click evidence seam.
+
+```text
+[ ] Any manual incremental sync remains administrator-triggered, read-only, fixed-endpoint, and gated by the exact current inventory fingerprint.
+[ ] No sync path is reachable from the browser, normal API, cleanup, scheduler, poller, or background task.
+[ ] `CurrentClickEvidenceV1` is derived only after the same Analyze click from validated current-visible sources.
+[ ] The contract contains bounded deidentified text and opaque indices, never raw headers, identifiers, attachment bytes/names/URLs/paths, mappings, provider payloads, or private-knowledge metadata.
+[ ] Normal runtime receives only a write-only append callable and no reader/search/path/key/repository/raw-vault/authority capability.
+[ ] Append failure is fixed and content-free and cannot alter or delay the public analysis result.
+[ ] Evidence ingress cannot publish knowledge, mutate authority, rebuild a snapshot, or trigger reload, polling, or hot update.
+[ ] Public HTTP, SQLite, frontend, provider-disabled fallback, and startup-only knowledge loading remain unchanged.
+[ ] Tests use only synthetic data and do not access a mailbox, vault, provider, DPAPI, BitLocker, or ignored SQLite file.
+```
+
+## 21. 执行后记录
 
 任务完成后填写。
 

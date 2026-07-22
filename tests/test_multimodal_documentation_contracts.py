@@ -59,6 +59,13 @@ ATTACHMENT_TOUCHED_ACTIVE_DOCS = frozenset(
     }
 )
 
+BOUNDED_HANDOFF_TOUCHED_ACTIVE_DOCS = frozenset(
+    {
+        "docs/api/backend_api_contract.md",
+        "docs/security/email_data_handling.md",
+    }
+)
+
 AUTOMATIC_ATTACHMENT_SMOKE_TOUCHED_DOCS = frozenset(
     {
         "docs/operations/testing_checklist.md",
@@ -95,7 +102,7 @@ STALE_ATTACHMENT_SMOKE_CLAIMS = (
 )
 
 PRIOR_TASK9_STATUS_DOCS = {
-    "docs/decisions/0007-multimodal-current-email-analysis.md": "2026-07-21",
+    "docs/decisions/0007-multimodal-current-email-analysis.md": "2026-07-22",
     "docs/operations/task9_semantic_accuracy_repair_task_brief.md": "2026-07-21",
 }
 
@@ -423,7 +430,9 @@ class MultimodalDocumentationContractTests(unittest.TestCase):
         for relative in ACTIVE_DOCS:
             text = self._read(relative)
             expected_date = (
-                "2026-07-21"
+                "2026-07-22"
+                if relative in BOUNDED_HANDOFF_TOUCHED_ACTIVE_DOCS
+                else "2026-07-21"
                 if relative
                 == "docs/operations/multimodal_current_email_analysis_task_brief.md"
                 else "2026-07-20"

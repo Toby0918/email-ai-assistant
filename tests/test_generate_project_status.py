@@ -115,6 +115,24 @@ class GenerateProjectStatusTests(unittest.TestCase):
         )
         self.assertNotIn("current-clicked Tencent smoke remains pending", report)
 
+    def test_bounded_handoff_contract_and_adr_are_reported(self) -> None:
+        module = load_script_module(SCRIPT, "generate_project_status_handoffs")
+        report = module.build_project_status()
+
+        for marker in (
+            "Bounded corpus-to-runtime handoffs",
+            "Issue #10 adds no sync command or evidence inbox",
+            "future issues #17 and #18",
+            "`backend/current_evidence/artifact_policy.py`",
+            "`backend/current_evidence/contract.py`",
+            "`backend/current_evidence/handoff.py`",
+            "`docs/decisions/0008-bounded-corpus-to-runtime-handoffs.md`",
+            "`docs/operations/bounded_corpus_runtime_handoffs_task_brief.md`",
+            "`tests/test_current_evidence_handoff.py`",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, report)
+
     def test_attachment_acquisition_safeguards_and_live_gate_are_reported(self) -> None:
         module = load_script_module(SCRIPT, "generate_project_status_attachments")
         report = module.build_project_status()

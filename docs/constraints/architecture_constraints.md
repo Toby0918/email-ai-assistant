@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-20
+last_update: 2026-07-22
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -20,6 +20,10 @@ frontend/
   local_debug_page/
 
 backend/
+  current_evidence/
+    artifact_policy.py
+    contract.py
+    handoff.py
   email_agent/
     config.py
     logging_config.py
@@ -72,6 +76,11 @@ normal-runtime hook 或模型调用。
 单独授权的 `private knowledge layer` 只接收 Task 4 staging boundary 写入的
 deidentified candidate batch；它不枚举 mailbox，也不拥有 raw-vault reader。
 
+The `current evidence handoff layer` is contract-only. It validates one bounded
+deidentified projection derived from an explicit current-message click and exposes
+one append-only callback seam. It owns no mailbox, filesystem, key, store reader,
+authority lifecycle, provider, background worker, or public endpoint.
+
 ## 2. 允许依赖方向
 
 允许的核心依赖方向：
@@ -88,6 +97,7 @@ database.py -> config.py
 scripts/manage_mailbox_vault.py -> backend.mailbox_ingest
 scripts/manage_mailbox_vault.py -> backend.private_knowledge
 scripts/manage_mailbox_vault.py -> backend.private_evaluation staging only
+normal runtime -> backend.current_evidence append-only contract
 ```
 
 禁止反向依赖：
@@ -110,6 +120,7 @@ backend.email_agent -> backend.mailbox_ingest
 normal runtime -> backend.mailbox_ingest
 backend.mailbox_ingest -> backend.email_agent
 backend.mailbox_ingest -> DeepSeek/OpenAI/Ollama/local model endpoint
+backend.current_evidence -> backend.mailbox_ingest/raw vault/authority repository
 ```
 
 Only `scripts/manage_mailbox_vault.py` may import `backend.mailbox_ingest`.
@@ -169,6 +180,28 @@ Request handlers, `backend.email_agent`, frontend code, SQLite and public HTTP
 must never read the authority repository, paths, keys, snapshot metadata, or
 bootstrap status. Any bootstrap failure produces `()` with no content-bearing
 log or exception detail.
+
+The current-click evidence exception is one-way and authority-free: normal runtime
+receives only an opaque append capability for CurrentClickEvidenceV1. The validated
+contract and fixed content-free receipt provide no read, get, list, search, query,
+path, key, repository, raw-vault, or authority capability. `backend.current_evidence`
+may import only the pure placeholder/residual predicates required to reject unsafe
+text; it must not import mailbox ingest, private repositories or lifecycle services,
+filesystem/environment helpers, SQLite, crypto/key stores, snapshots, providers,
+polling, scheduling, or reload code. No frontend or public request field may supply
+the callback or a prebuilt contract.
+
+`backend.current_evidence.artifact_policy` is the only exception to the package's
+forbidden-token text scan: it may name those tokens solely in compiled rejection
+patterns and may import only `re`. It returns one boolean and exposes no match,
+value, reader, source, path, key, store, provider, or authority object.
+
+ADR 0008 authorizes a future administrator-triggered incremental synchronization
+seam but issue #10 adds no command. Future issue #17 must keep it in
+`scripts/manage_mailbox_vault.py`, reuse the exact current inventory fingerprint,
+fixed account/endpoint/window and read-only transport gates, and expose no browser,
+normal API, cleanup, scheduled, polling, or background trigger.
+
 Mutable `SecretBytes` key buffers are wiped when their shortest-lived context
 closes. DPAPI, envelope decoding, cryptography and Python may still create
 transient immutable plaintext bytes that cannot be overwritten in place; the
