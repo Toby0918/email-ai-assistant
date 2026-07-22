@@ -17,7 +17,7 @@ source_type: operation_guide
 |---|---|
 | Generated on | 2026-07-22 |
 | Current stage | multimodal_current_email_offline_ready_live_pending |
-| Git branch | agent/remove-superpowers-remnants |
+| Git branch | agent/issue-10-bounded-handoffs |
 | Git HEAD reference | Run `git rev-parse --short HEAD` in this workspace |
 | Working tree status | Run `git status --short --ignored` in this workspace |
 
@@ -26,6 +26,8 @@ source_type: operation_guide
 本项目是企业邮箱中的 AI 辅助窗口。正常产品只做“用户点击按钮后分析当前打开邮件”，不做全邮箱扫描、不自动发送邮件、不删除邮件或归档邮件。
 
 Separately authorized exception: the `administrator-only CLI remains default-off` and may import one authorized account within a rolling 24-month window only after explicit inventory fingerprint confirmation. The browser extension and normal runtime remain click-only and cannot scan a mailbox. The exception has no schedule, browser hook, normal-backend route, or automatic model call.
+
+ADR 0008 ratifies a future manual incremental-sync boundary and a contract-only, write-only deidentified current-click evidence seam. Issue #10 adds no sync command or evidence inbox; those implementations remain in future issues #17 and #18. Normal runtime receives no mailbox, historical-store, authority-store, reader, search, path, key, repository, polling, or hot-reload capability.
 
 The private-knowledge snapshot is verified and read-only; an invalid or missing private-knowledge snapshot returns generic rule fallback. Tasks 1-7 of the multimodal current-email route are offline implemented and review-clean. The route is one OpenAI multimodal primary call, at most one eligible DeepSeek text-only fallback, and deterministic rules last; all providers remain disabled by default. Its budget tuple is `60/55/35/10/12/8/5` seconds: 60-second POST wait, 55-second backend target, 35-second OpenAI cap, 10-second DeepSeek cap, 12-second fallback minimum, 8-second parser cap, and 5-second reserve. Browser media discovery remains a separate 20-second resource collection phase. Private evaluation is blocked by `human_judge_unavailable` by default and does not switch production models.
 
@@ -50,6 +52,7 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 | `Repository leakage scan: scripts/repository_leakage_scan.py` | yes |
 | `Agent task brief: docs/templates/agent_task_brief_template.md` | yes |
 | `Authorized mailbox ingest boundary: docs/operations/authorized_mailbox_ingest_task_brief.md` | yes |
+| `Bounded corpus-to-runtime handoffs: docs/decisions/0008-bounded-corpus-to-runtime-handoffs.md` | yes |
 
 ## Key File Status
 
@@ -62,6 +65,10 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 | `.gitignore` | yes |
 | `.github/workflows/agent_guardrails.yml` | yes |
 | `.github/workflows/cleanup_agent.yml` | yes |
+| `backend/current_evidence/__init__.py` | yes |
+| `backend/current_evidence/artifact_policy.py` | yes |
+| `backend/current_evidence/contract.py` | yes |
+| `backend/current_evidence/handoff.py` | yes |
 | `backend/email_agent/__init__.py` | yes |
 | `backend/email_agent/analysis_schema.py` | yes |
 | `backend/email_agent/analysis_budget.py` | yes |
@@ -124,7 +131,9 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 | `docs/constraints/mechanical_rule_translation.md` | yes |
 | `docs/decisions/0006-authorized-mailbox-ingest-and-private-knowledge.md` | yes |
 | `docs/decisions/0007-multimodal-current-email-analysis.md` | yes |
+| `docs/decisions/0008-bounded-corpus-to-runtime-handoffs.md` | yes |
 | `docs/operations/authorized_mailbox_ingest_task_brief.md` | yes |
+| `docs/operations/bounded_corpus_runtime_handoffs_task_brief.md` | yes |
 | `docs/operations/deepseek_analysis_contract_alignment_task_brief.md` | yes |
 | `docs/operations/private_deepseek_evaluation_task_brief.md` | yes |
 | `docs/operations/private_mailbox_rollout_closeout_task_brief.md` | yes |
@@ -168,6 +177,7 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 | `tests/test_manage_local_service.py` | yes |
 | `tests/support.py` | yes |
 | `tests/test_architecture_constraints.py` | yes |
+| `tests/test_current_evidence_handoff.py` | yes |
 | `tests/test_static_linter_constraints.py` | yes |
 | `tests/test_mechanical_rule_constraints.py` | yes |
 | `tests/test_mailbox_transport_constraints.py` | yes |
@@ -212,7 +222,7 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 
 | Status | Count |
 |---|---:|
-| active | 83 |
+| active | 85 |
 | draft | 23 |
 | deprecated | 1 |
 | missing_front_matter | 0 |

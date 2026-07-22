@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-20
+last_update: 2026-07-22
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -332,6 +332,28 @@ Executable constraints must enforce all of the following:
 - OpenAI model configuration remains exactly `gpt-5.6-sol` through the fixed official endpoint, with no configurable OpenAI base URL.
 
 These guards belong in `tests/test_architecture_constraints.py`, the frontend static suites, and the public response/persistence canaries. They must run with synthetic data and no network.
+
+### Current-click evidence mechanical guards
+
+`backend.current_evidence` is a closed, contract-only package. Its public surface
+is exactly `CurrentClickEvidenceV1` and `submit_current_click_evidence`. Only
+`backend.current_evidence.contract` may import the pure private-knowledge entity
+pattern and residual-scanner modules; no reader, path, key, repository, raw-vault,
+or authority import is allowed anywhere in the package.
+
+`backend.current_evidence.artifact_policy` may import only `re`, export only its
+boolean predicate, and call only regex compile/search plus `any`. It may contain
+forbidden metadata words solely as rejection patterns and must never expose a
+match, matched text, capture, source, or capability.
+
+`submit_current_click_evidence` may validate a mapping and invoke one injected
+append callable. Static checks reject read/get/list/search/query/open/load,
+mailbox ingest, SQLite, provider, environment, scheduler, polling, reload, and
+hot-update surfaces. Contract and append failures expose only fixed
+`evidence_contract_invalid` or `evidence_append_failed` codes. Frontend, public
+HTTP payloads, public SQLite rows, provider routing, and the startup-only snapshot
+loader do not gain current-evidence fields or capabilities. Tests use synthetic
+content with both remote provider routes disabled.
 
 ### Private evaluation mechanical guards
 

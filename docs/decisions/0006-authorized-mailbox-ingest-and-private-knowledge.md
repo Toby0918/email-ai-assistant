@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-20
+last_update: 2026-07-22
 status: active
 owner: "@tobyWang"
 review_cycle: quarterly
@@ -13,6 +13,11 @@ source_type: decision_record
 Accepted for offline implementation on 2026-07-14. Live mailbox access,
 external-vault initialization with real material, private DeepSeek evaluation,
 and production provider enablement remain separately operator-run activities.
+
+Partially superseded by ADR 0008 only for the exact clauses named there: future
+manual incremental synchronization and an internal write-only deidentified
+current-click evidence append. Mailbox isolation, read-only transport, raw-vault
+prohibitions, authority review, and startup-only runtime knowledge remain active.
 
 ## Context
 

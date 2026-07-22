@@ -449,6 +449,136 @@ class ArchitectureConstraintTests(unittest.TestCase):
         self.assertIn("startup-only runtime bootstrap", architecture)
         self.assertIn("no reload, polling, hot update, or status endpoint", architecture)
 
+    def test_current_evidence_handoff_is_contract_only_and_write_only(self) -> None:
+        package = ROOT / "backend" / "current_evidence"
+        artifact_policy = package / "artifact_policy.py"
+        contract = package / "contract.py"
+        handoff = package / "handoff.py"
+        package_init = package / "__init__.py"
+        self.assertTrue(artifact_policy.is_file())
+        self.assertTrue(contract.is_file())
+        self.assertTrue(handoff.is_file())
+        self.assertTrue(package_init.is_file())
+
+        allowed_imports = {
+            artifact_policy.resolve(): {"__future__", "re"},
+            contract.resolve(): {
+                "__future__", "dataclasses", "datetime", "re", "uuid",
+                "backend.current_evidence.artifact_policy",
+                "backend.private_knowledge.entity_patterns",
+                "backend.private_knowledge.residual_scanner",
+            },
+            handoff.resolve(): {
+                "__future__", "collections.abc", "dataclasses",
+                "backend.current_evidence.contract",
+            },
+            package_init.resolve(): {
+                "backend.current_evidence.contract",
+                "backend.current_evidence.handoff",
+            },
+        }
+        for path in package.rglob("*.py"):
+            imports = parse_import_modules(path)
+            with self.subTest(path=path):
+                self.assertEqual(imports, allowed_imports[path.resolve()])
+                self.assertNotIn("backend.mailbox_ingest", read_text(path))
+
+        self.assertTrue(
+            parse_called_names(handoff).isdisjoint({
+                "read", "get", "list", "search", "query", "find", "open",
+                "load", "delete", "remove", "connect", "reload", "poll",
+                "watch", "schedule",
+            })
+        )
+        self.assertEqual(
+            {
+                node.name
+                for node in ast.parse(read_text(handoff)).body
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                and not node.name.startswith("_")
+            },
+            {"submit_current_click_evidence"},
+        )
+        expected_exports = {
+            artifact_policy: ["has_forbidden_artifact"],
+            package_init: [
+                "CurrentClickEvidenceV1", "submit_current_click_evidence",
+            ],
+            contract: ["CurrentClickEvidenceV1"],
+            handoff: ["submit_current_click_evidence"],
+        }
+        for path, expected in expected_exports.items():
+            tree = ast.parse(read_text(path))
+            public_exports = next(
+                ast.literal_eval(node.value)
+                for node in tree.body
+                if isinstance(node, ast.Assign)
+                and any(
+                    isinstance(target, ast.Name) and target.id == "__all__"
+                    for target in node.targets
+                )
+            )
+            with self.subTest(exports=path):
+                self.assertEqual(public_exports, expected)
+        self.assertTrue(
+            parse_called_names(artifact_policy).issubset({"any", "compile", "search"})
+        )
+        capability_sources = (contract, handoff, package_init)
+        for marker in (
+            "mailbox_ingest", "raw_vault", "authority", "runtime_loader",
+            "runtime_bootstrap", "repository", "sqlite", "pathlib", "getenv",
+            "environ", "dpapi", "key_store", "snapshot", "provider",
+        ):
+            with self.subTest(marker=marker):
+                self.assertNotIn(marker, "\n".join(
+                    read_text(path).lower() for path in capability_sources
+                ))
+
+        architecture = " ".join(read_text(
+            ROOT / "docs" / "constraints" / "architecture_constraints.md"
+        ).split())
+        architecture_tree = read_text(
+            ROOT / "docs" / "constraints" / "architecture_constraints.md"
+        ).split("## 1. 分层原则", 1)[0]
+        for marker in (
+            "current_evidence/", "artifact_policy.py", "contract.py", "handoff.py",
+        ):
+            with self.subTest(architecture_tree=marker):
+                self.assertIn(marker, architecture_tree)
+        self.assertIn(
+            "normal runtime receives only an opaque append capability for "
+            "CurrentClickEvidenceV1",
+            architecture,
+        )
+        self.assertIn(
+            "no read, get, list, search, query, path, key, repository, raw-vault, "
+            "or authority capability",
+            architecture,
+        )
+
+    def test_superseding_handoff_adr_names_only_the_changed_clauses(self) -> None:
+        adr = read_text(
+            ROOT / "docs" / "decisions" /
+            "0008-bounded-corpus-to-runtime-handoffs.md"
+        )
+        for marker in (
+            "ADR 0006 / Separate the administrator workflow",
+            "ADR 0006 / Require two-phase authorization",
+            "ADR 0006 / Schedule periodic import or evaluation",
+            "ADR 0007 / Acquisition boundary",
+            "ADR 0007 / Privacy and media boundary",
+            "ADR 0007 / Consequences",
+            "future issue #17",
+            "future issue #18",
+            "write-only",
+            "exact current inventory fingerprint",
+            "no hot reload",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, adr)
+        self.assertIn("Provider route through Budgets remain unchanged", adr)
+        self.assertIn("public API and public SQLite remain unchanged", adr)
+
     def test_private_knowledge_runtime_reads_are_descriptor_bound(self) -> None:
         package = ROOT / "backend" / "private_knowledge"
         checked = package / "checked_reader.py"

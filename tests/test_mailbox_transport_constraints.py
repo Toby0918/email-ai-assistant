@@ -686,6 +686,30 @@ def _source_transport_violations(
 
 
 class MailboxTransportConstraintTests(unittest.TestCase):
+    def test_issue_ten_ratifies_future_manual_sync_without_adding_a_command(self) -> None:
+        adr = read_text(
+            ROOT / "docs" / "decisions" /
+            "0008-bounded-corpus-to-runtime-handoffs.md"
+        )
+        cli = read_text(ROOT / "scripts" / "manage_mailbox_vault.py")
+
+        for marker in (
+            "administrator-triggered incremental synchronization",
+            "manual",
+            "read-only",
+            "exact current inventory fingerprint",
+            "fixed `imap.exmail.qq.com:993` endpoint",
+            "no browser, normal API, scheduler, cleanup, polling, or background trigger",
+            "not implemented by this decision",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, adr)
+        self.assertNotIn('"sync"', cli)
+        self.assertIn(
+            'NETWORK_COMMANDS = frozenset({"inventory", "scan", "attachments"})',
+            cli,
+        )
+
     def test_transport_guard_rejects_write_dynamic_and_nonpeek_calls(self) -> None:
         samples = {
             "write method": "self._imap_client.store('1', '+FLAGS', '(Seen)')",

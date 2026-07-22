@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-20
+last_update: 2026-07-22
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -126,6 +126,20 @@ cross-volume atomicity。
 短暂打开 authority envelope、验证并解密一个外部只读 snapshot。请求处理、health、
 SQLite、frontend、diagnostics 和 background work 不得调用 crypto、DPAPI 或 snapshot
 reader；不得 reload、poll、hot-update 或暴露 snapshot status。
+
+ADR 0008 additionally permits a contract-only post-click ingress package,
+`backend.current_evidence`. It validates `CurrentClickEvidenceV1` and accepts only
+an opaque append capability. Normal runtime receives no read, get, list, search,
+query, path, key, repository, raw-vault, authority-store, mailbox, polling, or
+reload tool through this seam. The package performs no persistence itself and
+does not change the HTTP or public SQLite schema. Future issue #18 owns any
+orchestration and evidence-inbox implementation.
+
+Future issue #17 may add administrator-triggered incremental synchronization to
+the existing CLI only. Every run remains manual, read-only, fixed to
+`imap.exmail.qq.com:993`, and gated by the exact current inventory fingerprint;
+ADR 0008 and issue #10 add no `sync` command, scheduler, poller, browser route,
+or normal API hook.
 
 本地邮件分析 HTTP 服务沿用 Python 标准库 `ThreadingHTTPServer`，不得为 Host/Content-Type 门禁新增 HTTP 框架。服务 bind 只支持 `localhost` 或字面 IPv4 `127.0.0.0/8`；分析 POST 必须在读 body 前校验单一 loopback Host 和单一 JSON media type。
 
@@ -341,6 +355,7 @@ local_debug_page
 → 后端调用 OpenAI 或后端本地 Ollama/Qwen（可选，默认关闭）
 → 后端校验结构化 JSON
 → 后端保存 SQLite
+→ 可选内部 `CurrentClickEvidenceV1` 仅经 opaque append capability 单向提交
 → 前端展示结果
 → 用户人工确认后使用回复草稿
 ```
@@ -359,6 +374,8 @@ frontend/normal runtime → backend.mailbox_ingest
 backend.email_agent → backend.mailbox_ingest
 mailbox ingest → SMTP or write IMAP command
 raw vault → Codex/DeepSeek/Git/log/public SQLite/docs/tests/status
+normal runtime → evidence inbox read/search/list/query
+normal runtime → evidence path/key/repository/raw-vault/authority capability
 ```
 
 ## 9. AI 输出约束

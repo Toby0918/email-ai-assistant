@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-20
+last_update: 2026-07-22
 status: active
 owner: "@tobyWang"
 review_cycle: weekly
@@ -87,6 +87,15 @@ The administrator-only CLI is `scripts/manage_mailbox_vault.py`. Its approved
 commands are `init`, `inventory`, `scan`, `attachments`, `verify`,
 `purge-expired`, `revoke`, and `rewrap-recovery`. There is no scheduled job,
 automatic trigger, browser command, or normal-runtime hook.
+
+ADR 0008 authorizes future issue #17 to add administrator-triggered incremental
+synchronization within this same isolation boundary. Issue #10 does not add a
+`sync` command. Each future sync must be a new manual run, use only the fixed
+`imap.exmail.qq.com:993` endpoint and existing read-only operations, and stop
+before content access unless the operator repeats the exact current inventory
+fingerprint. It has no browser, normal API, scheduler, cleanup, polling, or
+background trigger. The existing eight core commands and `NETWORK_COMMANDS`
+remain unchanged until #17 supplies its own tests and implementation.
 
 Operators invoke it only as `python -B -m scripts.manage_mailbox_vault <command>`;
 direct file execution is not an approved runbook form. Inventory review is a

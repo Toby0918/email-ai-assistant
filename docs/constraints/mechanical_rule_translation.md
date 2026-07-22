@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-11
+last_update: 2026-07-22
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -145,3 +145,14 @@ Agent 在每次修复 review 评论时必须判断：
 ```
 
 如果用户明确说“这个问题以后不要再犯”，Agent 应优先考虑把它写入机械规则。
+
+## 9. Write-only current-evidence rule
+
+The write-only current-evidence boundary is executable, not a review convention.
+`tests/test_current_evidence_handoff.py` proves strict synthetic contract
+validation, immutable/redacted values, one append call, and fixed content-free
+failures. `test_current_evidence_handoff_is_contract_only_and_write_only` in
+`tests/test_architecture_constraints.py` pins the exact package import allowlist,
+single public append function, forbidden reader/store/mailbox/authority markers,
+and the public exports. The static-linter governance test keeps the API, security,
+tooling, logging, task template, and project-structure descriptions synchronized.
