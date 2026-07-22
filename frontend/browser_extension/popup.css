@@ -1,8 +1,8 @@
 :root {
   color-scheme: light;
-  font-family: Arial, "Microsoft YaHei", sans-serif;
-  color: #17202a;
-  background: #f4f6f8;
+  font-family: "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
+  color: var(--action-console-ink);
+  background: var(--action-console-panel);
 }
 
 * {
@@ -14,15 +14,19 @@ body {
   width: 100%;
   min-height: 100vh;
   margin: 0;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.68), transparent 240px),
+    var(--action-console-panel);
   overflow-x: hidden;
+  line-height: 1.55;
 }
 
 .popup-shell {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 18px;
   min-height: 100vh;
-  padding: 16px;
+  padding: 20px 20px 28px;
 }
 
 .popup-header {
@@ -33,9 +37,11 @@ body {
 }
 
 .eyebrow {
-  margin: 0 0 4px;
-  color: #52616f;
-  font-size: 12px;
+  margin: 0 0 5px;
+  color: var(--action-console-muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
@@ -45,7 +51,9 @@ h2 {
 }
 
 h1 {
-  font-size: 20px;
+  color: var(--action-console-heading);
+  font-size: 22px;
+  line-height: 1.22;
 }
 
 h2 {
@@ -56,13 +64,23 @@ h2 {
 
 button {
   border: 0;
-  border-radius: 6px;
-  padding: 10px 14px;
-  background: #146c94;
+  border-radius: 10px;
+  padding: 11px 16px;
+  background: var(--action-console-action);
   color: #ffffff;
   font: inherit;
   font-weight: 700;
   cursor: pointer;
+}
+
+button:hover:not(:disabled) {
+  background: var(--action-console-action-hover);
+}
+
+.primary-action {
+  width: 100%;
+  min-height: 50px;
+  box-shadow: 0 8px 20px rgba(14, 107, 98, 0.16);
 }
 
 button:disabled {
@@ -72,29 +90,44 @@ button:disabled {
 
 .status-line {
   margin: 0;
-  color: #52616f;
+  color: var(--action-console-muted);
   min-height: 20px;
   overflow-wrap: anywhere;
 }
 
+.remote-notice {
+  border: 1px solid var(--action-console-border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  padding: 14px 15px;
+  font-size: 11px;
+  line-height: 1.65;
+}
+
+.analysis-status {
+  font-size: 12px;
+  text-align: center;
+}
+
 .manual-attachment-picker {
-  border: 1px solid #bcccdc;
-  border-radius: 6px;
-  background: #ffffff;
+  border: 1px solid var(--action-console-border);
+  border-radius: 12px;
+  background: var(--action-console-surface);
 }
 
 .manual-attachment-picker summary {
-  padding: 10px 12px;
-  color: #335c67;
+  padding: 0 15px;
+  color: var(--action-console-heading);
   font-weight: 700;
   cursor: pointer;
 }
 
 .manual-attachment-picker__body {
   display: grid;
-  gap: 8px;
-  padding: 0 12px 12px;
-  color: #52616f;
+  gap: 10px;
+  border-top: 1px solid var(--action-console-border-soft);
+  padding: 14px 15px 16px;
+  color: var(--action-console-muted);
 }
 
 .manual-attachment-picker__body input {
@@ -105,7 +138,7 @@ button:disabled {
 .manual-attachment-picker__body p {
   margin: 0;
   font-size: 12px;
-  line-height: 1.4;
+  line-height: 1.55;
 }
 
 .result-section {
@@ -114,24 +147,26 @@ button:disabled {
 
 textarea {
   width: 100%;
-  border: 1px solid #bcccdc;
-  border-radius: 6px;
+  border: 1px solid var(--action-console-border);
+  border-radius: 10px;
+  background: #fbfcfb;
   height: 118px;
   max-height: 118px;
   min-height: 118px;
-  padding: 10px;
+  padding: 12px;
   font: inherit;
-  line-height: 1.45;
+  line-height: 1.55;
   resize: none;
 }
 
 #copy-draft-button {
-  background: #335c67;
-  padding: 8px 12px;
+  background: var(--action-console-heading);
+  padding: 9px 13px;
 }
 
 @media (max-width: 360px) {
   .popup-shell {
-    padding: 12px;
+    gap: 16px;
+    padding: 16px 14px 22px;
   }
 }

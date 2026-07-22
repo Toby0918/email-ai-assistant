@@ -1,100 +1,214 @@
 :root {
   color-scheme: light;
-  font-family: Arial, "Microsoft YaHei", sans-serif;
-  background: #f4f6f8;
-  color: #17202a;
+  font-family: "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
+  background: #e9edf0;
+  color: var(--action-console-ink);
 }
 
 * {
   box-sizing: border-box;
 }
 
+html,
+body {
+  min-width: 320px;
+  min-height: 100%;
+}
+
 body {
   margin: 0;
+  background:
+    radial-gradient(circle at 8% 4%, rgba(255, 255, 255, 0.92), transparent 31%),
+    #e9edf0;
+  overflow: hidden;
+  line-height: 1.55;
 }
 
 .shell {
   display: grid;
-  grid-template-columns: minmax(320px, 1fr) minmax(320px, 1fr);
-  gap: 20px;
-  min-height: 100vh;
+  grid-template-columns: minmax(320px, 0.9fr) minmax(380px, 1.1fr);
+  gap: 24px;
+  height: 100vh;
+  min-height: 0;
   padding: 24px;
+}
+
+.result-panel {
+  max-height: calc(100vh - 48px);
+  overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 .compose-panel,
 .result-panel {
-  background: #ffffff;
-  border: 1px solid #d9e2ec;
-  border-radius: 8px;
-  padding: 20px;
+  min-width: 0;
+  min-height: 0;
+  border: 1px solid var(--action-console-border);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 18px 46px rgba(35, 57, 55, 0.08);
 }
 
-.topbar,
+.compose-panel {
+  max-height: calc(100vh - 48px);
+  background: rgba(255, 255, 255, 0.92);
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.result-panel {
+  background: var(--action-console-panel);
+}
+
+.source-header,
+.action-console__header,
 .status-row {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
 }
 
+.action-console__header {
+  align-items: center;
+}
+
 .eyebrow {
-  margin: 0 0 4px;
-  color: #52616f;
-  font-size: 12px;
+  margin: 0 0 5px;
+  color: var(--action-console-muted);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
 .debug-scope {
   margin: 8px 0 0;
-  color: #52616f;
+  color: var(--action-console-muted);
   font-size: 13px;
 }
 
 h1,
 h2 {
-  margin: 0 0 16px;
+  margin: 0;
+  color: var(--action-console-heading);
+  line-height: 1.22;
+}
+
+h1 {
+  font-size: 24px;
+}
+
+h2 {
+  font-size: 22px;
+}
+
+.remote-notice {
+  margin: 18px 0 0;
+  border: 1px solid var(--action-console-border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.72);
+  padding: 14px 15px;
+  color: var(--action-console-muted);
+  font-size: 11px;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
 }
 
 label {
   display: grid;
   gap: 6px;
-  margin-top: 16px;
+  margin-top: 18px;
+  color: var(--action-console-heading);
   font-weight: 700;
 }
 
 input,
 textarea {
   width: 100%;
-  border: 1px solid #bcccdc;
-  border-radius: 6px;
-  padding: 10px;
+  min-width: 0;
+  border: 1px solid var(--action-console-border);
+  border-radius: 10px;
+  background: #fbfcfb;
+  padding: 11px 12px;
+  color: var(--action-console-ink);
   font: inherit;
   resize: vertical;
 }
 
 button {
   border: 0;
-  border-radius: 6px;
-  padding: 10px 16px;
-  background: #146c94;
+  border-radius: 10px;
+  padding: 11px 16px;
+  background: var(--action-console-action);
   color: #ffffff;
+  font: inherit;
   font-weight: 700;
   cursor: pointer;
 }
 
-#copy-draft-button {
-  margin-top: 12px;
-  background: #335c67;
+button:hover:not(:disabled) {
+  background: var(--action-console-action-hover);
 }
 
-.result-panel {
-  min-width: 0;
-  overflow-wrap: anywhere;
+.primary-action {
+  width: 100%;
+  min-height: 50px;
+  margin-top: 18px;
+  box-shadow: 0 8px 20px rgba(14, 107, 98, 0.16);
+}
+
+.status-row {
+  justify-content: center;
+  min-height: 22px;
+  margin: 8px 0 18px;
+  color: var(--action-console-muted);
+  font-size: 12px;
+  text-align: center;
+}
+
+#copy-draft-button {
+  margin: 0;
+  background: var(--action-console-heading);
+}
+
+@supports (height: 100dvh) {
+  .shell {
+    height: 100dvh;
+  }
+
+  .compose-panel,
+  .result-panel {
+    max-height: calc(100dvh - 48px);
+  }
 }
 
 @media (max-width: 760px) {
+  body {
+    overflow: visible;
+  }
+
   .shell {
     grid-template-columns: 1fr;
+    height: auto;
+    min-height: 100vh;
     padding: 14px;
+  }
+
+  .result-panel {
+    max-height: none;
+    overflow-y: visible;
+    scrollbar-gutter: auto;
+  }
+
+  .compose-panel {
+    max-height: none;
+    overflow-y: visible;
+    scrollbar-gutter: auto;
+  }
+
+  .compose-panel,
+  .result-panel {
+    padding: 18px;
   }
 }

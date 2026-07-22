@@ -8,17 +8,17 @@
     <link rel="stylesheet" href="popup.css">
   </head>
   <body>
-    <main class="popup-shell">
+    <main class="popup-shell action-console" aria-labelledby="action-console-title">
       <header class="popup-header">
         <div>
           <p class="eyebrow">Tencent Exmail</p>
-          <h1>Email AI Assistant</h1>
+          <h1 id="action-console-title">Email AI Assistant</h1>
         </div>
       </header>
 
-      <p id="remote-processing-notice" class="status-line" role="note">After you click Analyze, configured remote AI providers may receive locally deidentified current visible email text and selected current-message images or files after local screening. Media pixels or document content may contain identifying information and are not guaranteed to be fully deidentified. Processing is not local-only, and no zero-retention guarantee is made.</p>
-      <button id="analyze-button" type="button">Analyze current email</button>
-      <p id="status" class="status-line" aria-live="polite">Open an email, then click Analyze.</p>
+      <p id="remote-processing-notice" class="status-line remote-notice" role="note">After you click Analyze, configured remote AI providers may receive locally deidentified current visible email text and selected current-message images or files after local screening. Media pixels or document content may contain identifying information and are not guaranteed to be fully deidentified. Processing is not local-only, and no zero-retention guarantee is made.</p>
+      <button id="analyze-button" class="primary-action" type="button">Analyze current email</button>
+      <p id="status" class="status-line analysis-status" aria-live="polite">Open an email, then click Analyze.</p>
 
       <section class="result-section" aria-label="分析结果">
         <div class="analysis-surface">

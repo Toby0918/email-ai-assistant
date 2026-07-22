@@ -1,3 +1,29 @@
+:root {
+  --action-console-ink: #182126;
+  --action-console-heading: #163f3b;
+  --action-console-muted: #536168;
+  --action-console-border: #d7dfe2;
+  --action-console-border-soft: #e7ecea;
+  --action-console-panel: #f4f7f6;
+  --action-console-surface: #ffffff;
+  --action-console-action: #0e6b62;
+  --action-console-action-hover: #0a5a52;
+  --action-console-focus: #4ea6d8;
+}
+
+.action-console {
+  min-width: 0;
+  color: var(--action-console-ink);
+  overflow-wrap: anywhere;
+}
+
+.action-console__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
 .analysis-surface,
 .work-card,
 .work-card__section,
@@ -10,41 +36,43 @@
 
 .analysis-surface {
   display: grid;
-  gap: 12px;
+  gap: 18px;
 }
 
 .fallback-banner {
   margin: 0;
   border: 1px solid #e0a800;
-  border-radius: 8px;
+  border-radius: 12px;
   background: #fff7d6;
   color: #5b4300;
-  padding: 10px 12px;
+  padding: 12px 14px;
   font-weight: 700;
-  line-height: 1.45;
+  line-height: 1.55;
 }
 
 .work-card,
 .draft-card {
   display: grid;
-  gap: 12px;
-  border: 1px solid #d9e2ec;
-  border-radius: 10px;
-  background: #ffffff;
-  padding: 14px;
+  gap: 16px;
+  border: 1px solid var(--action-console-border);
+  border-radius: 16px;
+  background: var(--action-console-surface);
+  padding: 18px;
+  box-shadow: 0 10px 28px rgba(29, 63, 59, 0.055);
 }
 
 .work-card__section {
   display: grid;
-  gap: 5px;
+  gap: 7px;
 }
 
 .work-card__label,
 .draft-card__label {
   margin: 0;
-  color: #52616f;
-  font-size: 13px;
+  color: var(--action-console-muted);
+  font-size: 12px;
   font-weight: 700;
+  letter-spacing: 0.025em;
 }
 
 .work-card__value,
@@ -60,42 +88,43 @@
 .work-card__conclusion {
   margin: 0;
   font-size: 18px;
-  line-height: 1.4;
+  line-height: 1.48;
 }
 
 .analysis-details {
-  border: 1px solid #d9e2ec;
-  border-radius: 8px;
-  background: #ffffff;
+  border: 1px solid var(--action-console-border);
+  border-radius: 12px;
+  background: var(--action-console-surface);
 }
 
 details > summary {
   display: flex;
   align-items: center;
   min-height: 44px;
-  padding: 0 12px;
+  padding: 0 15px;
+  color: var(--action-console-heading);
   cursor: pointer;
   font-weight: 700;
 }
 
 .analysis-details__body {
   display: grid;
-  gap: 10px;
-  border-top: 1px solid #e7edf2;
-  padding: 12px;
+  gap: 12px;
+  border-top: 1px solid var(--action-console-border-soft);
+  padding: 14px 15px 16px;
 }
 
 .analysis-list,
 .analysis-list-field {
   display: grid;
-  gap: 7px;
+  gap: 9px;
 }
 
 .analysis-list__item {
   display: grid;
-  gap: 4px;
-  border-left: 3px solid #bcccdc;
-  padding-left: 8px;
+  gap: 5px;
+  border-left: 3px solid #c4d3cf;
+  padding-left: 10px;
 }
 
 .analysis-list__item-title,
@@ -104,7 +133,7 @@ details > summary {
 }
 
 .analysis-list__label {
-  color: #52616f;
+  color: var(--action-console-muted);
 }
 
 .draft-header {
@@ -125,9 +154,9 @@ details > summary {
 
 .draft-review {
   display: grid;
-  gap: 5px;
+  gap: 7px;
   border-left: 3px solid #e0a800;
-  padding-left: 9px;
+  padding-left: 11px;
 }
 
 button,
@@ -140,7 +169,7 @@ button:focus-visible,
 textarea:focus-visible,
 input:focus-visible,
 details > summary:focus-visible {
-  outline: 3px solid #58a6d6;
+  outline: 3px solid var(--action-console-focus);
   outline-offset: 2px;
 }
 
@@ -151,7 +180,7 @@ details > summary:focus-visible {
 @media (max-width: 360px) {
   .work-card,
   .draft-card {
-    padding: 12px;
+    padding: 15px;
   }
 
   .draft-header {

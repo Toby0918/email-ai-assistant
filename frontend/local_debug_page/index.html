@@ -9,16 +9,14 @@
   </head>
   <body>
     <main class="shell">
-      <section class="compose-panel" aria-label="Current email">
-        <div class="topbar">
+      <section class="compose-panel" aria-labelledby="debug-source-title">
+        <header class="source-header">
           <div>
             <p class="eyebrow">Local Debug</p>
-            <h1>Email AI Assistant</h1>
-            <p id="remote-processing-notice" role="note">After you click Analyze, configured remote AI providers may receive locally deidentified current visible email text and selected current-message images or files after local screening. Media pixels or document content may contain identifying information and are not guaranteed to be fully deidentified. Processing is not local-only, and no zero-retention guarantee is made.</p>
+            <h1 id="debug-source-title">Current email fixture</h1>
             <p class="debug-scope" role="note">仅验证请求与结果渲染，不验证腾讯邮箱页面提取。</p>
           </div>
-          <button id="analyze-button" type="button">Analyze</button>
-        </div>
+        </header>
 
         <label>
           Subject
@@ -46,9 +44,17 @@
         </label>
       </section>
 
-      <section class="result-panel" aria-label="分析结果">
+      <section class="result-panel action-console" aria-labelledby="action-console-title">
+        <header class="action-console__header">
+          <div>
+            <p class="eyebrow">Action Console</p>
+            <h2 id="action-console-title">Email AI Assistant</h2>
+          </div>
+        </header>
+        <p id="remote-processing-notice" class="remote-notice" role="note">After you click Analyze, configured remote AI providers may receive locally deidentified current visible email text and selected current-message images or files after local screening. Media pixels or document content may contain identifying information and are not guaranteed to be fully deidentified. Processing is not local-only, and no zero-retention guarantee is made.</p>
+        <button id="analyze-button" class="primary-action" type="button">Analyze</button>
         <div class="status-row">
-          <span id="status" aria-live="polite">Ready</span>
+          <span id="status" class="analysis-status" aria-live="polite">Ready</span>
         </div>
         <div class="analysis-surface">
           <p id="fallback-banner" class="fallback-banner" hidden>远程模型结果未采用，本次使用安全规则结果。</p>
