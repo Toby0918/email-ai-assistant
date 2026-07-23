@@ -27,6 +27,9 @@ _MANAGED_ZONE_NAMES = frozenset(
         "OperatorPrivate",
     }
 )
+_MANAGED_ZONE_NAMES_CASEFOLDED = frozenset(
+    name.casefold() for name in _MANAGED_ZONE_NAMES
+)
 
 
 @dataclass(frozen=True, slots=True, init=False)
@@ -117,8 +120,10 @@ class ProtectedLocationPolicy:
         """Resolve Managed placement or the bounded flat-layout compatibility."""
 
         source = Path(repository_root)
-        looks_like_main = source.name == "main"
-        looks_like_container_child = source.parent.name == "email_ai_assistant"
+        looks_like_main = source.name.casefold() == "main"
+        looks_like_container_child = (
+            source.parent.name.casefold() == "email_ai_assistant"
+        )
         if looks_like_main or looks_like_container_child:
             if not (looks_like_main and looks_like_container_child):
                 raise PlacementError("managed_relationship_invalid")
@@ -176,11 +181,14 @@ def _contains(root: Path, candidate: Path) -> bool:
 
 def _inside_managed_zone(path: Path) -> bool:
     for ancestor in path.parents:
-        if ancestor.name != "email_ai_assistant":
+        if ancestor.name.casefold() != "email_ai_assistant":
             continue
         try:
             relative = path.relative_to(ancestor)
         except ValueError:
             continue
-        return bool(relative.parts) and relative.parts[0] in _MANAGED_ZONE_NAMES
+        return (
+            bool(relative.parts)
+            and relative.parts[0].casefold() in _MANAGED_ZONE_NAMES_CASEFOLDED
+        )
     return False

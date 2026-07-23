@@ -307,6 +307,9 @@ Verification:
 - Each implementation slice was driven from an observed RED failure to focused
   GREEN.
 - Current focused matrix after review fixes: 247 tests passed, 1 skipped.
+- The Standards re-review casing-alias regression produced three failing
+  subcases before the fix; the corrected targeted test and 96-test protected
+  store matrix pass, with 1 expected skip.
 - Pre-review full regression: 1,721 tests passed, 1 skipped, with both provider
   environment switches explicitly disabled.
 - Post-initial-review full regression: 1,728 tests passed, 1 skipped, with both
@@ -332,6 +335,10 @@ Open items:
   propagation. Every in-scope domain policy now accepts and revalidates a
   trusted placement context, and the six new RED-to-GREEN cases cover private
   knowledge, snapshots, private evaluation, vault/recovery, and sales policy.
+- The first Standards re-review reported one P2 Windows casing-alias gap in
+  partial-Managed preclassification. Managed container, repository, and zone
+  names are now compared with case-folded values before any flat-layout
+  compatibility path can be selected.
 - Standards P3 judgement call: private-knowledge and mailbox modules retain
   similar domain-specific path-evidence flows. This is non-blocking because
   their fixed error families and create/read semantics differ; any shared

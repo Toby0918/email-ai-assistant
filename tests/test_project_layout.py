@@ -471,6 +471,25 @@ class ProtectedLocationPolicyTests(unittest.TestCase):
                 / "Worktrees"
                 / "issue-33"
             ),
+            (
+                Path(Path.cwd().anchor)
+                / "synthetic"
+                / "EMAIL_AI_ASSISTANT"
+                / "WORKTREES"
+                / "issue-33"
+            ),
+            (
+                Path(Path.cwd().anchor)
+                / "synthetic"
+                / "EMAIL_AI_ASSISTANT"
+                / "MAIN"
+            ),
+            (
+                Path(Path.cwd().anchor)
+                / "synthetic"
+                / "not-the-container"
+                / "MAIN"
+            ),
         )
 
         for root in roots:
