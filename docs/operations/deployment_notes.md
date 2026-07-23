@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-22
+last_update: 2026-07-23
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -38,6 +38,29 @@ source_type: operation_guide
 - 请求分析路径继续执行既有过期清理。没有后台邮箱 poller、任务队列或常驻清理 scheduler。
 - 成功只报告删除数量和服务状态。失败返回通用错误并中止 start/restart；不报告附件名、内容、私有 URL、cookie、token、OCR 文本或异常中的私有路径。
 - `python scripts/manage_local_service.py status` 与 `GET http://127.0.0.1:8765/api/health` 只提供本地服务健康信息，不读取附件内容。
+
+### Standalone Verification Mode
+
+- Pass the same existing absolute temporary directory to start, status, health,
+  analysis, restart, and stop with
+  `--standalone-state-root <absolute-temporary-path>`.
+- The validated temporary layout owns
+  `LocalData/email_agent.sqlite3`, `RuntimeTemp/attachment_temp`,
+  `Logs/local_debug_service.log`, and `Logs/local_debug_service.pid`.
+  Standalone mode rejects separate database or PID overrides.
+- The launcher does not load the ignored repository `.env`. It constructs a
+  provider-disabled configuration with no OpenAI or DeepSeek keys, no text
+  fallback, and no private-knowledge bootstrap. Ollama, Qwen, Gemma, mailbox
+  ingest, private evaluation, raw vault, and Operator Private stores remain
+  disconnected.
+- The lifecycle manager `health` command checks the unchanged loopback health
+  endpoint. Its `analysis` command posts only the fixed synthetic current-message
+  fixture and requires a persisted `rule_fallback` result.
+- Current-message confirmation, SQLite persistence, attachment limits, and
+  lifecycle/request cleanup remain unchanged. Pre-positioned reparse
+  operational directories or writable file targets fail closed.
+- This is not Managed Container Mode and performs no Project Container
+  migration. Stop the service before manually removing temporary state.
 
 ## Backend-only fallback diagnostics
 

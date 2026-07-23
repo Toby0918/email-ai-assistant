@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import signal
 import subprocess
@@ -22,11 +23,14 @@ if str(ROOT) not in sys.path:
 from backend.email_agent import attachment_storage
 from backend.email_agent import config as backend_config
 from backend.email_agent.server import validate_local_server_host
+from backend.email_agent.standalone_verification import (
+    prepare_standalone_runtime,
+)
 
 
 DEFAULT_PID_FILE = ROOT / "outputs" / "local_debug_service.pid"
 DEFAULT_LOG_FILE = ROOT / "outputs" / "local_debug_service.log"
-COMMANDS = ("start", "stop", "restart", "status")
+COMMANDS = ("start", "stop", "restart", "status", "health", "analysis")
 CLEANUP_FAILURE_MESSAGE = (
     "Attachment cleanup failed. Check the configured temporary directory and permissions, then retry."
 )
@@ -42,6 +46,10 @@ class ServiceConfig:
     python_executable: str
     startup_timeout: float
     poll_interval: float
+    log_file: Path = DEFAULT_LOG_FILE
+    attachment_temp_dir: Path = ROOT / "outputs" / "attachment_temp"
+    standalone_state_root: Path | None = None
+    standalone_config: backend_config.AppConfig | None = None
 
 
 @dataclass(frozen=True)
@@ -85,10 +93,35 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--pid-file", default=str(DEFAULT_PID_FILE))
     parser.add_argument("--startup-timeout", type=float, default=10.0)
     parser.add_argument("--poll-interval", type=float, default=0.25)
+    parser.add_argument("--standalone-state-root", default=None)
     return parser
 
 
 def config_from_args(args: argparse.Namespace) -> ServiceConfig:
+    standalone_state_root = getattr(args, "standalone_state_root", None)
+    if standalone_state_root is not None:
+        if args.database is not None or Path(args.pid_file) != DEFAULT_PID_FILE:
+            raise ValueError(
+                "operational paths are derived from standalone state root"
+            )
+        runtime = prepare_standalone_runtime(
+            repository_root=ROOT,
+            state_root=Path(standalone_state_root),
+        )
+        return ServiceConfig(
+            host=validate_local_server_host(args.host),
+            port=args.port,
+            database=str(runtime.database_path),
+            pid_file=runtime.pid_file,
+            root=ROOT,
+            python_executable=sys.executable,
+            startup_timeout=args.startup_timeout,
+            poll_interval=args.poll_interval,
+            log_file=runtime.log_file,
+            attachment_temp_dir=runtime.attachment_temp_dir,
+            standalone_state_root=runtime.state_root,
+            standalone_config=runtime.config,
+        )
     return ServiceConfig(
         host=validate_local_server_host(args.host),
         port=args.port,
@@ -127,6 +160,57 @@ def status_service(
     return CommandResult(3, "stopped", "stopped")
 
 
+def health_service(
+    config: ServiceConfig,
+    health_checker: HealthChecker = check_health,
+) -> CommandResult:
+    validate_local_server_host(config.host)
+    if health_checker(config.host, config.port, 1.0):
+        return CommandResult(
+            0,
+            f"healthy url={_service_url(config)}",
+            "healthy",
+        )
+    return CommandResult(3, "unhealthy", "unhealthy")
+
+
+AnalysisRequester = Callable[
+    [str, int, dict[str, object], float],
+    dict[str, object],
+]
+
+
+def analyze_synthetic_email(
+    config: ServiceConfig,
+    requester: AnalysisRequester | None = None,
+) -> CommandResult:
+    validate_local_server_host(config.host)
+    if (
+        config.standalone_state_root is None
+        or config.standalone_config is None
+    ):
+        return CommandResult(7, "standalone state required", "error")
+    request_analysis = requester or _request_synthetic_analysis
+    response = request_analysis(
+        config.host,
+        config.port,
+        _synthetic_analysis_payload(),
+        10.0,
+    )
+    analysis = response.get("analysis")
+    engine = analysis.get("analysis_engine") if isinstance(analysis, dict) else None
+    source = engine.get("source") if isinstance(engine, dict) else None
+    saved_id = response.get("saved_id")
+    if (
+        response.get("ok") is True
+        and source == "rule_fallback"
+        and type(saved_id) is int
+        and saved_id > 0
+    ):
+        return CommandResult(0, "synthetic analysis ok", "ok")
+    return CommandResult(6, "synthetic analysis failed", "error")
+
+
 def start_service(
     config: ServiceConfig,
     popen: Callable[..., Any] | None = None,
@@ -137,7 +221,7 @@ def start_service(
     if health_checker(config.host, config.port, 1.0):
         return CommandResult(0, f"already running at {_service_url(config)}", "running")
 
-    cleanup_result, cleanup_error = _attempt_lifecycle_cleanup()
+    cleanup_result, cleanup_error = _attempt_lifecycle_cleanup(config)
     if cleanup_error is not None:
         return cleanup_error
     result = _start_after_cleanup(config, popen, health_checker, sleeper)
@@ -190,7 +274,7 @@ def restart_service(
     sleeper: Sleeper = time.sleep,
 ) -> CommandResult:
     validate_local_server_host(config.host)
-    cleanup_result, cleanup_error = _attempt_lifecycle_cleanup()
+    cleanup_result, cleanup_error = _attempt_lifecycle_cleanup(config)
     if cleanup_error is not None:
         return cleanup_error
     stop_result = stopper(config)
@@ -216,12 +300,19 @@ def _dispatch(command: str, config: ServiceConfig) -> CommandResult:
         return stop_service(config)
     if command == "restart":
         return restart_service(config)
+    if command == "health":
+        return health_service(config)
+    if command == "analysis":
+        return analyze_synthetic_email(config)
     return status_service(config)
 
 
-def _attempt_lifecycle_cleanup() -> tuple[CleanupResult, None] | tuple[None, CommandResult]:
+def _attempt_lifecycle_cleanup(
+    service_config: ServiceConfig,
+) -> tuple[CleanupResult, None] | tuple[None, CommandResult]:
     try:
-        return run_cleanup_before_service_start(), None
+        cleanup_config = service_config.standalone_config
+        return run_cleanup_before_service_start(cleanup_config), None
     except LifecycleCleanupError:
         return None, CommandResult(5, CLEANUP_FAILURE_MESSAGE, "error")
 
@@ -243,7 +334,12 @@ def _build_start_command(config: ServiceConfig) -> list[str]:
         "--port",
         str(config.port),
     ]
-    if config.database:
+    if config.standalone_state_root is not None:
+        command.extend([
+            "--standalone-state-root",
+            str(config.standalone_state_root),
+        ])
+    elif config.database:
         command.extend(["--database", config.database])
     return command
 
@@ -265,7 +361,7 @@ def _launch_with_popen(
     config: ServiceConfig,
     popen: Callable[..., Any],
 ) -> int:
-    with _log_handle() as log_handle:
+    with _log_handle(config.log_file) as log_handle:
         process = popen(
             command,
             cwd=str(config.root),
@@ -277,7 +373,7 @@ def _launch_with_popen(
 
 
 def _launch_with_powershell(command: list[str], config: ServiceConfig) -> int:
-    DEFAULT_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    config.log_file.parent.mkdir(parents=True, exist_ok=True)
     command_line = subprocess.list2cmdline(command)
     script = (
         "$ErrorActionPreference = 'Stop'; "
@@ -359,9 +455,44 @@ def _service_url(config: ServiceConfig) -> str:
     return f"http://{config.host}:{config.port}"
 
 
-def _log_handle() -> Any:
-    DEFAULT_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    return DEFAULT_LOG_FILE.open("ab")
+def _synthetic_analysis_payload() -> dict[str, object]:
+    return {
+        "user_confirmed": True,
+        "subject": "Synthetic delivery question",
+        "from": "buyer@example.test",
+        "to": ["sales@example.test"],
+        "body_text": "Can you confirm a synthetic delivery window?",
+    }
+
+
+def _request_synthetic_analysis(
+    host: str,
+    port: int,
+    payload: dict[str, object],
+    timeout: float,
+) -> dict[str, object]:
+    request = urllib.request.Request(
+        f"http://{host}:{port}/api/analyze-current-email",
+        data=json.dumps(payload).encode("utf-8"),
+        method="POST",
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            decoded = json.loads(response.read().decode("utf-8"))
+    except (
+        json.JSONDecodeError,
+        OSError,
+        UnicodeDecodeError,
+        urllib.error.URLError,
+    ):
+        return {}
+    return decoded if isinstance(decoded, dict) else {}
+
+
+def _log_handle(log_file: Path) -> Any:
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+    return log_file.open("ab")
 
 
 def _background_kwargs() -> dict[str, Any]:

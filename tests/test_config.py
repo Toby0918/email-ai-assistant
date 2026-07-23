@@ -8,13 +8,54 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from backend.email_agent.config import load_config
+from backend.email_agent.config import (
+    build_standalone_verification_config,
+    load_config,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
 
 
 class ConfigTests(unittest.TestCase):
+    def test_standalone_verification_config_ignores_credentials_and_providers(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            sqlite_path = root / "LocalData" / "email_agent.sqlite3"
+            attachment_temp_dir = root / "RuntimeTemp" / "attachment_temp"
+            hostile_environment = {
+                "OPENAI_API_KEY": "ignored-openai-secret",
+                "DEEPSEEK_API_KEY": "ignored-deepseek-secret",
+                "EMAIL_AGENT_LLM_PROVIDER": "openai",
+                "EMAIL_AGENT_TEXT_FALLBACK_PROVIDER": "deepseek",
+                "EMAIL_AGENT_PRIVATE_KNOWLEDGE_ENABLED": "true",
+                "EMAIL_AGENT_SQLITE_PATH": "D:/ignored.sqlite3",
+                "EMAIL_AGENT_ATTACHMENT_TEMP_DIR": "D:/ignored-attachments",
+            }
+
+            with patch.dict(os.environ, hostile_environment, clear=True):
+                config = build_standalone_verification_config(
+                    sqlite_path=sqlite_path,
+                    attachment_temp_dir=attachment_temp_dir,
+                )
+
+        self.assertIsNone(config.openai_api_key)
+        self.assertIsNone(config.deepseek_api_key)
+        self.assertEqual(config.llm_provider, "disabled")
+        self.assertEqual(config.text_fallback_provider, "disabled")
+        self.assertFalse(config.private_knowledge_enabled)
+        self.assertEqual(config.private_knowledge_authority_root, "")
+        self.assertEqual(config.private_knowledge_snapshot_path, "")
+        self.assertEqual(config.sqlite_path, str(sqlite_path))
+        self.assertEqual(config.attachment_temp_dir, str(attachment_temp_dir))
+        self.assertTrue(Path(config.sqlite_path).is_absolute())
+        self.assertTrue(Path(config.attachment_temp_dir).is_absolute())
+        self.assertEqual(config.attachment_max_files, 5)
+        self.assertEqual(config.attachment_max_file_bytes, 10 * 1024 * 1024)
+        self.assertEqual(config.attachment_max_total_bytes, 25 * 1024 * 1024)
+
     def test_load_config_has_safe_openai_and_text_fallback_defaults(self) -> None:
         with patch.dict(os.environ, {}, clear=True):
             config = load_config(dotenv_path=None)
