@@ -413,6 +413,31 @@ class ProtectedLocationPolicyTests(unittest.TestCase):
             )
         )
 
+    def test_policy_context_revalidates_explicit_standalone_state_root(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            repository_root = Path(directory) / "portable-clone"
+            state_root = Path(directory) / "synthetic-state"
+            repository_root.mkdir()
+            state_root.mkdir()
+            placement = RepositoryPlacement.standalone(
+                repository_root=repository_root,
+                state_root=state_root,
+                state_kind=StandaloneStateKind.SYNTHETIC,
+            )
+
+            policy = ProtectedLocationPolicy.for_context(placement)
+
+        self.assertEqual(
+            policy.protected_roots,
+            (repository_root.resolve(), state_root.resolve()),
+        )
+        self.assertTrue(
+            policy.contains(
+                original_path=state_root / "private",
+                resolved_path=state_root / "private",
+            )
+        )
+
     def test_flat_compatibility_policy_revalidates_repository_identity(self) -> None:
         root = Path(Path.cwd().anchor) / "synthetic" / "flat-repository"
         calls = 0

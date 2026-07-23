@@ -13,6 +13,7 @@ from backend.private_knowledge.storage_policy import (
     validate_private_storage,
     validate_stage_storage,
 )
+from backend.project_layout import RepositoryPlacement, StandaloneStateKind
 
 
 class PrivateKnowledgeStoragePolicyTests(unittest.TestCase):
@@ -103,6 +104,56 @@ class PrivateKnowledgeStoragePolicyTests(unittest.TestCase):
             validate_stage_storage(
                 self.root / "stage", self.root / "raw", self.project
             )
+
+    def test_explicit_standalone_state_root_is_not_external_storage(self) -> None:
+        repository = self.root / "portable-repository"
+        state = self.root / "standalone-state"
+        repository.mkdir()
+        state.mkdir()
+        placement = RepositoryPlacement.standalone(
+            repository_root=repository,
+            state_root=state,
+            state_kind=StandaloneStateKind.SYNTHETIC,
+        )
+        external = self.root / "standalone-external"
+        external.mkdir()
+
+        with patch(
+            "backend.private_knowledge.storage_policy.tempfile.gettempdir",
+            return_value=self.synthetic_temp,
+        ), patch(
+            "backend.private_knowledge.snapshot_path.tempfile.gettempdir",
+            return_value=self.synthetic_temp,
+        ):
+            validate_private_storage(placement, external / "authority")
+            validate_stage_storage(
+                external / "stage",
+                external / "raw-vault",
+                placement,
+            )
+            validate_snapshot_path(
+                external / "knowledge.pksnap",
+                project_root=placement,
+            )
+            for operation in (
+                lambda: validate_private_storage(
+                    placement,
+                    state / "authority",
+                ),
+                lambda: validate_stage_storage(
+                    state / "stage",
+                    external / "raw-vault",
+                    placement,
+                ),
+                lambda: validate_snapshot_path(
+                    state / "knowledge.pksnap",
+                    project_root=placement,
+                ),
+            ):
+                with self.subTest(operation=operation), self.assertRaises(
+                    PrivateKnowledgeError
+                ):
+                    operation()
 
     def test_missing_private_root_rejects_existing_parent_identity_drift(
         self,

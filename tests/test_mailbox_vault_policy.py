@@ -19,6 +19,7 @@ from backend.mailbox_ingest.existing_vault_policy import (
 )
 from backend.mailbox_ingest.errors import VaultError
 from backend.mailbox_ingest.models import VolumeInfo
+from backend.project_layout import RepositoryPlacement, StandaloneStateKind
 
 
 class FakeVolumeProbe:
@@ -223,6 +224,77 @@ class VaultLocationPolicyTests(unittest.TestCase):
 
         self.assertTrue(new.verified)
         self.assertTrue(existing.verified)
+
+    def test_explicit_standalone_state_root_is_not_vault_or_recovery(
+        self,
+    ) -> None:
+        repository = self.root / "portable-repository"
+        state = self.root / "standalone-state"
+        repository.mkdir()
+        state.mkdir()
+        placement = RepositoryPlacement.standalone(
+            repository_root=repository,
+            state_root=state,
+            state_kind=StandaloneStateKind.SYNTHETIC,
+        )
+        probe = self._probe()
+
+        self.assertTrue(
+            validate_vault_location(
+                self.vault,
+                placement,
+                self.recovery,
+                probe=probe,
+                system_temp=self.system_temp,
+            ).verified
+        )
+        self.assertTrue(
+            validate_existing_vault_location(
+                self.vault,
+                placement,
+                probe=probe,
+                system_temp=self.system_temp,
+            ).verified
+        )
+
+        state_vault = state / "vault"
+        state_vault.mkdir()
+        state_recovery = state / "recovery" / "offline.key"
+        state_recovery.parent.mkdir()
+        blocked_probe = mock.Mock()
+        with self.assertRaisesRegex(
+            VaultError,
+            "prohibited_vault_location",
+        ):
+            validate_vault_location(
+                state_vault,
+                placement,
+                self.recovery,
+                probe=blocked_probe,
+                system_temp=self.system_temp,
+            )
+        with self.assertRaisesRegex(
+            VaultError,
+            "prohibited_vault_location",
+        ):
+            validate_existing_vault_location(
+                state_vault,
+                placement,
+                probe=blocked_probe,
+                system_temp=self.system_temp,
+            )
+        with self.assertRaisesRegex(
+            VaultError,
+            "prohibited_recovery_location",
+        ):
+            validate_vault_location(
+                self.vault,
+                placement,
+                state_recovery,
+                probe=blocked_probe,
+                system_temp=self.system_temp,
+            )
+        blocked_probe.inspect.assert_not_called()
 
     def test_rejects_relative_missing_and_forbidden_ancestry(self) -> None:
         cases = {

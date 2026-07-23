@@ -23,6 +23,7 @@ from backend.private_evaluation.repository import (
     write_encrypted_dataset,
 )
 from backend.private_evaluation.schema import EvaluationDatasetV1
+from backend.project_layout import RepositoryPlacement, StandaloneStateKind
 from tests.private_evaluation_fixtures import dataset_mapping, uuid4_for
 
 
@@ -220,7 +221,7 @@ class PrivateEvaluationRepositoryTests(unittest.TestCase):
 
         with patch.object(
             repository_path,
-            "_PROJECT_ROOT",
+            "_PROJECT_CONTEXT",
             repository,
         ), patch(
             "backend.private_evaluation.repository_path.tempfile.gettempdir",
@@ -240,6 +241,43 @@ class PrivateEvaluationRepositoryTests(unittest.TestCase):
             self.assertEqual(
                 repository_path._validate_external_dataset_path(external),
                 external,
+            )
+
+    def test_external_dataset_honors_explicit_standalone_state_root(self) -> None:
+        from backend.private_evaluation import repository_path
+
+        repository = self.root / "portable-repository"
+        state = self.root / "standalone-state"
+        external = self.root / "standalone-external"
+        repository.mkdir()
+        state.mkdir()
+        external.mkdir()
+        placement = RepositoryPlacement.standalone(
+            repository_root=repository,
+            state_root=state,
+            state_kind=StandaloneStateKind.SYNTHETIC,
+        )
+
+        with patch.object(
+            repository_path,
+            "_PROJECT_CONTEXT",
+            placement,
+        ), patch(
+            "backend.private_evaluation.repository_path.tempfile.gettempdir",
+            return_value="C:/SyntheticPolicyTemp",
+        ):
+            with self.assertRaisesRegex(
+                PrivateEvaluationError,
+                "dataset_unavailable",
+            ):
+                repository_path._validate_external_dataset_path(
+                    state / "dataset.pkeval"
+                )
+            self.assertEqual(
+                repository_path._validate_external_dataset_path(
+                    external / "dataset.pkeval"
+                ),
+                external / "dataset.pkeval",
             )
 
     def test_dataset_root_rejects_descendant_raw_vault_and_private_store_markers(self) -> None:

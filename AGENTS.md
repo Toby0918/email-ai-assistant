@@ -147,8 +147,10 @@ itself, and every descendant are protected. Private knowledge, private evaluatio
 mailbox vault/recovery, and strict sales-policy locations derive this value
 internally from freshly revalidated placement evidence. Public HTTP, frontend,
 normal runtime, environment, config, and CLI arguments cannot supply or narrow
-the roots. Current and new recovery paths are both validated before recovery
-rewrap opens private material.
+the roots. An explicit trusted Standalone `RepositoryPlacement` protects both
+Repository Root and its separate state root, while Standalone Verification Mode
+continues to disable every private/mailbox capability. Current and new recovery
+paths are both validated before recovery rewrap opens private material.
 
 This seam performs no directory creation, move, deletion, migration, mailbox or
 provider operation, secret read, vault/private-store access, ACL change, or host

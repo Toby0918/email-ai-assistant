@@ -93,10 +93,12 @@ operational locations. `ProtectedLocationPolicy` is derived only from freshly
 revalidated placement evidence or the bounded flat-layout compatibility path;
 callers cannot construct it with a narrower root tuple. Managed mode preserves
 the single Project Container root, covering the container, every named zone, and
-all descendants. The layer owns no directory mutation, launcher routing,
-container audit, mailbox, provider, credential, key, vault, recovery,
-private-store, ACL, volume, or host-security capability. Returned values contain
-only path metadata.
+all descendants. An explicit trusted Standalone placement preserves both its
+Repository Root and state root; the context is not accepted from a public,
+environment, config, browser, or CLI surface. The layer owns no directory
+mutation, launcher routing, container audit, mailbox, provider, credential, key,
+vault, recovery, private-store, ACL, volume, or host-security capability.
+Returned values contain only path metadata.
 
 ## 2. 允许依赖方向
 
@@ -158,7 +160,10 @@ only in the reviewed private-knowledge storage/snapshot, private-evaluation
 repository-path, mailbox vault/sales-policy, and standalone verification
 modules. Public request payloads remove `protected_roots` and
 `project_container`, and no environment, config, frontend, ordinary runtime, or
-CLI option may provide them.
+CLI option may provide them. Focused domain-policy tests pass a validated
+Standalone placement directly and prove that its separate state root cannot be
+reclassified as external storage; Standalone Verification Mode still disables
+all such private capabilities.
 
 Only `scripts/manage_mailbox_vault.py` may import `backend.mailbox_ingest`.
 其他 `scripts/*.py`、`frontend/`、`backend.email_agent`、local debug、server、
@@ -506,9 +511,10 @@ private-knowledge payload fields before either analyzer branch. The reserved
 set is `runtime_cards`, `private_context`, `knowledge_cards`,
 `placeholder_mapping`, `card_id`, `snapshot_id`, `vault_id`,
 `private_knowledge_enabled`, `private_knowledge_authority_root`, and
-`private_knowledge_snapshot_path`. Legitimate current-email fields remain
-available to the injected or default analyzer; only the trusted startup tuple is
-added internally to the default analyzer through its keyword-only seam.
+`private_knowledge_snapshot_path`, `protected_roots`, and `project_container`.
+Legitimate current-email fields remain available to the injected or default
+analyzer; only the trusted startup tuple is added internally to the default
+analyzer through its keyword-only seam.
 
 `backend.exact_fact_patterns` is the canonical exact-fact recognizer for the
 outbound deidentifier, provider-authored output gate, and grounding validator.

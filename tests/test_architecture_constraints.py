@@ -1194,25 +1194,38 @@ class ArchitectureConstraintTests(unittest.TestCase):
             ):
                 reserved = set(ast.literal_eval(node.value.args[0]))
                 break
-        self.assertEqual(reserved, {
+        expected_reserved = {
             "runtime_cards", "private_context", "knowledge_cards",
             "placeholder_mapping", "card_id", "snapshot_id", "vault_id",
             "private_knowledge_enabled", "private_knowledge_authority_root",
             "private_knowledge_snapshot_path", "protected_roots",
             "project_container",
-        })
+        }
+        self.assertEqual(reserved, expected_reserved)
         self.assertTrue({
             "subject", "from", "to", "cc", "sent_at", "body_text",
             "thread_segments", "attachments", "attachment_files",
             "resource_limitations", "user_confirmed",
         }.isdisjoint(reserved))
 
-        architecture = " ".join(read_text(
+        architecture_source = read_text(
             ROOT / "docs" / "constraints" / "architecture_constraints.md"
-        ).split())
+        )
+        architecture = " ".join(architecture_source.split())
         self.assertIn(
             "reserved private-knowledge payload fields before either analyzer branch",
             architecture,
+        )
+        documented_reserved = architecture_source.split(
+            "The API copies only ordinary email-analysis input",
+            maxsplit=1,
+        )[1].split(
+            "Legitimate current-email fields",
+            maxsplit=1,
+        )[0]
+        self.assertEqual(
+            set(re.findall(r"`([a-z_]+)`", documented_reserved)),
+            expected_reserved,
         )
 
     def test_remote_exact_fact_boundaries_share_one_canonical_recognizer(self) -> None:

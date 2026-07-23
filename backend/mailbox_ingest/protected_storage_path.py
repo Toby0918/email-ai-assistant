@@ -7,9 +7,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Protocol
 
-from backend.project_layout import ProtectedLocationPolicy
+from backend.project_layout import ProtectedLocationPolicy, RepositoryPlacement
 
 from .errors import VaultError
+
+
+RepositoryContext = Path | RepositoryPlacement
 
 
 class PathComponentProbe(Protocol):
@@ -83,9 +86,11 @@ def _validated_path(
         raise VaultError("invalid_path") from None
 
 
-def _protected_policy(project_root: Path) -> ProtectedLocationPolicy:
+def _protected_policy(
+    project_root: RepositoryContext,
+) -> ProtectedLocationPolicy:
     try:
-        return ProtectedLocationPolicy.for_repository(project_root)
+        return ProtectedLocationPolicy.for_context(project_root)
     except Exception:
         raise VaultError("invalid_path") from None
 

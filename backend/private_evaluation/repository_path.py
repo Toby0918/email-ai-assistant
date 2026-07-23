@@ -7,7 +7,7 @@ import stat
 import tempfile
 from pathlib import Path
 
-from backend.project_layout import ProtectedLocationPolicy
+from backend.project_layout import ProtectedLocationPolicy, RepositoryPlacement
 
 from .errors import PrivateEvaluationError
 
@@ -22,7 +22,7 @@ _OTHER_STORE_MARKERS = frozenset({
 })
 _MAX_DESCENDANT_ENTRIES = 4_096
 _MAX_DESCENDANT_DEPTH = 16
-_PROJECT_ROOT = Path(__file__).resolve().parents[2]
+_PROJECT_CONTEXT: Path | RepositoryPlacement = Path(__file__).resolve().parents[2]
 
 
 def _validate_external_dataset_path(value: Path) -> Path:
@@ -37,7 +37,7 @@ def _validate_external_private_path(value: Path, suffix: str) -> Path:
         _reject_reparse(path)
         resolved = path.resolve(strict=False)
         _reject_reparse(resolved)
-        protected = ProtectedLocationPolicy.for_repository(_PROJECT_ROOT)
+        protected = ProtectedLocationPolicy.for_context(_PROJECT_CONTEXT)
     except Exception:
         _unavailable()
     temporary = Path(tempfile.gettempdir()).resolve()

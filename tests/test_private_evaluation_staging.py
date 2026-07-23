@@ -32,6 +32,7 @@ from backend.private_evaluation.staging_repository import (
 )
 from backend.private_knowledge.deidentifier import deidentify_private_text
 from backend.private_knowledge.residual_scanner import ResidualFinding, scan_residuals
+from backend.project_layout import RepositoryPlacement, StandaloneStateKind
 from tests.private_evaluation_fixtures import case_mapping, uuid4_for
 
 
@@ -561,7 +562,7 @@ class PrivateEvaluationStagingTests(unittest.TestCase):
 
             with patch.object(
                 repository_path,
-                "_PROJECT_ROOT",
+                "_PROJECT_CONTEXT",
                 repository,
             ), patch(
                 "backend.private_evaluation.repository_path.tempfile.gettempdir",
@@ -581,6 +582,48 @@ class PrivateEvaluationStagingTests(unittest.TestCase):
                 self.assertEqual(
                     _validate_external_stage_path(external),
                     external,
+                )
+
+    def test_stage_path_honors_explicit_standalone_state_root(self) -> None:
+        from backend.private_evaluation import repository_path
+        from backend.private_evaluation.staging_repository import (
+            _validate_external_stage_path,
+        )
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            repository = root / "portable-repository"
+            state = root / "standalone-state"
+            external = root / "standalone-external"
+            repository.mkdir()
+            state.mkdir()
+            external.mkdir()
+            placement = RepositoryPlacement.standalone(
+                repository_root=repository,
+                state_root=state,
+                state_kind=StandaloneStateKind.SYNTHETIC,
+            )
+
+            with patch.object(
+                repository_path,
+                "_PROJECT_CONTEXT",
+                placement,
+            ), patch(
+                "backend.private_evaluation.repository_path.tempfile.gettempdir",
+                return_value="C:/SyntheticPolicyTemp",
+            ):
+                with self.assertRaisesRegex(
+                    PrivateEvaluationError,
+                    "evaluation_stage_unavailable",
+                ):
+                    _validate_external_stage_path(
+                        state / "cases.pkevalstage"
+                    )
+                self.assertEqual(
+                    _validate_external_stage_path(
+                        external / "cases.pkevalstage"
+                    ),
+                    external / "cases.pkevalstage",
                 )
 
     def test_result_and_errors_are_content_free(self) -> None:

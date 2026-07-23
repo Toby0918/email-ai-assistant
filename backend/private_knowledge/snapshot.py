@@ -15,7 +15,7 @@ from .errors import PrivateKnowledgeError
 from .runtime_schema import RuntimeKnowledgeCard
 from .schema import KnowledgeCardV1
 from .snapshot_codec import SnapshotMetadata, encode_snapshot_frame
-from .snapshot_path import validate_snapshot_path
+from .snapshot_path import RepositoryContext, validate_snapshot_path
 
 
 def publish_runtime_snapshot(
@@ -27,7 +27,7 @@ def publish_runtime_snapshot(
     encryption_key: bytes | bytearray,
     signing_private_key: Ed25519PrivateKey,
     now: datetime,
-    project_root: Path | None = None,
+    project_root: RepositoryContext | None = None,
     forbidden_roots: tuple[Path, ...] = (),
     path_validator: Callable[[Path], object] | None = None,
     rng: Callable[[int], bytes] = os.urandom,
@@ -67,7 +67,7 @@ def publish_runtime_snapshot(
 
 def _validated_path(
     target: Path,
-    project_root: Path | None,
+    project_root: RepositoryContext | None,
     forbidden: tuple[Path, ...],
     validator: Callable[[Path], object] | None,
 ) -> Path:
@@ -76,7 +76,7 @@ def _validated_path(
             validator(Path(target)) if validator is not None
             else validate_snapshot_path(
                 Path(target),
-                project_root=Path(project_root),
+                project_root=project_root,
                 forbidden_roots=forbidden,
             )
         )

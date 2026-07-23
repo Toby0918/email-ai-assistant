@@ -7,9 +7,12 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from backend.project_layout import ProtectedLocationPolicy
+from backend.project_layout import ProtectedLocationPolicy, RepositoryPlacement
 
 from .errors import PrivateKnowledgeError
+
+
+RepositoryContext = Path | RepositoryPlacement
 
 
 @dataclass(frozen=True, slots=True)
@@ -23,7 +26,7 @@ class _AnchorIdentity:
 def validate_snapshot_path(
     value: Path,
     *,
-    project_root: Path,
+    project_root: RepositoryContext,
     forbidden_roots: tuple[Path, ...] = (),
 ) -> Path:
     path = Path(value)
@@ -42,7 +45,7 @@ def validate_snapshot_path(
         _reject_reparse_components(resolved)
         roots = tuple(Path(root).resolve(strict=False) for root in forbidden_roots)
         temporary = Path(tempfile.gettempdir()).resolve(strict=False)
-        policy = ProtectedLocationPolicy.for_repository(Path(project_root))
+        policy = ProtectedLocationPolicy.for_context(project_root)
         after = _path_identity(path)
         anchor_after = _existing_anchor_identity(path)
     except Exception:

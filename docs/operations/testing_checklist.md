@@ -55,6 +55,9 @@ source_type: operation_guide
 - Positive synthetic external authority, candidate, snapshot, evaluation,
   vault, recovery, and sales-policy paths retain their existing separation and
   fixed-error contracts.
+- Explicit Standalone placement fixtures reject both Repository Root and state
+  root at every private path policy while retaining valid locations outside both;
+  the verification launcher still disables every private capability.
 - Vault tests preserve NTFS, removable, full-encryption, protection, unlocked,
   and separate-volume evidence. Recovery rewrap validates and revalidates both
   current and new recovery paths before private material is opened.

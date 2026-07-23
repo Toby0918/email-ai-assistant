@@ -12,6 +12,7 @@ from .drive_policy import (
     _validate_vault_evidence,
 )
 from .protected_storage_path import (
+    RepositoryContext,
     _has_onedrive_component,
     _inside_views,
     _protected_policy,
@@ -23,7 +24,7 @@ from .models import VaultVolumeEvidence
 
 def validate_existing_vault_location(
     vault_root: Path,
-    project_root: Path,
+    project_root: RepositoryContext,
     *,
     probe: VolumeProbe | None = None,
     component_probe: PathComponentProbe | None = None,
@@ -36,12 +37,12 @@ def validate_existing_vault_location(
         must_exist=True,
         component_probe=component_probe,
     )
-    project = _validated_path(
-        Path(project_root),
+    protected = _protected_policy(project_root)
+    _validated_path(
+        protected.repository_root,
         must_exist=True,
         component_probe=component_probe,
     )
-    protected = _protected_policy(project.original)
     temp = _validated_path(
         Path(tempfile.gettempdir()) if system_temp is None else Path(system_temp),
         must_exist=True,

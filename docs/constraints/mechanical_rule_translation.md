@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-22
+last_update: 2026-07-23
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -191,7 +191,9 @@ root, rejects partial Managed placement, and checks original plus resolved
 candidate views. Focused private-knowledge, private-evaluation, mailbox-vault,
 recovery, and sales-policy tests enumerate the container, `main`, all eight
 sibling zones, and descendants while retaining positive synthetic external
-cases.
+cases. A separate cross-domain matrix supplies a validated Standalone placement,
+rejects its state root, and retains valid stores outside both Standalone roots;
+this policy-only test does not enable any Standalone private capability.
 
 `test_protected_location_policy_has_only_reviewed_internal_consumers` pins the
 exact `backend.project_layout` importer list and the narrower exact

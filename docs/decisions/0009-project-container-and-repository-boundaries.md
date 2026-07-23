@@ -41,6 +41,12 @@ sibling zones, and every descendant. A repository detected inside a Managed zone
 but not at the exact `main` relationship fails closed instead of being treated as
 an unrelated flat checkout.
 
+The same policy accepts a freshly revalidated explicit Standalone
+`RepositoryPlacement` and preserves both its Repository Root and separate state
+root. This is a non-public validation context only; it does not enable mailbox,
+private-knowledge, private-evaluation, raw-vault, or provider capability in
+Standalone Verification Mode.
+
 Private-knowledge authority/candidate/snapshot paths, private-evaluation stage
 and final datasets, new and existing mailbox vaults, current and new recovery
 locations, and the strict external sales-policy file now consume this policy

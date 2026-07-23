@@ -278,7 +278,8 @@ Not applicable. No sync or current-click evidence behavior changes.
 Actual files changed:
 
 - Added `backend/project_layout/protected_location.py` and exported the
-  immutable `ProtectedLocationPolicy`.
+  immutable `ProtectedLocationPolicy`, including revalidation of an explicit
+  Standalone placement without exposing a caller-supplied roots tuple.
 - Bound private-knowledge authority, candidate, staging, and snapshot paths to
   the internally derived policy, including stable existing-parent evidence for
   legitimate missing create targets.
@@ -296,15 +297,17 @@ Actual files changed:
 - Added synthetic/offline coverage for all Project Container zones, positive
   external stores, original/resolved views, aliases, reparse state, missing and
   unreadable evidence, identity drift, recovery rewrap, fixed errors, and
-  dependency direction.
+  dependency direction. A cross-domain matrix also proves an explicit
+  Standalone state root stays protected while locations outside both
+  Standalone roots remain valid; no Standalone private capability is enabled.
 
 Verification:
 
 - Pre-change focused baseline: 109 tests passed, 1 skipped.
 - Each implementation slice was driven from an observed RED failure to focused
   GREEN.
-- Current focused matrix: 241 tests passed, 1 skipped.
-- Full regression: 1,721 tests passed, 1 skipped, with both provider
+- Current focused matrix after review fixes: 247 tests passed, 1 skipped.
+- Pre-review full regression: 1,721 tests passed, 1 skipped, with both provider
   environment switches explicitly disabled.
 - Project Python 3.12.13, SQLite 3.50.4, and all pinned dependency versions
   match the documented baseline.
@@ -316,14 +319,24 @@ Verification:
 - `scripts/maintenance_scan.py --fail-on-high` reports no cleanup findings.
 - `git diff --check` passes; line-ending conversion warnings are informational
   for the existing Windows checkout policy.
-- Standards/Spec review, post-review full regression, and final staged-diff
+- Standards/Spec re-review, post-review full regression, and final staged-diff
   verification remain pending.
 
 Open items:
 
-- Standards and Spec reviews against
+- Initial Standards review reported one P2 exact reserved-field documentation
+  mismatch; the architecture document and executable exact-list assertion are
+  now synchronized. Its P3 stale front-matter dates were also corrected.
+- Initial Spec review reported one P1 gap for explicit Standalone state-root
+  propagation. Every in-scope domain policy now accepts and revalidates a
+  trusted placement context, and the six new RED-to-GREEN cases cover private
+  knowledge, snapshots, private evaluation, vault/recovery, and sales policy.
+- Standards P3 judgement call: private-knowledge and mailbox modules retain
+  similar domain-specific path-evidence flows. This is non-blocking because
+  their fixed error families and create/read semantics differ; any shared
+  primitive refactor requires a separately bounded task.
+- Standards and Spec re-review against
   `a42430d7433d84188558ab7ac5e5a32555a7ee60`.
-- Automatic correction and re-review of any P1/P2 or Spec finding.
 - Final offline verification, scoped commit/push, and a non-draft PR containing
   `Closes #33`.
 

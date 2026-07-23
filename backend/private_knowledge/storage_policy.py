@@ -8,7 +8,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
-from backend.project_layout import ProtectedLocationPolicy
+from backend.project_layout import ProtectedLocationPolicy, RepositoryPlacement
 
 from .errors import PrivateKnowledgeError
 
@@ -30,7 +30,7 @@ class _AnchorIdentity:
 def validate_stage_storage(
     candidate_root: Path,
     vault_root: Path,
-    project_root: Path,
+    project_root: Path | RepositoryPlacement,
 ) -> None:
     candidate = _external_root(candidate_root)
     vault = _absolute_root(vault_root)
@@ -51,7 +51,10 @@ def validate_stage_storage(
         raise PrivateKnowledgeError("private_storage_path_invalid")
 
 
-def validate_private_storage(project_root: Path, *paths: Path) -> None:
+def validate_private_storage(
+    project_root: Path | RepositoryPlacement,
+    *paths: Path,
+) -> None:
     reviewed = tuple(_external_root(path) for path in paths)
     policy = _protected_policy(project_root)
     forbidden = [Path(tempfile.gettempdir()).resolve()]
@@ -106,9 +109,11 @@ def _absolute_root(value: Path) -> Path:
         raise PrivateKnowledgeError("private_storage_path_invalid") from None
 
 
-def _protected_policy(project_root: Path) -> ProtectedLocationPolicy:
+def _protected_policy(
+    project_root: Path | RepositoryPlacement,
+) -> ProtectedLocationPolicy:
     try:
-        return ProtectedLocationPolicy.for_repository(Path(project_root))
+        return ProtectedLocationPolicy.for_context(project_root)
     except Exception:
         raise PrivateKnowledgeError("private_storage_path_invalid") from None
 

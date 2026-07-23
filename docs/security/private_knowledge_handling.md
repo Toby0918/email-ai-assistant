@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-22
+last_update: 2026-07-23
 status: active
 owner: "@tobyWang"
 review_cycle: quarterly
@@ -131,6 +131,12 @@ both original and resolved path views and retain the existing reparse,
 raw-vault, OneDrive, temporary, private-store separation, descriptor identity,
 and fixed-error behavior. The flat compatibility path validates repository
 identity twice and partial Managed placement fails closed.
+
+If an internal policy test or future authorized composition supplies an explicit
+validated Standalone `RepositoryPlacement`, both its Repository Root and separate
+state root remain protected. No public request or CLI may provide that context,
+and Standalone Verification Mode continues to disable private knowledge,
+evaluation, mailbox, raw-vault, and provider capabilities.
 
 The snapshot validator now requires a trusted project root independently of
 supplementary `forbidden_roots`; callers may add authority/private roots but

@@ -13,6 +13,7 @@ from .errors import VaultError
 from .models import VolumeEvidence, VolumeInfo
 from .protected_storage_path import (
     PathComponentProbe,
+    RepositoryContext,
     _protected_policy,
     _reject_forbidden_locations,
     _validated_path,
@@ -142,7 +143,7 @@ def _validate_vault_evidence(vault_info: VolumeInfo) -> None:
 
 def validate_vault_location(
     vault_root: Path,
-    project_root: Path,
+    project_root: RepositoryContext,
     recovery_key_path: Path,
     *,
     probe: VolumeProbe | None = None,
@@ -154,10 +155,12 @@ def validate_vault_location(
     vault = _validated_path(
         Path(vault_root), must_exist=True, component_probe=component_probe
     )
-    project = _validated_path(
-        Path(project_root), must_exist=True, component_probe=component_probe
+    protected = _protected_policy(project_root)
+    _validated_path(
+        protected.repository_root,
+        must_exist=True,
+        component_probe=component_probe,
     )
-    protected = _protected_policy(project.original)
     recovery_path = Path(recovery_key_path)
     if not recovery_path.is_absolute():
         raise VaultError("path_not_absolute")

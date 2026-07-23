@@ -33,14 +33,17 @@ _MANAGED_ZONE_NAMES = frozenset(
 class ProtectedLocationPolicy:
     """Immutable protected roots with no caller-supplied narrowing seam."""
 
+    repository_root: Path
     protected_roots: tuple[Path, ...]
 
     @classmethod
     def _create(
         cls,
+        repository_root: Path,
         protected_roots: tuple[Path, ...],
     ) -> ProtectedLocationPolicy:
         policy = object.__new__(cls)
+        object.__setattr__(policy, "repository_root", repository_root)
         object.__setattr__(policy, "protected_roots", protected_roots)
         return policy
 
@@ -80,7 +83,29 @@ class ProtectedLocationPolicy:
             )
         if refreshed != placement:
             raise PlacementError("placement_identity_changed")
-        return cls._create(refreshed.protected_roots)
+        return cls._create(
+            refreshed.repository_root,
+            refreshed.protected_roots,
+        )
+
+    @classmethod
+    def for_context(
+        cls,
+        context: Path | RepositoryPlacement,
+        *,
+        inspect_directory: DirectoryInspector | None = None,
+    ) -> ProtectedLocationPolicy:
+        """Revalidate an explicit placement or the repository compatibility."""
+
+        if type(context) is RepositoryPlacement:
+            return cls.for_placement(
+                context,
+                inspect_directory=inspect_directory,
+            )
+        return cls.for_repository(
+            Path(context),
+            inspect_directory=inspect_directory,
+        )
 
     @classmethod
     def for_repository(
@@ -102,7 +127,10 @@ class ProtectedLocationPolicy:
                 project_container=source.parent,
                 inspect_directory=inspect_directory,
             )
-            return cls._create(placement.protected_roots)
+            return cls._create(
+                placement.repository_root,
+                placement.protected_roots,
+            )
         if _inside_managed_zone(source):
             raise PlacementError("managed_relationship_invalid")
 
@@ -111,7 +139,10 @@ class ProtectedLocationPolicy:
         identity_after = read_directory_identity(source, inspector)
         if identity_after != identity:
             raise PlacementError("placement_identity_changed")
-        return cls._create((identity.canonical_path,))
+        return cls._create(
+            identity.canonical_path,
+            (identity.canonical_path,),
+        )
 
     def contains(
         self,

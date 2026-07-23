@@ -158,6 +158,11 @@ separately validated flat-layout compatibility path. Managed policy keeps the
 single Project Container root; it does not reconstruct a narrower set from the
 seven ordinary layout paths. A path inside a Managed zone but outside exact
 `main` fails closed instead of becoming a flat compatibility root.
+When an internal caller already holds an explicit validated Standalone
+`RepositoryPlacement`, the policy revalidates it and retains both Repository
+Root and standalone state root. This does not add a Standalone private capability;
+Issue #31 keeps mailbox, private knowledge/evaluation, raw vault, and providers
+disabled.
 
 The package may perform read-only path metadata inspection. It must not create,
 write, move, copy, rename, replace, remove, or delete a path; call a mailbox or
