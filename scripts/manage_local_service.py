@@ -22,6 +22,11 @@ if str(ROOT) not in sys.path:
 from backend.email_agent import attachment_storage
 from backend.email_agent import config as backend_config
 from backend.email_agent.server import validate_local_server_host
+from backend.project_layout import (
+    OperationalLayout,
+    RepositoryPlacement,
+    StandaloneStateKind,
+)
 
 
 DEFAULT_PID_FILE = ROOT / "outputs" / "local_debug_service.pid"
@@ -42,6 +47,9 @@ class ServiceConfig:
     python_executable: str
     startup_timeout: float
     poll_interval: float
+    log_file: Path = DEFAULT_LOG_FILE
+    attachment_temp_dir: Path = ROOT / "outputs" / "attachment_temp"
+    standalone_state_root: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -85,10 +93,36 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--pid-file", default=str(DEFAULT_PID_FILE))
     parser.add_argument("--startup-timeout", type=float, default=10.0)
     parser.add_argument("--poll-interval", type=float, default=0.25)
+    parser.add_argument("--standalone-state-root", default=None)
     return parser
 
 
 def config_from_args(args: argparse.Namespace) -> ServiceConfig:
+    standalone_state_root = getattr(args, "standalone_state_root", None)
+    if standalone_state_root is not None:
+        if args.database is not None or Path(args.pid_file) != DEFAULT_PID_FILE:
+            raise ValueError(
+                "operational paths are derived from standalone state root"
+            )
+        placement = RepositoryPlacement.standalone(
+            repository_root=ROOT,
+            state_root=Path(standalone_state_root),
+            state_kind=StandaloneStateKind.TEMPORARY,
+        )
+        layout = OperationalLayout.for_placement(placement)
+        return ServiceConfig(
+            host=validate_local_server_host(args.host),
+            port=args.port,
+            database=str(layout.data_root / "email_agent.sqlite3"),
+            pid_file=layout.log_root / "local_debug_service.pid",
+            root=ROOT,
+            python_executable=sys.executable,
+            startup_timeout=args.startup_timeout,
+            poll_interval=args.poll_interval,
+            log_file=layout.log_root / "local_debug_service.log",
+            attachment_temp_dir=layout.temporary_root / "attachment_temp",
+            standalone_state_root=placement.standalone_state_root,
+        )
     return ServiceConfig(
         host=validate_local_server_host(args.host),
         port=args.port,
@@ -137,7 +171,7 @@ def start_service(
     if health_checker(config.host, config.port, 1.0):
         return CommandResult(0, f"already running at {_service_url(config)}", "running")
 
-    cleanup_result, cleanup_error = _attempt_lifecycle_cleanup()
+    cleanup_result, cleanup_error = _attempt_lifecycle_cleanup(config)
     if cleanup_error is not None:
         return cleanup_error
     result = _start_after_cleanup(config, popen, health_checker, sleeper)
@@ -190,7 +224,7 @@ def restart_service(
     sleeper: Sleeper = time.sleep,
 ) -> CommandResult:
     validate_local_server_host(config.host)
-    cleanup_result, cleanup_error = _attempt_lifecycle_cleanup()
+    cleanup_result, cleanup_error = _attempt_lifecycle_cleanup(config)
     if cleanup_error is not None:
         return cleanup_error
     stop_result = stopper(config)
@@ -219,9 +253,17 @@ def _dispatch(command: str, config: ServiceConfig) -> CommandResult:
     return status_service(config)
 
 
-def _attempt_lifecycle_cleanup() -> tuple[CleanupResult, None] | tuple[None, CommandResult]:
+def _attempt_lifecycle_cleanup(
+    service_config: ServiceConfig,
+) -> tuple[CleanupResult, None] | tuple[None, CommandResult]:
     try:
-        return run_cleanup_before_service_start(), None
+        cleanup_config = None
+        if service_config.standalone_state_root is not None:
+            cleanup_config = backend_config.build_standalone_verification_config(
+                sqlite_path=Path(service_config.database or ""),
+                attachment_temp_dir=service_config.attachment_temp_dir,
+            )
+        return run_cleanup_before_service_start(cleanup_config), None
     except LifecycleCleanupError:
         return None, CommandResult(5, CLEANUP_FAILURE_MESSAGE, "error")
 
@@ -243,7 +285,12 @@ def _build_start_command(config: ServiceConfig) -> list[str]:
         "--port",
         str(config.port),
     ]
-    if config.database:
+    if config.standalone_state_root is not None:
+        command.extend([
+            "--standalone-state-root",
+            str(config.standalone_state_root),
+        ])
+    elif config.database:
         command.extend(["--database", config.database])
     return command
 
@@ -265,7 +312,7 @@ def _launch_with_popen(
     config: ServiceConfig,
     popen: Callable[..., Any],
 ) -> int:
-    with _log_handle() as log_handle:
+    with _log_handle(config.log_file) as log_handle:
         process = popen(
             command,
             cwd=str(config.root),
@@ -277,7 +324,7 @@ def _launch_with_popen(
 
 
 def _launch_with_powershell(command: list[str], config: ServiceConfig) -> int:
-    DEFAULT_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
+    config.log_file.parent.mkdir(parents=True, exist_ok=True)
     command_line = subprocess.list2cmdline(command)
     script = (
         "$ErrorActionPreference = 'Stop'; "
@@ -359,9 +406,9 @@ def _service_url(config: ServiceConfig) -> str:
     return f"http://{config.host}:{config.port}"
 
 
-def _log_handle() -> Any:
-    DEFAULT_LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    return DEFAULT_LOG_FILE.open("ab")
+def _log_handle(log_file: Path) -> Any:
+    log_file.parent.mkdir(parents=True, exist_ok=True)
+    return log_file.open("ab")
 
 
 def _background_kwargs() -> dict[str, Any]:

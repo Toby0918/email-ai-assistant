@@ -112,6 +112,44 @@ python scripts/manage_local_service.py stop
 
 `start` 会在启动进程前执行一次过期附件清理；`restart` 会在停止和重新启动序列前执行一次，且不会通过嵌套 `start` 重复清理。成功输出只包含删除计数和服务状态。清理失败时命令返回通用可操作错误，不启动或重启服务，也不输出附件名、内容、私有 URL、cookie、token、OCR 文本或异常中的私有路径。请求处理时的既有清理仍保留；项目没有后台邮箱轮询器或常驻清理调度器。
 
+### Standalone Verification Mode
+
+Issue #31 adds a repository-only verification path with explicit temporary
+operational state. Create one absolute temporary directory and pass the same
+`--standalone-state-root` to every lifecycle command:
+
+```powershell
+$standaloneRoot = Join-Path ([System.IO.Path]::GetTempPath()) "email-ai-standalone-verification"
+New-Item -ItemType Directory -Path $standaloneRoot
+
+python scripts/manage_local_service.py start --standalone-state-root $standaloneRoot
+python scripts/manage_local_service.py status --standalone-state-root $standaloneRoot
+Invoke-RestMethod http://127.0.0.1:8765/api/health
+
+$syntheticRequest = @{
+  user_confirmed = $true
+  subject = "Synthetic delivery question"
+  from = "buyer@example.test"
+  to = @("sales@example.test")
+  body_text = "Can you confirm a synthetic delivery window?"
+} | ConvertTo-Json
+Invoke-RestMethod -Method Post `
+  -Uri http://127.0.0.1:8765/api/analyze-current-email `
+  -ContentType "application/json" `
+  -Body $syntheticRequest
+
+python scripts/manage_local_service.py restart --standalone-state-root $standaloneRoot
+python scripts/manage_local_service.py stop --standalone-state-root $standaloneRoot
+```
+
+The mode derives SQLite, attachment temporary files, logs, and PID state below
+that root. It ignores repository `.env` credentials and forces all providers
+and private knowledge off; mailbox ingest, private evaluation, and raw-vault
+capabilities are not connected. It preserves loopback validation, click
+confirmation, persistence, the 5-file/10-MiB/25-MiB attachment limits, and
+cleanup behavior. Use synthetic inputs only. Remove the temporary directory
+only after `stop` if its verification artifacts are no longer needed.
+
 Windows 可直接双击这些快捷脚本：
 
 ```text
@@ -193,18 +231,20 @@ python -m unittest discover -s tests
 python scripts/generate_project_status.py --output docs/operations/project_status_log.md
 ```
 
-## Repository placement compatibility
+## Repository placement and standalone verification
 
 Issue #30 introduces the pure `RepositoryPlacement` and `OperationalLayout`
 interfaces in `backend/project_layout/`. Managed Container Mode accepts only the
 canonical `email_ai_assistant\main` relationship. Standalone Verification Mode
-requires an explicit synthetic or temporary state root. The transition adapter
-preserves the current `.venv`, `outputs`, and `.worktrees` locations without
+requires an explicit synthetic or temporary state root. Issue #31 routes the
+existing local-service lifecycle through that temporary layout with disabled
+providers. The transition adapter continues to preserve the current `.venv`,
+`outputs`, and `.worktrees` locations for the ordinary flat launcher without
 adding a third final placement mode.
 
-This compatibility seam does not create or move directories, perform the real
-Project Container migration, route the local service, access mailbox/provider/
-vault/credential/private-store state, or start Issue #31 through #40.
+These checkpoints do not create Managed Container Mode, perform the real
+Project Container migration, access mailbox/vault/credential/private-store
+state, or start Issue #32 through #40.
 
 ## 后台清理扫描
 

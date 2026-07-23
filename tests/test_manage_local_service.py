@@ -27,6 +27,8 @@ class ManageLocalServiceTests(unittest.TestCase):
             python_executable="python-test",
             startup_timeout=0.1,
             poll_interval=0.01,
+            log_file=pid_file.parent / "service.log",
+            attachment_temp_dir=pid_file.parent / "attachment_temp",
         )
 
     def test_parser_exposes_service_commands(self) -> None:
@@ -44,6 +46,176 @@ class ManageLocalServiceTests(unittest.TestCase):
             manager.config_from_args(args)
 
         self.assertNotIn("0.0.0.0", str(caught.exception))
+
+    def test_standalone_config_uses_only_explicit_temporary_operational_state(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            state_root = Path(temporary)
+            args = manager.build_parser().parse_args([
+                "start",
+                "--standalone-state-root",
+                str(state_root),
+            ])
+
+            config = manager.config_from_args(args)
+
+        self.assertEqual(
+            config.database,
+            str(state_root / "LocalData" / "email_agent.sqlite3"),
+        )
+        self.assertEqual(
+            config.attachment_temp_dir,
+            state_root / "RuntimeTemp" / "attachment_temp",
+        )
+        self.assertEqual(
+            config.log_file,
+            state_root / "Logs" / "local_debug_service.log",
+        )
+        self.assertEqual(
+            config.pid_file,
+            state_root / "Logs" / "local_debug_service.pid",
+        )
+        self.assertEqual(config.standalone_state_root, state_root)
+        self.assertTrue(config.database and Path(config.database).is_absolute())
+        self.assertTrue(config.attachment_temp_dir.is_absolute())
+        self.assertTrue(config.log_file.is_absolute())
+        self.assertTrue(config.pid_file.is_absolute())
+
+    def test_standalone_rejects_operational_path_overrides(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            state_root = Path(temporary)
+            conflicting_options = (
+                ("--database", str(state_root / "other.sqlite3")),
+                ("--pid-file", str(state_root / "other.pid")),
+            )
+            for option, value in conflicting_options:
+                with self.subTest(option=option):
+                    args = manager.build_parser().parse_args([
+                        "start",
+                        "--standalone-state-root",
+                        str(state_root),
+                        option,
+                        value,
+                    ])
+
+                    with self.assertRaisesRegex(
+                        ValueError,
+                        "derived from standalone state root",
+                    ):
+                        manager.config_from_args(args)
+
+    def test_standalone_lifecycle_commands_share_explicit_state(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            state_root = Path(temporary)
+            configs = {
+                command: manager.config_from_args(
+                    manager.build_parser().parse_args([
+                        command,
+                        "--standalone-state-root",
+                        str(state_root),
+                    ])
+                )
+                for command in ("start", "status", "restart", "stop")
+            }
+
+        expected = configs["start"]
+        for command, config in configs.items():
+            with self.subTest(command=command):
+                self.assertEqual(config.database, expected.database)
+                self.assertEqual(config.attachment_temp_dir, expected.attachment_temp_dir)
+                self.assertEqual(config.log_file, expected.log_file)
+                self.assertEqual(config.pid_file, expected.pid_file)
+
+    def test_standalone_start_passes_state_root_and_uses_explicit_log(
+        self,
+    ) -> None:
+        launch: dict[str, object] = {}
+
+        def fake_popen(command: list[str], **kwargs: object) -> SimpleNamespace:
+            launch["command"] = command
+            launch["cwd"] = kwargs["cwd"]
+            launch["log_name"] = getattr(kwargs["stdout"], "name", None)
+            return SimpleNamespace(pid=12345)
+
+        with tempfile.TemporaryDirectory() as temporary:
+            state_root = Path(temporary)
+            args = manager.build_parser().parse_args([
+                "start",
+                "--standalone-state-root",
+                str(state_root),
+            ])
+            config = manager.config_from_args(args)
+            health_results = iter([False, True])
+
+            with patch.object(
+                manager,
+                "run_cleanup_before_service_start",
+                return_value=manager.CleanupResult(removed_count=0),
+            ):
+                result = manager.start_service(
+                    config,
+                    popen=fake_popen,
+                    health_checker=lambda host, port, timeout: next(health_results),
+                    sleeper=lambda seconds: None,
+                )
+
+        self.assertEqual(result.exit_code, 0)
+        self.assertEqual(launch["cwd"], str(ROOT))
+        self.assertEqual(
+            launch["log_name"],
+            str(state_root / "Logs" / "local_debug_service.log"),
+        )
+        self.assertIn("--standalone-state-root", launch["command"])
+        self.assertIn(str(state_root), launch["command"])
+        self.assertNotIn("--database", launch["command"])
+        self.assertNotEqual(launch["log_name"], str(manager.DEFAULT_LOG_FILE))
+
+    def test_standalone_cleanup_uses_operational_config_without_env(
+        self,
+    ) -> None:
+        cleanup_configs: list[object] = []
+        with tempfile.TemporaryDirectory() as temporary:
+            state_root = Path(temporary)
+            args = manager.build_parser().parse_args([
+                "start",
+                "--standalone-state-root",
+                str(state_root),
+            ])
+            config = manager.config_from_args(args)
+            health_results = iter([False, True])
+
+            with (
+                patch(
+                    "backend.email_agent.config.load_config",
+                ) as config_loader,
+                patch(
+                    "backend.email_agent.attachment_storage.cleanup_expired_attachments",
+                    side_effect=lambda app_config: cleanup_configs.append(
+                        app_config
+                    ) or 0,
+                ),
+            ):
+                result = manager.start_service(
+                    config,
+                    popen=lambda command, **kwargs: SimpleNamespace(pid=12345),
+                    health_checker=lambda host, port, timeout: next(
+                        health_results
+                    ),
+                    sleeper=lambda seconds: None,
+                )
+
+        self.assertEqual(result.exit_code, 0)
+        config_loader.assert_not_called()
+        self.assertEqual(len(cleanup_configs), 1)
+        cleanup_config = cleanup_configs[0]
+        self.assertEqual(cleanup_config.llm_provider, "disabled")
+        self.assertEqual(cleanup_config.text_fallback_provider, "disabled")
+        self.assertEqual(cleanup_config.sqlite_path, config.database)
+        self.assertEqual(
+            cleanup_config.attachment_temp_dir,
+            str(config.attachment_temp_dir),
+        )
 
     def test_status_reports_stopped_without_pid_or_health(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -257,6 +429,24 @@ class ManageLocalServiceTests(unittest.TestCase):
                 text = (ROOT / filename).read_text(encoding="utf-8")
                 self.assertIn("scripts\\manage_local_service.py", text)
                 self.assertIn(command, text)
+
+    def test_standalone_lifecycle_is_documented_as_temporary_and_local_only(
+        self,
+    ) -> None:
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        deployment = (
+            ROOT / "docs" / "operations" / "deployment_notes.md"
+        ).read_text(encoding="utf-8")
+        checklist = (
+            ROOT / "docs" / "operations" / "testing_checklist.md"
+        ).read_text(encoding="utf-8")
+
+        for document in (readme, deployment, checklist):
+            self.assertIn("--standalone-state-root", document)
+            self.assertIn("temporary", document.casefold())
+            self.assertIn("provider", document.casefold())
+        self.assertIn("synthetic", readme.casefold())
+        self.assertIn("Issue #31", readme)
 
 
 if __name__ == "__main__":

@@ -44,6 +44,38 @@ class AppConfig:
     private_knowledge_snapshot_path: str = field(default="", repr=False)
 
 
+def build_standalone_verification_config(
+    *,
+    sqlite_path: Path,
+    attachment_temp_dir: Path,
+) -> AppConfig:
+    """Build deterministic local-only configuration without reading credentials."""
+    database = Path(sqlite_path)
+    attachments = Path(attachment_temp_dir)
+    if not database.is_absolute() or not attachments.is_absolute():
+        raise ValueError("standalone operational paths must be absolute")
+    return AppConfig(
+        openai_api_key=None,
+        deepseek_api_key=None,
+        sqlite_path=str(database),
+        log_level="INFO",
+        llm_provider="disabled",
+        ollama_base_url="http://127.0.0.1:11434",
+        ollama_model="qwen3.6:latest",
+        ollama_timeout_seconds=30,
+        attachment_temp_dir=str(attachments),
+        attachment_retention_hours=24,
+        attachment_max_files=5,
+        attachment_max_file_bytes=10 * 1024 * 1024,
+        attachment_max_total_bytes=25 * 1024 * 1024,
+        internal_email_domains=("example.test",),
+        text_fallback_provider="disabled",
+        private_knowledge_enabled=False,
+        private_knowledge_authority_root="",
+        private_knowledge_snapshot_path="",
+    )
+
+
 def load_config(dotenv_path: str | Path | None = DEFAULT_DOTENV_PATH) -> AppConfig:
     # Secrets stay on the backend and are loaded from the local environment only.
     if dotenv_path is not None:

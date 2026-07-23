@@ -8,6 +8,23 @@ source_type: operation_guide
 
 # 测试检查清单
 
+## Standalone Verification Mode
+
+- Use one pre-created absolute temporary directory with
+  `--standalone-state-root` for start, status, restart, and stop.
+- Verify health and analysis only with injected adapters in automated tests;
+  use a synthetic `example.test` request for an explicitly authorized manual
+  loopback smoke.
+- Assert SQLite, attachment temporary files, logs, and PID state stay below the
+  temporary root and do not enter repository `outputs/`.
+- Assert the ignored repository `.env` is not loaded and every provider,
+  mailbox ingest, private evaluation, private knowledge, and raw-vault
+  capability remains disabled.
+- Re-run existing configuration, server, lifecycle, architecture, frontend
+  safety, attachment-limit, click-confirmation, persistence, and cleanup tests.
+- Confirm the check does not create Managed Container state or perform a real
+  Project Container migration.
+
 ## Repository placement compatibility seam
 
 - Focused tests call only the public `RepositoryPlacement`,
