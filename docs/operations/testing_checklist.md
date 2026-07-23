@@ -28,10 +28,11 @@ source_type: operation_guide
 - Confirm the check does not create Managed Container state or perform a real
   Project Container migration.
 
-## Repository placement compatibility seam
+## Repository placement compatibility seam and protected private stores
 
 - Focused tests call only the public `RepositoryPlacement`,
-  `OperationalLayout`, and flat transition adapter interfaces.
+  `OperationalLayout`, `ProtectedLocationPolicy`, and flat transition adapter
+  interfaces.
 - Managed synthetic fixtures prove the exact canonical
   `email_ai_assistant\main` relationship and the complete Project Container
   protected-root set.
@@ -46,6 +47,20 @@ source_type: operation_guide
 - The transition adapter preserves current `.venv`, `outputs`,
   `outputs/attachment_temp`, and `.worktrees` locations without adding a third
   placement mode.
+- Managed policy uses one Project Container root and rejects the container,
+  `main`, `Runtimes`, `LocalData`, `RuntimeTemp`, `Logs`, `Artifacts`,
+  `Worktrees`, `Config`, `OperatorPrivate`, and every descendant for private
+  knowledge, private evaluation, mailbox vault/recovery, and strict external
+  sales-policy locations.
+- Positive synthetic external authority, candidate, snapshot, evaluation,
+  vault, recovery, and sales-policy paths retain their existing separation and
+  fixed-error contracts.
+- Vault tests preserve NTFS, removable, full-encryption, protection, unlocked,
+  and separate-volume evidence. Recovery rewrap validates and revalidates both
+  current and new recovery paths before private material is opened.
+- Architecture tests pin exact internal consumers, reject arbitrary-root
+  construction, strip hostile request roots, and reject environment/config/
+  frontend/CLI weakening seams.
 - Package guards reject mutating or external-capability imports/calls. Automated
   tests remain synthetic/offline and create no real Managed Container data.
 
@@ -224,8 +239,9 @@ automatic mailbox scan。所有管理员入口只使用下列 `python -B -m ...`
    后，才可运行 `python -B -m scripts.manage_mailbox_vault scan --vault $VaultRoot
    --authorization-id $AuthorizationId --account $Account
    --confirm-inventory-fingerprint $Fingerprint --sales-policy $SalesPolicy`
-   读取固定 24 个月窗口的正文。`$SalesPolicy` 必须是项目、OneDrive、系统临时目录
-   和 raw vault 之外、经本地负责人维护的绝对路径；其值不会进入公开输出。
+   读取固定 24 个月窗口的正文。`$SalesPolicy` 必须是完整 Project Container
+   protected root、OneDrive、系统临时目录和 raw vault 之外、经本地负责人维护的
+   绝对路径；其值不会进入公开输出。
 4. `scan` 完成后立即运行第一次
    `python -B -m scripts.manage_mailbox_vault verify --vault $VaultRoot
    --authorization-id $AuthorizationId --account $Account`。只有完整性失败数为零，
@@ -244,8 +260,9 @@ automatic mailbox scan。所有管理员入口只使用下列 `python -B -m ...`
    `python -B -m scripts.manage_mailbox_vault stage-evaluation --vault $VaultRoot
    --authorization-id $AuthorizationId --account $Account
    --selection-manifest $EvaluationSelection
-   --staging-dataset $EvaluationStage`。`$EvaluationStage` 必须是项目、OneDrive、
-   temp、raw vault 和其他 private store 之外的 `.pkevalstage`；命令请求 no mailbox
+   --staging-dataset $EvaluationStage`。`$EvaluationStage` 必须是完整 Project
+   Container protected root、OneDrive、temp、raw vault 和其他 private store
+   之外的 `.pkevalstage`；命令请求 no mailbox
    app password。测试必须证明 handoff 使用 evaluation-only source、在 plaintext
    释放前拒绝 inventory mismatch、保持 no evidence accumulation，并在下一条前释放
    raw-derived identifiers；成功只输出 `evaluation_stage_complete` 和 200/0 counts。

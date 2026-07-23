@@ -181,3 +181,24 @@ such as refresh/delta/pull/update cannot extend issue #10. Contract placeholder 
 residual scans use the NFKC validation view, closing compatibility-form PII escapes.
 The static-linter governance test keeps the API, security, tooling, logging, task
 template, and project-structure descriptions synchronized.
+
+## 10. Project Container protected-root rule
+
+The Project Container boundary is executable. `tests/test_project_layout.py`
+proves that `ProtectedLocationPolicy` has no public arbitrary-root constructor,
+revalidates Managed/Standalone/flat identity, preserves one Managed container
+root, rejects partial Managed placement, and checks original plus resolved
+candidate views. Focused private-knowledge, private-evaluation, mailbox-vault,
+recovery, and sales-policy tests enumerate the container, `main`, all eight
+sibling zones, and descendants while retaining positive synthetic external
+cases.
+
+`test_protected_location_policy_has_only_reviewed_internal_consumers` pins the
+exact `backend.project_layout` importer list and the narrower exact
+`ProtectedLocationPolicy` consumer list, and rejects calls to its private
+factory outside the package. `test_public_runtime_and_cli_cannot_supply_protected_roots`
+rejects environment names and CLI options that could provide or narrow the
+roots. API behavior tests remove `protected_roots` and `project_container`
+before both analyzer routes. Private-evaluation keeps a single exact
+`backend.project_layout` allowlist entry; no broader backend dependency is
+introduced.

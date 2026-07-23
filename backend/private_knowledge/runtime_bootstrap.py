@@ -42,6 +42,7 @@ def load_configured_runtime_cards(
         storage_validator(project, authority)
         target = snapshot_path_validator(
             snapshot,
+            project_root=project,
             forbidden_roots=(project, authority),
         )
         with key_opener(authority, protector_factory()) as keys:
@@ -51,6 +52,7 @@ def load_configured_runtime_cards(
                 prevalidated_target=Path(target),
                 encryption_key=keys.snapshot_key,
                 verification_public_key=verification_key,
+                project_root=project,
                 forbidden_roots=(project, authority),
             )
     except Exception:

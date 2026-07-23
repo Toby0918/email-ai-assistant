@@ -27,13 +27,19 @@ def publish_runtime_snapshot(
     encryption_key: bytes | bytearray,
     signing_private_key: Ed25519PrivateKey,
     now: datetime,
+    project_root: Path | None = None,
     forbidden_roots: tuple[Path, ...] = (),
     path_validator: Callable[[Path], object] | None = None,
     rng: Callable[[int], bytes] = os.urandom,
     crash_hook: Callable[[str], None] | None = None,
 ) -> None:
     current = _validated_now(now)
-    path = _validated_path(target, forbidden_roots, path_validator)
+    path = _validated_path(
+        target,
+        project_root,
+        forbidden_roots,
+        path_validator,
+    )
     eligible = _eligible_cards(cards, current)
     runtime_cards = tuple(RuntimeKnowledgeCard.from_authority(card) for card in eligible)
     expiry = _snapshot_expiry(eligible, current)
@@ -61,13 +67,18 @@ def publish_runtime_snapshot(
 
 def _validated_path(
     target: Path,
+    project_root: Path | None,
     forbidden: tuple[Path, ...],
     validator: Callable[[Path], object] | None,
 ) -> Path:
     try:
         result = (
             validator(Path(target)) if validator is not None
-            else validate_snapshot_path(Path(target), forbidden_roots=forbidden)
+            else validate_snapshot_path(
+                Path(target),
+                project_root=Path(project_root),
+                forbidden_roots=forbidden,
+            )
         )
     except PrivateKnowledgeError:
         raise

@@ -47,6 +47,8 @@ class PrivateKnowledgeSnapshotTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temporary = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary.name).resolve()
+        self.project = self.root / "synthetic-project"
+        self.project.mkdir()
         self.target = self.root / "runtime" / "knowledge.pksnap"
         self.authority_id = str(uuid.uuid4())
         self.snapshot_id = str(uuid.uuid4())
@@ -177,15 +179,20 @@ class PrivateKnowledgeSnapshotTests(unittest.TestCase):
                 encryption_key=self.key,
                 signing_private_key=self.signing,
                 now=self.now,
+                project_root=self.project,
                 forbidden_roots=(self.root, forbidden),
             )
 
     def test_default_path_policy_rejects_temp_onedrive_and_raw_vault(self) -> None:
         with self.assertRaisesRegex(PrivateKnowledgeError, "snapshot_path_invalid"):
-            validate_snapshot_path(self.target)
+            validate_snapshot_path(
+                self.target,
+                project_root=self.project,
+            )
         with self.assertRaisesRegex(PrivateKnowledgeError, "snapshot_path_invalid"):
             validate_snapshot_path(
-                Path("C:/External/OneDrive - Synthetic/runtime/knowledge.pksnap")
+                Path("C:/External/OneDrive - Synthetic/runtime/knowledge.pksnap"),
+                project_root=self.project,
             )
 
         vault = self.root / "synthetic-vault"
@@ -199,7 +206,10 @@ class PrivateKnowledgeSnapshotTests(unittest.TestCase):
             with self.assertRaisesRegex(
                 PrivateKnowledgeError, "snapshot_path_invalid"
             ):
-                validate_snapshot_path(vault / "runtime" / "knowledge.pksnap")
+                validate_snapshot_path(
+                    vault / "runtime" / "knowledge.pksnap",
+                    project_root=self.project,
+                )
 
         candidate = self.root / "candidate-store"
         candidate.mkdir()
@@ -212,7 +222,8 @@ class PrivateKnowledgeSnapshotTests(unittest.TestCase):
                 PrivateKnowledgeError, "snapshot_path_invalid"
             ):
                 validate_snapshot_path(
-                    candidate / "runtime" / "knowledge.pksnap"
+                    candidate / "runtime" / "knowledge.pksnap",
+                    project_root=self.project,
                 )
 
     def test_publication_revalidates_approved_reviews_after_factory_bypass(self) -> None:

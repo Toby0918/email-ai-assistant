@@ -120,6 +120,26 @@ key/file/loader access，也没有 reload、
 polling、hot update、status endpoint 或后台任务。公开 HTTP、SQLite、frontend 和
 diagnostics schema 保持不变。
 
+## Project Container protected-root enforcement
+
+Every private-knowledge path that requires project-external storage derives a
+`ProtectedLocationPolicy` internally from freshly revalidated repository
+placement. In Managed mode the protected set remains the single Project
+Container root, which covers the container, `main`, all eight sibling zones,
+and every descendant. Candidate, authority, and runtime snapshot policies check
+both original and resolved path views and retain the existing reparse,
+raw-vault, OneDrive, temporary, private-store separation, descriptor identity,
+and fixed-error behavior. The flat compatibility path validates repository
+identity twice and partial Managed placement fails closed.
+
+The snapshot validator now requires a trusted project root independently of
+supplementary `forbidden_roots`; callers may add authority/private roots but
+cannot use an empty or narrower tuple to remove Project Container protection.
+Public request payloads remove `protected_roots` and `project_container` before
+either analyzer branch. No frontend, environment, normal-runtime config, or CLI
+option may provide these values. This policy performs no migration and does not
+authorize access to a real private store.
+
 ## Separate current-evidence ingress
 
 `CurrentClickEvidenceV1` is not a runtime knowledge card and is never loaded into

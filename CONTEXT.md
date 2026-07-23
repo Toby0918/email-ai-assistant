@@ -36,7 +36,9 @@ _Avoid_: Hidden folder, ignored secrets folder
 
 **External Vault Zone**:
 Physically separate encrypted storage for raw mailbox material, paired with
-recovery material on a different security domain.
+recovery material on a different security domain. Project-external policy treats
+the complete Project Container, every named zone, and every descendant as
+protected; being outside the Repository Root alone is never sufficient.
 _Avoid_: LocalData, Operator Private Zone
 
 **Managed Container Mode**:

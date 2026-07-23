@@ -296,6 +296,10 @@ Container, ordinary operational locations, or the flat-layout transition seam.
 [ ] Standalone mode requires an explicit separate synthetic or temporary state root.
 [ ] Missing, changing, aliased, non-normalized, or reparse-bearing identity evidence fails closed with a fixed content-free code.
 [ ] `OperationalLayout` returns only absolute ordinary paths derived from validated placement and never follows child aliases.
+[ ] `ProtectedLocationPolicy` is derived internally from freshly revalidated placement and cannot accept caller-supplied or empty roots.
+[ ] Managed protected roots remain the single Project Container root and cover every named zone and descendant.
+[ ] Every project-external private store checks original/resolved views and preserves its existing encryption, volume, recovery, separation, and fixed-error contract.
+[ ] Public HTTP, frontend, ordinary runtime, environment, config, and CLI surfaces cannot supply or narrow protected roots.
 [ ] The flat-layout adapter is temporary compatibility only and creates no directory or migration side effect.
 [ ] The seam imports no mailbox, provider, vault, credential, private-store, persistence, frontend, or normal-runtime capability.
 [ ] Tests are synthetic/offline and perform no real migration or Managed Container creation.

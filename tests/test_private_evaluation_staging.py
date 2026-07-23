@@ -535,6 +535,54 @@ class PrivateEvaluationStagingTests(unittest.TestCase):
             ):
                 _validate_external_stage_path(isolated / "private.pkevalstage")
 
+    def test_stage_path_rejects_every_project_container_zone(self) -> None:
+        from backend.private_evaluation import repository_path
+        from backend.private_evaluation.staging_repository import (
+            _validate_external_stage_path,
+        )
+
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            container = root / "managed" / "email_ai_assistant"
+            repository = container / "main"
+            repository.mkdir(parents=True)
+            zones = (
+                container,
+                repository,
+                container / "Runtimes",
+                container / "LocalData",
+                container / "RuntimeTemp",
+                container / "Logs",
+                container / "Artifacts",
+                container / "Worktrees",
+                container / "Config",
+                container / "OperatorPrivate",
+            )
+
+            with patch.object(
+                repository_path,
+                "_PROJECT_ROOT",
+                repository,
+            ), patch(
+                "backend.private_evaluation.repository_path.tempfile.gettempdir",
+                return_value="C:/SyntheticPolicyTemp",
+            ):
+                for zone in zones:
+                    with self.subTest(zone=zone), self.assertRaisesRegex(
+                        PrivateEvaluationError,
+                        "evaluation_stage_unavailable",
+                    ):
+                        _validate_external_stage_path(
+                            zone / "nested" / "cases.pkevalstage"
+                        )
+
+                external = root / "external" / "cases.pkevalstage"
+                external.parent.mkdir()
+                self.assertEqual(
+                    _validate_external_stage_path(external),
+                    external,
+                )
+
     def test_result_and_errors_are_content_free(self) -> None:
         result = StageEvaluationResult("evaluation_stage_callback_failed", 0, 200)
         self.assertEqual(

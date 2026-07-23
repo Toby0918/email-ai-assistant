@@ -14,6 +14,7 @@ from backend.project_layout import (
     FlatOperationalLayoutAdapter,
     OperationalLayout,
     PlacementError,
+    ProtectedLocationPolicy,
     RepositoryPlacement,
     StandaloneStateKind,
 )
@@ -302,6 +303,171 @@ class RepositoryPlacementTests(unittest.TestCase):
         self.assertEqual(caught.exception.code, "placement_identity_changed")
         self.assertEqual(calls[repository_root], 2)
         self.assertEqual(calls[project_container], 2)
+
+
+class ProtectedLocationPolicyTests(unittest.TestCase):
+    def test_managed_policy_protects_container_zones_and_descendants(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            project_container = Path(directory) / "email_ai_assistant"
+            repository_root = project_container / "main"
+            repository_root.mkdir(parents=True)
+
+            policy = ProtectedLocationPolicy.for_repository(repository_root)
+
+        protected_locations = (
+            project_container,
+            repository_root,
+            project_container / "Runtimes",
+            project_container / "LocalData",
+            project_container / "RuntimeTemp",
+            project_container / "Logs",
+            project_container / "Artifacts",
+            project_container / "Worktrees",
+            project_container / "Config",
+            project_container / "OperatorPrivate",
+        )
+        self.assertEqual(
+            policy.protected_roots,
+            (project_container.resolve(),),
+        )
+        for location in protected_locations:
+            with self.subTest(location=location):
+                resolved = location.resolve()
+                self.assertTrue(
+                    policy.contains(
+                        original_path=location,
+                        resolved_path=resolved,
+                    )
+                )
+                self.assertTrue(
+                    policy.contains(
+                        original_path=location / "nested" / "store",
+                        resolved_path=resolved / "nested" / "store",
+                    )
+                )
+
+    def test_policy_checks_both_original_and_resolved_path_views(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            project_container = Path(directory) / "email_ai_assistant"
+            repository_root = project_container / "main"
+            external_root = Path(directory) / "external"
+            repository_root.mkdir(parents=True)
+            external_root.mkdir()
+            policy = ProtectedLocationPolicy.for_repository(repository_root)
+
+        self.assertTrue(
+            policy.contains(
+                original_path=project_container / "alias",
+                resolved_path=external_root,
+            )
+        )
+        self.assertTrue(
+            policy.contains(
+                original_path=external_root,
+                resolved_path=project_container / "OperatorPrivate" / "store",
+            )
+        )
+        self.assertFalse(
+            policy.contains(
+                original_path=external_root,
+                resolved_path=external_root,
+            )
+        )
+
+    def test_standalone_policy_protects_repository_and_state_roots(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            repository_root = Path(directory) / "portable-clone"
+            state_root = Path(directory) / "synthetic-state"
+            external_root = Path(directory) / "external"
+            repository_root.mkdir()
+            state_root.mkdir()
+            external_root.mkdir()
+            placement = RepositoryPlacement.standalone(
+                repository_root=repository_root,
+                state_root=state_root,
+                state_kind=StandaloneStateKind.SYNTHETIC,
+            )
+
+            policy = ProtectedLocationPolicy.for_placement(placement)
+
+        self.assertEqual(
+            policy.protected_roots,
+            (repository_root.resolve(), state_root.resolve()),
+        )
+        self.assertTrue(
+            policy.contains(
+                original_path=repository_root / "private",
+                resolved_path=repository_root / "private",
+            )
+        )
+        self.assertTrue(
+            policy.contains(
+                original_path=state_root / "private",
+                resolved_path=state_root / "private",
+            )
+        )
+        self.assertFalse(
+            policy.contains(
+                original_path=external_root,
+                resolved_path=external_root,
+            )
+        )
+
+    def test_flat_compatibility_policy_revalidates_repository_identity(self) -> None:
+        root = Path(Path.cwd().anchor) / "synthetic" / "flat-repository"
+        calls = 0
+
+        def drifting_inspector(path: Path) -> DirectoryIdentity:
+            nonlocal calls
+            calls += 1
+            return DirectoryIdentity(path, 7, 11 if calls == 1 else 12)
+
+        with self.assertRaises(PlacementError) as caught:
+            ProtectedLocationPolicy.for_repository(
+                root,
+                inspect_directory=drifting_inspector,
+            )
+
+        self.assertEqual(caught.exception.code, "placement_identity_changed")
+        self.assertEqual(calls, 2)
+
+    def test_flat_compatibility_policy_rejects_partial_managed_layout(self) -> None:
+        roots = (
+            (
+                Path(Path.cwd().anchor)
+                / "synthetic"
+                / "not-the-container"
+                / "main"
+            ),
+            (
+                Path(Path.cwd().anchor)
+                / "synthetic"
+                / "email_ai_assistant"
+                / "Worktrees"
+                / "issue-33"
+            ),
+        )
+
+        for root in roots:
+            with self.subTest(root=root):
+                with self.assertRaises(PlacementError) as caught:
+                    ProtectedLocationPolicy.for_repository(
+                        root,
+                        inspect_directory=lambda path: DirectoryIdentity(
+                            path,
+                            7,
+                            11,
+                        ),
+                    )
+
+                self.assertEqual(
+                    caught.exception.code,
+                    "managed_relationship_invalid",
+                )
+
+    def test_policy_cannot_be_constructed_with_caller_supplied_roots(self) -> None:
+        with self.assertRaises(TypeError):
+            ProtectedLocationPolicy(protected_roots=())
 
 
 class OperationalLayoutTests(unittest.TestCase):

@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TypeVar
 
+from backend.project_layout import ProtectedLocationPolicy
+
 from .sales_message_policy import parse_sales_corpus_policy
 
 _MAX_POLICY_BYTES = 64 * 1024
@@ -61,13 +63,19 @@ def _system_temp_root() -> Path:
 def _location_validator(project_root: Path) -> Callable[[Path], Path]:
     if not project_root.is_absolute():
         raise ValueError
-    project = project_root.resolve(strict=False)
-    temporary = _system_temp_root().resolve(strict=False)
+    protected = ProtectedLocationPolicy.for_repository(project_root)
+    temporary_source = _system_temp_root()
+    temporary = temporary_source.resolve(strict=False)
 
     def validate(source: Path) -> Path:
         target = _validate_read_path(source)
         if (
-            _inside(target, project)
+            source != target
+            or protected.contains(
+                original_path=source,
+                resolved_path=target,
+            )
+            or _inside(source, temporary_source)
             or _inside(target, temporary)
             or _has_onedrive_component(source)
             or _has_onedrive_component(target)

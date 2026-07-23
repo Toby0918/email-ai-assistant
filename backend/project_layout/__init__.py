@@ -4,6 +4,7 @@ from .errors import PlacementError
 from .identity import DirectoryIdentity
 from .operational import OperationalLayout
 from .placement import RepositoryPlacement, StandaloneStateKind
+from .protected_location import ProtectedLocationPolicy
 from .transition import FlatOperationalLayoutAdapter
 
 __all__ = [
@@ -11,6 +12,7 @@ __all__ = [
     "DirectoryIdentity",
     "OperationalLayout",
     "PlacementError",
+    "ProtectedLocationPolicy",
     "RepositoryPlacement",
     "StandaloneStateKind",
 ]

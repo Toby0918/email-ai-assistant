@@ -199,6 +199,49 @@ class PrivateEvaluationRepositoryTests(unittest.TestCase):
         with self.assertRaisesRegex(PrivateEvaluationError, "dataset_unavailable"):
             _validate_external_dataset_path(link / "private.pkeval")
 
+    def test_external_dataset_rejects_every_project_container_zone(self) -> None:
+        from backend.private_evaluation import repository_path
+
+        container = self.root / "managed" / "email_ai_assistant"
+        repository = container / "main"
+        repository.mkdir(parents=True)
+        zones = (
+            container,
+            repository,
+            container / "Runtimes",
+            container / "LocalData",
+            container / "RuntimeTemp",
+            container / "Logs",
+            container / "Artifacts",
+            container / "Worktrees",
+            container / "Config",
+            container / "OperatorPrivate",
+        )
+
+        with patch.object(
+            repository_path,
+            "_PROJECT_ROOT",
+            repository,
+        ), patch(
+            "backend.private_evaluation.repository_path.tempfile.gettempdir",
+            return_value="C:/SyntheticPolicyTemp",
+        ):
+            for zone in zones:
+                with self.subTest(zone=zone), self.assertRaisesRegex(
+                    PrivateEvaluationError,
+                    "dataset_unavailable",
+                ):
+                    repository_path._validate_external_dataset_path(
+                        zone / "nested" / "dataset.pkeval"
+                    )
+
+            external = self.root / "external" / "dataset.pkeval"
+            external.parent.mkdir()
+            self.assertEqual(
+                repository_path._validate_external_dataset_path(external),
+                external,
+            )
+
     def test_dataset_root_rejects_descendant_raw_vault_and_private_store_markers(self) -> None:
         from backend.private_evaluation.repository import (
             _inside_raw_vault,

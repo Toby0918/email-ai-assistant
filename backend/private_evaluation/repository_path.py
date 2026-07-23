@@ -7,6 +7,8 @@ import stat
 import tempfile
 from pathlib import Path
 
+from backend.project_layout import ProtectedLocationPolicy
+
 from .errors import PrivateEvaluationError
 
 
@@ -20,6 +22,7 @@ _OTHER_STORE_MARKERS = frozenset({
 })
 _MAX_DESCENDANT_ENTRIES = 4_096
 _MAX_DESCENDANT_DEPTH = 16
+_PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _validate_external_dataset_path(value: Path) -> Path:
@@ -28,20 +31,27 @@ def _validate_external_dataset_path(value: Path) -> Path:
 
 def _validate_external_private_path(value: Path, suffix: str) -> Path:
     path = Path(value)
-    if not path.is_absolute() or path.suffix != suffix:
+    if not path.is_absolute() or ".." in path.parts or path.suffix != suffix:
         _unavailable()
     try:
         _reject_reparse(path)
         resolved = path.resolve(strict=False)
         _reject_reparse(resolved)
-    except (OSError, RuntimeError):
+        protected = ProtectedLocationPolicy.for_repository(_PROJECT_ROOT)
+    except Exception:
         _unavailable()
-    project = Path(__file__).resolve().parents[2]
     temporary = Path(tempfile.gettempdir()).resolve()
-    forbidden = (project, temporary)
     if (
-        any(resolved == root or root in resolved.parents for root in forbidden)
-        or any(part.casefold().startswith("onedrive") for part in (*path.parts, *resolved.parts))
+        resolved != path
+        or protected.contains(original_path=path, resolved_path=resolved)
+        or any(
+            candidate == temporary or temporary in candidate.parents
+            for candidate in (path, resolved)
+        )
+        or any(
+            part.casefold().startswith("onedrive")
+            for part in (*path.parts, *resolved.parts)
+        )
         or (resolved.exists() and not resolved.is_file())
         or _inside_raw_vault(resolved)
         or _overlaps_other_store(resolved)
