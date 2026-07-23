@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-15
+last_update: 2026-07-23
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -8,7 +8,8 @@ source_type: operation_guide
 
 # Cleanup Agent
 
-本文件定义后台清理 Agent 的职责、边界、定时运行方式和输出要求。
+本文件定义手动只读维护扫描的职责、边界和输出要求。旧 Codex
+`weekly-cleanup-agent` 已由操作员删除。
 
 后台清理 Agent 的目的不是自动重构项目，而是定期扫描项目卫生问题，生成独立、可 review、可回滚的小修复任务。
 
@@ -48,14 +49,21 @@ Cleanup Agent 只能做低风险维护任务。它不得改变产品边界、不
 第一阶段建议每周一次。  
 不建议每天运行，以免产生过多低价值噪声。
 
-当前推荐使用 Codex 自动化任务运行，规范见：
+当前本地和 Codex cleanup scan 只允许由操作员手动运行:
 
 ```text
-docs/operations/cleanup_agent_codex.md
-docs/operations/codex_cleanup_task.md
+scripts/maintenance_scan.py
 ```
 
-如项目中存在 `.github/workflows/cleanup_agent.yml`，它只能作为可选报告通道或 CI 补充，不得改变本文件定义的只读扫描边界。
+`docs/operations/cleanup_agent_codex.md` 和
+`docs/operations/codex_cleanup_task.md` 仅保留 deprecated 历史记录，不得用于
+自动恢复任务。
+
+仓库当前仍存在 `.github/workflows/cleanup_agent.yml`，其中定义 weekly scheduled
+GitHub Actions scan。删除 Codex `weekly-cleanup-agent` 不会停用该 workflow。本轮
+只同步事实，没有修改或验证其 remote enabled state；停用或移除必须另建 approved
+Issue。在此之前，不得声称整个项目不存在 scheduled cleanup automation。该 workflow
+仍不得改变本文件定义的只读扫描边界。
 
 ## 3. 标准执行流程
 

@@ -42,7 +42,7 @@
 - 静态检查：`docs/constraints/linter_constraints.md`
 - CI 护栏：`docs/constraints/ci_guardrails.md`
 - 后台清理 Agent：`docs/operations/cleanup_agent.md`
-- Codex 清理自动化：`docs/operations/cleanup_agent_codex.md`
+- 已退役的 Codex cleanup automation 记录：`docs/operations/cleanup_agent_codex.md`
 
 ## 技术基线
 
@@ -193,11 +193,30 @@ python -m unittest discover -s tests
 python scripts/generate_project_status.py --output docs/operations/project_status_log.md
 ```
 
+## Repository placement compatibility
+
+Issue #30 introduces the pure `RepositoryPlacement` and `OperationalLayout`
+interfaces in `backend/project_layout/`. Managed Container Mode accepts only the
+canonical `email_ai_assistant\main` relationship. Standalone Verification Mode
+requires an explicit synthetic or temporary state root. The transition adapter
+preserves the current `.venv`, `outputs`, and `.worktrees` locations without
+adding a third final placement mode.
+
+This compatibility seam does not create or move directories, perform the real
+Project Container migration, route the local service, access mailbox/provider/
+vault/credential/private-store state, or start Issue #31 through #40.
+
 ## 后台清理扫描
 
-每周定时扫描优先由 Codex 自动化任务 `Weekly Cleanup Agent` 执行，规范见 `docs/operations/cleanup_agent_codex.md`，任务 Prompt 源文件见 `docs/operations/codex_cleanup_task.md`。如保留 `.github/workflows/cleanup_agent.yml`，它只作为可选报告通道或 CI 补充。
+旧 Codex `Weekly Cleanup Agent` 已由操作员删除，deprecated 记录见
+`docs/operations/cleanup_agent_codex.md` 和
+`docs/operations/codex_cleanup_task.md`。仓库仍包含单独的
+`.github/workflows/cleanup_agent.yml` weekly scheduled workflow definition；
+本次同步没有停用或移除它，后续处置需要单独 approved Issue。
 
-该 Agent 只读扫描并生成报告，不会自动删除文件、修改 Prompt、放宽约束或合并代码。
+本地和 Codex 维护扫描目前只允许手动只读运行，不会自动删除文件、修改 Prompt、
+放宽约束或合并代码。未来 weekly code-review automation 仍未获实施授权；规划入口
+见 `docs/operations/project_container_migration_task_brief.md` 的 8.11 节。
 
 本地运行：
 

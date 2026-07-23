@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-22
+last_update: 2026-07-23
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -285,7 +285,23 @@ current-click evidence seam.
 [ ] Tests use only synthetic data and do not access a mailbox, vault, provider, DPAPI, BitLocker, or ignored SQLite file.
 ```
 
-## 21. 执行后记录
+## 21. Repository placement and operational layout checklist
+
+Complete this section whenever a task changes Repository Root, Project
+Container, ordinary operational locations, or the flat-layout transition seam.
+
+```text
+[ ] `RepositoryPlacement` has exactly Managed and explicit Standalone modes; no implicit third placement mode is added.
+[ ] Managed mode accepts only the canonical `email_ai_assistant/main` relationship.
+[ ] Standalone mode requires an explicit separate synthetic or temporary state root.
+[ ] Missing, changing, aliased, non-normalized, or reparse-bearing identity evidence fails closed with a fixed content-free code.
+[ ] `OperationalLayout` returns only absolute ordinary paths derived from validated placement and never follows child aliases.
+[ ] The flat-layout adapter is temporary compatibility only and creates no directory or migration side effect.
+[ ] The seam imports no mailbox, provider, vault, credential, private-store, persistence, frontend, or normal-runtime capability.
+[ ] Tests are synthetic/offline and perform no real migration or Managed Container creation.
+```
+
+## 22. 执行后记录
 
 任务完成后填写。
 
