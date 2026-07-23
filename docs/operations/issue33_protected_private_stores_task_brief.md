@@ -23,7 +23,7 @@ security
 ## 3. Current status
 
 ```text
-in_progress
+verification_complete_review_pending
 ```
 
 ## 4. Goal
@@ -309,9 +309,11 @@ Verification:
 - Current focused matrix after review fixes: 247 tests passed, 1 skipped.
 - Pre-review full regression: 1,721 tests passed, 1 skipped, with both provider
   environment switches explicitly disabled.
+- Post-initial-review full regression: 1,728 tests passed, 1 skipped, with both
+  provider environment switches explicitly disabled.
 - Project Python 3.12.13, SQLite 3.50.4, and all pinned dependency versions
   match the documented baseline.
-- Python compile checks, every frontend JavaScript syntax check, browser
+- Python compile checks, all 10 frontend JavaScript syntax checks, browser
   manifest JSON validation, and 43 focused leakage/maintenance/status tests
   pass.
 - Generated `docs/operations/project_status_log.md` records the Issue #33
@@ -319,8 +321,7 @@ Verification:
 - `scripts/maintenance_scan.py --fail-on-high` reports no cleanup findings.
 - `git diff --check` passes; line-ending conversion warnings are informational
   for the existing Windows checkout policy.
-- Standards/Spec re-review, post-review full regression, and final staged-diff
-  verification remain pending.
+- Standards/Spec re-review and final staged-diff verification remain pending.
 
 Open items:
 
@@ -337,8 +338,7 @@ Open items:
   primitive refactor requires a separately bounded task.
 - Standards and Spec re-review against
   `a42430d7433d84188558ab7ac5e5a32555a7ee60`.
-- Final offline verification, scoped commit/push, and a non-draft PR containing
-  `Closes #33`.
+- Scoped commit/push and a non-draft PR containing `Closes #33`.
 
 Follow-up:
 
