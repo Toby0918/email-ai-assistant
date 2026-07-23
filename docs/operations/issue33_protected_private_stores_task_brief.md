@@ -23,7 +23,7 @@ security
 ## 3. Current status
 
 ```text
-verification_complete_review_pending
+implemented
 ```
 
 ## 4. Goal
@@ -314,6 +314,8 @@ Verification:
   environment switches explicitly disabled.
 - Post-initial-review full regression: 1,728 tests passed, 1 skipped, with both
   provider environment switches explicitly disabled.
+- Final post-review-fix full regression at `a4c2401`: 1,728 tests passed,
+  1 skipped, with both provider environment switches explicitly disabled.
 - Project Python 3.12.13, SQLite 3.50.4, and all pinned dependency versions
   match the documented baseline.
 - Python compile checks, all 10 frontend JavaScript syntax checks, browser
@@ -324,9 +326,10 @@ Verification:
 - `scripts/maintenance_scan.py --fail-on-high` reports no cleanup findings.
 - `git diff --check` passes; line-ending conversion warnings are informational
   for the existing Windows checkout policy.
-- Standards/Spec re-review and final staged-diff verification remain pending.
+- Final Standards re-review reports no P1/P2 and one recorded non-blocking P3;
+  final Spec re-review reports no findings.
 
-Open items:
+Review closeout:
 
 - Initial Standards review reported one P2 exact reserved-field documentation
   mismatch; the architecture document and executable exact-list assertion are
@@ -343,9 +346,8 @@ Open items:
   similar domain-specific path-evidence flows. This is non-blocking because
   their fixed error families and create/read semantics differ; any shared
   primitive refactor requires a separately bounded task.
-- Standards and Spec re-review against
-  `a42430d7433d84188558ab7ac5e5a32555a7ee60`.
-- Scoped commit/push and a non-draft PR containing `Closes #33`.
+- Delivery uses a scoped push and non-draft PR containing `Closes #33`; it does
+  not merge the branch or close parent Spec #29.
 
 Follow-up:
 
