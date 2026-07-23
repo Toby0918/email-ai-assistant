@@ -290,7 +290,11 @@ Test results:
 - Initial Standards/Spec review findings were addressed: project status and this
   record were updated; health/analysis became lifecycle commands; derived
   operational directories and writable targets now fail closed on reparse
-  evidence. Re-review runs against the resulting fix commit.
+  evidence.
+- The second Spec review reported no findings. The second Standards review
+  found that flat mode could invoke the synthetic analysis POST; a RED test now
+  proves flat mode is rejected before the injected HTTP requester. Final
+  Standards re-review runs against that fix.
 
 Incomplete items:
 
@@ -299,6 +303,12 @@ Incomplete items:
 - Normal non-blocking P3: the initial review noted duplicated standalone path
   derivation across manager and launcher. The fix centralized that derivation
   in `backend.email_agent.standalone_verification`.
+- Normal non-blocking P3: the second Standards review noted that
+  `scripts/manage_local_service.py` now owns both process lifecycle and the
+  small synthetic verification HTTP client and exceeds the 300-line
+  recommendation. Extraction is deferred because it is advisory, behavior is
+  covered through injected boundaries, and a broader refactor is not required
+  for Issue #31.
 
 Follow-up suggestions:
 

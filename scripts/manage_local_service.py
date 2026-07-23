@@ -185,6 +185,11 @@ def analyze_synthetic_email(
     requester: AnalysisRequester | None = None,
 ) -> CommandResult:
     validate_local_server_host(config.host)
+    if (
+        config.standalone_state_root is None
+        or config.standalone_config is None
+    ):
+        return CommandResult(7, "standalone state required", "error")
     request_analysis = requester or _request_synthetic_analysis
     response = request_analysis(
         config.host,

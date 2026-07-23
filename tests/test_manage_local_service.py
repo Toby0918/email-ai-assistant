@@ -163,7 +163,6 @@ class ManageLocalServiceTests(unittest.TestCase):
         self,
     ) -> None:
         requests: list[tuple[str, int, dict[str, object], float]] = []
-        config = self._config(Path("service.pid"))
 
         def request_analysis(
             host: str,
@@ -180,10 +179,18 @@ class ManageLocalServiceTests(unittest.TestCase):
                 },
             }
 
-        result = manager.analyze_synthetic_email(
-            config,
-            requester=request_analysis,
-        )
+        with tempfile.TemporaryDirectory() as temporary:
+            config = manager.config_from_args(
+                manager.build_parser().parse_args([
+                    "analysis",
+                    "--standalone-state-root",
+                    temporary,
+                ])
+            )
+            result = manager.analyze_synthetic_email(
+                config,
+                requester=request_analysis,
+            )
 
         self.assertEqual((result.exit_code, result.status), (0, "ok"))
         self.assertEqual(len(requests), 1)
@@ -197,7 +204,6 @@ class ManageLocalServiceTests(unittest.TestCase):
     def test_analysis_command_fails_closed_without_rule_result_and_persistence(
         self,
     ) -> None:
-        config = self._config(Path("service.pid"))
         invalid_responses = (
             {"ok": False},
             {
@@ -215,15 +221,44 @@ class ManageLocalServiceTests(unittest.TestCase):
             },
         )
 
-        for response in invalid_responses:
-            with self.subTest(response=response):
-                result = manager.analyze_synthetic_email(
-                    config,
-                    requester=lambda host, port, payload, timeout: response,
-                )
+        with tempfile.TemporaryDirectory() as temporary:
+            config = manager.config_from_args(
+                manager.build_parser().parse_args([
+                    "analysis",
+                    "--standalone-state-root",
+                    temporary,
+                ])
+            )
+            for response in invalid_responses:
+                with self.subTest(response=response):
+                    result = manager.analyze_synthetic_email(
+                        config,
+                        requester=lambda host, port, payload, timeout: response,
+                    )
 
-                self.assertEqual((result.exit_code, result.status), (6, "error"))
-                self.assertEqual(result.message, "synthetic analysis failed")
+                    self.assertEqual(
+                        (result.exit_code, result.status),
+                        (6, "error"),
+                    )
+                    self.assertEqual(
+                        result.message,
+                        "synthetic analysis failed",
+                    )
+
+    def test_analysis_command_rejects_flat_mode_before_http_request(self) -> None:
+        requests: list[dict[str, object]] = []
+        config = self._config(Path("service.pid"))
+
+        result = manager.analyze_synthetic_email(
+            config,
+            requester=lambda host, port, payload, timeout: requests.append(
+                payload
+            ) or {},
+        )
+
+        self.assertEqual((result.exit_code, result.status), (7, "error"))
+        self.assertEqual(result.message, "standalone state required")
+        self.assertEqual(requests, [])
 
     def test_standalone_start_passes_state_root_and_uses_explicit_log(
         self,

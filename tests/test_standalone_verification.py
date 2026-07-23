@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import stat
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from backend.project_layout import DirectoryIdentity, PlacementError
 from backend.email_agent.standalone_verification import (
@@ -65,6 +68,37 @@ class StandaloneVerificationTests(unittest.TestCase):
             with self.assertRaisesRegex(
                 PlacementError,
                 "placement_reparse_forbidden",
+            ):
+                prepare_standalone_runtime(
+                    repository_root=ROOT,
+                    state_root=state_root,
+                    inspect_directory=inspect_directory,
+                )
+
+    def test_prepared_runtime_rejects_reparse_writable_file_target(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            state_root = Path(temporary)
+
+            def inspect_directory(path: Path) -> DirectoryIdentity:
+                candidate = Path(path)
+                return DirectoryIdentity(
+                    canonical_path=candidate,
+                    device=1,
+                    inode=max(1, abs(hash(str(candidate)))),
+                )
+
+            reparse_file = SimpleNamespace(
+                st_mode=stat.S_IFLNK | 0o777,
+                st_file_attributes=0,
+            )
+            with (
+                patch.object(Path, "lstat", return_value=reparse_file),
+                self.assertRaisesRegex(
+                    PlacementError,
+                    "placement_reparse_forbidden",
+                ),
             ):
                 prepare_standalone_runtime(
                     repository_root=ROOT,
