@@ -203,8 +203,12 @@ class RepositoryPlacementTests(unittest.TestCase):
         self.assertEqual(caught.exception.code, "placement_alias_invalid")
 
     def test_injected_identity_cannot_bless_parent_reference_alias(self) -> None:
-        project_container = Path(
-            "C:/synthetic/alias/../email_ai_assistant"
+        project_container = (
+            Path(Path.cwd().anchor)
+            / "synthetic"
+            / "alias"
+            / ".."
+            / "email_ai_assistant"
         )
         repository_root = project_container / "main"
 
