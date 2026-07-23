@@ -41,8 +41,9 @@ source_type: operation_guide
 
 ### Standalone Verification Mode
 
-- Pass the same existing absolute temporary directory to start, status,
-  restart, and stop with `--standalone-state-root <absolute-temporary-path>`.
+- Pass the same existing absolute temporary directory to start, status, health,
+  analysis, restart, and stop with
+  `--standalone-state-root <absolute-temporary-path>`.
 - The validated temporary layout owns
   `LocalData/email_agent.sqlite3`, `RuntimeTemp/attachment_temp`,
   `Logs/local_debug_service.log`, and `Logs/local_debug_service.pid`.
@@ -52,9 +53,12 @@ source_type: operation_guide
   fallback, and no private-knowledge bootstrap. Ollama, Qwen, Gemma, mailbox
   ingest, private evaluation, raw vault, and Operator Private stores remain
   disconnected.
-- Health and synthetic analysis use the unchanged loopback HTTP endpoints.
-  Current-message confirmation, SQLite persistence, attachment limits, and
-  lifecycle/request cleanup remain unchanged.
+- The lifecycle manager `health` command checks the unchanged loopback health
+  endpoint. Its `analysis` command posts only the fixed synthetic current-message
+  fixture and requires a persisted `rule_fallback` result.
+- Current-message confirmation, SQLite persistence, attachment limits, and
+  lifecycle/request cleanup remain unchanged. Pre-positioned reparse
+  operational directories or writable file targets fail closed.
 - This is not Managed Container Mode and performs no Project Container
   migration. Stop the service before manually removing temporary state.
 

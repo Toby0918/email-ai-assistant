@@ -34,7 +34,14 @@ class ManageLocalServiceTests(unittest.TestCase):
     def test_parser_exposes_service_commands(self) -> None:
         parser = manager.build_parser()
 
-        for command in ("start", "stop", "restart", "status"):
+        for command in (
+            "start",
+            "stop",
+            "restart",
+            "status",
+            "health",
+            "analysis",
+        ):
             with self.subTest(command=command):
                 args = parser.parse_args([command])
                 self.assertEqual(args.command, command)
@@ -116,7 +123,14 @@ class ManageLocalServiceTests(unittest.TestCase):
                         str(state_root),
                     ])
                 )
-                for command in ("start", "status", "restart", "stop")
+                for command in (
+                    "start",
+                    "status",
+                    "health",
+                    "analysis",
+                    "restart",
+                    "stop",
+                )
             }
 
         expected = configs["start"]
@@ -126,6 +140,90 @@ class ManageLocalServiceTests(unittest.TestCase):
                 self.assertEqual(config.attachment_temp_dir, expected.attachment_temp_dir)
                 self.assertEqual(config.log_file, expected.log_file)
                 self.assertEqual(config.pid_file, expected.pid_file)
+
+    def test_health_command_uses_injected_health_checker(self) -> None:
+        config = self._config(Path("service.pid"))
+
+        healthy = manager.health_service(
+            config,
+            health_checker=lambda host, port, timeout: True,
+        )
+        unhealthy = manager.health_service(
+            config,
+            health_checker=lambda host, port, timeout: False,
+        )
+
+        self.assertEqual((healthy.exit_code, healthy.status), (0, "healthy"))
+        self.assertEqual(
+            (unhealthy.exit_code, unhealthy.status),
+            (3, "unhealthy"),
+        )
+
+    def test_analysis_command_posts_only_fixed_synthetic_current_message(
+        self,
+    ) -> None:
+        requests: list[tuple[str, int, dict[str, object], float]] = []
+        config = self._config(Path("service.pid"))
+
+        def request_analysis(
+            host: str,
+            port: int,
+            payload: dict[str, object],
+            timeout: float,
+        ) -> dict[str, object]:
+            requests.append((host, port, payload, timeout))
+            return {
+                "ok": True,
+                "saved_id": 1,
+                "analysis": {
+                    "analysis_engine": {"source": "rule_fallback"}
+                },
+            }
+
+        result = manager.analyze_synthetic_email(
+            config,
+            requester=request_analysis,
+        )
+
+        self.assertEqual((result.exit_code, result.status), (0, "ok"))
+        self.assertEqual(len(requests), 1)
+        host, port, payload, timeout = requests[0]
+        self.assertEqual((host, port), ("127.0.0.1", 8765))
+        self.assertGreater(timeout, 0)
+        self.assertIs(payload["user_confirmed"], True)
+        self.assertEqual(payload["from"], "buyer@example.test")
+        self.assertNotIn("attachment_files", payload)
+
+    def test_analysis_command_fails_closed_without_rule_result_and_persistence(
+        self,
+    ) -> None:
+        config = self._config(Path("service.pid"))
+        invalid_responses = (
+            {"ok": False},
+            {
+                "ok": True,
+                "saved_id": 1,
+                "analysis": {
+                    "analysis_engine": {"source": "ai_model"}
+                },
+            },
+            {
+                "ok": True,
+                "analysis": {
+                    "analysis_engine": {"source": "rule_fallback"}
+                },
+            },
+        )
+
+        for response in invalid_responses:
+            with self.subTest(response=response):
+                result = manager.analyze_synthetic_email(
+                    config,
+                    requester=lambda host, port, payload, timeout: response,
+                )
+
+                self.assertEqual((result.exit_code, result.status), (6, "error"))
+                self.assertEqual(result.message, "synthetic analysis failed")
 
     def test_standalone_start_passes_state_root_and_uses_explicit_log(
         self,

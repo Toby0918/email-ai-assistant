@@ -23,7 +23,7 @@ feature
 ## 3. Current status
 
 ```text
-in_progress
+verification_complete_review_pending
 ```
 
 ## 4. Goal
@@ -72,11 +72,13 @@ health, analysis, restart, and stop verification.
 Expected implementation and test paths:
 
 - `backend/email_agent/config.py`
+- `backend/email_agent/standalone_verification.py`
 - `scripts/manage_local_service.py`
 - `scripts/run_local_debug.py`
 - `tests/test_config.py`
 - `tests/test_manage_local_service.py`
 - `tests/test_run_local_debug.py`
+- `tests/test_standalone_verification.py`
 - focused architecture and documentation contract tests where required
 - Standalone Verification Mode operations and setup documentation
 - `docs/operations/project_status_log.md`
@@ -84,11 +86,14 @@ Expected implementation and test paths:
 ## 8. Technical approach
 
 1. Add an explicit `--standalone-state-root` option to the existing lifecycle
-   manager and local-debug launcher. The value must identify an existing,
+   manager and local-debug launcher. Add lifecycle-manager `health` and fixed
+   synthetic `analysis` commands. The state value must identify an existing,
    separate, absolute temporary directory accepted by
    `RepositoryPlacement.standalone`.
-2. Resolve `OperationalLayout` from that validated placement. Derive SQLite,
-   attachment temporary files, logs, and PID state under the state root only.
+2. Resolve `OperationalLayout` from that validated placement. Create and
+   revalidate ordinary operational directories, reject reparse writable
+   targets, and derive SQLite, attachment temporary files, logs, and PID state
+   under the state root only.
 3. Build a deterministic Standalone Verification `AppConfig` without loading
    `.env` or provider/private configuration from the process environment.
    Remote and local providers remain disabled, provider keys are absent, private
@@ -148,8 +153,8 @@ select a provider, change a path, load credentials, or execute commands.
 ## 12. Acceptance criteria
 
 1. All Issue #31 acceptance criteria are satisfied.
-2. `start`, `status`, `restart`, and `stop` use the existing lifecycle-manager
-   interface with the same explicit state root.
+2. `start`, `status`, `health`, `analysis`, `restart`, and `stop` use the
+   existing lifecycle-manager interface with the same explicit state root.
 3. `/api/health` returns HTTP 200 and one synthetic user-confirmed analysis
    returns a valid provider-disabled rule result.
 4. SQLite, attachment temporary files, diagnostics log, and PID state are all
@@ -254,15 +259,46 @@ Not applicable. Mailbox sync and current-click evidence handoffs are unchanged.
 
 Actual changed files:
 
-- Pending implementation and final verification.
+- `README.md`
+- `backend/email_agent/config.py`
+- `backend/email_agent/standalone_verification.py`
+- `docs/operations/deployment_notes.md`
+- `docs/operations/issue31_standalone_verification_task_brief.md`
+- `docs/operations/project_status_log.md`
+- `docs/operations/testing_checklist.md`
+- `scripts/manage_local_service.py`
+- `scripts/run_local_debug.py`
+- `tests/test_config.py`
+- `tests/test_manage_local_service.py`
+- `tests/test_run_local_debug.py`
+- `tests/test_standalone_verification.py`
 
 Test results:
 
-- Pending RED to GREEN implementation, review, and final verification.
+- TDD RED failures were observed before each standalone path/config,
+  lifecycle-manager command, and reparse-guard implementation.
+- Focused configuration, lifecycle, launcher, server/API, placement,
+  architecture, static-linter, and mechanical regression: 169 tests passed.
+- Full regression: 1698 tests passed, 1 skipped.
+- Complete lifecycle-manager smoke passed start, status, health, fixed synthetic
+  analysis, restart, health, and stop with hostile provider/private environment
+  values ignored. The result used `rule_fallback`, persisted exactly one SQLite
+  row, removed PID state on stop, and created no repository `outputs/`.
+- Python compileall, 10 JavaScript syntax checks, manifest JSON validation, 69
+  focused guard tests, maintenance scan, repository leakage scan, and
+  `git diff --check` passed.
+- Initial Standards/Spec review findings were addressed: project status and this
+  record were updated; health/analysis became lifecycle commands; derived
+  operational directories and writable targets now fail closed on reparse
+  evidence. Re-review runs against the resulting fix commit.
 
 Incomplete items:
 
-- Pending implementation.
+- No Issue #31 implementation item remains. Final review recording and
+  authorized GitHub publication remain.
+- Normal non-blocking P3: the initial review noted duplicated standalone path
+  derivation across manager and launcher. The fix centralized that derivation
+  in `backend.email_agent.standalone_verification`.
 
 Follow-up suggestions:
 

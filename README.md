@@ -124,31 +124,22 @@ New-Item -ItemType Directory -Path $standaloneRoot
 
 python scripts/manage_local_service.py start --standalone-state-root $standaloneRoot
 python scripts/manage_local_service.py status --standalone-state-root $standaloneRoot
-Invoke-RestMethod http://127.0.0.1:8765/api/health
-
-$syntheticRequest = @{
-  user_confirmed = $true
-  subject = "Synthetic delivery question"
-  from = "buyer@example.test"
-  to = @("sales@example.test")
-  body_text = "Can you confirm a synthetic delivery window?"
-} | ConvertTo-Json
-Invoke-RestMethod -Method Post `
-  -Uri http://127.0.0.1:8765/api/analyze-current-email `
-  -ContentType "application/json" `
-  -Body $syntheticRequest
-
+python scripts/manage_local_service.py health --standalone-state-root $standaloneRoot
+python scripts/manage_local_service.py analysis --standalone-state-root $standaloneRoot
 python scripts/manage_local_service.py restart --standalone-state-root $standaloneRoot
 python scripts/manage_local_service.py stop --standalone-state-root $standaloneRoot
 ```
 
 The mode derives SQLite, attachment temporary files, logs, and PID state below
-that root. It ignores repository `.env` credentials and forces all providers
-and private knowledge off; mailbox ingest, private evaluation, and raw-vault
-capabilities are not connected. It preserves loopback validation, click
-confirmation, persistence, the 5-file/10-MiB/25-MiB attachment limits, and
-cleanup behavior. Use synthetic inputs only. Remove the temporary directory
-only after `stop` if its verification artifacts are no longer needed.
+that root and rejects pre-positioned reparse paths. The `analysis` command sends
+only its fixed `example.test` current-message fixture and succeeds only after a
+provider-disabled rule result is persisted. The mode ignores repository `.env`
+credentials and forces all providers and private knowledge off; mailbox ingest,
+private evaluation, and raw-vault capabilities are not connected. It preserves
+loopback validation, click confirmation, persistence, the
+5-file/10-MiB/25-MiB attachment limits, and cleanup behavior. Remove the
+temporary directory only after `stop` if its verification artifacts are no
+longer needed.
 
 Windows 可直接双击这些快捷脚本：
 

@@ -11,12 +11,15 @@ source_type: operation_guide
 ## Standalone Verification Mode
 
 - Use one pre-created absolute temporary directory with
-  `--standalone-state-root` for start, status, restart, and stop.
+  `--standalone-state-root` for start, status, health, analysis, restart, and
+  stop.
 - Verify health and analysis only with injected adapters in automated tests;
   use a synthetic `example.test` request for an explicitly authorized manual
   loopback smoke.
 - Assert SQLite, attachment temporary files, logs, and PID state stay below the
   temporary root and do not enter repository `outputs/`.
+- Reject injected reparse identity for operational directories and reject
+  reparse writable file targets before lifecycle actions.
 - Assert the ignored repository `.env` is not loaded and every provider,
   mailbox ingest, private evaluation, private knowledge, and raw-vault
   capability remains disabled.

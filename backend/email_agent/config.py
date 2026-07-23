@@ -68,7 +68,7 @@ def build_standalone_verification_config(
         attachment_max_files=5,
         attachment_max_file_bytes=10 * 1024 * 1024,
         attachment_max_total_bytes=25 * 1024 * 1024,
-        internal_email_domains=("example.test",),
+        internal_email_domains=("cndlf.com",),
         text_fallback_provider="disabled",
         private_knowledge_enabled=False,
         private_knowledge_authority_root="",

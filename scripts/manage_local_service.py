@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import signal
 import subprocess
@@ -22,16 +23,14 @@ if str(ROOT) not in sys.path:
 from backend.email_agent import attachment_storage
 from backend.email_agent import config as backend_config
 from backend.email_agent.server import validate_local_server_host
-from backend.project_layout import (
-    OperationalLayout,
-    RepositoryPlacement,
-    StandaloneStateKind,
+from backend.email_agent.standalone_verification import (
+    prepare_standalone_runtime,
 )
 
 
 DEFAULT_PID_FILE = ROOT / "outputs" / "local_debug_service.pid"
 DEFAULT_LOG_FILE = ROOT / "outputs" / "local_debug_service.log"
-COMMANDS = ("start", "stop", "restart", "status")
+COMMANDS = ("start", "stop", "restart", "status", "health", "analysis")
 CLEANUP_FAILURE_MESSAGE = (
     "Attachment cleanup failed. Check the configured temporary directory and permissions, then retry."
 )
@@ -50,6 +49,7 @@ class ServiceConfig:
     log_file: Path = DEFAULT_LOG_FILE
     attachment_temp_dir: Path = ROOT / "outputs" / "attachment_temp"
     standalone_state_root: Path | None = None
+    standalone_config: backend_config.AppConfig | None = None
 
 
 @dataclass(frozen=True)
@@ -104,24 +104,23 @@ def config_from_args(args: argparse.Namespace) -> ServiceConfig:
             raise ValueError(
                 "operational paths are derived from standalone state root"
             )
-        placement = RepositoryPlacement.standalone(
+        runtime = prepare_standalone_runtime(
             repository_root=ROOT,
             state_root=Path(standalone_state_root),
-            state_kind=StandaloneStateKind.TEMPORARY,
         )
-        layout = OperationalLayout.for_placement(placement)
         return ServiceConfig(
             host=validate_local_server_host(args.host),
             port=args.port,
-            database=str(layout.data_root / "email_agent.sqlite3"),
-            pid_file=layout.log_root / "local_debug_service.pid",
+            database=str(runtime.database_path),
+            pid_file=runtime.pid_file,
             root=ROOT,
             python_executable=sys.executable,
             startup_timeout=args.startup_timeout,
             poll_interval=args.poll_interval,
-            log_file=layout.log_root / "local_debug_service.log",
-            attachment_temp_dir=layout.temporary_root / "attachment_temp",
-            standalone_state_root=placement.standalone_state_root,
+            log_file=runtime.log_file,
+            attachment_temp_dir=runtime.attachment_temp_dir,
+            standalone_state_root=runtime.state_root,
+            standalone_config=runtime.config,
         )
     return ServiceConfig(
         host=validate_local_server_host(args.host),
@@ -159,6 +158,52 @@ def status_service(
     if pid is not None:
         return CommandResult(3, f"stopped with stale pid={pid}", "stopped")
     return CommandResult(3, "stopped", "stopped")
+
+
+def health_service(
+    config: ServiceConfig,
+    health_checker: HealthChecker = check_health,
+) -> CommandResult:
+    validate_local_server_host(config.host)
+    if health_checker(config.host, config.port, 1.0):
+        return CommandResult(
+            0,
+            f"healthy url={_service_url(config)}",
+            "healthy",
+        )
+    return CommandResult(3, "unhealthy", "unhealthy")
+
+
+AnalysisRequester = Callable[
+    [str, int, dict[str, object], float],
+    dict[str, object],
+]
+
+
+def analyze_synthetic_email(
+    config: ServiceConfig,
+    requester: AnalysisRequester | None = None,
+) -> CommandResult:
+    validate_local_server_host(config.host)
+    request_analysis = requester or _request_synthetic_analysis
+    response = request_analysis(
+        config.host,
+        config.port,
+        _synthetic_analysis_payload(),
+        10.0,
+    )
+    analysis = response.get("analysis")
+    engine = analysis.get("analysis_engine") if isinstance(analysis, dict) else None
+    source = engine.get("source") if isinstance(engine, dict) else None
+    saved_id = response.get("saved_id")
+    if (
+        response.get("ok") is True
+        and source == "rule_fallback"
+        and type(saved_id) is int
+        and saved_id > 0
+    ):
+        return CommandResult(0, "synthetic analysis ok", "ok")
+    return CommandResult(6, "synthetic analysis failed", "error")
 
 
 def start_service(
@@ -250,6 +295,10 @@ def _dispatch(command: str, config: ServiceConfig) -> CommandResult:
         return stop_service(config)
     if command == "restart":
         return restart_service(config)
+    if command == "health":
+        return health_service(config)
+    if command == "analysis":
+        return analyze_synthetic_email(config)
     return status_service(config)
 
 
@@ -257,12 +306,7 @@ def _attempt_lifecycle_cleanup(
     service_config: ServiceConfig,
 ) -> tuple[CleanupResult, None] | tuple[None, CommandResult]:
     try:
-        cleanup_config = None
-        if service_config.standalone_state_root is not None:
-            cleanup_config = backend_config.build_standalone_verification_config(
-                sqlite_path=Path(service_config.database or ""),
-                attachment_temp_dir=service_config.attachment_temp_dir,
-            )
+        cleanup_config = service_config.standalone_config
         return run_cleanup_before_service_start(cleanup_config), None
     except LifecycleCleanupError:
         return None, CommandResult(5, CLEANUP_FAILURE_MESSAGE, "error")
@@ -404,6 +448,41 @@ def _remove_pid(pid_file: Path) -> None:
 
 def _service_url(config: ServiceConfig) -> str:
     return f"http://{config.host}:{config.port}"
+
+
+def _synthetic_analysis_payload() -> dict[str, object]:
+    return {
+        "user_confirmed": True,
+        "subject": "Synthetic delivery question",
+        "from": "buyer@example.test",
+        "to": ["sales@example.test"],
+        "body_text": "Can you confirm a synthetic delivery window?",
+    }
+
+
+def _request_synthetic_analysis(
+    host: str,
+    port: int,
+    payload: dict[str, object],
+    timeout: float,
+) -> dict[str, object]:
+    request = urllib.request.Request(
+        f"http://{host}:{port}/api/analyze-current-email",
+        data=json.dumps(payload).encode("utf-8"),
+        method="POST",
+        headers={"Content-Type": "application/json"},
+    )
+    try:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
+            decoded = json.loads(response.read().decode("utf-8"))
+    except (
+        json.JSONDecodeError,
+        OSError,
+        UnicodeDecodeError,
+        urllib.error.URLError,
+    ):
+        return {}
+    return decoded if isinstance(decoded, dict) else {}
 
 
 def _log_handle(log_file: Path) -> Any:
