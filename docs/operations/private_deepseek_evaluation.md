@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-20
+last_update: 2026-07-23
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -112,8 +112,11 @@ the complete 200-case batch and writes no partial file.
 The output suffix is exactly `.pkevalstage`. It uses AES-256-GCM, a fresh random
 nonce, bounded atomic replacement, reparse rejection, and distinct magic,
 purpose, and namespace from `.pkeval`, raw vault, and private knowledge. The
-absolute path is outside the project, OneDrive, system temp, raw vault, and every
-other private store. Post-replacement validation excludes only the exact target
+absolute path is outside the complete Project Container protected root,
+OneDrive, system temp, raw vault, and every other private store. The protected
+root is derived internally from freshly revalidated placement and cannot be
+supplied or narrowed through CLI, config, request, or environment input.
+Post-replacement validation excludes only the exact target
 from the descendant scan; sibling and descendant stores remain rejected. The
 32-byte staging/evaluation key comes only from hidden
 interactive base64 input; it has no flag, environment, `.env`, key-file, stdout,
@@ -149,8 +152,9 @@ The final dataset gets a fresh UUIDv4 `dataset_namespace`; it never reuses the
 stage namespace. The final frame keeps `.pkeval` magic and
 `private-evaluation-dataset/v1`, with a fresh random nonce, so stage/final magic,
 HKDF purpose, namespace and nonce remain distinct even though the master key is
-the same. The final target must be in a separate project/OneDrive/temp/raw-vault/
-private-store-external directory, must not exist, and passes bounded descriptor,
+the same. The final target must be outside the complete Project Container
+protected root, OneDrive, temp, raw vault, and every private store; it must not
+exist and passes bounded descriptor,
 reparse, parent/target identity and race checks. The publication helper's successful
 return is the final commit point; code never rolls back or unlinks the target by
 pathname. All reportable checks precede that point, and only best-effort internal-

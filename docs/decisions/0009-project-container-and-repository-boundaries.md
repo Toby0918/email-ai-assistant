@@ -10,10 +10,11 @@ source_type: decision_record
 
 ## Status
 
-Accepted as a design on 2026-07-23. The Issue #30 compatibility seam is
-implemented, but no Project Container directory migration or operational cutover
-has occurred. While this ADR remains draft, the current flat paths and the active
-security contracts in ADR 0006 through ADR 0008 remain authoritative.
+Accepted as a design on 2026-07-23. The Issue #30 compatibility seam and Issue
+#33 protected private-store policy are implemented, but no Project Container
+directory migration or operational cutover has occurred. While this ADR remains
+draft, the current flat paths and the active security contracts in ADR 0006
+through ADR 0008 remain authoritative.
 
 ### Issue #30 compatibility seam
 
@@ -29,6 +30,32 @@ temporary, and `.worktrees` mappings without becoming a third placement mode.
 This checkpoint creates or migrates no directory, routes no service, expands no
 private-storage policy, performs no container audit, and does not implement Issue
 #31 through #40.
+
+### Issue #33 protected private stores
+
+`ProtectedLocationPolicy` is a read-only standard-library value derived only from
+freshly revalidated `RepositoryPlacement` evidence or the bounded flat-layout
+compatibility path. Managed mode retains `(project_container,)` as its complete
+protected-root tuple; that single root covers the container, `main`, all eight
+sibling zones, and every descendant. A repository detected inside a Managed zone
+but not at the exact `main` relationship fails closed instead of being treated as
+an unrelated flat checkout.
+
+The same policy accepts a freshly revalidated explicit Standalone
+`RepositoryPlacement` and preserves both its Repository Root and separate state
+root. This is a non-public validation context only; it does not enable mailbox,
+private-knowledge, private-evaluation, raw-vault, or provider capability in
+Standalone Verification Mode.
+
+Private-knowledge authority/candidate/snapshot paths, private-evaluation stage
+and final datasets, new and existing mailbox vaults, current and new recovery
+locations, and the strict external sales-policy file now consume this policy
+internally. Candidate policies check original and resolved views and preserve
+their existing reparse, identity, store-separation, encryption, volume-evidence,
+and fixed-error contracts. Public requests remove `protected_roots` and
+`project_container`; no environment, config, frontend, normal-runtime, or CLI
+surface may supply or narrow the protected roots. This checkpoint performs no
+directory migration, container audit, ACL change, or real private-store access.
 
 ## Context
 
@@ -148,9 +175,8 @@ identity without additional error-prone reconstruction.
 
 ## Supersession boundary
 
-This draft ADR does not currently supersede ADR 0006, ADR 0007, or ADR 0008. A
-future implementation may redefine named `project_root` checks as Repository
-Root checks only after code, tests, security documentation, and mechanical
-guards agree. It may not weaken raw-vault volume requirements, recovery
-separation, provider-disabled defaults, mailbox isolation, or private-data
-handling.
+This draft ADR does not currently supersede ADR 0006, ADR 0007, or ADR 0008.
+Issue #33 redefines only project-external location checks to consume the complete
+Project Container protected-root contract. It does not weaken raw-vault volume
+requirements, recovery separation, provider-disabled defaults, mailbox
+isolation, or private-data handling.

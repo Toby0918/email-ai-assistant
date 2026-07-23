@@ -141,13 +141,24 @@ directory identity. Its `OperationalLayout` interface returns only absolute
 ordinary runtime, data, temporary, log, artifact, worktree, and non-secret
 configuration locations.
 
+Issue #33 adds the read-only `ProtectedLocationPolicy`. Managed policy keeps the
+single Project Container root, so `main`, all eight sibling zones, the container
+itself, and every descendant are protected. Private knowledge, private evaluation,
+mailbox vault/recovery, and strict sales-policy locations derive this value
+internally from freshly revalidated placement evidence. Public HTTP, frontend,
+normal runtime, environment, config, and CLI arguments cannot supply or narrow
+the roots. An explicit trusted Standalone `RepositoryPlacement` protects both
+Repository Root and its separate state root, while Standalone Verification Mode
+continues to disable every private/mailbox capability. Current and new recovery
+paths are both validated before recovery rewrap opens private material.
+
 This seam performs no directory creation, move, deletion, migration, mailbox or
 provider operation, secret read, vault/private-store access, ACL change, or host
 security change. Managed placement requires the exact canonical
 `email_ai_assistant\main` relationship. Standalone Verification Mode requires an
 explicit synthetic or temporary state root. The flat-layout adapter is temporary
-compatibility only and is not a third final placement mode. Issue #31 through #40
-remain separately authorized work.
+compatibility only and is not a third final placement mode. Issue #32 and Issues
+#34 through #40 remain separately authorized work.
 
 ## 技术栈基线
 

@@ -13,6 +13,7 @@ from backend.private_knowledge.storage_policy import (
     validate_private_storage,
     validate_stage_storage,
 )
+from backend.project_layout import RepositoryPlacement, StandaloneStateKind
 
 
 class PrivateKnowledgeStoragePolicyTests(unittest.TestCase):
@@ -20,6 +21,7 @@ class PrivateKnowledgeStoragePolicyTests(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory()
         self.root = Path(self.temporary.name).absolute()
         self.project = self.root / "synthetic-project"
+        self.project.mkdir()
         self.synthetic_temp = str(self.root / "synthetic-system-temp")
 
     def tearDown(self) -> None:
@@ -103,6 +105,227 @@ class PrivateKnowledgeStoragePolicyTests(unittest.TestCase):
                 self.root / "stage", self.root / "raw", self.project
             )
 
+    def test_explicit_standalone_state_root_is_not_external_storage(self) -> None:
+        repository = self.root / "portable-repository"
+        state = self.root / "standalone-state"
+        repository.mkdir()
+        state.mkdir()
+        placement = RepositoryPlacement.standalone(
+            repository_root=repository,
+            state_root=state,
+            state_kind=StandaloneStateKind.SYNTHETIC,
+        )
+        external = self.root / "standalone-external"
+        external.mkdir()
+
+        with patch(
+            "backend.private_knowledge.storage_policy.tempfile.gettempdir",
+            return_value=self.synthetic_temp,
+        ), patch(
+            "backend.private_knowledge.snapshot_path.tempfile.gettempdir",
+            return_value=self.synthetic_temp,
+        ):
+            validate_private_storage(placement, external / "authority")
+            validate_stage_storage(
+                external / "stage",
+                external / "raw-vault",
+                placement,
+            )
+            validate_snapshot_path(
+                external / "knowledge.pksnap",
+                project_root=placement,
+            )
+            for operation in (
+                lambda: validate_private_storage(
+                    placement,
+                    state / "authority",
+                ),
+                lambda: validate_stage_storage(
+                    state / "stage",
+                    external / "raw-vault",
+                    placement,
+                ),
+                lambda: validate_snapshot_path(
+                    state / "knowledge.pksnap",
+                    project_root=placement,
+                ),
+            ):
+                with self.subTest(operation=operation), self.assertRaises(
+                    PrivateKnowledgeError
+                ):
+                    operation()
+
+    def test_missing_private_root_rejects_existing_parent_identity_drift(
+        self,
+    ) -> None:
+        external = self.root / "external"
+        replaced = self.root / "external-before-drift"
+        external.mkdir()
+        authority = external / "authority"
+        mutated = False
+
+        def mutate(stage: str, path: Path) -> None:
+            nonlocal mutated
+            if stage == "after_anchor_identity" and path == authority:
+                external.rename(replaced)
+                external.mkdir()
+                mutated = True
+
+        with patch(
+            "backend.private_knowledge.storage_policy._test_path_hook",
+            side_effect=mutate,
+        ), patch(
+            "backend.private_knowledge.storage_policy.tempfile.gettempdir",
+            return_value=self.synthetic_temp,
+        ), self.assertRaisesRegex(
+            PrivateKnowledgeError,
+            "private_storage_path_invalid",
+        ):
+            validate_private_storage(self.project, authority)
+
+        self.assertTrue(mutated)
+
+    def test_missing_snapshot_rejects_existing_parent_identity_drift(
+        self,
+    ) -> None:
+        external = self.root / "snapshot-parent"
+        replaced = self.root / "snapshot-parent-before-drift"
+        external.mkdir()
+        snapshot = external / "knowledge.pksnap"
+        mutated = False
+
+        def mutate(stage: str, path: Path) -> None:
+            nonlocal mutated
+            if stage == "after_anchor_identity" and path == snapshot:
+                external.rename(replaced)
+                external.mkdir()
+                mutated = True
+
+        with patch(
+            "backend.private_knowledge.snapshot_path._test_path_hook",
+            side_effect=mutate,
+        ), patch(
+            "backend.private_knowledge.snapshot_path.tempfile.gettempdir",
+            return_value=self.synthetic_temp,
+        ), self.assertRaisesRegex(
+            PrivateKnowledgeError,
+            "snapshot_path_invalid",
+        ):
+            validate_snapshot_path(snapshot, project_root=self.project)
+
+        self.assertTrue(mutated)
+
+    def test_unreadable_private_and_snapshot_anchor_state_uses_fixed_errors(
+        self,
+    ) -> None:
+        authority = self.root / "external-authority"
+        snapshot = self.root / "external-snapshot.pksnap"
+        with patch(
+            "backend.private_knowledge.storage_policy._existing_anchor_identity",
+            side_effect=OSError("synthetic private detail"),
+        ), self.assertRaises(PrivateKnowledgeError) as storage_error:
+            validate_private_storage(self.project, authority)
+        with patch(
+            "backend.private_knowledge.snapshot_path._existing_anchor_identity",
+            side_effect=OSError("synthetic private detail"),
+        ), self.assertRaises(PrivateKnowledgeError) as snapshot_error:
+            validate_snapshot_path(snapshot, project_root=self.project)
+
+        self.assertEqual(storage_error.exception.code, "private_storage_path_invalid")
+        self.assertEqual(snapshot_error.exception.code, "snapshot_path_invalid")
+        self.assertNotIn("synthetic private detail", repr(storage_error.exception))
+        self.assertNotIn("synthetic private detail", repr(snapshot_error.exception))
+
+    def test_all_project_container_zones_are_rejected_for_private_stores(
+        self,
+    ) -> None:
+        container = self.root / "managed" / "email_ai_assistant"
+        repository = container / "main"
+        repository.mkdir(parents=True)
+        zones = (
+            container,
+            repository,
+            container / "Runtimes",
+            container / "LocalData",
+            container / "RuntimeTemp",
+            container / "Logs",
+            container / "Artifacts",
+            container / "Worktrees",
+            container / "Config",
+            container / "OperatorPrivate",
+        )
+
+        with patch(
+            "backend.private_knowledge.storage_policy.tempfile.gettempdir",
+            return_value=self.synthetic_temp,
+        ):
+            for zone in zones:
+                with self.subTest(zone=zone), self.assertRaisesRegex(
+                    PrivateKnowledgeError,
+                    "private_storage_path_invalid",
+                ):
+                    validate_private_storage(
+                        repository,
+                        zone / "nested" / "authority",
+                    )
+                with self.subTest(
+                    stage_zone=zone
+                ), self.assertRaisesRegex(
+                    PrivateKnowledgeError,
+                    "private_storage_path_invalid",
+                ):
+                    validate_stage_storage(
+                        zone / "nested" / "candidate",
+                        self.root / "synthetic-raw-vault",
+                        repository,
+                    )
+
+    def test_snapshot_rejects_project_container_zones(self) -> None:
+        container = self.root / "managed" / "email_ai_assistant"
+        repository = container / "main"
+        repository.mkdir(parents=True)
+        zones = (
+            container,
+            repository,
+            container / "Runtimes",
+            container / "LocalData",
+            container / "RuntimeTemp",
+            container / "Logs",
+            container / "Artifacts",
+            container / "Worktrees",
+            container / "Config",
+            container / "OperatorPrivate",
+        )
+
+        with patch(
+            "backend.private_knowledge.snapshot_path.tempfile.gettempdir",
+            return_value=self.synthetic_temp,
+        ):
+            for zone in zones:
+                with self.subTest(zone=zone), self.assertRaisesRegex(
+                    PrivateKnowledgeError,
+                    "snapshot_path_invalid",
+                ):
+                    validate_snapshot_path(
+                        zone / "nested" / "knowledge.pksnap",
+                        project_root=repository,
+                    )
+
+    def test_missing_project_identity_maps_to_private_fixed_error(self) -> None:
+        missing_project = self.root / "missing-project"
+
+        with patch(
+            "backend.private_knowledge.storage_policy.tempfile.gettempdir",
+            return_value=self.synthetic_temp,
+        ), self.assertRaisesRegex(
+            PrivateKnowledgeError,
+            "private_storage_path_invalid",
+        ):
+            validate_private_storage(
+                missing_project,
+                self.root / "external-authority",
+            )
+
     def test_snapshot_rejects_file_or_directory_private_and_raw_markers(self) -> None:
         markers = (
             Path("candidate-key.pkenv"),
@@ -129,7 +352,8 @@ class PrivateKnowledgeStoragePolicyTests(unittest.TestCase):
                         PrivateKnowledgeError, "snapshot_path_invalid"
                     ):
                         validate_snapshot_path(
-                            store / "runtime" / "knowledge.pksnap"
+                            store / "runtime" / "knowledge.pksnap",
+                            project_root=self.project,
                         )
 
 

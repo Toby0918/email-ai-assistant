@@ -382,6 +382,7 @@ _PRIVATE_EVALUATION_ALLOWED_IMPORTS = frozenset({
     "backend.email_agent.prompt_context",
     "backend.email_agent.rule_analyzer",
     "backend.email_agent.thread_timeline",
+    "backend.project_layout",
     "backend.private_evaluation.case_context",
     "backend.private_evaluation.dataset_builder",
     "backend.private_evaluation.errors",
@@ -1193,24 +1194,38 @@ class ArchitectureConstraintTests(unittest.TestCase):
             ):
                 reserved = set(ast.literal_eval(node.value.args[0]))
                 break
-        self.assertEqual(reserved, {
+        expected_reserved = {
             "runtime_cards", "private_context", "knowledge_cards",
             "placeholder_mapping", "card_id", "snapshot_id", "vault_id",
             "private_knowledge_enabled", "private_knowledge_authority_root",
-            "private_knowledge_snapshot_path",
-        })
+            "private_knowledge_snapshot_path", "protected_roots",
+            "project_container",
+        }
+        self.assertEqual(reserved, expected_reserved)
         self.assertTrue({
             "subject", "from", "to", "cc", "sent_at", "body_text",
             "thread_segments", "attachments", "attachment_files",
             "resource_limitations", "user_confirmed",
         }.isdisjoint(reserved))
 
-        architecture = " ".join(read_text(
+        architecture_source = read_text(
             ROOT / "docs" / "constraints" / "architecture_constraints.md"
-        ).split())
+        )
+        architecture = " ".join(architecture_source.split())
         self.assertIn(
             "reserved private-knowledge payload fields before either analyzer branch",
             architecture,
+        )
+        documented_reserved = architecture_source.split(
+            "The API copies only ordinary email-analysis input",
+            maxsplit=1,
+        )[1].split(
+            "Legitimate current-email fields",
+            maxsplit=1,
+        )[0]
+        self.assertEqual(
+            set(re.findall(r"`([a-z_]+)`", documented_reserved)),
+            expected_reserved,
         )
 
     def test_remote_exact_fact_boundaries_share_one_canonical_recognizer(self) -> None:
@@ -1536,6 +1551,76 @@ class ArchitectureConstraintTests(unittest.TestCase):
                 self.assertLessEqual(imported, allowed_import_roots)
                 self.assertTrue(forbidden_calls.isdisjoint(called_attributes))
 
+    def test_protected_location_policy_has_only_reviewed_internal_consumers(
+        self,
+    ) -> None:
+        project_layout = (ROOT / "backend" / "project_layout").resolve()
+        allowed_importers = {
+            "backend/email_agent/standalone_verification.py",
+            "backend/mailbox_ingest/protected_storage_path.py",
+            "backend/mailbox_ingest/sales_policy_file.py",
+            "backend/private_evaluation/repository_path.py",
+            "backend/private_knowledge/snapshot_path.py",
+            "backend/private_knowledge/storage_policy.py",
+        }
+        protected_policy_consumers = {
+            "backend/mailbox_ingest/protected_storage_path.py",
+            "backend/mailbox_ingest/sales_policy_file.py",
+            "backend/private_evaluation/repository_path.py",
+            "backend/private_knowledge/snapshot_path.py",
+            "backend/private_knowledge/storage_policy.py",
+        }
+        importers: set[str] = set()
+        consumers: set[str] = set()
+        for path in (
+            *(ROOT / "backend").rglob("*.py"),
+            *(ROOT / "scripts").rglob("*.py"),
+        ):
+            if path.resolve().is_relative_to(project_layout):
+                continue
+            relative = path.relative_to(ROOT).as_posix()
+            imports = parse_import_modules(path)
+            if any(
+                module == "backend.project_layout"
+                or module.startswith("backend.project_layout.")
+                for module in imports
+            ):
+                importers.add(relative)
+            if "ProtectedLocationPolicy" in read_text(path):
+                consumers.add(relative)
+            self.assertNotIn(
+                "ProtectedLocationPolicy._create(",
+                read_text(path),
+                relative,
+            )
+
+        self.assertEqual(importers, allowed_importers)
+        self.assertEqual(consumers, protected_policy_consumers)
+
+    def test_public_runtime_and_cli_cannot_supply_protected_roots(self) -> None:
+        api = read_text(ROOT / "backend" / "email_agent" / "api.py")
+        for reserved in ('"protected_roots"', '"project_container"'):
+            self.assertIn(reserved, api)
+
+        public_configuration = "\n".join(
+            read_text(path)
+            for path in (
+                ROOT / ".env.example",
+                ROOT / "backend" / "email_agent" / "config.py",
+                ROOT / "scripts" / "manage_mailbox_vault.py",
+                ROOT / "scripts" / "manage_private_knowledge.py",
+                ROOT / "scripts" / "evaluate_private_deepseek.py",
+                ROOT / "scripts" / "run_local_debug.py",
+            )
+        )
+        for forbidden in (
+            "--protected-roots",
+            "--project-container",
+            "EMAIL_AGENT_PROTECTED_ROOTS",
+            "EMAIL_AGENT_PROJECT_CONTAINER",
+        ):
+            self.assertNotIn(forbidden, public_configuration)
+
     def test_project_layout_architecture_change_updates_task_template(
         self,
     ) -> None:
@@ -1548,6 +1633,7 @@ class ArchitectureConstraintTests(unittest.TestCase):
         )
         self.assertIn("RepositoryPlacement", template)
         self.assertIn("OperationalLayout", template)
+        self.assertIn("ProtectedLocationPolicy", template)
 
     def test_python_modules_do_not_contain_raw_secret_literals(self) -> None:
         secret_patterns = {

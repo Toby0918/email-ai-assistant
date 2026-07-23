@@ -151,13 +151,31 @@ Standalone Verification synthetic/temporary state root. `OperationalLayout`
 returns only absolute ordinary runtime, data, temporary, log, artifact, worktree,
 and non-secret configuration paths.
 
+Issue #33 adds `ProtectedLocationPolicy` without adding a dependency or mutation
+capability. The value has no public constructor for arbitrary roots. It is
+derived only from freshly revalidated Managed/Standalone placement or the
+separately validated flat-layout compatibility path. Managed policy keeps the
+single Project Container root; it does not reconstruct a narrower set from the
+seven ordinary layout paths. A path inside a Managed zone but outside exact
+`main` fails closed instead of becoming a flat compatibility root.
+When an internal caller already holds an explicit validated Standalone
+`RepositoryPlacement`, the policy revalidates it and retains both Repository
+Root and standalone state root. This does not add a Standalone private capability;
+Issue #31 keeps mailbox, private knowledge/evaluation, raw vault, and providers
+disabled.
+
 The package may perform read-only path metadata inspection. It must not create,
 write, move, copy, rename, replace, remove, or delete a path; call a mailbox or
 provider; read a credential, key, raw vault, recovery store, private store, or
 private content; change ACL/volume/host security; or expose such a capability in
 its returned values. The flat-layout adapter is a temporary compatibility mapper,
-not a third final placement mode. Launcher routing, private-path expansion,
-container audit, migration, and Issue #31 through #40 remain outside Issue #30.
+not a third final placement mode. Only the reviewed private-knowledge storage and
+snapshot policies, private-evaluation repository path policy, mailbox vault and
+sales-policy location policies, and standalone verification module may import the
+project-layout package. Public HTTP, browser, ordinary runtime, environment,
+configuration, and CLI surfaces cannot supply `protected_roots` or
+`project_container`. Launcher routing, container audit, migration, Issue #32,
+and Issues #34 through #40 remain out of scope.
 
 本地邮件分析 HTTP 服务沿用 Python 标准库 `ThreadingHTTPServer`，不得为 Host/Content-Type 门禁新增 HTTP 框架。服务 bind 只支持 `localhost` 或字面 IPv4 `127.0.0.0/8`；分析 POST 必须在读 body 前校验单一 loopback Host 和单一 JSON media type。
 
@@ -611,8 +629,9 @@ Agent 每次开始任务前，必须确认：
   persistence surface, and mutable copies are wiped.
 - `.pkevalstage` uses AES-256-GCM with distinct magic, purpose, and namespace from
   `.pkeval` and every private-knowledge/raw-vault store. It is bounded, atomically
-  replaced, reparse-rejecting, and external to project, OneDrive, temp, raw vault,
-  and other stores. Post-replacement validation excludes only the exact target
+  replaced, reparse-rejecting, and external to the complete Project Container
+  protected root, OneDrive, temp, raw vault, and other stores. The same protected
+  root applies to final `.pkeval`. Post-replacement validation excludes only the exact target
   from its descendant marker scan; sibling and descendant stores still fail
   closed. Success is only `evaluation_stage_complete` with 200/0 counts, while
   parse/local validation emits only `argument_invalid`.

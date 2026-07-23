@@ -23,6 +23,7 @@ from backend.private_evaluation.repository import (
     write_encrypted_dataset,
 )
 from backend.private_evaluation.schema import EvaluationDatasetV1
+from backend.project_layout import RepositoryPlacement, StandaloneStateKind
 from tests.private_evaluation_fixtures import dataset_mapping, uuid4_for
 
 
@@ -198,6 +199,86 @@ class PrivateEvaluationRepositoryTests(unittest.TestCase):
             self.skipTest("symlink creation is unavailable")
         with self.assertRaisesRegex(PrivateEvaluationError, "dataset_unavailable"):
             _validate_external_dataset_path(link / "private.pkeval")
+
+    def test_external_dataset_rejects_every_project_container_zone(self) -> None:
+        from backend.private_evaluation import repository_path
+
+        container = self.root / "managed" / "email_ai_assistant"
+        repository = container / "main"
+        repository.mkdir(parents=True)
+        zones = (
+            container,
+            repository,
+            container / "Runtimes",
+            container / "LocalData",
+            container / "RuntimeTemp",
+            container / "Logs",
+            container / "Artifacts",
+            container / "Worktrees",
+            container / "Config",
+            container / "OperatorPrivate",
+        )
+
+        with patch.object(
+            repository_path,
+            "_PROJECT_CONTEXT",
+            repository,
+        ), patch(
+            "backend.private_evaluation.repository_path.tempfile.gettempdir",
+            return_value="C:/SyntheticPolicyTemp",
+        ):
+            for zone in zones:
+                with self.subTest(zone=zone), self.assertRaisesRegex(
+                    PrivateEvaluationError,
+                    "dataset_unavailable",
+                ):
+                    repository_path._validate_external_dataset_path(
+                        zone / "nested" / "dataset.pkeval"
+                    )
+
+            external = self.root / "external" / "dataset.pkeval"
+            external.parent.mkdir()
+            self.assertEqual(
+                repository_path._validate_external_dataset_path(external),
+                external,
+            )
+
+    def test_external_dataset_honors_explicit_standalone_state_root(self) -> None:
+        from backend.private_evaluation import repository_path
+
+        repository = self.root / "portable-repository"
+        state = self.root / "standalone-state"
+        external = self.root / "standalone-external"
+        repository.mkdir()
+        state.mkdir()
+        external.mkdir()
+        placement = RepositoryPlacement.standalone(
+            repository_root=repository,
+            state_root=state,
+            state_kind=StandaloneStateKind.SYNTHETIC,
+        )
+
+        with patch.object(
+            repository_path,
+            "_PROJECT_CONTEXT",
+            placement,
+        ), patch(
+            "backend.private_evaluation.repository_path.tempfile.gettempdir",
+            return_value="C:/SyntheticPolicyTemp",
+        ):
+            with self.assertRaisesRegex(
+                PrivateEvaluationError,
+                "dataset_unavailable",
+            ):
+                repository_path._validate_external_dataset_path(
+                    state / "dataset.pkeval"
+                )
+            self.assertEqual(
+                repository_path._validate_external_dataset_path(
+                    external / "dataset.pkeval"
+                ),
+                external / "dataset.pkeval",
+            )
 
     def test_dataset_root_rejects_descendant_raw_vault_and_private_store_markers(self) -> None:
         from backend.private_evaluation.repository import (

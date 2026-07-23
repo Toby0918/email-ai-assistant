@@ -15,9 +15,11 @@ from .attachment_operation import AttachmentOperation
 from .authorization import freeze_window
 from .dpapi import DpapiProtector
 from .drive_policy import validate_vault_location
+from .errors import VaultError
 from .existing_vault_policy import validate_existing_vault_location
 from .imap_readonly import ReadOnlyImapSession
 from .inventory_codec import decode_inventory_bundle
+from .models import VolumeEvidence
 from .service_models import CliDependencies
 from .service_operations import (
     InitOperation,
@@ -40,6 +42,23 @@ class LocalPreflight:
     project_root: Path
     volume_evidence: object
     sales_policy: object | None = None
+    current_recovery_evidence: object | None = None
+
+
+def _require_same_vault_identity(
+    current: object,
+    replacement: object,
+) -> None:
+    if (
+        not isinstance(current, VolumeEvidence)
+        or not isinstance(replacement, VolumeEvidence)
+        or current.verified is not True
+        or replacement.verified is not True
+        or current.vault_volume_id != replacement.vault_volume_id
+        or current.vault_volume_id == current.recovery_volume_id
+        or replacement.vault_volume_id == replacement.recovery_volume_id
+    ):
+        raise VaultError("recovery_volume_not_separate")
 
 
 class MailboxVaultService:
@@ -76,18 +95,34 @@ class MailboxVaultService:
 
     def preflight(self, arguments: argparse.Namespace) -> LocalPreflight:
         vault = Path(arguments.vault)
+        current_recovery_evidence = None
         if arguments.command == "init":
             evidence = self._validate_new(
                 vault, self.project_root, Path(arguments.recovery_key)
             )
         elif arguments.command == "rewrap-recovery":
+            current_recovery_evidence = self._validate_new(
+                vault,
+                self.project_root,
+                Path(arguments.current_recovery_key),
+            )
             evidence = self._validate_new(
                 vault, self.project_root, Path(arguments.new_recovery_key)
+            )
+            _require_same_vault_identity(
+                current_recovery_evidence,
+                evidence,
             )
         else:
             evidence = self._validate_existing(vault, self.project_root)
         sales_policy = self._read_sales_policy(arguments)
-        return LocalPreflight(vault, self.project_root, evidence, sales_policy)
+        return LocalPreflight(
+            vault,
+            self.project_root,
+            evidence,
+            sales_policy,
+            current_recovery_evidence,
+        )
 
     def _read_sales_policy(self, arguments: argparse.Namespace) -> object | None:
         if arguments.command != "scan":
@@ -134,6 +169,7 @@ class MailboxVaultService:
                     arguments.confirm,
                     local.project_root,
                     local.volume_evidence,
+                    local.current_recovery_evidence,
                     self._validate_new,
                     opened,
                 )

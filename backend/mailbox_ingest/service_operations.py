@@ -235,6 +235,7 @@ class RewrapOperation:
         confirmation: str,
         project_root: Path,
         preflight_evidence: object,
+        current_recovery_evidence: object,
         validate_volume: object,
         opened: OpenedMailboxVault,
     ) -> None:
@@ -247,11 +248,19 @@ class RewrapOperation:
         self.new_recovery = new_recovery
         self.project_root = project_root
         self.preflight_evidence = preflight_evidence
+        self.current_recovery_evidence = current_recovery_evidence
         self.validate_volume = validate_volume
 
     def execute(self, session: object | None) -> CliResult:
         if session is not None:
             raise ValueError
+        revalidate_preflight_volume(
+            self.validate_volume,
+            self.vault,
+            self.project_root,
+            self.current_recovery,
+            self.current_recovery_evidence,
+        )
         evidence = revalidate_preflight_volume(
             self.validate_volume,
             self.vault,

@@ -89,6 +89,8 @@ class ApiTests(unittest.TestCase):
             "private_knowledge_enabled": True,
             "private_knowledge_authority_root": "X:/private-authority",
             "private_knowledge_snapshot_path": "Y:/private-snapshot.pksnap",
+            "protected_roots": ["C:/synthetic/narrow-root"],
+            "project_container": "C:/synthetic/hostile-container",
         }
         received: list[dict[str, object]] = []
 

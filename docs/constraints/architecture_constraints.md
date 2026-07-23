@@ -86,12 +86,19 @@ deidentified projection derived from an explicit current-message click and expos
 one append-only callback seam. It owns no mailbox, filesystem, key, store reader,
 authority lifecycle, provider, background worker, or public endpoint.
 
-The `project layout layer` is a pure compatibility contract. It validates
-Repository Root, optional Project Container, standalone state, protected roots,
-and stable directory identity, then resolves absolute ordinary operational
-locations. It owns no directory mutation, launcher routing, container audit,
-mailbox, provider, credential, key, vault, recovery, private-store, ACL, volume,
-or host-security capability. The returned values contain only path metadata.
+The `project layout layer` is a pure compatibility and protected-root contract.
+It validates Repository Root, optional Project Container, standalone state,
+protected roots, and stable directory identity, then resolves absolute ordinary
+operational locations. `ProtectedLocationPolicy` is derived only from freshly
+revalidated placement evidence or the bounded flat-layout compatibility path;
+callers cannot construct it with a narrower root tuple. Managed mode preserves
+the single Project Container root, covering the container, every named zone, and
+all descendants. An explicit trusted Standalone placement preserves both its
+Repository Root and state root; the context is not accepted from a public,
+environment, config, browser, or CLI surface. The layer owns no directory
+mutation, launcher routing, container audit, mailbox, provider, credential, key,
+vault, recovery, private-store, ACL, volume, or host-security capability.
+Returned values contain only path metadata.
 
 ## 2. 允许依赖方向
 
@@ -111,6 +118,7 @@ scripts/manage_mailbox_vault.py -> backend.private_knowledge
 scripts/manage_mailbox_vault.py -> backend.private_evaluation staging only
 normal runtime -> backend.current_evidence append-only contract
 future launcher -> backend.project_layout validated path values
+reviewed private location policies -> backend.project_layout protected path value
 ```
 
 禁止反向依赖：
@@ -135,6 +143,7 @@ backend.mailbox_ingest -> backend.email_agent
 backend.mailbox_ingest -> DeepSeek/OpenAI/Ollama/local model endpoint
 backend.current_evidence -> backend.mailbox_ingest/raw vault/authority repository
 backend.project_layout -> backend.email_agent/mailbox_ingest/private knowledge/private evaluation
+public request/config/frontend/CLI -> protected roots or Project Container override
 ```
 
 `backend/project_layout/` may import only its own modules plus the reviewed
@@ -145,6 +154,16 @@ names, wrong parents, or identity change. Managed placement is exactly
 synthetic or temporary state root and never infers a Project Container.
 `OperationalLayout` accepts only a validated `RepositoryPlacement`. The
 flat-layout transition adapter cannot add a third placement mode.
+`ProtectedLocationPolicy` fails closed for partial Managed placement and checks
+both original and resolved candidate views. Exact AST guards allow the policy
+only in the reviewed private-knowledge storage/snapshot, private-evaluation
+repository-path, mailbox vault/sales-policy, and standalone verification
+modules. Public request payloads remove `protected_roots` and
+`project_container`, and no environment, config, frontend, ordinary runtime, or
+CLI option may provide them. Focused domain-policy tests pass a validated
+Standalone placement directly and prove that its separate state root cannot be
+reclassified as external storage; Standalone Verification Mode still disables
+all such private capabilities.
 
 Only `scripts/manage_mailbox_vault.py` may import `backend.mailbox_ingest`.
 其他 `scripts/*.py`、`frontend/`、`backend.email_agent`、local debug、server、
@@ -164,6 +183,9 @@ raw vault.
 
 Private candidate, authority, and runtime-snapshot data use separate keys,
 magic values, HKDF purposes, namespaces, and project-external paths. The
+project-external decision rejects the complete Project Container protected root,
+not only the Repository Root. The protected roots are derived internally and
+cannot be supplied through a snapshot `forbidden_roots` tuple or public surface.
 selection manifest binds immutable vault ID, authorization scope fingerprint,
 time window, dual reviewers, approved random record IDs, and a maximum 24-hour
 review deadline. No CLI accepts raw text, mapping, evidence counter, threshold,
@@ -234,7 +256,9 @@ must not add an extra immutable signing-seed copy.
 The private evaluation package is offline and aggregate-only. It is a separate
 administrator domain that reads an independently encrypted, project-external
 `.pkevalstage` only through its stage repository and reads the resulting final
-`.pkeval` through its final repository. It must not import mailbox ingest, the raw vault, private
+`.pkeval` through its final repository. Both path decisions reject the complete
+Project Container root through the exact pure `backend.project_layout` import.
+It must not import mailbox ingest, the raw vault, private
 knowledge repositories or review/key/snapshot services, frontend code, SQLite,
 OpenAI SDK, IMAP, or SMTP. Normal backend runtime, frontend code, local servers,
 cleanup jobs, and scheduled workflows must not import it.
@@ -487,9 +511,10 @@ private-knowledge payload fields before either analyzer branch. The reserved
 set is `runtime_cards`, `private_context`, `knowledge_cards`,
 `placeholder_mapping`, `card_id`, `snapshot_id`, `vault_id`,
 `private_knowledge_enabled`, `private_knowledge_authority_root`, and
-`private_knowledge_snapshot_path`. Legitimate current-email fields remain
-available to the injected or default analyzer; only the trusted startup tuple is
-added internally to the default analyzer through its keyword-only seam.
+`private_knowledge_snapshot_path`, `protected_roots`, and `project_container`.
+Legitimate current-email fields remain available to the injected or default
+analyzer; only the trusted startup tuple is added internally to the default
+analyzer through its keyword-only seam.
 
 `backend.exact_fact_patterns` is the canonical exact-fact recognizer for the
 outbound deidentifier, provider-authored output gate, and grounding validator.

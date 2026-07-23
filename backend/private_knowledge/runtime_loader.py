@@ -14,7 +14,7 @@ from .errors import PrivateKnowledgeError
 from .read_only_file import read_snapshot_file
 from .runtime_schema import RuntimeKnowledgeCard
 from .snapshot_codec import decode_snapshot_frame
-from .snapshot_path import validate_snapshot_path
+from .snapshot_path import RepositoryContext, validate_snapshot_path
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,17 +30,27 @@ def load_runtime_knowledge(
     verification_public_key: Ed25519PublicKey,
     prevalidated_target: Path | None = None,
     clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
+    project_root: RepositoryContext | None = None,
     forbidden_roots: tuple[Path, ...] = (),
     path_validator: Callable[[Path], object] | None = None,
 ) -> RuntimeKnowledgeLoad:
     original = Path(path)
-    target = _runtime_path(original, forbidden_roots, path_validator)
+    target = _runtime_path(
+        original,
+        project_root,
+        forbidden_roots,
+        path_validator,
+    )
     expected = _expected_target(target, prevalidated_target)
     if expected is None:
         return _fallback("snapshot_path_invalid")
     try:
         frame = _read_bound_snapshot(
-            original, expected, forbidden_roots, path_validator
+            original,
+            expected,
+            project_root,
+            forbidden_roots,
+            path_validator,
         )
         metadata, plaintext = decode_snapshot_frame(
             frame, encryption_key=encryption_key,
@@ -83,11 +93,12 @@ def _expected_target(
 def _read_bound_snapshot(
     original: Path,
     expected: Path,
+    project_root: RepositoryContext | None,
     forbidden: tuple[Path, ...],
     validator: Callable[[Path], object] | None,
 ) -> bytes:
     def revalidate(value: Path) -> Path:
-        current = _runtime_path(value, forbidden, validator)
+        current = _runtime_path(value, project_root, forbidden, validator)
         if current is None:
             raise PrivateKnowledgeError("snapshot_unavailable")
         return current
@@ -115,13 +126,18 @@ def _parse_payload(value: object, snapshot_id: str, authority_id: str) -> tuple[
 
 def _runtime_path(
     path: Path,
+    project_root: RepositoryContext | None,
     forbidden: tuple[Path, ...],
     validator: Callable[[Path], object] | None,
 ) -> Path | None:
     try:
         result = (
             validator(Path(path)) if validator is not None
-            else validate_snapshot_path(Path(path), forbidden_roots=forbidden)
+            else validate_snapshot_path(
+                Path(path),
+                project_root=project_root,
+                forbidden_roots=forbidden,
+            )
         )
         return Path(path) if result is None else Path(result)
     except Exception:

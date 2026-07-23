@@ -12,6 +12,7 @@ from pathlib import Path
 from unittest import mock
 
 from backend.mailbox_ingest import sales_policy_file
+from backend.project_layout import RepositoryPlacement, StandaloneStateKind
 
 
 @dataclass(frozen=True)
@@ -151,6 +152,92 @@ class SalesPolicyFileTests(unittest.TestCase):
                 with self.subTest(parent=policy.parent.name):
                     with self.assertRaises(sales_policy_file.SalesPolicyFileError):
                         _read(layout, path=policy, system_temp=system_temp)
+
+    def test_rejects_every_project_container_zone_and_allows_external_file(
+        self,
+    ) -> None:
+        with _layout() as layout:
+            container = layout.root / "managed" / "email_ai_assistant"
+            repository = container / "main"
+            repository.mkdir(parents=True)
+            zones = (
+                container,
+                repository,
+                container / "Runtimes",
+                container / "LocalData",
+                container / "RuntimeTemp",
+                container / "Logs",
+                container / "Artifacts",
+                container / "Worktrees",
+                container / "Config",
+                container / "OperatorPrivate",
+            )
+            with mock.patch.object(
+                sales_policy_file,
+                "_system_temp_root",
+                return_value=layout.system_temp,
+            ):
+                for zone in zones:
+                    policy = zone / "nested" / "sales-policy.json"
+                    policy.parent.mkdir(parents=True, exist_ok=True)
+                    policy.write_text("{}", encoding="utf-8")
+                    with self.subTest(zone=zone), self.assertRaises(
+                        sales_policy_file.SalesPolicyFileError
+                    ):
+                        sales_policy_file.read_sales_policy(
+                            policy,
+                            project_root=repository,
+                            parser=_identity,
+                        )
+
+                layout.policy.write_text("{}", encoding="utf-8")
+                self.assertEqual(
+                    sales_policy_file.read_sales_policy(
+                        layout.policy,
+                        project_root=repository,
+                        parser=_identity,
+                    ),
+                    {},
+                )
+
+    def test_explicit_standalone_state_root_is_not_external_policy_storage(
+        self,
+    ) -> None:
+        with _layout() as layout:
+            repository = layout.root / "portable-repository"
+            state = layout.root / "standalone-state"
+            repository.mkdir()
+            state.mkdir()
+            placement = RepositoryPlacement.standalone(
+                repository_root=repository,
+                state_root=state,
+                state_kind=StandaloneStateKind.SYNTHETIC,
+            )
+            state_policy = state / "sales-policy.json"
+            state_policy.write_text("{}", encoding="utf-8")
+            layout.policy.write_text("{}", encoding="utf-8")
+
+            with mock.patch.object(
+                sales_policy_file,
+                "_system_temp_root",
+                return_value=layout.system_temp,
+            ):
+                with self.assertRaises(
+                    sales_policy_file.SalesPolicyFileError
+                ):
+                    sales_policy_file.read_sales_policy(
+                        state_policy,
+                        project_root=placement,
+                        parser=_identity,
+                    )
+                self.assertEqual(
+                    sales_policy_file.read_sales_policy(
+                        layout.policy,
+                        project_root=placement,
+                        parser=_identity,
+                    ),
+                    {},
+                )
 
     def test_rejects_non_strict_or_oversized_json_before_parser(self) -> None:
         invalid_payloads = (

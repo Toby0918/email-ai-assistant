@@ -202,6 +202,7 @@ class PrivateKnowledgeCommandService:
                     bytes(keys.signing_seed)
                 ),
                 now=self._now(),
+                project_root=self._project,
                 forbidden_roots=_forbidden_roots(self._project, authority),
                 path_validator=self._snapshot_path_validator,
             )

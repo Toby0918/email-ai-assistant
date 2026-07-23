@@ -32,6 +32,8 @@ _RESERVED_PRIVATE_PAYLOAD_FIELDS = frozenset({
     "private_knowledge_enabled",
     "private_knowledge_authority_root",
     "private_knowledge_snapshot_path",
+    "protected_roots",
+    "project_container",
 })
 
 

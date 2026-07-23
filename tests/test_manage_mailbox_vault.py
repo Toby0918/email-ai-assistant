@@ -663,8 +663,19 @@ class ServiceFacadeTests(unittest.TestCase):
         for command in ("init", "rewrap-recovery"):
             evidence = iter(
                 (
-                    VolumeEvidence("VAULT-A", "RECOVERY-B"),
-                    VolumeEvidence("VAULT-CHANGED", "RECOVERY-B"),
+                    (
+                        VolumeEvidence("VAULT-A", "RECOVERY-B"),
+                        VolumeEvidence("VAULT-CHANGED", "RECOVERY-B"),
+                    )
+                    if command == "init"
+                    else (
+                        VolumeEvidence("VAULT-A", "RECOVERY-CURRENT"),
+                        VolumeEvidence("VAULT-A", "RECOVERY-NEW"),
+                        VolumeEvidence(
+                            "VAULT-CHANGED",
+                            "RECOVERY-CURRENT",
+                        ),
+                    )
                 )
             )
             opened = mock.Mock()
@@ -714,6 +725,75 @@ class ServiceFacadeTests(unittest.TestCase):
                     ):
                 operation.execute(None)
             envelope.assert_not_called()
+
+    def test_rewrap_preflight_validates_current_recovery_before_vault_open(
+        self,
+    ) -> None:
+        events: list[tuple[str, Path] | str] = []
+        current = Path("F:/offline/current.key")
+        replacement = Path("G:/offline/new.key")
+
+        def validate(_vault: Path, _project: Path, recovery: Path):
+            events.append(("validate", Path(recovery)))
+            if Path(recovery) == current:
+                raise VaultError("prohibited_recovery_location")
+            return VolumeEvidence("VAULT-A", "RECOVERY-B")
+
+        service = MailboxVaultService(
+            project_root=Path("C:/project"),
+            validate_new=validate,
+            open_vault=lambda *_args, **_kwargs: events.append("open"),
+            dpapi_factory=lambda: events.append("dpapi"),
+        )
+        arguments = argparse.Namespace(
+            command="rewrap-recovery",
+            vault=Path("E:/vault"),
+            current_recovery_key=current,
+            new_recovery_key=replacement,
+        )
+
+        with self.assertRaisesRegex(
+            VaultError,
+            "prohibited_recovery_location",
+        ):
+            service.preflight(arguments)
+
+        self.assertEqual(events, [("validate", current)])
+        self.assertNotIn("open", events)
+        self.assertNotIn("dpapi", events)
+
+    def test_rewrap_preflight_rejects_vault_identity_drift_between_recoveries(
+        self,
+    ) -> None:
+        opened = mock.Mock()
+        dpapi = mock.Mock()
+        evidence = iter(
+            (
+                VolumeEvidence("VAULT-A", "RECOVERY-CURRENT"),
+                VolumeEvidence("VAULT-CHANGED", "RECOVERY-NEW"),
+            )
+        )
+        service = MailboxVaultService(
+            project_root=Path("C:/project"),
+            validate_new=lambda *_args: next(evidence),
+            open_vault=opened,
+            dpapi_factory=dpapi,
+        )
+        arguments = argparse.Namespace(
+            command="rewrap-recovery",
+            vault=Path("E:/vault"),
+            current_recovery_key=Path("F:/offline/current.key"),
+            new_recovery_key=Path("G:/offline/new.key"),
+        )
+
+        with self.assertRaisesRegex(
+            VaultError,
+            "recovery_volume_not_separate",
+        ):
+            service.preflight(arguments)
+
+        opened.assert_not_called()
+        dpapi.assert_not_called()
 
     def test_execute_time_distinct_checker_is_bound_to_validated_paths(self) -> None:
         evidence = VolumeEvidence("VAULT-A", "RECOVERY-B")

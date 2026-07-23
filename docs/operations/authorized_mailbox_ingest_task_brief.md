@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-22
+last_update: 2026-07-23
 status: active
 owner: "@tobyWang"
 review_cycle: weekly
@@ -258,6 +258,11 @@ prove the required read-only state fails closed.
 
 - The raw vault is outside the project, OneDrive, and system temporary
   directories on a proven NTFS BitLocker To Go volume.
+- "Outside the project" means outside the complete Project Container protected
+  root, including `main`, every approved sibling zone, the container itself, and
+  all descendants. Vault, current/new recovery, and the strict sales-policy file
+  derive this root internally from freshly revalidated placement; no CLI,
+  environment, config, HTTP, browser, or normal-runtime input can narrow it.
 - Every raw record is independently protected with AES-256-GCM and a random
   nonce. The random record ID is authenticated as associated data.
 - Fresh initialization creates only the exact schema-v3 index. Record IDs and
@@ -277,7 +282,10 @@ prove the required read-only state fails closed.
 - Windows DPAPI and BitLocker probes are loaded lazily behind injected probes,
   so non-Windows CI can import modules and collect synthetic tests safely.
 - Recovery-key rewrap uses a crash-recoverable staged
-  activation/reconciliation protocol. It must not claim cross-volume atomicity.
+  activation/reconciliation protocol. Current and new recovery locations are
+  both validated before vault/DPAPI/private-key access and both volume-evidence
+  bindings are revalidated before rewrap. It must not claim cross-volume
+  atomicity.
 - The index contains only random record IDs, encrypted relative paths, HMAC
   deduplication values, timestamps, expiry timestamps, and integrity metadata.
 - `verify` reports durable but unactivated write intents as pending. Expired
@@ -319,6 +327,9 @@ prove the required read-only state fails closed.
 - The authority repository and signed runtime snapshot use a key and namespace
   separate from the raw vault. Runtime access is verified and read-only; a
   missing, expired, invalid, or tampered snapshot yields an empty card set.
+- Authority, candidate, runtime snapshot, `.pkevalstage`, and `.pkeval`
+  project-external checks reject the same complete Project Container root while
+  retaining their existing private-store separation and fixed-error contracts.
 
 ## 11. DeepSeek And Evaluation Gates
 
