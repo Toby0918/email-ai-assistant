@@ -97,7 +97,7 @@ class SalesMessageDecision:
 def parse_sales_corpus_policy(payload: object) -> SalesCorpusPolicy:
     try:
         if (type(payload) is not dict or set(payload) != _POLICY_KEYS
-                or payload["schema_version"] != 1):
+                or type(payload["schema_version"]) is not int or payload["schema_version"] != 1):
             raise ValueError
         domain = _domain(payload["company_domain"])
         raw_allowlist = payload["salesperson_allowlist"]
@@ -264,7 +264,8 @@ def _classify(
     recipient_domains = {item.rsplit("@", 1)[1] for item in recipients}
     if sender_domain != policy._company_domain and role != "sent" and policy._company_domain in recipient_domains:
         return "customer_request"
-    if sender in policy._salesperson_allowlist and role != "inbox" and recipient_domains - {policy._company_domain}:
+    if (sender in policy._salesperson_allowlist and role == "sent"
+            and recipient_domains - {policy._company_domain}):
         return "sales_reply"
     return None
 def _learning_projection(body: str) -> str:
@@ -293,8 +294,7 @@ def _quoted_header_boundary(lines: tuple[str, ...], start: int) -> bool:
     return False
 def _quoted_header_label(line: str) -> str | None:
     return line.partition(":")[0].strip().casefold() if ":" in line else None
-__all__ = [
-    "SalesCorpusPolicy", "SalesMessageCandidate", "SalesMessageDecision",
+__all__ = ["SalesCorpusPolicy", "SalesMessageCandidate", "SalesMessageDecision",
     "SalesMessageDecisionStatus", "SalesMessagePair", "SalesMessagePolicyError",
     "SalesMessageRole", "evaluate_sales_message", "pair_sales_messages",
     "parse_sales_corpus_policy", "parse_sales_message_candidate"]

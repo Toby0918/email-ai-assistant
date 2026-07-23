@@ -12,7 +12,11 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 from .authorization import AuthorizationError, AuthorizationScope, DateWindow
-from .control_store import ControlStoreError, EncryptedControlStore
+from .control_store import (
+    ControlStoreError,
+    EncryptedControlStore,
+    MAILBOX_CONTROL_MAX_PLAINTEXT_SIZE,
+)
 from .dpapi import DpapiProtector
 from .errors import VaultError
 from .folder_policy import RawFolder, SelectedFolder, select_mail_folders
@@ -215,6 +219,7 @@ def _open_from_master(
         )
         resources.control = EncryptedControlStore(
             root, vault_id=identity.vault_id, master_key=master, rng=rng,
+            max_plaintext_size=MAILBOX_CONTROL_MAX_PLAINTEXT_SIZE,
         )
         for purpose in (
             b"scope", b"folder", b"inventory-fingerprint", b"sales-corpus",

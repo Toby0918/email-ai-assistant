@@ -198,7 +198,7 @@ def _persist_blob(
             result = vault.put_record_if_absent(
                 _attachment_record(content),
                 expires_at_utc=item.expires_at_utc,
-                extend_expiry_on_duplicate=True,
+                extend_expiry_on_duplicate=False,
             )
             if blob_record_id is None:
                 blob_record_id = result.record_id
@@ -207,6 +207,13 @@ def _persist_blob(
             binding = bind_blob(item, blob_record_id, content_token)
             status = getattr(binding, "status", None)
             if status not in {"new", "duplicate"}:
+                raise ValueError
+            extended = vault.put_record_if_absent(
+                _attachment_record(content),
+                expires_at_utc=item.expires_at_utc,
+                extend_expiry_on_duplicate=True,
+            )
+            if extended.record_id != blob_record_id or extended.created:
                 raise ValueError
             return status
     except Exception:

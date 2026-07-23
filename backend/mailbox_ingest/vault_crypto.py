@@ -82,6 +82,16 @@ class VaultCrypto:
             + self._max_plaintext_size + TAG_SIZE
         )
 
+    def frame_size_for_plaintext(self, plaintext_size: int) -> int:
+        self._ensure_open()
+        if (
+            type(plaintext_size) is not int
+            or plaintext_size < 0
+            or plaintext_size > self._max_plaintext_size
+        ):
+            raise VaultError("record_too_large")
+        return _HEADER.size + 32 + NONCE_SIZE + plaintext_size + TAG_SIZE
+
     def _ensure_open(self) -> None:
         if self._closed:
             raise VaultError("crypto_closed")

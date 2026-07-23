@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import hmac
 import re
+from typing import Callable
 
 from .errors import VaultError
-from .models import PutRecordResult, SecretBuffer, VaultWriteIntent
+from .models import PutRecordResult, SecretBuffer, VaultRecord, VaultWriteIntent
 from .vault_crypto import FRAME_VERSION, VaultCrypto
 from .vault_files import AtomicCiphertextStore
 from .vault_index import VaultIndex
@@ -20,7 +21,7 @@ def write_vault_record(
     *,
     now: int,
     expires_at_utc: int,
-    identifiers: tuple[str, str],
+    identifiers: Callable[[], tuple[str, str]],
     crypto: VaultCrypto,
     index: VaultIndex,
     store: AtomicCiphertextStore,
@@ -30,24 +31,23 @@ def write_vault_record(
 
     selected_digest = crypto.dedup_hmac(plaintext) if digest is None else digest
     intent = index.find_write_intent(selected_digest)
-    ciphertext: bytes | None = None
     if intent is None:
-        record_id, path_token = identifiers
-        ciphertext = crypto.encrypt(record_id, plaintext)
+        record_id, path_token = identifiers()
         intent = index.reserve_write(
             _intent(
                 record_id, path_token, selected_digest, now,
-                expires_at_utc, len(ciphertext), crypto.key_version,
+                expires_at_utc,
+                crypto.frame_size_for_plaintext(len(plaintext)),
+                crypto.key_version,
             )
         )
     intent = index.constrain_write_intent_expiry(
         intent.record_id, expires_at_utc,
     )
     if store.exists(intent.encrypted_relpath):
-        _validate_committed_ciphertext(intent, crypto, store)
+        validate_committed_ciphertext(intent, crypto, store)
     else:
-        if ciphertext is None or intent.record_id != identifiers[0]:
-            ciphertext = crypto.encrypt(intent.record_id, plaintext)
+        ciphertext = crypto.encrypt(intent.record_id, plaintext)
         if len(ciphertext) != intent.ciphertext_size:
             raise VaultError("invalid_record_metadata")
         store.write(intent.encrypted_relpath, ciphertext)
@@ -55,21 +55,21 @@ def write_vault_record(
     return PutRecordResult(intent.record_id, True)
 
 
-def _validate_committed_ciphertext(
-    intent: VaultWriteIntent,
+def validate_committed_ciphertext(
+    metadata: VaultRecord | VaultWriteIntent,
     crypto: VaultCrypto,
     store: AtomicCiphertextStore,
 ) -> None:
     plaintext: SecretBuffer | None = None
     try:
         frame = store.read(
-            intent.encrypted_relpath, max_size=intent.ciphertext_size,
+            metadata.encrypted_relpath, max_size=metadata.ciphertext_size,
         )
-        if len(frame) != intent.ciphertext_size:
+        if len(frame) != metadata.ciphertext_size:
             raise VaultError("ciphertext_read_failed")
-        plaintext = crypto.decrypt(intent.record_id, frame)
+        plaintext = crypto.decrypt(metadata.record_id, frame)
         if not hmac.compare_digest(
-            crypto.dedup_hmac(plaintext), intent.dedup_hmac,
+            crypto.dedup_hmac(plaintext), metadata.dedup_hmac,
         ):
             raise VaultError("record_authentication_failed")
     finally:
@@ -103,4 +103,7 @@ def validate_identifier(value: object) -> None:
         raise VaultError("invalid_record_id")
 
 
-__all__ = ["validate_identifier", "write_vault_record"]
+__all__ = [
+    "validate_committed_ciphertext", "validate_identifier",
+    "write_vault_record",
+]

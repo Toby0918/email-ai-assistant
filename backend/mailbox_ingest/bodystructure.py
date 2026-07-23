@@ -49,6 +49,7 @@ class TextBodySection:
 class BodyPlan:
     body_sections: tuple[TextBodySection, ...]
     attachments: tuple[AttachmentMetadata, ...]
+    all_leaf_bytes_selected: bool
 
 
 def parse_bodystructure(source: str) -> BodyPlan:
@@ -59,7 +60,11 @@ def parse_bodystructure(source: str) -> BodyPlan:
     bodies, part_count = _walk(root, "", attachments)
     if part_count > MAX_PARTS:
         raise BodyStructureError()
-    return BodyPlan(tuple(bodies), tuple(attachments))
+    return BodyPlan(
+        tuple(bodies),
+        tuple(attachments),
+        len(bodies) == part_count,
+    )
 
 
 def _walk(

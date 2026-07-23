@@ -304,7 +304,7 @@ class InventoryTests(unittest.TestCase):
                 self.assertFalse(second.created)
                 self.assertEqual(first.record_id, second.record_id)
                 self.assertNotIn(first.record_id, repr(first))
-                self.assertEqual(len(index.list_records()), 1)
+                self.assertEqual(opened.vault.verify().total_count, 1)
                 opened.control.write("inventory", {"schema_version": 1})
 
             with self.assertRaises(Exception):

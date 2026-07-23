@@ -11,17 +11,16 @@ from .errors import VaultError
 from .key_envelopes import revoke_key_envelopes
 from .retention import max_expiry_utc, validate_batch_limit, validate_expiry
 from .models import (
-    PurgeReport,
-    PutRecordResult,
-    RevokeResult,
-    SecretBuffer,
-    VaultRecord,
-    VerifyReport,
+    PurgeReport, PutRecordResult, RevokeResult,
+    SecretBuffer, VaultRecord, VerifyReport,
 )
 from .vault_crypto import VaultCrypto
 from .vault_files import AtomicCiphertextStore
 from .vault_index import VaultIndex, VaultMutationLock
-from .vault_record_writer import validate_identifier, write_vault_record
+from .vault_record_writer import (
+    validate_committed_ciphertext, validate_identifier,
+    write_vault_record,
+)
 from ._vault_lifecycle import (
     count_inactive_or_missing_records,
     plan_expired_record_ids,
@@ -100,7 +99,7 @@ class MailboxVault:
                     local,
                     now=now,
                     expires_at_utc=expires_at_utc,
-                    identifiers=self._new_identifiers(),
+                    identifiers=self._new_identifiers,
                     crypto=self._crypto,
                     index=self._index,
                     store=self._store,
@@ -128,6 +127,7 @@ class MailboxVault:
                 digest = self._crypto.dedup_hmac(local)
                 existing = self._index.find_by_dedup_hmac(digest)
                 if existing is not None:
+                    validate_committed_ciphertext(existing, self._crypto, self._store)
                     if extend_expiry_on_duplicate:
                         self._index.extend_expiry(
                             existing.record_id, expires_at_utc,
@@ -137,7 +137,7 @@ class MailboxVault:
                     local,
                     now=now,
                     expires_at_utc=expires_at_utc,
-                    identifiers=self._new_identifiers(),
+                    identifiers=self._new_identifiers,
                     crypto=self._crypto,
                     index=self._index,
                     store=self._store,
@@ -153,6 +153,10 @@ class MailboxVault:
             raise VaultError("invalid_expiry")
         with self.mutation_lock:
             self._ensure_active()
+            metadata = self._index.get_record(record_id)
+            if metadata is None:
+                raise VaultError("record_not_found")
+            validate_committed_ciphertext(metadata, self._crypto, self._store)
             self._index.constrain_expiry(record_id, expires_at_utc)
 
     @contextmanager

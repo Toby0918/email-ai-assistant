@@ -113,7 +113,7 @@ class GovernedScanTests(unittest.TestCase):
         self.assertNotIn("synthetic widgets", rendered)
         self.assertNotIn("buyer@customer.test", rendered)
 
-    def test_cross_folder_copy_is_counted_once_and_not_written_twice(self) -> None:
+    def test_cross_folder_copy_is_processed_but_not_written_twice(self) -> None:
         report, vault, _control, index, temporary = self._run(
             duplicate_request=True
         )
@@ -197,7 +197,6 @@ class GovernedScanTests(unittest.TestCase):
         self.assertEqual(report.customer_request_count, 0)
         self.assertEqual(report.pair_count, 0)
         self.assertEqual(len(vault.records), 0)
-
 
 if __name__ == "__main__":
     unittest.main()

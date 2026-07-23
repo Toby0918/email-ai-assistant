@@ -35,7 +35,7 @@ class AttachmentOperation:
             )
         return CliResult(
             "attachments_complete",
-            count=report.parsed_count,
+            count=report.new_blob_count,
             aggregate_counts=report.to_counts(),
         )
 

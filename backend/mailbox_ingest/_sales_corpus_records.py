@@ -129,6 +129,8 @@ def find_message_record(
     record_values = require_authenticated_row(
         auth_key, "canonical_messages", record,
     )
+    if record_values[4] != content:
+        raise SalesCorpusIndexError("sales_corpus_message_conflict")
     if alias is not None:
         alias_values = require_authenticated_row(
             auth_key, "source_aliases", alias,

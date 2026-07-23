@@ -142,6 +142,14 @@ def verify_vault(
         item.encrypted_relpath for item in (*records, *write_intents)
     }
     actual_paths = store.iter_paths()
+    stage_paths = store.iter_stage_paths()
+    intent_paths = {
+        intent.encrypted_relpath for intent in write_intents
+    }
+    managed_stages = {
+        path for path in stage_paths
+        if path in intent_paths and path not in actual_paths
+    }
     missing = 0
     integrity_failures = 0
     pending = 0
@@ -155,7 +163,10 @@ def verify_vault(
     return VerifyReport(
         total_count=len(records),
         missing_count=missing,
-        orphan_count=len(actual_paths - indexed_paths),
+        orphan_count=(
+            len(actual_paths - indexed_paths)
+            + len(stage_paths - managed_stages)
+        ),
         integrity_failure_count=integrity_failures,
         delete_pending_count=pending,
         write_pending_count=len(write_intents),

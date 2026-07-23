@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 import stat
-import sys
 import tempfile
 import types
 import unittest
@@ -92,19 +91,17 @@ class SalesPolicyFileTests(unittest.TestCase):
                 parsed_payloads, [{"schema_version": "SyntheticPolicyV1"}]
             )
 
-    def test_uses_the_delayed_default_policy_parser(self) -> None:
+    def test_uses_the_strict_default_policy_parser(self) -> None:
         with _layout() as layout:
-            layout.policy.write_text("{}", encoding="utf-8")
-            fake_module = types.ModuleType(
-                "backend.mailbox_ingest.sales_message_policy"
-            )
-            expected = object()
-            fake_module.parse_sales_corpus_policy = lambda payload: expected  # type: ignore[attr-defined]
-            with (
-                mock.patch.dict(
-                    sys.modules,
-                    {"backend.mailbox_ingest.sales_message_policy": fake_module},
+            layout.policy.write_text(
+                (
+                    '{"schema_version":1,'
+                    '"company_domain":"seller.example.test",'
+                    '"salesperson_allowlist":["agent@seller.example.test"]}'
                 ),
+                encoding="utf-8",
+            )
+            with (
                 mock.patch.object(
                     sales_policy_file,
                     "_system_temp_root",
@@ -114,7 +111,7 @@ class SalesPolicyFileTests(unittest.TestCase):
                 actual = sales_policy_file.read_sales_policy(
                     layout.policy, project_root=layout.project
                 )
-            self.assertIs(actual, expected)
+            self.assertEqual(repr(actual), "SalesCorpusPolicy(<redacted>)")
 
     def test_all_failures_use_one_fixed_redacted_error(self) -> None:
         canary = "customer-policy-secret.json"

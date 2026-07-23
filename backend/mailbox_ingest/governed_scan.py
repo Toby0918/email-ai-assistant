@@ -22,6 +22,7 @@ from .governed_scan_state import (
     load_or_create_scan_state,
     report_from_state,
 )
+from .governed_scan_dedup import message_outcome_token
 from .sales_message_policy import evaluate_sales_message
 from .text_body_decoder import TextBodyDecodeError, decode_text_body
 
@@ -69,11 +70,12 @@ def _scan_folder(
         if message.uid <= cursor:
             continue
         _require_uidvalidity(session, folder.wire_mailbox, folder.uidvalidity)
-        outcome, supported, unsupported = _process_one(
+        outcome, supported, unsupported, outcome_token = _process_one(
             session, folder, inventory, message, vault, policy, index, key
         )
         advance_scan_state(
-            state, folder_state, message.uid, outcome, supported, unsupported
+            state, folder_state, message.uid, outcome, supported, unsupported,
+            outcome_token,
         )
         try:
             control.write("scan-state", state)
@@ -84,53 +86,67 @@ def _scan_folder(
 def _process_one(
     session: object, folder: object, inventory: object, message: object,
     vault: object, policy: object, index: object, key: bytes,
-) -> tuple[str, int, int]:
+) -> tuple[str, int, int, str | None]:
     try:
         source = session.uid_fetch_bodystructure(message.uid)
     except Exception:
         raise ScanError("scan_transport_failed") from None
+    _require_uidvalidity(session, folder.wire_mailbox, folder.uidvalidity)
     try:
         plan = parse_bodystructure(source)
     except BodyStructureError:
-        return "ambiguous", 0, 0
+        return "ambiguous", 0, 0, None
     supported, unsupported = _attachment_counts(plan.attachments)
     downloaded = _download_content(session, message.uid, plan.body_sections)
+    _require_uidvalidity(session, folder.wire_mailbox, folder.uidvalidity)
     if downloaded is None:
-        return "ambiguous", supported, unsupported
-    header, bodies = downloaded
+        return "ambiguous", supported, unsupported, None
+    header, bodies, raw_bodies = downloaded
+    outcome_token = (
+        message_outcome_token(
+            key, header, source.encode("utf-8"), plan.body_sections, raw_bodies,
+            _attachment_material(plan.attachments),
+        )
+        if plan.all_leaf_bytes_selected
+        else None
+    )
+    if bodies is None:
+        return "ambiguous", supported, unsupported, outcome_token
     classification = classify_message(header, bodies)
     if classification != "eligible":
-        return classification, supported, unsupported
+        return classification, supported, unsupported, outcome_token
     decision = evaluate_sales_message(
         policy=policy, raw_header=header, raw_body=b"\n".join(bodies),
         trusted_internal_date=message.internal_date, folder_role=folder.role,
         identity_key=key,
     )
     if decision.status != "candidate":
-        return decision.status, supported, unsupported
+        return decision.status, supported, unsupported, outcome_token
     _persist_candidate(
         decision.candidate, plan.attachments, folder, inventory, message,
         header, bodies, vault, index, key, supported, unsupported,
     )
-    return "candidate", 0, 0
-
+    return "candidate", 0, 0, outcome_token
 
 def _download_content(
     session: object, uid: int, parts: tuple[object, ...],
-) -> tuple[bytes, tuple[bytes, ...]] | None:
-    if any(getattr(part, "mime_type", None) != "text/plain" for part in parts):
-        return None
+) -> tuple[bytes, tuple[bytes, ...] | None, tuple[bytes, ...]] | None:
     try:
         header, encoded = fetch_first_pass_content(session, uid, parts)
+    except FirstPassTransportError:
+        raise ScanError("scan_transport_failed") from None
+    except FirstPassContentError:
+        return None
+    if any(getattr(part, "mime_type", None) != "text/plain" for part in parts):
+        return header, None, encoded
+    try:
         bodies = tuple(
             decode_text_body(part, payload)
             for part, payload in zip(parts, encoded, strict=True)
         )
-        return header, bodies
-    except FirstPassTransportError:
-        raise ScanError("scan_transport_failed") from None
-    except (FirstPassContentError, TextBodyDecodeError):
-        return None
+    except TextBodyDecodeError:
+        return header, None, encoded
+    return header, bodies, encoded
 
 
 def _persist_candidate(
@@ -202,6 +218,7 @@ def _write_raw_record(
             uidvalidity=folder.uidvalidity, uid=message.uid,
             internal_date=message.internal_date, expires_at_utc=expires,
             header=header, bodies=bodies, attachments=attachments,
+            learning_projection=candidate.learning_projection(),
             candidate_id_factory=lambda: "0" * 32,
             deterministic_candidate_id_factory=identity,
         )

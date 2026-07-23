@@ -335,7 +335,13 @@ class StageKnowledgeTests(unittest.TestCase):
                 b"To: Internal User <one@example.test>\r\n"
                 b"Message-ID: <synthetic-1@partner.example>\r\n\r\n"
             ),
-            bodies=(b"Please confirm delivery status.",), attachments=(),
+            bodies=(
+                b"Please confirm delivery status.\r\n"
+                b"> prior private history\r\n"
+                b"--\r\nConfidentiality notice",
+            ),
+            learning_projection="Please confirm delivery status.",
+            attachments=(),
             candidate_id_factory=lambda: "d" * 32,
         )
 
@@ -372,7 +378,8 @@ class StageKnowledgeTests(unittest.TestCase):
         with source:
             context = source.read_one_record(record_id)
             with context as raw:
-                self.assertIn("Alex Example", raw.text)
+                self.assertEqual(raw.text, "Please confirm delivery status.")
+                self.assertNotIn("prior private history", raw.text)
                 self.assertEqual(raw.context["people"], ["Alex Example", "Internal User"])
             self.assertEqual(raw.text, "")
             self.assertEqual(source.evidence, ("1", "1"))
@@ -431,6 +438,7 @@ class StageKnowledgeTests(unittest.TestCase):
                 b"Message-ID: <synthetic-2@partner.example>\r\n\r\n"
             ),
             bodies=(b"Please confirm current status.",), attachments=(),
+            learning_projection="Please confirm current status.",
             candidate_id_factory=lambda: "d" * 32,
         )
 

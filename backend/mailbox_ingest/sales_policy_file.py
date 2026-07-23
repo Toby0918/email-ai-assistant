@@ -11,6 +11,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import TypeVar
 
+from .sales_message_policy import parse_sales_corpus_policy
+
 _MAX_POLICY_BYTES = 64 * 1024
 _ERROR_CODE = "sales_policy_invalid"
 _Policy = TypeVar("_Policy")
@@ -23,13 +25,6 @@ class _Identity:
     mode: int
     size: int
     modified_ns: int
-
-
-def parse_sales_corpus_policy(payload: object) -> object:
-    """Resolve the policy parser lazily across parallel implementation slices."""
-    from .sales_message_policy import parse_sales_corpus_policy as parser
-
-    return parser(payload)
 
 
 class SalesPolicyFileError(ValueError):

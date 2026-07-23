@@ -6,6 +6,9 @@ import tempfile
 import threading
 import unittest
 import sqlite3
+import subprocess
+import sys
+import textwrap
 from contextlib import closing
 from datetime import datetime, timezone
 from pathlib import Path
@@ -296,6 +299,64 @@ class MailboxVaultTests(unittest.TestCase):
         self.assertEqual(report.missing_count, 0)
         self.assertNotIn("records/", repr(report))
 
+    def test_encryption_failure_leaves_the_reserved_write_intent(self) -> None:
+        root = self.root / "reserve-before-encrypt"
+        crypto = VaultCrypto(
+            self.master,
+            vault_id=self.vault_id,
+            rng=lambda _size: b"short",
+            max_plaintext_size=1_024,
+        )
+        index = VaultIndex(root / "vault-index.sqlite3", vault_id=self.vault_id)
+        index.initialize()
+        vault = MailboxVault(
+            root,
+            vault_id=self.vault_id,
+            crypto=crypto,
+            index=index,
+            ciphertext_store=AtomicCiphertextStore(root),
+            clock=lambda: self.now,
+            random_identifier=iter(
+                ("1" * 32, "2" * 32)
+            ).__next__,
+        )
+        self.addCleanup(crypto.close)
+
+        with self.assertRaisesRegex(VaultError, "invalid_nonce"):
+            vault.put_record_if_absent(
+                b"RESERVE-BEFORE-ENCRYPT", expires_at_utc=self.now + 60
+            )
+
+        report = vault.verify()
+        self.assertEqual(report.write_pending_count, 1)
+        self.assertEqual(report.orphan_count, 0)
+
+        recovered_crypto = VaultCrypto(
+            self.master,
+            vault_id=self.vault_id,
+            rng=CounterRng(),
+            max_plaintext_size=1_024,
+        )
+        self.addCleanup(recovered_crypto.close)
+        recovered = MailboxVault(
+            root,
+            vault_id=self.vault_id,
+            crypto=recovered_crypto,
+            index=VaultIndex(
+                root / "vault-index.sqlite3", vault_id=self.vault_id
+            ),
+            ciphertext_store=AtomicCiphertextStore(root),
+            clock=lambda: self.now,
+            random_identifier=lambda: (_ for _ in ()).throw(
+                AssertionError("recovery allocated a new identifier")
+            ),
+        )
+
+        retried = recovered.put_record_if_absent(
+            b"RESERVE-BEFORE-ENCRYPT", expires_at_utc=self.now + 60
+        )
+        self.assertEqual(retried.record_id, "1" * 32)
+
     def test_close_reopen_retry_activates_original_write_intent(self) -> None:
         first_created = self.now
         first_expiry = self.now + 60
@@ -335,6 +396,89 @@ class MailboxVaultTests(unittest.TestCase):
         recovered = self.vault.get_record(retried.record_id)
         self.addCleanup(recovered.wipe)
         self.assertEqual(bytes(recovered), b"CRASH-SAFE-SYNTHETIC")
+
+    def test_hard_crash_stage_is_removed_by_the_intent_retry(self) -> None:
+        root = self.root / "hard-crash-stage"
+        script = textwrap.dedent(
+            """
+            import os
+            import sys
+            from pathlib import Path
+            from unittest import mock
+            from backend.mailbox_ingest.models import SecretBuffer
+            from backend.mailbox_ingest.vault import MailboxVault
+            from backend.mailbox_ingest.vault_crypto import VaultCrypto
+            from backend.mailbox_ingest.vault_files import AtomicCiphertextStore
+            from backend.mailbox_ingest.vault_index import VaultIndex
+
+            root = Path(sys.argv[1])
+            now = int(sys.argv[2])
+            vault_id = "11111111-2222-4333-8444-555555555555"
+            master = SecretBuffer(b"M" * 32)
+            crypto = VaultCrypto(
+                master, vault_id=vault_id, rng=lambda size: b"A" * size,
+                max_plaintext_size=1_024,
+            )
+            index = VaultIndex(root / "vault-index.sqlite3", vault_id=vault_id)
+            index.initialize()
+            identifiers = iter(("1" * 32, "2" * 32))
+            vault = MailboxVault(
+                root, vault_id=vault_id, crypto=crypto, index=index,
+                ciphertext_store=AtomicCiphertextStore(root),
+                clock=lambda: now, random_identifier=identifiers.__next__,
+            )
+            with mock.patch(
+                "backend.mailbox_ingest.vault_files.os.replace",
+                side_effect=lambda *_args: os._exit(23),
+            ):
+                vault.put_record_if_absent(
+                    b"HARD-CRASH-STAGE", expires_at_utc=now + 60,
+                )
+            """
+        )
+        crashed = subprocess.run(
+            [sys.executable, "-B", "-c", script, str(root), str(self.now)],
+            cwd=Path(__file__).resolve().parents[1],
+            check=False,
+        )
+        self.assertEqual(crashed.returncode, 23)
+        self.assertEqual(len(tuple(root.rglob("*.stage"))), 1)
+        stale_lock = root / ".mutation.lock"
+        self.assertTrue(stale_lock.is_file())
+        index = VaultIndex(root / "vault-index.sqlite3", vault_id=self.vault_id)
+        index.validate()
+        store = AtomicCiphertextStore(root)
+
+        crypto = VaultCrypto(
+            self.master,
+            vault_id=self.vault_id,
+            rng=CounterRng(),
+            max_plaintext_size=1_024,
+        )
+        identifiers = iter(("3" * 32, "4" * 32))
+        vault = MailboxVault(
+            root,
+            vault_id=self.vault_id,
+            crypto=crypto,
+            index=index,
+            ciphertext_store=store,
+            clock=lambda: self.now,
+            random_identifier=identifiers.__next__,
+        )
+        self.addCleanup(crypto.close)
+        intent = index.list_write_intents()[0]
+        self.assertEqual(store.iter_paths(), set())
+        self.assertEqual(
+            store.iter_stage_paths(), {intent.encrypted_relpath}
+        )
+
+        retried = vault.put_record_if_absent(
+            b"HARD-CRASH-STAGE", expires_at_utc=self.now + 60
+        )
+
+        self.assertTrue(retried.created)
+        self.assertEqual(retried.record_id, "1" * 32)
+        self.assertEqual(tuple(root.rglob("*.stage")), ())
 
     def test_close_reopen_retry_atomically_constrains_pending_expiry(self) -> None:
         original_expiry = self.now + 120
@@ -394,6 +538,60 @@ class MailboxVaultTests(unittest.TestCase):
                         expires_at_utc=self.now + 180,
                         extend_expiry_on_duplicate=invalid,  # type: ignore[arg-type]
                     )
+
+    def test_active_duplicate_fails_closed_when_ciphertext_is_missing(self) -> None:
+        first = self.vault.put_record_if_absent(
+            b"MISSING-ACTIVE-DUPLICATE", expires_at_utc=self.now + 60
+        )
+        metadata = self.index.get_record(first.record_id)
+        self.store.unlink(metadata.encrypted_relpath)
+
+        with self.assertRaisesRegex(VaultError, "ciphertext_missing"):
+            self.vault.put_record_if_absent(
+                b"MISSING-ACTIVE-DUPLICATE", expires_at_utc=self.now + 60
+            )
+
+    def test_active_duplicate_authenticates_existing_ciphertext(self) -> None:
+        first = self.vault.put_record_if_absent(
+            b"CORRUPT-ACTIVE-DUPLICATE", expires_at_utc=self.now + 60
+        )
+        metadata = self.index.get_record(first.record_id)
+        path = self.root / metadata.encrypted_relpath
+        frame = bytearray(path.read_bytes())
+        frame[-1] ^= 1
+        path.write_bytes(frame)
+
+        with self.assertRaisesRegex(
+            VaultError, "record_authentication_failed"
+        ):
+            self.vault.put_record_if_absent(
+                b"CORRUPT-ACTIVE-DUPLICATE", expires_at_utc=self.now + 60
+            )
+
+    def test_constrain_expiry_authenticates_existing_ciphertext(self) -> None:
+        original_expiry = self.now + 120
+        record_id = self._put(expiry=original_expiry)
+        metadata = self.index.get_record(record_id)
+        self.store.unlink(metadata.encrypted_relpath)
+
+        with self.assertRaisesRegex(VaultError, "ciphertext_missing"):
+            self.vault.constrain_record_expiry(record_id, self.now + 30)
+
+        self.assertEqual(
+            self.index.get_record(record_id).expires_at_utc,
+            original_expiry,
+        )
+
+    def test_verify_counts_stage_beside_active_ciphertext_as_orphan(self) -> None:
+        record_id = self._put(expiry=self.now + 60)
+        metadata = self.index.get_record(record_id)
+        target = self.root / metadata.encrypted_relpath
+        stage = target.with_name(f".{target.name}.stage")
+        stage.write_bytes(target.read_bytes())
+
+        report = self.vault.verify()
+
+        self.assertEqual(report.orphan_count, 1)
 
     def test_constrain_record_expiry_only_reduces_active_record(self) -> None:
         record_id = self._put(expiry=self.now + 120)
@@ -557,7 +755,7 @@ class MailboxVaultTests(unittest.TestCase):
                 self.vault.constrain_record_expiry(record_id, self.now + 30)
             self.assertTrue(lock_path.exists())
 
-        self.assertFalse(lock_path.exists())
+        self.assertTrue(lock_path.exists())
         self.assertEqual(
             self.index.get_record(record_id).expires_at_utc, self.now + 30,
         )
@@ -598,10 +796,10 @@ class MailboxVaultTests(unittest.TestCase):
             with self.vault.coordinated_mutation():
                 raise RuntimeError("synthetic coordinated failure")
 
-        self.assertFalse(lock_path.exists())
+        self.assertTrue(lock_path.exists())
         with self.vault.coordinated_mutation():
             self.assertTrue(lock_path.exists())
-        self.assertFalse(lock_path.exists())
+        self.assertTrue(lock_path.exists())
 
     def test_revoke_is_explicit_stateful_partial_safe_and_leaves_offline_media(self) -> None:
         offline_recovery = self.root.parent / "synthetic-offline-recovery.key"

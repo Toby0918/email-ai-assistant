@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-22
+last_update: 2026-07-23
 status: active
 owner: "@tobyWang"
 review_cycle: quarterly
@@ -82,8 +82,11 @@ mutation, and mailbox mutation are prohibited mechanically and at runtime.
   encrypted relative-path token is independently random and opaque. Before
   ciphertext publication, the index durably reserves those identifiers and the
   bounded retention metadata in a write intent; a retry after a crash between
-  ciphertext publication and index activation must recover and reuse that same
-  intent rather than minting another identity or orphaning the ciphertext.
+   ciphertext publication and index activation must recover and reuse that same
+   intent rather than minting another identity or orphaning the ciphertext. The
+   cross-process mutation lock uses OS-managed ownership so a live holder fails
+   closed and a terminated process releases the lock; its persistent one-byte
+   lock file is not an ownership marker.
   Existing pre-v3 indexes fail closed and are never implicitly migrated.
 - Active-record and write-intent metadata are authenticated with a separate
   HKDF-derived purpose key. Every lookup, activation, expiry update, verification,
@@ -93,11 +96,15 @@ mutation, and mailbox mutation are prohibited mechanically and at runtime.
 - Task 2 accepts caller-supplied expiry but caps it at no later than the current
   time plus 24 calendar months. Ingest code derives the actual earlier expiry
   from validated `INTERNALDATE`; it cannot extend retention at ingest time.
-- Exact message copies share one encrypted record and can only constrain that
-  record's expiry to the earliest applicable source expiry. Exact attachment
+- Fully observed exact message copies share one encrypted record and can only
+  constrain that record's expiry to the earliest applicable source expiry.
+  First-pass messages with unread attachment or unselected MIME leaves are not
+  claimed as exact aggregate duplicates and are conservatively counted
+  separately. Exact attachment
   bytes also share one encrypted blob, but a separately reviewed, still-valid
   governed binding may explicitly extend that blob only to the binding's
-  bounded expiry; duplicate writes do not extend expiry by default.
+  bounded expiry and only after the binding succeeds; duplicate writes do not
+  extend expiry by default.
 - `verify` reports durable write intents as pending work. Expired intents,
   active records, and delete-pending records share the same bounded purge
   lifecycle instead of leaving unindexed ciphertext outside retention.
@@ -135,12 +142,24 @@ remain encrypted even when unpaired, but downstream staging and reviewed
 attachment acquisition must reject any source record that is not part of a
 governed pair.
 
+The v3 scan checkpoint binds fully observed outcomes to keyed tokens over the
+validated raw BODYSTRUCTURE, selected-part metadata, and fetched header/body
+bytes. It omits tokens when any MIME leaf remains unread, caps the token map at
+20,000 entries, and uses an explicit 4 MiB encrypted control envelope. The
+knowledge, evaluation, and reviewed-attachment paths share one strict v1/v2
+scan-record envelope validator; v2 releases its learning projection only to the
+paired knowledge path as support text. Bounded header-derived identity context
+remains local to one-record deidentification and aggregate evidence and is not
+released as support text or staged raw content.
+
 Supported reviewed attachment bytes are stored in source-independent encrypted
 blobs and linked only through opaque metadata. The encrypted attachment payload
 contains a fixed record framing plus the exact acquired raw bytes only; parser
 output is not persisted in that blob. Identical bytes reuse one blob. Parsing
 and semantic-review outcomes are authenticated metadata states, separate from
-acquisition and deduplication; `parsed` does not mean semantically correct.
+acquisition and deduplication; `parsed` does not mean semantically correct, and
+only a newly admitted blob contributes to the top-level attachment success
+count.
 
 Retention purge is corpus-aware. One cross-process vault mutation lock spans the
 exact purge plan, authenticated corpus transaction, and planned ciphertext

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import base64
 import json
 import re
 from datetime import datetime
@@ -15,23 +14,23 @@ from typing import Callable
 from .dpapi import DpapiProtector
 from .errors import VaultError
 from .existing_vault_policy import validate_existing_vault_location
-from .knowledge_stage_helpers import conversation_bucket, counterparty_bucket, filenames
+from .knowledge_stage_helpers import conversation_bucket, counterparty_bucket
 from .models import SecretBuffer
+from .stage_record_release import (
+    _EVALUATION_RELEASE,
+    _KNOWLEDGE_RELEASE,
+)
+from .stage_record_validation import validate_stage_record
+from .stage_source_binding import open_bound_stage_vault
 from .vault_access import open_mailbox_vault
 
 
 _RECORD_ID = re.compile(r"^[0-9a-f]{32}$")
+_FINGERPRINT = re.compile(r"^[0-9a-f]{64}$")
 _ORGANIZATION_DISPLAY = re.compile(
     r"(?i)(?:\b(?:ltd|limited|llc|inc|corp|corporation|company|gmbh|plc)\.?$|"
     r"(?:有限公司|股份有限公司|集团|公司)$)"
 )
-_FIELDS = {
-    "schema_version", "scope", "fingerprint", "opaque_folder_id", "mailbox",
-    "uidvalidity", "uid", "internal_date", "expires_at_utc", "header_b64",
-    "bodies_b64", "attachments",
-}
-
-
 class RawStageRecord:
     __slots__ = ("text", "context")
 
@@ -65,12 +64,15 @@ class _RawRecordContext:
     def __enter__(self) -> RawStageRecord:
         if self._record is not None:
             raise VaultError("stage_record_invalid")
-        try:
-            paired = self._source._opened.corpus_index.belongs_to_pair(self._record_id)
-        except Exception:
-            raise VaultError("stage_record_invalid") from None
-        if paired is not True:
-            raise VaultError("stage_record_invalid")
+        if self._source._release.requires_pair:
+            try:
+                paired = self._source._opened.corpus_index.belongs_to_pair(
+                    self._record_id
+                )
+            except Exception:
+                raise VaultError("stage_record_invalid") from None
+            if paired is not True:
+                raise VaultError("stage_record_invalid")
         secret = self._source._opened.vault.get_record(self._record_id)
         if not isinstance(secret, SecretBuffer):
             raise VaultError("stage_record_invalid")
@@ -88,6 +90,8 @@ class _RawRecordContext:
 
 
 class MailboxKnowledgeStageSource:
+    _release = _KNOWLEDGE_RELEASE
+
     def __init__(
         self,
         opened: object,
@@ -105,8 +109,12 @@ class MailboxKnowledgeStageSource:
         self._window_start = window_start
         self._window_end = window_end
         self._fingerprint = expected_fingerprint
-        self._threads: set[str] | None = set() if retain_evidence else None
-        self._counterparties: set[str] | None = set() if retain_evidence else None
+        self._threads: set[str] | None = (
+            set() if retain_evidence and self._release.retains_evidence else None
+        )
+        self._counterparties: set[str] | None = (
+            set() if retain_evidence and self._release.retains_evidence else None
+        )
         self._closed = False
 
     def read_one_record(self, record_id: str) -> _RawRecordContext:
@@ -124,14 +132,10 @@ class MailboxKnowledgeStageSource:
     def _decode(self, payload: bytes, record_id: str) -> RawStageRecord:
         try:
             value = json.loads(payload.decode("ascii"))
-            _validate_record(
+            header, bodies = validate_stage_record(
                 value, self._scope, self._window_start, self._window_end,
-                self._fingerprint,
+                self._fingerprint, self._release,
             )
-            header = base64.b64decode(value["header_b64"], validate=True)
-            bodies = tuple(base64.b64decode(item, validate=True) for item in value["bodies_b64"])
-            if sum(map(len, (header, *bodies))) > 25 * 1024 * 1024:
-                raise ValueError
             message = BytesParser(policy=policy.default).parsebytes(header)
             people, organizations, addresses = _header_identities(message)
             if self._counterparties is not None and self._threads is not None:
@@ -142,12 +146,7 @@ class MailboxKnowledgeStageSource:
                     and not address.casefold().endswith("@" + self._account_domain)
                 )
                 self._threads.add(_thread_key(message, record_id))
-            attachment_names = filenames(value["attachments"])
-            text = "\n".join(
-                [header.decode("utf-8", errors="replace")]
-                + [item.decode("utf-8", errors="replace") for item in bodies]
-                + attachment_names
-            )
+            text = self._release.text(value, header, bodies)
             return RawStageRecord(text, people, organizations)
         except (ValueError, TypeError, KeyError, UnicodeError, json.JSONDecodeError):
             raise VaultError("stage_record_invalid") from None
@@ -174,6 +173,10 @@ class MailboxKnowledgeStageSource:
         return "MailboxKnowledgeStageSource(<redacted>)"
 
 
+class _MailboxEvaluationStageSource(MailboxKnowledgeStageSource):
+    _release = _EVALUATION_RELEASE
+
+
 def open_knowledge_stage_source(
     vault_root: Path,
     *,
@@ -191,13 +194,14 @@ def open_knowledge_stage_source(
     expected_fingerprint: str | None = None,
     retain_evidence: bool = True,
 ) -> MailboxKnowledgeStageSource:
-    validate_existing(Path(vault_root), Path(project_root))
-    opened = opener(Path(vault_root), dpapi=dpapi_factory(), clock=clock)
+    opened = open_bound_stage_vault(
+        vault_root,
+        authorization_id=authorization_id, account=account,
+        expected_vault_id=expected_vault_id, expected_scope=expected_scope,
+        project_root=project_root, validate_existing=validate_existing,
+        dpapi_factory=dpapi_factory, opener=opener, clock=clock,
+    )
     try:
-        scope = opened.require_authorization_scope(authorization_id, account)
-        if (getattr(opened.identity, "vault_id", None) != expected_vault_id
-                or getattr(scope, "opaque_scope_id", None) != expected_scope):
-            raise VaultError("stage_scope_mismatch")
         return MailboxKnowledgeStageSource(
             opened, expected_scope=expected_scope, account=account,
             window_start=window_start, window_end=window_end,
@@ -225,33 +229,28 @@ def open_evaluation_stage_source(
     opener: Callable[..., object] = open_mailbox_vault,
     clock: Callable[[], int],
 ) -> MailboxKnowledgeStageSource:
-    return open_knowledge_stage_source(
-        vault_root, authorization_id=authorization_id, account=account,
+    if (
+        not isinstance(expected_fingerprint, str)
+        or _FINGERPRINT.fullmatch(expected_fingerprint) is None
+    ):
+        raise VaultError("stage_record_invalid")
+    opened = open_bound_stage_vault(
+        vault_root,
+        authorization_id=authorization_id, account=account,
         expected_vault_id=expected_vault_id, expected_scope=expected_scope,
-        window_start=window_start, window_end=window_end,
         project_root=project_root, validate_existing=validate_existing,
         dpapi_factory=dpapi_factory, opener=opener, clock=clock,
-        expected_fingerprint=expected_fingerprint, retain_evidence=False,
     )
-
-
-def _validate_record(
-    value: object,
-    scope: str,
-    start: datetime,
-    end: datetime,
-    fingerprint: str | None,
-) -> None:
-    if (not isinstance(value, dict) or set(value) != _FIELDS
-            or value["schema_version"] != 1 or value["scope"] != scope
-            or (fingerprint is not None and value["fingerprint"] != fingerprint)
-            or not isinstance(value["bodies_b64"], list)
-            or not isinstance(value["attachments"], list)):
-        raise ValueError
-    internal = datetime.fromisoformat(value["internal_date"])
-    if internal.utcoffset() is None or not start <= internal < end:
-        raise ValueError
-
+    try:
+        return _MailboxEvaluationStageSource(
+            opened, expected_scope=expected_scope, account=account,
+            window_start=window_start, window_end=window_end,
+            expected_fingerprint=expected_fingerprint,
+            retain_evidence=False,
+        )
+    except Exception:
+        opened.close()
+        raise
 
 def _header_identities(
     message: object,

@@ -21,6 +21,7 @@ from .models import SecretBuffer
 _MAGIC = b"MBCTRL01"
 _NONCE_SIZE = 12
 _NAME = re.compile(r"^[a-z][a-z0-9-]{0,63}$")
+MAILBOX_CONTROL_MAX_PLAINTEXT_SIZE = 4 * 1024 * 1024
 
 
 class ControlStoreError(ValueError):
@@ -40,7 +41,7 @@ class EncryptedControlStore:
         vault_id: str,
         master_key: bytes | bytearray,
         rng: Callable[[int], bytes] = os.urandom,
-        max_plaintext_size: int = 1024 * 1024,
+        max_plaintext_size: int = MAILBOX_CONTROL_MAX_PLAINTEXT_SIZE,
     ) -> None:
         try:
             vault_bytes = uuid.UUID(vault_id).bytes
@@ -195,4 +196,8 @@ class EncryptedControlStore:
         return "EncryptedControlStore(<redacted>)"
 
 
-__all__ = ["ControlStoreError", "EncryptedControlStore"]
+__all__ = [
+    "ControlStoreError",
+    "EncryptedControlStore",
+    "MAILBOX_CONTROL_MAX_PLAINTEXT_SIZE",
+]

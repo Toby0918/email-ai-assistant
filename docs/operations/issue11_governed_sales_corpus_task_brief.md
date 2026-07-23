@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-22
+last_update: 2026-07-23
 status: active
 owner: "@tobyWang"
 review_cycle: weekly
@@ -38,7 +38,10 @@ inventoried and, only after exact fingerprint confirmation, imported as a
 governed rolling 24-calendar-month sales corpus. Only actual external-customer
 requests paired with later replies from privately allowlisted salespeople become
 learning evidence. Duplicate messages, quotations, and attachments must not
-inflate evidence or aggregate reports.
+inflate evidence or aggregate success counts. Only messages whose complete MIME
+leaf bytes were observed by the bounded first pass qualify for exact aggregate
+deduplication; messages with unread attachment or unselected content leaves are
+conservatively counted separately without creating additional corpus evidence.
 
 ## 5. Non-goals
 
@@ -149,7 +152,30 @@ New Python modules remain at or below 300 lines and functions remain at or below
    mail, signature/disclaimer-only content, and duplicate quotation evidence.
    Signatures, bounded Outlook or Chinese quoted-header history, and disclaimers
    are removed from the learning projection, while authorized raw bytes remain
-   only in encrypted vault records.
+   only in encrypted vault records. Governed message records use a strict v2
+   envelope that carries that projection beside the encrypted raw fields:
+   knowledge staging releases only the projection as support text from
+   authenticated paired records. Bounded header-derived identity context stays
+   local to one-record deidentification and aggregate evidence; it is not
+   released as support text or staged raw content. Evaluation staging may
+   release the same v2 record's raw fields one record at a time without
+   retaining cross-record evidence. Attachment
+   preparation accepts the same strict v2 envelope. All three consumers share
+   exact v1/v2 field, type, identifier, timestamp, base64, body, projection, and
+   attachment validation rather than maintaining permissive local subsets.
+   The encrypted scan checkpoint uses a strict v3 envelope with keyed,
+   content-free exact-message outcome tokens only when every MIME leaf byte was
+   observed by the bounded first pass. The token binds the validated raw
+   BODYSTRUCTURE, selected-part metadata, header bytes, and body bytes. Confirmed
+   fully observed cross-folder copies cannot inflate processed or exclusion
+   aggregates across retries. Messages with an unread attachment, unselected
+   alternative/inline leaf, or malformed content whose exact bytes cannot be
+   established receive no token and are conservatively counted separately.
+   They still cannot create additional corpus evidence, duplicate quotation
+   evidence, or second-pass exact-attachment blob success. The checkpoint holds
+   at most 20,000 tokens inside an explicit 4 MiB encrypted control envelope;
+   inserting a new token past that bound fails with
+   `scan_state_capacity_exceeded` before cursor or counter mutation.
 6. Use vault-keyed content deduplication with random opaque record and path
    identifiers. A durable authenticated write intent reserves those identifiers
    before ciphertext creation; a retry after a ciphertext/index interruption
@@ -160,7 +186,10 @@ New Python modules remain at or below 300 lines and functions remain at or below
    Raw records are written through `MailboxVault`; only authenticated paired
    edges become downstream learning evidence. Earlier duplicate message copies
    can only shorten raw-record expiry. One cross-process mutation lock spans
-   each vault-plus-corpus upsert, attachment binding, and purge sequence.
+   each vault-plus-corpus upsert, attachment binding, and purge sequence. The
+   lock is OS-managed: a live holder fails closed, while process termination
+   releases ownership so the same authenticated write intent can be retried.
+   The one-byte lock file may remain and is not itself ownership evidence.
 7. Preserve the reviewed attachment-manifest gate and existing byte limits.
    Unsupported candidates are counted without byte retrieval. A fetched
    supported attachment is stored in a source-independent encrypted blob that
@@ -168,8 +197,11 @@ New Python modules remain at or below 300 lines and functions remain at or below
    source/candidate IDs in the private corpus index. Parsed projections are not
    persisted in the blob. Exact byte
    duplicates reuse one blob and an explicitly authorized later binding may
-   extend its expiry. Outcomes separately report fetched, parsed, new-blob,
-   duplicate-blob, and semantic-unreviewed counts.
+   extend its expiry only after that binding succeeds. Outcomes separately
+   report fetched, parsed, new-blob,
+   duplicate-blob, and semantic-unreviewed counts; the top-level attachment
+   success count includes only newly admitted blobs, not duplicate parse
+   attempts.
 8. Successful output contains only fixed codes and allowlisted integer aggregate
    counts. Failure contains only fixed codes. No raw value, locator, path,
    filename, MIME-derived text, exception detail, or partial record ID is public.
@@ -227,8 +259,11 @@ or output fields.
    spoofed, unlinked, earlier, or non-allowlisted replies do not pair.
 4. Automated mail, notifications, bulk marketing, pure forwards, signatures,
    disclaimers, quoted history, and duplicate quotations do not become evidence.
-5. Cross-folder duplicate messages and exact duplicate attachment bytes do not
-   create additional evidence or aggregate success counts.
+5. Fully observed exact cross-folder messages and exact duplicate attachment
+   bytes do not create additional evidence or aggregate success counts. A
+   message with any unread or unselected MIME leaf is not claimed as an exact
+   duplicate and may be counted separately, but still cannot add corpus
+   evidence, duplicate quotation evidence, or duplicate-blob success.
 6. Raw content is written only through encrypted vault contracts; index and
    public output remain content-free.
 7. Attachment output separates supported/unsupported, acquisition, parsing,

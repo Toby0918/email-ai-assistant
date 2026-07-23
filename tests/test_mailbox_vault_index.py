@@ -204,6 +204,14 @@ class VaultIndexTests(unittest.TestCase):
         with self.assertRaisesRegex(VaultError, "index_schema_invalid"):
             other.initialize()
 
+    def test_sibling_index_cannot_reuse_another_instance_authenticator(self) -> None:
+        sibling = VaultIndex(self.path, vault_id=self.vault_id)
+
+        with self.assertRaisesRegex(
+            VaultError, "record_authentication_failed"
+        ):
+            sibling.list_records()
+
     def test_index_filesystem_errors_are_fixed_and_path_safe(self) -> None:
         nested_path = self.root / "nested" / "index.sqlite3"
         nested = VaultIndex(nested_path, vault_id=self.vault_id)
@@ -370,7 +378,7 @@ class VaultIndexTests(unittest.TestCase):
 
         with second:
             self.assertTrue((self.root / ".mutation.lock").exists())
-        self.assertFalse((self.root / ".mutation.lock").exists())
+        self.assertTrue((self.root / ".mutation.lock").exists())
 
     def test_mutation_lock_closes_descriptor_when_fsync_fails(self) -> None:
         lock = VaultMutationLock(self.root / ".mutation.lock")

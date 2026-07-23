@@ -3,9 +3,6 @@
 from __future__ import annotations
 
 import sqlite3
-import threading
-import weakref
-from pathlib import Path
 
 from ._vault_index_records import (
     row_to_intent,
@@ -15,30 +12,6 @@ from ._vault_index_records import (
 )
 from .models import VaultRecord, VaultWriteIntent
 from .vault_crypto import VaultCrypto
-
-
-_AUTHENTICATORS: weakref.WeakValueDictionary[
-    tuple[str, str], VaultCrypto
-] = weakref.WeakValueDictionary()
-_AUTHENTICATORS_LOCK = threading.Lock()
-
-
-def register_authenticator(
-    path: Path, vault_id: str, crypto: VaultCrypto,
-) -> None:
-    with _AUTHENTICATORS_LOCK:
-        _AUTHENTICATORS[_registry_key(path, vault_id)] = crypto
-
-
-def registered_authenticator(
-    path: Path, vault_id: str,
-) -> VaultCrypto | None:
-    with _AUTHENTICATORS_LOCK:
-        return _AUTHENTICATORS.get(_registry_key(path, vault_id))
-
-
-def _registry_key(path: Path, vault_id: str) -> tuple[str, str]:
-    return str(path.resolve(strict=False)).casefold(), vault_id
 
 
 def decode_record(row: sqlite3.Row, crypto: VaultCrypto) -> VaultRecord:

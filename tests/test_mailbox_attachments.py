@@ -58,7 +58,10 @@ def source_payload(*, mime_type: str = "image/png", size: int = 12):
             "mailbox": "SYNTHETIC-INBOX",
             "uidvalidity": 77,
             "uid": 9,
+            "internal_date": "2025-01-01T00:00:00+00:00",
             "expires_at_utc": 1_800_000_000,
+            "header_b64": "",
+            "bodies_b64": [],
             "attachments": [
                 {
                     "candidate_id": CANDIDATE_ID,

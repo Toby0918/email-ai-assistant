@@ -12,8 +12,6 @@ from typing import Callable, TypeVar
 from ._vault_index_auth import (
     decode_intent,
     decode_record,
-    register_authenticator,
-    registered_authenticator,
 )
 from ._vault_index_mutations import (
     activate_reserved as _activate_reserved,
@@ -83,7 +81,6 @@ class VaultIndex:
             raise VaultError("record_authentication_failed")
         validate_index_schema(self._vault_id, self._connect)
         self._crypto = crypto
-        register_authenticator(self._path, self._vault_id, crypto)
         self.list_records()
         self.list_write_intents()
 
@@ -237,12 +234,9 @@ class VaultIndex:
         )
 
     def _require_crypto(self) -> VaultCrypto:
-        crypto = self._crypto or registered_authenticator(
-            self._path, self._vault_id,
-        )
-        if crypto is None:
+        if self._crypto is None:
             raise VaultError("record_authentication_failed")
-        return crypto
+        return self._crypto
 
     def _mutate(
         self, operation: Mutation[Result], *args: object, **kwargs: object,
