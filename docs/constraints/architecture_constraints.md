@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-22
+last_update: 2026-07-23
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -24,6 +24,11 @@ backend/
     artifact_policy.py
     contract.py
     handoff.py
+  project_layout/
+    identity.py
+    placement.py
+    operational.py
+    transition.py
   email_agent/
     config.py
     logging_config.py
@@ -81,6 +86,13 @@ deidentified projection derived from an explicit current-message click and expos
 one append-only callback seam. It owns no mailbox, filesystem, key, store reader,
 authority lifecycle, provider, background worker, or public endpoint.
 
+The `project layout layer` is a pure compatibility contract. It validates
+Repository Root, optional Project Container, standalone state, protected roots,
+and stable directory identity, then resolves absolute ordinary operational
+locations. It owns no directory mutation, launcher routing, container audit,
+mailbox, provider, credential, key, vault, recovery, private-store, ACL, volume,
+or host-security capability. The returned values contain only path metadata.
+
 ## 2. 允许依赖方向
 
 允许的核心依赖方向：
@@ -98,6 +110,7 @@ scripts/manage_mailbox_vault.py -> backend.mailbox_ingest
 scripts/manage_mailbox_vault.py -> backend.private_knowledge
 scripts/manage_mailbox_vault.py -> backend.private_evaluation staging only
 normal runtime -> backend.current_evidence append-only contract
+future launcher -> backend.project_layout validated path values
 ```
 
 禁止反向依赖：
@@ -121,7 +134,17 @@ normal runtime -> backend.mailbox_ingest
 backend.mailbox_ingest -> backend.email_agent
 backend.mailbox_ingest -> DeepSeek/OpenAI/Ollama/local model endpoint
 backend.current_evidence -> backend.mailbox_ingest/raw vault/authority repository
+backend.project_layout -> backend.email_agent/mailbox_ingest/private knowledge/private evaluation
 ```
+
+`backend/project_layout/` may import only its own modules plus the reviewed
+standard-library path/value modules. Placement validates identity twice and fails
+closed on missing/unreadable evidence, reparse components, alias drift, wrong
+names, wrong parents, or identity change. Managed placement is exactly
+`email_ai_assistant\main`. Standalone placement requires a separate explicit
+synthetic or temporary state root and never infers a Project Container.
+`OperationalLayout` accepts only a validated `RepositoryPlacement`. The
+flat-layout transition adapter cannot add a third placement mode.
 
 Only `scripts/manage_mailbox_vault.py` may import `backend.mailbox_ingest`.
 其他 `scripts/*.py`、`frontend/`、`backend.email_agent`、local debug、server、

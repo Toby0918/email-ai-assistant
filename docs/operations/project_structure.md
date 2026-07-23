@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-22
+last_update: 2026-07-23
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -28,6 +28,13 @@ email-ai-assistant/
       artifact_policy.py
       contract.py
       handoff.py
+    project_layout/
+      __init__.py
+      errors.py
+      identity.py
+      placement.py
+      operational.py
+      transition.py
     email_agent/
       __init__.py
       config.py
@@ -230,7 +237,7 @@ email-ai-assistant/
 ## 目录职责
 
 - `.github/workflows/`：CI 护栏和可选后台清理报告任务。当前运行架构、静态 linter、机械规则、完整 unittest 和只读 cleanup scan。
-- `backend/`：Python 后端代码。负责邮件正文清洗、AI 调用封装、结构化结果校验、SQLite 持久化、调试导出、本地 API 和本地调试服务。
+- `backend/`：Python 后端代码。负责 placement/layout contracts、邮件正文清洗、AI 调用封装、结构化结果校验、SQLite 持久化、调试导出、本地 API 和本地调试服务。
 - `frontend/local_debug_page/`：第一阶段本地辅助窗口调试页面，只在用户点击 `Analyze` 后调用本地后端 API，不接入真实邮箱账号。
 - `frontend/browser_extension/`: Chrome / Edge prototype for Tencent Exmail. It contains the Manifest V3 popup, Tencent Exmail content adapter, local API client, and result renderer. It reads only the current opened message after a user click and calls the local backend.
 - `frontend/` 其他路线：Outlook Add-in 和 Google Workspace Add-on 属于后续正式邮箱前端路线，需单独确认后再落地。

@@ -1,12 +1,16 @@
 ---
-last_update: 2026-07-15
-status: active
+last_update: 2026-07-23
+status: deprecated
 owner: "@tobyWang"
 review_cycle: monthly
 source_type: operation_guide
 ---
 
 # Codex Automation Task: Cleanup Agent
+
+> Retired on 2026-07-23. The operator deleted `weekly-cleanup-agent`. This file
+> is retained only as a historical Prompt and must not be used to recreate or
+> rebind an automation.
 
 本文件是 Codex 自动化任务 `Weekly Cleanup Agent` 的任务 Prompt 源文件。该任务用于定期扫描项目卫生问题，并生成清理报告或独立修复建议。
 

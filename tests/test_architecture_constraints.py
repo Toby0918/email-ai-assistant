@@ -1488,6 +1488,67 @@ class ArchitectureConstraintTests(unittest.TestCase):
         self.assertIn("ANALYZE_TIMEOUT_MS = 60000", local_debug)
         self.assertIn("deadline=started + 13.0", evaluation_runner)
 
+    def test_project_layout_package_has_no_mutating_or_external_capability(
+        self,
+    ) -> None:
+        package = ROOT / "backend" / "project_layout"
+        allowed_import_roots = {
+            "__future__",
+            "dataclasses",
+            "enum",
+            "pathlib",
+            "stat",
+            "typing",
+        }
+        forbidden_calls = {
+            "mkdir",
+            "open",
+            "remove",
+            "rename",
+            "replace",
+            "rmdir",
+            "unlink",
+            "write_bytes",
+            "write_text",
+        }
+        for path in sorted(package.glob("*.py")):
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            imported = {
+                alias.name.split(".", 1)[0]
+                for node in ast.walk(tree)
+                if isinstance(node, ast.Import)
+                for alias in node.names
+            }
+            imported.update(
+                node.module.split(".", 1)[0]
+                for node in ast.walk(tree)
+                if isinstance(node, ast.ImportFrom)
+                and node.level == 0
+                and node.module
+            )
+            called_attributes = {
+                node.func.attr
+                for node in ast.walk(tree)
+                if isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+            }
+            with self.subTest(path=path.name):
+                self.assertLessEqual(imported, allowed_import_roots)
+                self.assertTrue(forbidden_calls.isdisjoint(called_attributes))
+
+    def test_project_layout_architecture_change_updates_task_template(
+        self,
+    ) -> None:
+        template = read_text(
+            ROOT / "docs" / "templates" / "agent_task_brief_template.md"
+        )
+        self.assertIn(
+            "Repository placement and operational layout checklist",
+            template,
+        )
+        self.assertIn("RepositoryPlacement", template)
+        self.assertIn("OperationalLayout", template)
+
     def test_python_modules_do_not_contain_raw_secret_literals(self) -> None:
         secret_patterns = {
             "openai_key": r"\bsk-[A-Za-z0-9_-]{10,}",

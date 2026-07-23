@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-22
+last_update: 2026-07-23
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -7,6 +7,27 @@ source_type: operation_guide
 ---
 
 # 测试检查清单
+
+## Repository placement compatibility seam
+
+- Focused tests call only the public `RepositoryPlacement`,
+  `OperationalLayout`, and flat transition adapter interfaces.
+- Managed synthetic fixtures prove the exact canonical
+  `email_ai_assistant\main` relationship and the complete Project Container
+  protected-root set.
+- Standalone fixtures require an explicit synthetic or temporary state root,
+  reject overlap, retain the state classification, and never infer a Project
+  Container.
+- Missing/unreadable identity, wrong names/parents, reparse evidence, alias
+  drift, and identity changes return only fixed placement codes.
+- All seven operational locations are absolute; Managed paths use the approved
+  Project Container siblings and Standalone paths stay under the explicit state
+  root.
+- The transition adapter preserves current `.venv`, `outputs`,
+  `outputs/attachment_temp`, and `.worktrees` locations without adding a third
+  placement mode.
+- Package guards reject mutating or external-capability imports/calls. Automated
+  tests remain synthetic/offline and create no real Managed Container data.
 
 ## Option C 多模态离线门
 
