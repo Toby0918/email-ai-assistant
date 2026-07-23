@@ -11,15 +11,21 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from backend.email_agent.config import (
-    load_config,
-)
+from backend.email_agent.config import load_config
 from backend.email_agent.logging_config import configure_logging
+from backend.email_agent.managed_runtime import (
+    ManagedRuntimeError,
+    managed_failure_code,
+    prepare_managed_runtime,
+)
 from backend.email_agent.server import run_server, validate_local_server_host
 from backend.email_agent.standalone_verification import (
     prepare_standalone_runtime,
 )
 from backend.private_knowledge.runtime_bootstrap import load_configured_runtime_cards
+
+
+MANAGED_FAILURE_EXIT_CODE = 8
 
 
 def parse_args() -> argparse.Namespace:
@@ -28,6 +34,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--database", default=None)
     parser.add_argument("--standalone-state-root", default=None)
+    parser.add_argument("--managed-container", action="store_true")
     return parser.parse_args()
 
 
@@ -72,8 +79,42 @@ def _run_standalone(args: argparse.Namespace, host: str) -> None:
     )
 
 
+def _run_managed(args: argparse.Namespace, host: str) -> None:
+    if args.database is not None:
+        raise ManagedRuntimeError("managed_runtime_invalid")
+    runtime = prepare_managed_runtime(
+        repository_root=ROOT,
+        project_container=ROOT.parent,
+    )
+    configure_logging(
+        runtime.config.log_level,
+        log_file=runtime.log_file,
+    )
+    run_server(
+        host=host,
+        port=args.port,
+        database_path=str(runtime.database_path),
+        config=runtime.config,
+        runtime_cards=(),
+    )
+
+
+def _run_managed_entry(args: argparse.Namespace) -> int:
+    try:
+        host = validate_local_server_host(args.host)
+        if args.standalone_state_root is not None:
+            raise ManagedRuntimeError("managed_runtime_invalid")
+        _run_managed(args, host)
+    except Exception as error:
+        print(managed_failure_code(error), file=sys.stderr)
+        return MANAGED_FAILURE_EXIT_CODE
+    return 0
+
+
 def main() -> int:
     args = parse_args()
+    if args.managed_container:
+        return _run_managed_entry(args)
     host = validate_local_server_host(args.host)
     if args.standalone_state_root is not None:
         _run_standalone(args, host)

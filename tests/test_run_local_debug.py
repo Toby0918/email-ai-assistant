@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from contextlib import redirect_stderr
+from io import StringIO
 import subprocess
 import sys
 import tempfile
@@ -16,6 +18,15 @@ from scripts import run_local_debug
 
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "run_local_debug.py"
+MANAGED_ZONE_NAMES = (
+    "Runtimes",
+    "LocalData",
+    "RuntimeTemp",
+    "Logs",
+    "Artifacts",
+    "Worktrees",
+    "Config",
+)
 
 
 class RunLocalDebugTests(unittest.TestCase):
@@ -30,6 +41,7 @@ class RunLocalDebugTests(unittest.TestCase):
                 port=8765,
                 database=None,
                 standalone_state_root=str(state_root),
+                managed_container=False,
             )
             with (
                 patch.object(run_local_debug, "parse_args", return_value=args),
@@ -86,6 +98,7 @@ class RunLocalDebugTests(unittest.TestCase):
             port=8765,
             database=None,
             standalone_state_root=None,
+            managed_container=False,
         )
         config = load_config(dotenv_path=None)
         runtime_cards = (object(),)
@@ -136,6 +149,116 @@ class RunLocalDebugTests(unittest.TestCase):
             ],
         )
 
+    def test_managed_main_uses_derived_paths_and_skips_ambient_bootstrap(
+        self,
+    ) -> None:
+        manager = MagicMock()
+        with tempfile.TemporaryDirectory() as temporary:
+            container = Path(temporary) / "email_ai_assistant"
+            repository = container / "main"
+            repository.mkdir(parents=True)
+            for zone_name in MANAGED_ZONE_NAMES:
+                (container / zone_name).mkdir()
+            runtime_scripts = container / "Runtimes" / "venv" / "Scripts"
+            runtime_scripts.mkdir(parents=True)
+            (runtime_scripts / "python.exe").write_bytes(b"synthetic")
+            (container / "Config" / "settings.env").write_text(
+                "EMAIL_AGENT_LOG_LEVEL=WARNING\n",
+                encoding="utf-8",
+            )
+            args = SimpleNamespace(
+                host="127.0.0.1",
+                port=8765,
+                database=None,
+                standalone_state_root=None,
+                managed_container=True,
+            )
+            with (
+                patch.object(run_local_debug, "ROOT", repository),
+                patch.object(run_local_debug, "parse_args", return_value=args),
+                patch.object(run_local_debug, "load_config") as config_loader,
+                patch.object(run_local_debug, "configure_logging") as configure,
+                patch.object(
+                    run_local_debug,
+                    "load_configured_runtime_cards",
+                ) as bootstrap,
+                patch.object(run_local_debug, "run_server") as run_server,
+            ):
+                manager.attach_mock(configure, "configure")
+                manager.attach_mock(bootstrap, "bootstrap")
+                manager.attach_mock(run_server, "run_server")
+
+                result = run_local_debug.main()
+
+            server_config = run_server.call_args.kwargs["config"]
+
+        self.assertEqual(result, 0)
+        config_loader.assert_not_called()
+        bootstrap.assert_not_called()
+        self.assertEqual(
+            manager.mock_calls,
+            [
+                call.configure(
+                    "WARNING",
+                    log_file=container / "Logs" / "local_debug_service.log",
+                ),
+                call.run_server(
+                    host="127.0.0.1",
+                    port=8765,
+                    database_path=str(
+                        container / "LocalData" / "email_agent.sqlite3"
+                    ),
+                    config=server_config,
+                    runtime_cards=(),
+                ),
+            ],
+        )
+        self.assertEqual(server_config.llm_provider, "disabled")
+        self.assertEqual(server_config.text_fallback_provider, "disabled")
+        self.assertIsNone(server_config.openai_api_key)
+        self.assertIsNone(server_config.deepseek_api_key)
+        self.assertFalse(server_config.private_knowledge_enabled)
+        self.assertEqual(
+            server_config.attachment_temp_dir,
+            str(container / "RuntimeTemp" / "attachment_temp"),
+        )
+
+    def test_managed_main_rejects_placement_before_startup_actions(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            container = Path(temporary) / "wrong-container"
+            repository = container / "main"
+            repository.mkdir(parents=True)
+            args = SimpleNamespace(
+                host="127.0.0.1",
+                port=8765,
+                database=None,
+                standalone_state_root=None,
+                managed_container=True,
+            )
+            stderr = StringIO()
+            with (
+                patch.object(run_local_debug, "ROOT", repository),
+                patch.object(run_local_debug, "parse_args", return_value=args),
+                patch.object(run_local_debug, "load_config") as config_loader,
+                patch.object(run_local_debug, "configure_logging") as configure,
+                patch.object(
+                    run_local_debug,
+                    "load_configured_runtime_cards",
+                ) as bootstrap,
+                patch.object(run_local_debug, "run_server") as run_server,
+                redirect_stderr(stderr),
+            ):
+                result = run_local_debug.main()
+
+        self.assertEqual(result, 8)
+        self.assertEqual(stderr.getvalue(), "managed_relationship_invalid\n")
+        config_loader.assert_not_called()
+        configure.assert_not_called()
+        bootstrap.assert_not_called()
+        run_server.assert_not_called()
+
     def test_script_help_runs_from_project_root(self) -> None:
         # The documented command is `python scripts/run_local_debug.py`.
         result = subprocess.run(
@@ -150,6 +273,7 @@ class RunLocalDebugTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("--host", result.stdout)
         self.assertIn("--port", result.stdout)
+        self.assertIn("--managed-container", result.stdout)
 
     def test_script_rejects_non_loopback_host_before_bind(self) -> None:
         result = subprocess.run(
@@ -164,6 +288,37 @@ class RunLocalDebugTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("supported loopback address", result.stderr)
         self.assertNotIn("0.0.0.0", result.stderr)
+
+    def test_managed_cli_failures_are_fixed_and_content_free(self) -> None:
+        commands = (
+            (
+                SCRIPT,
+                ("--managed-container",),
+            ),
+            (
+                ROOT / "scripts" / "manage_local_service.py",
+                ("status", "--managed-container"),
+            ),
+        )
+        for script, arguments in commands:
+            with self.subTest(script=script.name):
+                result = subprocess.run(
+                    [sys.executable, "-B", str(script), *arguments],
+                    cwd=ROOT,
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(
+                    result.stderr.strip(),
+                    "managed_relationship_invalid",
+                )
+                self.assertEqual(result.stdout, "")
+                self.assertNotIn("Traceback", result.stderr)
+                self.assertNotIn(str(ROOT), result.stderr)
 
 
 if __name__ == "__main__":

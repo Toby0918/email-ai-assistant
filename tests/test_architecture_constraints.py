@@ -1556,6 +1556,7 @@ class ArchitectureConstraintTests(unittest.TestCase):
     ) -> None:
         project_layout = (ROOT / "backend" / "project_layout").resolve()
         allowed_importers = {
+            "backend/email_agent/managed_runtime.py",
             "backend/email_agent/standalone_verification.py",
             "backend/mailbox_ingest/protected_storage_path.py",
             "backend/mailbox_ingest/sales_policy_file.py",

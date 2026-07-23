@@ -152,13 +152,37 @@ Repository Root and its separate state root, while Standalone Verification Mode
 continues to disable every private/mailbox capability. Current and new recovery
 paths are both validated before recovery rewrap opens private material.
 
-This seam performs no directory creation, move, deletion, migration, mailbox or
+Issue #32 adds the provider-disabled `backend.email_agent.managed_runtime`
+launcher seam and the boolean-only `--managed-container` lifecycle mode. It
+derives the Project Container from the exact validated
+`email_ai_assistant\main` relationship; no public argument, environment value,
+or request field may supply another container. All seven ordinary zones and the
+pre-provisioned `Runtimes\venv\Scripts\python.exe` must already exist and pass
+stable non-reparse checks before `Config\settings.env` is read. That bounded file
+accepts only `EMAIL_AGENT_LOG_LEVEL` and
+`EMAIL_AGENT_INTERNAL_EMAIL_DOMAINS`; credentials, provider settings, private
+paths, and operational path overrides fail closed.
+
+Managed lifecycle and direct-launch paths inject an immutable provider-disabled
+configuration into the server. SQLite uses `LocalData`, request attachment temp
+uses `RuntimeTemp`, logs and PID use `Logs`, while source, Git, project status,
+maintenance, leakage scanning, frontend assets, and process cwd remain rooted at
+`main`. Managed mode skips `.env`, provider keys, and private-knowledge bootstrap.
+Its automated start/health/analysis-persistence/stop verification is synthetic
+and loopback-only. This checkpoint creates only the request attachment
+subdirectory inside an already validated synthetic layout; it performs no real
+Project Container migration, runtime rebuild, data copy, worktree relocation,
+container audit, mailbox/provider/private-store access, or Issue #34 through #40
+work.
+
+The pure project-layout seam performs no directory creation, move, deletion,
+migration, mailbox or
 provider operation, secret read, vault/private-store access, ACL change, or host
 security change. Managed placement requires the exact canonical
 `email_ai_assistant\main` relationship. Standalone Verification Mode requires an
 explicit synthetic or temporary state root. The flat-layout adapter is temporary
-compatibility only and is not a third final placement mode. Issue #32 and Issues
-#34 through #40 remain separately authorized work.
+compatibility only and is not a third final placement mode. Issues #34 through
+#40 remain separately authorized work.
 
 ## 技术栈基线
 

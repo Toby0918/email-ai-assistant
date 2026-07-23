@@ -229,6 +229,27 @@ class GenerateProjectStatusTests(unittest.TestCase):
         self.assertIn("`status_local_service.cmd`", report)
         self.assertIn("`tests/test_manage_local_service.py`", report)
 
+    def test_managed_container_checkpoint_is_reported_without_cutover_claim(
+        self,
+    ) -> None:
+        module = load_script_module(
+            SCRIPT,
+            "generate_project_status_managed_container",
+        )
+        report = module.build_project_status()
+
+        for marker in (
+            "Issue #32 Managed launcher is implemented",
+            "exact `email_ai_assistant\\main` placement",
+            "`backend/email_agent/managed_runtime.py`",
+            "`docs/operations/issue32_managed_container_mode_task_brief.md`",
+            "`tests/test_managed_container_mode.py`",
+            "no real Project Container migration or operational cutover",
+            "Issues #34 through #40 remain separate",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, report)
+
     def test_browser_extension_files_are_reported_as_key_files(self) -> None:
         module = load_script_module(SCRIPT, "generate_project_status")
         report = module.build_project_status()

@@ -38,6 +38,9 @@ email-ai-assistant/
     email_agent/
       __init__.py
       config.py
+      managed_runtime.py
+      managed_runtime_errors.py
+      managed_runtime_validation.py
       logging_config.py
       email_cleaner.py
       analyzer.py
@@ -193,6 +196,9 @@ email-ai-assistant/
     email_agent/
       __init__.py
       config.py
+      managed_runtime.py
+      managed_runtime_errors.py
+      managed_runtime_validation.py
       logging_config.py
       email_cleaner.py
       analyzer.py
@@ -238,6 +244,8 @@ email-ai-assistant/
 
 - `.github/workflows/`：CI 护栏和可选后台清理报告任务。当前运行架构、静态 linter、机械规则、完整 unittest 和只读 cleanup scan。
 - `backend/`：Python 后端代码。负责 placement/layout contracts、邮件正文清洗、AI 调用封装、结构化结果校验、SQLite 持久化、调试导出、本地 API 和本地调试服务。
+- `backend/email_agent/managed_runtime.py`: Issue #32 的 Managed launcher adapter；从 exact `main` placement 派生普通 zone，读取 bounded non-secret Config，并返回 provider-disabled resolved config。它不执行真实迁移、container audit、runtime/data/artifact/worktree activation 或 private capability。
+- `backend/email_agent/managed_runtime_errors.py` 与 `backend/email_agent/managed_runtime_validation.py`: Managed mode 的固定失败映射、稳定身份检查、可写预检和 bounded settings reader；拆分后仍不向 request handlers 暴露 placement reader。
 - `frontend/local_debug_page/`：第一阶段本地辅助窗口调试页面，只在用户点击 `Analyze` 后调用本地后端 API，不接入真实邮箱账号。
 - `frontend/browser_extension/`: Chrome / Edge prototype for Tencent Exmail. It contains the Manifest V3 popup, Tencent Exmail content adapter, local API client, and result renderer. It reads only the current opened message after a user click and calls the local backend.
 - `frontend/` 其他路线：Outlook Add-in 和 Google Workspace Add-on 属于后续正式邮箱前端路线，需单独确认后再落地。
@@ -248,7 +256,7 @@ email-ai-assistant/
 - `tests/`：自动化测试。当前包含业务测试、golden 样例测试、前端静态检查、服务管理脚本测试和可执行约束测试；新增业务代码必须配套测试。
 - `tests/fixtures/sample_emails.json`：脱敏 golden 邮件样例，不得存放真实客户邮件全文。
 - `scripts/`：维护和本地服务脚本。当前包含只读 cleanup scan、项目状态日志生成器、本地调试服务入口 `scripts/run_local_debug.py` 和服务启停管理 `scripts/manage_local_service.py`，不得自动删除或自动修改业务文件。
-- `outputs/`：本地调试输出、SQLite 数据库、pid 文件和临时报表，不得提交到版本库。
+- `outputs/`: 当前 flat compatibility 模式的本地调试输出、SQLite 数据库、pid 文件和临时报表，不得提交到版本库。Managed mode 不使用该目录；其普通状态位于 Project Container 的 approved sibling zones，而 repository tooling 仍停留在 `main`。
 
 ## 第一阶段建议
 

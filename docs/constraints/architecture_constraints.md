@@ -100,6 +100,15 @@ mutation, launcher routing, container audit, mailbox, provider, credential, key,
 vault, recovery, private-store, ACL, volume, or host-security capability.
 Returned values contain only path metadata.
 
+The `Managed runtime adapter` is a separate normal-service launcher boundary in
+`backend.email_agent.managed_runtime`. It consumes validated placement/layout
+values, validates pre-existing ordinary zones and writable targets, performs one
+bounded descriptor-bound read of an exact non-secret Config allowlist, and
+creates only the request attachment subdirectory. It returns a provider-disabled
+`AppConfig` plus absolute ordinary paths. It owns no arbitrary-root input,
+mailbox, provider, credential, private-store, migration, audit, ACL, worktree,
+artifact-copy, or repository-tooling capability.
+
 ## 2. 允许依赖方向
 
 允许的核心依赖方向：
@@ -118,6 +127,7 @@ scripts/manage_mailbox_vault.py -> backend.private_knowledge
 scripts/manage_mailbox_vault.py -> backend.private_evaluation staging only
 normal runtime -> backend.current_evidence append-only contract
 future launcher -> backend.project_layout validated path values
+Managed launcher -> backend.email_agent.managed_runtime -> backend.project_layout/config
 reviewed private location policies -> backend.project_layout protected path value
 ```
 
@@ -155,10 +165,12 @@ synthetic or temporary state root and never infers a Project Container.
 `OperationalLayout` accepts only a validated `RepositoryPlacement`. The
 flat-layout transition adapter cannot add a third placement mode.
 `ProtectedLocationPolicy` fails closed for partial Managed placement and checks
-both original and resolved candidate views. Exact AST guards allow the policy
-only in the reviewed private-knowledge storage/snapshot, private-evaluation
-repository-path, mailbox vault/sales-policy, and standalone verification
-modules. Public request payloads remove `protected_roots` and
+both original and resolved candidate views. Exact AST guards allow the
+project-layout import only in the reviewed Managed runtime and standalone
+verification adapters, private-knowledge storage/snapshot, private-evaluation
+repository-path, and mailbox vault/sales-policy modules. Only the narrower
+reviewed private-location set may consume `ProtectedLocationPolicy`. Public
+request payloads remove `protected_roots` and
 `project_container`, and no environment, config, frontend, ordinary runtime, or
 CLI option may provide them. Focused domain-policy tests pass a validated
 Standalone placement directly and prove that its separate state root cannot be
@@ -218,9 +230,11 @@ returns the empty immutable card tuple through the fixed fail-closed path.
 
 The only normal-service key bridge is the `startup-only runtime bootstrap` in
 `backend.private_knowledge.runtime_bootstrap`, imported only by
-`scripts/run_local_debug.py`. Startup loads configuration, configures logging,
-attempts one fail-closed DPAPI/key/snapshot load, and injects the resulting
-immutable tuple into the server. There is `no reload, polling, hot update, or status endpoint`.
+`scripts/run_local_debug.py`. The ordinary flat configured mode loads
+configuration, configures logging, attempts one fail-closed DPAPI/key/snapshot
+load, and injects the resulting immutable tuple into the server. Managed and
+Standalone modes inject `()` and never invoke this bridge. There is
+`no reload, polling, hot update, or status endpoint`.
 Request handlers, `backend.email_agent`, frontend code, SQLite and public HTTP
 must never read the authority repository, paths, keys, snapshot metadata, or
 bootstrap status. Any bootstrap failure produces `()` with no content-bearing

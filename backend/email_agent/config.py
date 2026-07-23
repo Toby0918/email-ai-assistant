@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import os
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Mapping
 
 try:
     from dotenv import load_dotenv as _load_dotenv
@@ -15,6 +17,20 @@ except ImportError:
 DEFAULT_DOTENV_PATH = Path(__file__).resolve().parents[2] / ".env"
 ALLOWED_OPENAI_MODELS = frozenset({"gpt-5.6-sol"})
 ALLOWED_TEXT_FALLBACK_PROVIDERS = frozenset({"disabled", "deepseek"})
+ALLOWED_MANAGED_LOG_LEVELS = frozenset(
+    {"DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"}
+)
+ALLOWED_MANAGED_SETTING_KEYS = frozenset(
+    {
+        "EMAIL_AGENT_INTERNAL_EMAIL_DOMAINS",
+        "EMAIL_AGENT_LOG_LEVEL",
+    }
+)
+MANAGED_DOMAIN_PATTERN = re.compile(
+    r"(?=.{1,253}\Z)"
+    r"(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+"
+    r"[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?"
+)
 
 
 @dataclass(frozen=True)
@@ -69,6 +85,54 @@ def build_standalone_verification_config(
         attachment_max_file_bytes=10 * 1024 * 1024,
         attachment_max_total_bytes=25 * 1024 * 1024,
         internal_email_domains=("cndlf.com",),
+        text_fallback_provider="disabled",
+        private_knowledge_enabled=False,
+        private_knowledge_authority_root="",
+        private_knowledge_snapshot_path="",
+    )
+
+
+def build_managed_container_config(
+    *,
+    sqlite_path: Path,
+    attachment_temp_dir: Path,
+    settings: Mapping[str, str],
+) -> AppConfig:
+    """Build provider-disabled configuration from exact non-secret settings."""
+    database = Path(sqlite_path)
+    attachments = Path(attachment_temp_dir)
+    if (
+        not database.is_absolute()
+        or not attachments.is_absolute()
+        or not isinstance(settings, Mapping)
+        or any(key not in ALLOWED_MANAGED_SETTING_KEYS for key in settings)
+        or any(not isinstance(value, str) for value in settings.values())
+    ):
+        raise ValueError("managed_config_invalid")
+    log_level = settings.get("EMAIL_AGENT_LOG_LEVEL", "INFO").strip().upper()
+    if log_level not in ALLOWED_MANAGED_LOG_LEVELS:
+        raise ValueError("managed_config_invalid")
+    domains = _managed_domains(
+        settings.get(
+            "EMAIL_AGENT_INTERNAL_EMAIL_DOMAINS",
+            "cndlf.com",
+        )
+    )
+    return AppConfig(
+        openai_api_key=None,
+        deepseek_api_key=None,
+        sqlite_path=str(database),
+        log_level=log_level,
+        llm_provider="disabled",
+        ollama_base_url="http://127.0.0.1:11434",
+        ollama_model="qwen3.6:latest",
+        ollama_timeout_seconds=30,
+        attachment_temp_dir=str(attachments),
+        attachment_retention_hours=24,
+        attachment_max_files=5,
+        attachment_max_file_bytes=10 * 1024 * 1024,
+        attachment_max_total_bytes=25 * 1024 * 1024,
+        internal_email_domains=domains,
         text_fallback_provider="disabled",
         private_knowledge_enabled=False,
         private_knowledge_authority_root="",
@@ -156,6 +220,24 @@ def _csv_env(name: str, default: tuple[str, ...]) -> tuple[str, ...]:
         return default
     values = tuple(value.strip().lower() for value in raw.split(",") if value.strip())
     return values or default
+
+
+def _managed_domains(raw: str) -> tuple[str, ...]:
+    if not isinstance(raw, str) or len(raw) > 2048:
+        raise ValueError("managed_config_invalid")
+    values = tuple(
+        value.strip().casefold()
+        for value in raw.split(",")
+        if value.strip()
+    )
+    if (
+        not values
+        or len(values) > 32
+        or len(set(values)) != len(values)
+        or any(MANAGED_DOMAIN_PATTERN.fullmatch(value) is None for value in values)
+    ):
+        raise ValueError("managed_config_invalid")
+    return values
 
 
 def _true_env(name: str) -> bool:

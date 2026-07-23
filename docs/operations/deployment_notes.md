@@ -39,6 +39,29 @@ source_type: operation_guide
 - 成功只报告删除数量和服务状态。失败返回通用错误并中止 start/restart；不报告附件名、内容、私有 URL、cookie、token、OCR 文本或异常中的私有路径。
 - `python scripts/manage_local_service.py status` 与 `GET http://127.0.0.1:8765/api/health` 只提供本地服务健康信息，不读取附件内容。
 
+### Managed Container Mode
+
+- `--managed-container` is valid only when the Repository Root is already the
+  exact canonical `email_ai_assistant\main` child. The CLI derives the container
+  and exposes no arbitrary container/path option.
+- Before reading operational configuration or starting the server, the launcher
+  validates all seven existing ordinary zones, the Managed runtime executable,
+  and writable file targets without following reparse points.
+- `Config/settings.env` is optional, bounded to 16 KiB, identity-checked before,
+  during, and after its descriptor read, and accepts exactly
+  `EMAIL_AGENT_LOG_LEVEL` and `EMAIL_AGENT_INTERNAL_EMAIL_DOMAINS`.
+- Managed mode never loads repository `.env`, credentials, provider keys,
+  private-knowledge paths, or private bootstrap. Providers and private knowledge
+  remain disabled.
+- SQLite is `LocalData/email_agent.sqlite3`; request attachment temp is
+  `RuntimeTemp/attachment_temp`; diagnostic log and PID state are under `Logs`.
+  The runtime executable is `Runtimes/venv/Scripts/python.exe`.
+- Process cwd, launcher source, frontend assets, Git, status generation,
+  maintenance, and leakage scanning remain rooted at `main`.
+- Issue #32 verifies this path only with a synthetic loopback layout. Do not
+  create or migrate the real Project Container, runtime, database, artifacts, or
+  worktrees under this checkpoint; Issues #34–#40 remain separate.
+
 ### Standalone Verification Mode
 
 - Pass the same existing absolute temporary directory to start, status, health,
