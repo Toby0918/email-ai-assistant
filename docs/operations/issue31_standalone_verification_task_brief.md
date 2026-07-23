@@ -23,7 +23,7 @@ feature
 ## 3. Current status
 
 ```text
-verification_complete_review_pending
+accepted
 ```
 
 ## 4. Goal
@@ -278,8 +278,8 @@ Test results:
 - TDD RED failures were observed before each standalone path/config,
   lifecycle-manager command, and reparse-guard implementation.
 - Focused configuration, lifecycle, launcher, server/API, placement,
-  architecture, static-linter, and mechanical regression: 169 tests passed.
-- Full regression: 1698 tests passed, 1 skipped.
+  architecture, static-linter, and mechanical regressions passed.
+- Final full regression at `1a438e4`: 1700 tests passed, 1 skipped.
 - Complete lifecycle-manager smoke passed start, status, health, fixed synthetic
   analysis, restart, health, and stop with hostile provider/private environment
   values ignored. The result used `rule_fallback`, persisted exactly one SQLite
@@ -291,15 +291,16 @@ Test results:
   record were updated; health/analysis became lifecycle commands; derived
   operational directories and writable targets now fail closed on reparse
   evidence.
-- The second Spec review reported no findings. The second Standards review
+- Final Spec review reported no findings. The second Standards review
   found that flat mode could invoke the synthetic analysis POST; a RED test now
-  proves flat mode is rejected before the injected HTTP requester. Final
-  Standards re-review runs against that fix.
+  proves flat mode is rejected before the injected HTTP requester. Standards
+  re-review confirmed that behavior and identified only the now-corrected stale
+  test count/status record plus the recorded non-blocking P3.
 
 Incomplete items:
 
-- No Issue #31 implementation item remains. Final review recording and
-  authorized GitHub publication remain.
+- No Issue #31 implementation or review item remains. Authorized GitHub
+  publication remains.
 - Normal non-blocking P3: the initial review noted duplicated standalone path
   derivation across manager and launcher. The fix centralized that derivation
   in `backend.email_agent.standalone_verification`.
