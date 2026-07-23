@@ -353,6 +353,25 @@ It performs no real migration, directory creation, service routing, private-path
 guard expansion, container audit, ACL/volume operation, mailbox/provider/vault/
 credential access, or Issue #31 through #40 work.
 
+### 8.14 Issue #32 Managed local-service checkpoint
+
+Issue #32 implements only:
+
+- exact Managed placement and pre-existing zone validation before Config read or
+  service start；
+- provider-disabled `--managed-container` lifecycle/direct-launch routing；
+- `LocalData` SQLite, `RuntimeTemp` attachment temp, `Logs` diagnostics/PID,
+  Managed runtime, artifact, worktree, and exact non-secret Config resolution；
+- bounded allowlisted Config read with no credential/provider/private-path
+  sourcing；
+- injection of resolved config into request handling while repository source,
+  Git, project status, maintenance, and leakage scanning remain at `main`；
+- synthetic loopback start/health/analysis persistence/stop tests。
+
+It performs no real migration, runtime rebuild, database/artifact copy, worktree
+relocation, container audit, preflight evidence capture, ACL change, mailbox or
+provider call, private-store/credential read, or Issue #34 through #40 work.
+
 ## 9. 数据结构或接口变化
 
 ### 数据库变化
@@ -362,7 +381,7 @@ credential access, or Issue #31 through #40 work.
 ### API 变化
 
 新增内部 Python `RepositoryPlacement`/`OperationalLayout` compatibility
-interfaces；无 HTTP API 变化。
+interfaces 和 provider-disabled Managed launcher adapter；无 HTTP API 变化。
 
 ### AI 输出 JSON 变化
 
@@ -529,13 +548,14 @@ Not applicable. Manual sync and current-click evidence contracts are unchanged.
 
 ```text
 实际修改文件:
-- Planning documents plus the bounded Issue #30 compatibility seam.
+- Planning documents plus the bounded Issue #30/#31/#32/#33 checkpoints.
 
 测试结果:
-- Issue #30 focused and full verification are recorded in its dedicated task brief.
+- Each implemented checkpoint records focused and full verification in its
+  dedicated task brief.
 
 未完成事项:
-- All real migration and Issue #31 through #40 work.
+- All real migration and Issue #34 through #40 work.
 
 后续建议:
 - Continue only with the next separately approved dependency-ordered Issue.

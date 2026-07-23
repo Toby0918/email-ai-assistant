@@ -8,6 +8,32 @@ source_type: operation_guide
 
 # 测试检查清单
 
+## Managed Container Mode
+
+- Build only a synthetic `email_ai_assistant/main` fixture with pre-created
+  `Runtimes`, `LocalData`, `RuntimeTemp`, `Logs`, `Artifacts`, `Worktrees`, and
+  `Config`; do not create or move the real Project Container.
+- Prove exact placement fails before Config read or service start, and reject
+  missing, alias, reparse, unreadable, or drifting operational evidence with
+  fixed content-free errors.
+- Verify the runtime executable, SQLite, attachment temp, log, PID, artifact,
+  worktree, and non-secret configuration paths resolve only to their approved
+  zones. Repeated preparation must preserve the existing attachment directory.
+- Accept only `EMAIL_AGENT_LOG_LEVEL` and
+  `EMAIL_AGENT_INTERNAL_EMAIL_DOMAINS` from the bounded Config descriptor; reject
+  credentials, provider settings, private paths, and path overrides. Hostile
+  ambient environment values must be ignored.
+- Verify lifecycle `start`, `status`, `health`, one fixed `example.test`
+  `analysis`, SQLite persistence, and `stop` through loopback-only synthetic
+  adapters. Assert no state enters `main/outputs`.
+- Assert request handlers receive the resolved `AppConfig`, all providers and
+  private knowledge remain disabled, and neither launcher calls the ambient
+  config loader or private bootstrap.
+- Re-run repository-root guards so frontend assets, Git, status generation,
+  maintenance, and leakage scanning remain scoped to `main`.
+- Confirm there is no HTTP, SQLite schema, prompt, AI-result, browser-permission,
+  mailbox, provider, vault, credential, or Issues #34–#40 surface change.
+
 ## Standalone Verification Mode
 
 - Use one pre-created absolute temporary directory with

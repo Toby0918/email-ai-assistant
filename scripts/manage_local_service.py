@@ -22,6 +22,7 @@ if str(ROOT) not in sys.path:
 
 from backend.email_agent import attachment_storage
 from backend.email_agent import config as backend_config
+from backend.email_agent.managed_runtime import prepare_managed_runtime
 from backend.email_agent.server import validate_local_server_host
 from backend.email_agent.standalone_verification import (
     prepare_standalone_runtime,
@@ -49,7 +50,8 @@ class ServiceConfig:
     log_file: Path = DEFAULT_LOG_FILE
     attachment_temp_dir: Path = ROOT / "outputs" / "attachment_temp"
     standalone_state_root: Path | None = None
-    standalone_config: backend_config.AppConfig | None = None
+    operational_config: backend_config.AppConfig | None = None
+    managed_container: bool = False
 
 
 @dataclass(frozen=True)
@@ -94,11 +96,40 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--startup-timeout", type=float, default=10.0)
     parser.add_argument("--poll-interval", type=float, default=0.25)
     parser.add_argument("--standalone-state-root", default=None)
+    parser.add_argument("--managed-container", action="store_true")
     return parser
 
 
 def config_from_args(args: argparse.Namespace) -> ServiceConfig:
     standalone_state_root = getattr(args, "standalone_state_root", None)
+    managed_container = bool(getattr(args, "managed_container", False))
+    if managed_container:
+        if (
+            standalone_state_root is not None
+            or args.database is not None
+            or Path(args.pid_file) != DEFAULT_PID_FILE
+        ):
+            raise ValueError(
+                "operational paths are derived from managed placement"
+            )
+        runtime = prepare_managed_runtime(
+            repository_root=ROOT,
+            project_container=ROOT.parent,
+        )
+        return ServiceConfig(
+            host=validate_local_server_host(args.host),
+            port=args.port,
+            database=str(runtime.database_path),
+            pid_file=runtime.pid_file,
+            root=runtime.placement.repository_root,
+            python_executable=str(runtime.python_executable),
+            startup_timeout=args.startup_timeout,
+            poll_interval=args.poll_interval,
+            log_file=runtime.log_file,
+            attachment_temp_dir=runtime.attachment_temp_dir,
+            operational_config=runtime.config,
+            managed_container=True,
+        )
     if standalone_state_root is not None:
         if args.database is not None or Path(args.pid_file) != DEFAULT_PID_FILE:
             raise ValueError(
@@ -120,7 +151,7 @@ def config_from_args(args: argparse.Namespace) -> ServiceConfig:
             log_file=runtime.log_file,
             attachment_temp_dir=runtime.attachment_temp_dir,
             standalone_state_root=runtime.state_root,
-            standalone_config=runtime.config,
+            operational_config=runtime.config,
         )
     return ServiceConfig(
         host=validate_local_server_host(args.host),
@@ -186,8 +217,7 @@ def analyze_synthetic_email(
 ) -> CommandResult:
     validate_local_server_host(config.host)
     if (
-        config.standalone_state_root is None
-        or config.standalone_config is None
+        config.operational_config is None
     ):
         return CommandResult(7, "standalone state required", "error")
     request_analysis = requester or _request_synthetic_analysis
@@ -311,7 +341,7 @@ def _attempt_lifecycle_cleanup(
     service_config: ServiceConfig,
 ) -> tuple[CleanupResult, None] | tuple[None, CommandResult]:
     try:
-        cleanup_config = service_config.standalone_config
+        cleanup_config = service_config.operational_config
         return run_cleanup_before_service_start(cleanup_config), None
     except LifecycleCleanupError:
         return None, CommandResult(5, CLEANUP_FAILURE_MESSAGE, "error")
@@ -334,7 +364,9 @@ def _build_start_command(config: ServiceConfig) -> list[str]:
         "--port",
         str(config.port),
     ]
-    if config.standalone_state_root is not None:
+    if config.managed_container:
+        command.append("--managed-container")
+    elif config.standalone_state_root is not None:
         command.extend([
             "--standalone-state-root",
             str(config.standalone_state_root),

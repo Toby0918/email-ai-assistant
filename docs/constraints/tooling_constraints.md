@@ -171,11 +171,24 @@ private content; change ACL/volume/host security; or expose such a capability in
 its returned values. The flat-layout adapter is a temporary compatibility mapper,
 not a third final placement mode. Only the reviewed private-knowledge storage and
 snapshot policies, private-evaluation repository path policy, mailbox vault and
-sales-policy location policies, and standalone verification module may import the
-project-layout package. Public HTTP, browser, ordinary runtime, environment,
+sales-policy location policies, Managed runtime adapter, and standalone
+verification module may import the project-layout package. Public HTTP, browser,
+ordinary runtime, environment,
 configuration, and CLI surfaces cannot supply `protected_roots` or
-`project_container`. Launcher routing, container audit, migration, Issue #32,
-and Issues #34 through #40 remain out of scope.
+`project_container`.
+
+Issue #32 adds one reviewed importer:
+`backend.email_agent.managed_runtime`. This separate standard-library adapter
+derives exact Managed placement from `main`, validates all pre-existing ordinary
+zone roots, the pre-provisioned runtime executable, and writable targets, and
+creates only `RuntimeTemp/attachment_temp`. Its optional 16-KiB
+`Config/settings.env` read is descriptor/identity bound and accepts only
+`EMAIL_AGENT_LOG_LEVEL` and `EMAIL_AGENT_INTERNAL_EMAIL_DOMAINS`. It returns an
+immutable provider-disabled config and ordinary absolute paths; it never reads
+ambient `.env`, credentials, provider/private settings, mailbox/vault/private
+stores, or public request data. Container audit, real migration, runtime rebuild,
+data/artifact/worktree activation, and Issues #34 through #40 remain out of
+scope.
 
 本地邮件分析 HTTP 服务沿用 Python 标准库 `ThreadingHTTPServer`，不得为 Host/Content-Type 门禁新增 HTTP 框架。服务 bind 只支持 `localhost` 或字面 IPv4 `127.0.0.0/8`；分析 POST 必须在读 body 前校验单一 loopback Host 和单一 JSON media type。
 

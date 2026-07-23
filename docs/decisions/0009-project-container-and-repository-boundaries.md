@@ -10,8 +10,9 @@ source_type: decision_record
 
 ## Status
 
-Accepted as a design on 2026-07-23. The Issue #30 compatibility seam and Issue
-#33 protected private-store policy are implemented, but no Project Container
+Accepted as a design on 2026-07-23. The Issue #30 compatibility seam, Issue #31
+Standalone Verification route, Issue #32 Managed launcher, and Issue #33
+protected private-store policy are implemented, but no Project Container
 directory migration or operational cutover has occurred. While this ADR remains
 draft, the current flat paths and the active security contracts in ADR 0006
 through ADR 0008 remain authoritative.
@@ -56,6 +57,30 @@ and fixed-error contracts. Public requests remove `protected_roots` and
 `project_container`; no environment, config, frontend, normal-runtime, or CLI
 surface may supply or narrow the protected roots. This checkpoint performs no
 directory migration, container audit, ACL change, or real private-store access.
+
+### Issue #32 Managed local service
+
+`backend.email_agent.managed_runtime` derives the Project Container only from a
+Repository Root already validated as the exact `email_ai_assistant\main` child.
+Both lifecycle and direct launchers expose only `--managed-container`; no
+arbitrary container, protected root, or operational path is accepted. Before
+service startup, the adapter validates every pre-existing ordinary zone, the
+Managed runtime executable, writable targets, and an optional descriptor-bound
+`Config/settings.env`.
+
+Config accepts exactly `EMAIL_AGENT_LOG_LEVEL` and
+`EMAIL_AGENT_INTERNAL_EMAIL_DOMAINS`. The injected `AppConfig` has remote/local
+providers and private knowledge disabled and contains absolute `LocalData`
+SQLite and `RuntimeTemp` attachment paths. Logs and PID use `Logs`; runtime,
+artifact, worktree, and Config paths remain in their approved zones. Process cwd,
+source/frontend discovery, Git, project status, maintenance, and leakage scans
+remain rooted at `main`.
+
+The complete lifecycle is verified only against a synthetic layout and
+loopback server. This checkpoint does not create the real container, rebuild or
+move a runtime, copy a database/artifact, relocate a worktree, perform an audit
+or ACL change, read credentials, contact a mailbox/provider/private store, or
+start Issues #34–#40.
 
 ## Context
 

@@ -204,3 +204,13 @@ roots. API behavior tests remove `protected_roots` and `project_container`
 before both analyzer routes. Private-evaluation keeps a single exact
 `backend.project_layout` allowlist entry; no broader backend dependency is
 introduced.
+
+Issue #32 adds only `backend/email_agent/managed_runtime.py` to the exact project
+layout importer list; it does not enter the narrower
+`ProtectedLocationPolicy` consumer list. `tests/test_managed_container_mode.py`
+and `tests/test_run_local_debug.py` pin the boolean-only
+`--managed-container` route, approved zone mappings, Config key allowlist,
+provider-disabled injection, main-root cwd/script, and synthetic
+start/health/analysis-persistence/stop behavior. The existing public-surface
+guard continues to reject `--project-container` and environment/config aliases
+for protected roots.

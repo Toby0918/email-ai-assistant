@@ -50,6 +50,7 @@ KEY_FILES = [
     "backend/email_agent/attachment_safety.py",
     "backend/email_agent/attachment_storage.py",
     "backend/email_agent/config.py",
+    "backend/email_agent/managed_runtime.py",
     "backend/email_agent/logging_config.py",
     "backend/email_agent/email_cleaner.py",
     "backend/email_agent/analyzer.py",
@@ -109,6 +110,7 @@ KEY_FILES = [
     "docs/operations/private_mailbox_rollout_closeout_task_brief.md",
     "docs/operations/multimodal_current_email_analysis_task_brief.md",
     "docs/operations/current_email_grounding_and_attachment_repair_task_brief.md",
+    "docs/operations/issue32_managed_container_mode_task_brief.md",
     "docs/operations/project_status_log.md",
     "docs/operations/project_status_log_guide.md",
     "docs/operations/agents_project_status_snippet.md",
@@ -145,6 +147,7 @@ KEY_FILES = [
     "tests/test_config.py",
     "tests/test_run_local_debug.py",
     "tests/test_manage_local_service.py",
+    "tests/test_managed_container_mode.py",
     "tests/support.py",
     "tests/test_architecture_constraints.py",
     "tests/test_current_evidence_handoff.py",
@@ -468,6 +471,8 @@ The private-knowledge snapshot is verified and read-only; an invalid or missing 
 Current-message attachment acquisition recognizes only a verified legacy current-message control after Analyze and keeps automatic bytes in browser memory. The manual picker selection is inert until Analyze. Both paths share 5 files, 10 MiB per file, and 25 MiB total, add no download/storage/filesystem permission, and expose no local path. Backend request-local files are removed from request `finally`; the 24-hour mtime cleanup is crash recovery only, not normal retention or a scheduled job. Only `attachment_insights[].status=parsed` proves content parsing.
 
 Prior Task 9 synthetic and current-clicked smokes remain valid acquisition, routing, status, and cleanup evidence only. Task 9 semantic accuracy repair is offline complete. A parsed attachment status does not prove semantic correctness. Current/history evidence alignment, provider-visible attachment coverage, deterministic reconciliation safeguards, and the documented private human gold-standard method now pass the offline gate; the reviewed repair is integrated into the current release line. Any new live operation still requires fresh explicit authorization. All providers remain disabled by default.
+
+Issue #32 Managed launcher is implemented for the exact `email_ai_assistant\\main` placement. It routes provider-disabled SQLite, attachment temp, logs, PID, runtime, artifact, worktree, and bounded non-secret Config paths to their approved zones while source and repository tooling remain at `main`. Synthetic loopback lifecycle verification passes, but no real Project Container migration or operational cutover has occurred. Issues #34 through #40 remain separate.
 
 The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器扩展, with current-message collection only after an explicit user click.
 

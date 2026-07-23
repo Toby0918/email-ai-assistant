@@ -141,6 +141,36 @@ loopback validation, click confirmation, persistence, the
 temporary directory only after `stop` if its verification artifacts are no
 longer needed.
 
+### Managed Container Mode
+
+Issue #32 adds a boolean-only `--managed-container` mode for a repository already
+placed exactly at `email_ai_assistant\main`. It derives the container from
+`main` and accepts no container or operational-root override:
+
+```powershell
+python scripts/manage_local_service.py start --managed-container
+python scripts/manage_local_service.py status --managed-container
+python scripts/manage_local_service.py health --managed-container
+python scripts/manage_local_service.py analysis --managed-container
+python scripts/manage_local_service.py restart --managed-container
+python scripts/manage_local_service.py stop --managed-container
+```
+
+The launcher validates exact placement, all seven pre-existing ordinary zones,
+the pre-provisioned `Runtimes\venv\Scripts\python.exe`, writable targets, and any
+bounded `Config\settings.env` before starting. Config accepts only
+`EMAIL_AGENT_LOG_LEVEL` and `EMAIL_AGENT_INTERNAL_EMAIL_DOMAINS`; it never reads
+credentials or provider keys. SQLite uses `LocalData`, attachment temp uses
+`RuntimeTemp`, and logs/PID use `Logs`. The server remains loopback-only,
+click-only, provider-disabled, and receives resolved configuration rather than
+path data from a request.
+
+Source, frontend assets, Git, status generation, maintenance, and leakage
+scanning remain rooted at `main`. The current flat checkout must not be passed
+`--managed-container`: this Issue supplies code and synthetic verification only.
+It does not create the real layout, rebuild the runtime, move data or worktrees,
+or begin Issues #34–#40.
+
 Windows 可直接双击这些快捷脚本：
 
 ```text
@@ -222,20 +252,19 @@ python -m unittest discover -s tests
 python scripts/generate_project_status.py --output docs/operations/project_status_log.md
 ```
 
-## Repository placement and standalone verification
+## Repository placement and local-service modes
 
 Issue #30 introduces the pure `RepositoryPlacement` and `OperationalLayout`
 interfaces in `backend/project_layout/`. Managed Container Mode accepts only the
 canonical `email_ai_assistant\main` relationship. Standalone Verification Mode
 requires an explicit synthetic or temporary state root. Issue #31 routes the
 existing local-service lifecycle through that temporary layout with disabled
-providers. The transition adapter continues to preserve the current `.venv`,
-`outputs`, and `.worktrees` locations for the ordinary flat launcher without
-adding a third final placement mode.
+providers. Issue #32 adds the validated provider-disabled Managed launcher while
+the transition adapter continues to preserve current `.venv`, `outputs`, and
+`.worktrees` paths for the ordinary flat launcher.
 
-These checkpoints do not create Managed Container Mode, perform the real
-Project Container migration, access mailbox/vault/credential/private-store
-state, or start Issue #32 through #40.
+These checkpoints do not perform the real Project Container migration, access
+mailbox/vault/credential/private-store state, or start Issues #34 through #40.
 
 ## 后台清理扫描
 
