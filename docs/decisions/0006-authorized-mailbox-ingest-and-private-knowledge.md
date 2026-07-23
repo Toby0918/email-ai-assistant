@@ -78,15 +78,79 @@ mutation, and mailbox mutation are prohibited mechanically and at runtime.
   record identity. The metadata-only index contains random record IDs,
   encrypted relative paths, keyed deduplication values, timestamps, bounded
   expiry, and integrity fields only.
+- A newly initialized vault uses the exact schema-v3 index. Each record ID and
+  encrypted relative-path token is independently random and opaque. Before
+  ciphertext publication, the index durably reserves those identifiers and the
+  bounded retention metadata in a write intent; a retry after a crash between
+  ciphertext publication and index activation must recover and reuse that same
+  intent rather than minting another identity or orphaning the ciphertext.
+  Existing pre-v3 indexes fail closed and are never implicitly migrated.
+- Active-record and write-intent metadata are authenticated with a separate
+  HKDF-derived purpose key. Every lookup, activation, expiry update, verification,
+  and purge plan verifies the complete metadata row first. Fresh initialization
+  also pins the exact canonical SQLite schema and rejects removed constraints,
+  triggers, views, or other unexpected schema objects.
 - Task 2 accepts caller-supplied expiry but caps it at no later than the current
   time plus 24 calendar months. Ingest code derives the actual earlier expiry
   from validated `INTERNALDATE`; it cannot extend retention at ingest time.
+- Exact message copies share one encrypted record and can only constrain that
+  record's expiry to the earliest applicable source expiry. Exact attachment
+  bytes also share one encrypted blob, but a separately reviewed, still-valid
+  governed binding may explicitly extend that blob only to the binding's
+  bounded expiry; duplicate writes do not extend expiry by default.
+- `verify` reports durable write intents as pending work. Expired intents,
+  active records, and delete-pending records share the same bounded purge
+  lifecycle instead of leaving unindexed ciphertext outside retention.
 - The master key has a current-user DPAPI envelope plus a separately stored
   offline recovery envelope. DPAPI and BitLocker access is lazy and injected in
   tests so non-Windows CI can import modules without probing the host.
 - Recovery rewrap uses a crash-recoverable staged activation and reconciliation
   protocol; no cross-volume atomicity is claimed. Whole-vault `revoke` requires
   explicit confirmation.
+
+### Bootstrap only governed sales pairs
+
+The initial 24-month bootstrap uses a strict private policy containing one
+company domain and exact salesperson addresses. `scan` reads that policy during
+local preflight, before mailbox credentials, and binds only a vault-keyed
+fingerprint to a fresh metadata-only corpus index. Policy values, paths, mail
+addresses, message identifiers, subjects, bodies, filenames, mailboxes, UIDs,
+and source locators are prohibited from that index and from public output.
+
+The corpus index uses its own HKDF-derived, purpose-separated key. Every stored
+row and relationship edge is protected by a table-domain-separated HMAC over a
+canonical typed encoding. All safety-relevant lookups authenticate the row or
+edge before using it, and full `validate` authenticates the complete index;
+missing, malformed, substituted, or tampered metadata fails closed.
+
+A learning edge requires an external customer request and a strictly later
+allowlisted salesperson reply linked by validated `In-Reply-To` or
+`References`; Message-ID local-part case remains exact while its domain is
+normalized, and a subject is never sufficient. Automated/list/bulk traffic,
+notifications, pure forwards, non-sales internal messages, signature- or
+disclaimer-only content, bounded Outlook or Chinese quoted-header history,
+cross-folder copies, and exact duplicate quotations are excluded or
+deduplicated. Raw authorized messages
+remain encrypted even when unpaired, but downstream staging and reviewed
+attachment acquisition must reject any source record that is not part of a
+governed pair.
+
+Supported reviewed attachment bytes are stored in source-independent encrypted
+blobs and linked only through opaque metadata. The encrypted attachment payload
+contains a fixed record framing plus the exact acquired raw bytes only; parser
+output is not persisted in that blob. Identical bytes reuse one blob. Parsing
+and semantic-review outcomes are authenticated metadata states, separate from
+acquisition and deduplication; `parsed` does not mean semantically correct.
+
+Retention purge is corpus-aware. One cross-process vault mutation lock spans the
+exact purge plan, authenticated corpus transaction, and planned ciphertext
+deletion. Message upserts and attachment bindings use that same operation-level
+lock across their vault and corpus mutations. Purge first deletes every affected
+corpus row and relationship and only then deletes the exact planned vault
+records and ciphertext. A corpus transaction failure leaves
+the vault untouched; a later vault deletion failure may leave extra encrypted
+ciphertext, but must never leave a corpus reference dangling to a removed vault
+record.
 
 ### Derive reviewed non-identifying knowledge
 

@@ -34,6 +34,10 @@ KEY_FILES = [
     "backend/current_evidence/artifact_policy.py",
     "backend/current_evidence/contract.py",
     "backend/current_evidence/handoff.py",
+    "backend/mailbox" + "_ingest/governed_scan.py",
+    "backend/mailbox" + "_ingest/sales_corpus_index.py",
+    "backend/mailbox" + "_ingest/sales_message_policy.py",
+    "backend/mailbox" + "_ingest/sales_policy_file.py",
     "backend/email_agent/__init__.py",
     "backend/email_agent/analysis_schema.py",
     "backend/email_agent/analysis_budget.py",
@@ -99,6 +103,7 @@ KEY_FILES = [
     "docs/decisions/0008-bounded-corpus-to-runtime-handoffs.md",
     "docs/operations/authorized_mailbox_ingest_task_brief.md",
     "docs/operations/bounded_corpus_runtime_handoffs_task_brief.md",
+    "docs/operations/issue11_governed_sales_corpus_task_brief.md",
     "docs/operations/deepseek_analysis_contract_alignment_task_brief.md",
     "docs/operations/private_deepseek_evaluation_task_brief.md",
     "docs/operations/private_mailbox_rollout_closeout_task_brief.md",
@@ -146,6 +151,8 @@ KEY_FILES = [
     "tests/test_static_linter_constraints.py",
     "tests/test_mechanical_rule_constraints.py",
     "tests/test_mailbox_transport_constraints.py",
+    "tests/test_mailbox_governed_scan.py",
+    "tests/test_mailbox_sales_corpus_index.py",
     "tests/test_maintenance_scan.py",
     "tests/test_generate_project_status.py",
     "tests/test_repository_leakage_scan.py",
@@ -200,6 +207,10 @@ GUARDRAILS = [
     (
         "Bounded corpus-to-runtime handoffs",
         "docs/decisions/0008-bounded-corpus-to-runtime-handoffs.md",
+    ),
+    (
+        "Governed sales corpus bootstrap",
+        "docs/operations/issue11_governed_sales_corpus_task_brief.md",
     ),
 ]
 
@@ -447,6 +458,8 @@ source_type: operation_guide
 本项目是企业邮箱中的 AI 辅助窗口。正常产品只做“用户点击按钮后分析当前打开邮件”，不做全邮箱扫描、不自动发送邮件、不删除邮件或归档邮件。
 
 Separately authorized exception: the `administrator-only CLI remains default-off` and may import one authorized account within a rolling 24-month window only after explicit inventory fingerprint confirmation. The browser extension and normal runtime remain click-only and cannot scan a mailbox. The exception has no schedule, browser hook, normal-backend route, or automatic model call.
+
+Issue #11 governed sales-corpus bootstrap is offline implemented. `scan` requires a separately stored strict private sales policy, binds only keyed metadata to a fresh corpus index, deduplicates cross-folder messages and attachment blobs, and exposes only fixed aggregate counts. Only an exact external-customer request to a strictly later allowlisted reply becomes a governed pair; unpaired records are rejected before downstream staging or reviewed attachment acquisition. No live mailbox, provider, or real private vault was used for this implementation.
 
 ADR 0008 ratifies a future manual incremental-sync boundary and a contract-only, write-only deidentified current-click evidence seam. Issue #10 adds no sync command or evidence inbox; those implementations remain in future issues #17 and #18. Normal runtime receives no mailbox, historical-store, authority-store, reader, search, path, key, repository, polling, or hot-reload capability.
 

@@ -31,6 +31,7 @@ class MessageEvidence:
 @dataclass(frozen=True)
 class FolderEvidence:
     mailbox: str = field(repr=False)
+    role: str
     opaque_folder_id: str
     uidvalidity: int
     messages: tuple[MessageEvidence, ...] = field(repr=False)
@@ -139,6 +140,7 @@ def _build_folder_inventory(
     )
     private = FolderEvidence(
         folder.mailbox,
+        folder.role,
         folder.opaque_folder_id,
         uidvalidity,
         tuple(messages),
@@ -194,6 +196,7 @@ def _fingerprint(
     private = [
         {
             "folder": folder.opaque_folder_id,
+            "role": folder.role,
             "uidvalidity": folder.uidvalidity,
             "messages": [
                 [message.uid, message.size, _iso(message.internal_date)]

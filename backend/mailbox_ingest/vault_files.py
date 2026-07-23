@@ -26,6 +26,8 @@ class AtomicCiphertextStore:
             if create_parent:
                 path.parent.mkdir(parents=True, exist_ok=True)
             parent = path.parent.resolve(strict=True)
+        except FileNotFoundError:
+            parent = path.parent.resolve(strict=False)
         except OSError:
             code = "ciphertext_write_failed" if create_parent else "ciphertext_path_invalid"
             raise VaultError(code) from None
@@ -43,7 +45,10 @@ class AtomicCiphertextStore:
             if path.exists():
                 raise VaultError("ciphertext_write_failed")
             descriptor = os.open(
-                stage, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600
+                stage,
+                os.O_WRONLY | os.O_CREAT | os.O_EXCL
+                | getattr(os, "O_BINARY", 0),
+                0o600,
             )
             _write_all(descriptor, ciphertext)
             os.fsync(descriptor)

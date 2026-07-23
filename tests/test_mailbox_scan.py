@@ -13,6 +13,8 @@ from backend.mailbox_ingest.inventory import build_inventory
 from backend.mailbox_ingest.imap_readonly import ImapReadOnlyError
 from backend.mailbox_ingest.models import PutRecordResult
 from backend.mailbox_ingest.bodystructure import TextBodySection
+from backend.mailbox_ingest.bodystructure import AttachmentMetadata
+from backend.mailbox_ingest.scan_record import encode_scan_record
 from backend.mailbox_ingest.scan import ScanError, classify_message, scan_mailbox
 from backend.mailbox_ingest.text_body_decoder import (
     MAX_ENCODED_TEXT_BYTES,
@@ -382,6 +384,40 @@ class MailboxScanTests(unittest.TestCase):
 
         self.assertEqual(report.ambiguous_count, 2)
         self.assertEqual(vault.records, [])
+
+    def test_deterministic_attachment_identity_makes_retry_payload_stable(self) -> None:
+        materials: list[bytes] = []
+
+        def opaque_identity(material: bytes) -> str:
+            materials.append(material)
+            return "d" * 32
+
+        arguments = {
+            "scope": self.scope.opaque_scope_id,
+            "fingerprint": self.bundle.inventory.fingerprint,
+            "opaque_folder_id": self.folders[0].opaque_folder_id,
+            "mailbox": "SYNTHETIC-INBOX",
+            "uidvalidity": 77,
+            "uid": 2,
+            "internal_date": datetime(2023, 6, 1, tzinfo=timezone.utc),
+            "expires_at_utc": 1_800_000_000,
+            "header": b"Subject: synthetic\r\n\r\n",
+            "bodies": (b"synthetic body",),
+            "attachments": (
+                AttachmentMetadata("2", "application/pdf", 100, "private.pdf"),
+            ),
+            "candidate_id_factory": lambda: (_ for _ in ()).throw(
+                AssertionError("random identity used")
+            ),
+            "deterministic_candidate_id_factory": opaque_identity,
+        }
+
+        first = encode_scan_record(**arguments)
+        second = encode_scan_record(**arguments)
+
+        self.assertEqual(first, second)
+        self.assertEqual(materials[0], materials[1])
+        self.assertNotIn(b"private.pdf", materials[0])
 
 
 class TextBodyDecoderTests(unittest.TestCase):

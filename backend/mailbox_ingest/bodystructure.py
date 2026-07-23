@@ -42,6 +42,7 @@ class TextBodySection:
     transfer_encoding: str
     charset: str
     size: int
+    mime_type: str = "text/plain"
 
 
 @dataclass(frozen=True)
@@ -124,7 +125,7 @@ def _single_part(
     if mime_type not in {"text/plain", "text/html"}:
         return []
     charset = _text_charset(parameters)
-    return [TextBodySection(section, encoding.upper(), charset, size)]
+    return [TextBodySection(section, encoding.upper(), charset, size, mime_type)]
 
 
 def _text_charset(parameters: dict[str, str]) -> str:

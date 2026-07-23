@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Callable
 
 from .attachment_manifest import parse_reviewed_manifest, prepare_attachments
+from .attachment_operation import AttachmentOperation
 from .authorization import freeze_window
 from .dpapi import DpapiProtector
 from .drive_policy import validate_vault_location
@@ -19,7 +20,6 @@ from .imap_readonly import ReadOnlyImapSession
 from .inventory_codec import decode_inventory_bundle
 from .service_models import CliDependencies
 from .service_operations import (
-    AttachmentOperation,
     InitOperation,
     InventoryOperation,
     PurgeOperation,
@@ -39,6 +39,7 @@ class LocalPreflight:
     vault: Path
     project_root: Path
     volume_evidence: object
+    sales_policy: object | None = None
 
 
 class MailboxVaultService:
@@ -53,6 +54,7 @@ class MailboxVaultService:
         open_vault: Callable[..., object] = open_mailbox_vault,
         dpapi_factory: Callable[[], object] = DpapiProtector,
         session_builder: Callable[[str, str], object] = ReadOnlyImapSession,
+        sales_policy_reader: Callable[..., object] | None = None,
     ) -> None:
         self.project_root = (
             Path(__file__).resolve().parents[2]
@@ -70,6 +72,7 @@ class MailboxVaultService:
         self._open_vault = open_vault
         self._dpapi_factory = dpapi_factory
         self._session_builder = session_builder
+        self._sales_policy_reader = sales_policy_reader
 
     def preflight(self, arguments: argparse.Namespace) -> LocalPreflight:
         vault = Path(arguments.vault)
@@ -83,7 +86,20 @@ class MailboxVaultService:
             )
         else:
             evidence = self._validate_existing(vault, self.project_root)
-        return LocalPreflight(vault, self.project_root, evidence)
+        sales_policy = self._read_sales_policy(arguments)
+        return LocalPreflight(vault, self.project_root, evidence, sales_policy)
+
+    def _read_sales_policy(self, arguments: argparse.Namespace) -> object | None:
+        if arguments.command != "scan":
+            return None
+        reader = self._sales_policy_reader
+        if reader is None:
+            from .sales_policy_file import read_sales_policy
+
+            reader = read_sales_policy
+        return reader(
+            Path(arguments.sales_policy), project_root=self.project_root
+        )
 
     def prepare(self, arguments: argparse.Namespace, local: object):
         if not isinstance(local, LocalPreflight):
@@ -121,13 +137,17 @@ class MailboxVaultService:
                     self._validate_new,
                     opened,
                 )
-            return self._opened_operation(arguments, opened, scope)
+            return self._opened_operation(arguments, opened, scope, local)
         except Exception:
             opened.close()
             raise
 
-    def _opened_operation(self, arguments, opened, scope):
+    def _opened_operation(self, arguments, opened, scope, local):
         command = arguments.command
+        if command in {
+            "inventory", "scan", "attachments", "verify", "purge-expired",
+        }:
+            opened.corpus_index.validate()
         if command == "inventory":
             return InventoryOperation(opened, scope, freeze_window(self.utc_clock()))
         if command == "scan":
@@ -137,6 +157,7 @@ class MailboxVaultService:
                 scope,
                 bundle,
                 arguments.confirm_inventory_fingerprint,
+                local.sales_policy,
             )
         if command == "attachments":
             bundle = decode_inventory_bundle(opened.control.read("inventory"))
@@ -147,7 +168,9 @@ class MailboxVaultService:
                 now_utc=self.epoch_clock(),
             )
             prepared = prepare_attachments(
-                manifest, read_source_record=opened.vault.get_record
+                manifest,
+                read_source_record=opened.vault.get_record,
+                source_is_paired=opened.corpus_index.belongs_to_pair,
             )
             return AttachmentOperation(opened, prepared)
         if command == "verify":

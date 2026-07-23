@@ -26,8 +26,11 @@ def encode_scan_record(
     bodies: tuple[bytes, ...],
     attachments: tuple[object, ...],
     candidate_id_factory: Callable[[], str],
+    deterministic_candidate_id_factory: Callable[[bytes], str] | None = None,
 ) -> bytes:
-    attachment_payload = _encode_attachments(attachments, candidate_id_factory)
+    attachment_payload = _encode_attachments(
+        attachments, candidate_id_factory, deterministic_candidate_id_factory
+    )
     payload = {
         "schema_version": 1,
         "scope": scope,
@@ -50,11 +53,18 @@ def encode_scan_record(
 def _encode_attachments(
     attachments: tuple[object, ...],
     candidate_id_factory: Callable[[], str],
+    deterministic_candidate_id_factory: Callable[[bytes], str] | None,
 ) -> list[dict[str, object]]:
     attachment_payload: list[dict[str, object]] = []
     for attachment in attachments:
         try:
-            candidate_id = candidate_id_factory()
+            candidate_id = (
+                candidate_id_factory()
+                if deterministic_candidate_id_factory is None
+                else deterministic_candidate_id_factory(
+                    _attachment_identity_material(attachment)
+                )
+            )
         except Exception:
             raise ScanRecordError("candidate_id_invalid") from None
         if (
@@ -73,6 +83,14 @@ def _encode_attachments(
             }
         )
     return attachment_payload
+
+
+def _attachment_identity_material(attachment: object) -> bytes:
+    try:
+        value = f"{attachment.section}\0{attachment.mime_type}\0{attachment.size}"
+        return value.encode("ascii")
+    except (AttributeError, UnicodeError):
+        raise ScanRecordError("candidate_id_invalid") from None
 
 
 __all__ = ["ScanRecordError", "encode_scan_record"]

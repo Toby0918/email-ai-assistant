@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import base64
-import json
 import os
 import shutil
 import tempfile
@@ -31,8 +29,26 @@ MAX_PARSED_BYTES = 10 * 1024 * 1024
 
 @dataclass(frozen=True)
 class AttachmentReport:
-    accepted_count: int
-    skipped_count: int
+    selected_count: int
+    fetched_count: int
+    parsed_count: int
+    new_blob_count: int
+    duplicate_blob_count: int
+    semantic_unreviewed_count: int
+
+    def to_counts(self) -> dict[str, int]:
+        return {
+            "selected": self.selected_count,
+            "supported": self.selected_count,
+            "unsupported": 0,
+            "fetched": self.fetched_count,
+            "acquisition_failed": 0,
+            "parsed": self.parsed_count,
+            "parse_failed": 0,
+            "new_blobs": self.new_blob_count,
+            "duplicate_blobs": self.duplicate_blob_count,
+            "semantic_unreviewed": self.semantic_unreviewed_count,
+        }
 
 
 def fetch_prepared_attachments(
@@ -44,16 +60,23 @@ def fetch_prepared_attachments(
     parser: Callable[[Path, str], bytes],
     chunk_size: int = DEFAULT_CHUNK_SIZE,
     clock: Callable[[], int] = lambda: int(time.time()),
+    content_token_factory: Callable[[bytes], str],
+    find_existing_blob: Callable[[str], str | None],
+    bind_blob: Callable[[PreparedAttachment, str, str], object],
 ) -> AttachmentReport:
     if (
         not isinstance(prepared, PreparedAttachments)
         or type(chunk_size) is not int
         or not 1 <= chunk_size <= DEFAULT_CHUNK_SIZE
+        or not callable(content_token_factory)
+        or not callable(find_existing_blob)
+        or not callable(bind_blob)
     ):
         raise AttachmentScanError("attachment_fetch_invalid")
     _require_manifest_current(prepared, clock)
     root = _prepare_temp_parent(Path(vault_root))
-    accepted = 0
+    new_blobs = 0
+    duplicate_blobs = 0
     conversation_totals: dict[str, int] = {}
     for item in prepared.items:
         conversation_totals[item.source_record_id] = (
@@ -61,9 +84,16 @@ def fetch_prepared_attachments(
         )
         if conversation_totals[item.source_record_id] > MAX_CONVERSATION_BYTES:
             raise AttachmentScanError("attachment_conversation_limit")
-        _fetch_one(item, prepared, session, vault, root, parser, chunk_size, clock)
-        accepted += 1
-    return AttachmentReport(accepted, 0)
+        created = _fetch_one(
+            item, prepared, session, vault, root, parser, chunk_size, clock,
+            content_token_factory, find_existing_blob, bind_blob,
+        )
+        new_blobs += int(created == "new")
+        duplicate_blobs += int(created == "duplicate")
+    selected = len(prepared.items)
+    return AttachmentReport(
+        selected, selected, selected, new_blobs, duplicate_blobs, new_blobs
+    )
 
 
 def _fetch_one(
@@ -75,7 +105,10 @@ def _fetch_one(
     parser: Callable[[Path, str], bytes],
     chunk_size: int,
     clock: Callable[[], int],
-) -> None:
+    token_factory: Callable[[bytes], str],
+    find_blob: Callable[[str], str | None],
+    bind_blob: Callable[[PreparedAttachment, str, str], object],
+) -> str:
     _require_uidvalidity(session, item)
     temporary: Path | None = None
     try:
@@ -94,11 +127,9 @@ def _fetch_one(
             raise AttachmentScanError("attachment_parse_failed")
         _require_uidvalidity(session, item)
         _require_manifest_current(prepared, clock)
-        record = _attachment_record(item, content, parsed)
-        try:
-            vault.put_record_if_absent(record, expires_at_utc=item.expires_at_utc)
-        except Exception:
-            raise AttachmentScanError("attachment_persist_failed") from None
+        return _persist_blob(
+            item, content, vault, token_factory, find_blob, bind_blob
+        )
     finally:
         if temporary is not None:
             try:
@@ -150,22 +181,36 @@ def _download(
     return content
 
 
-def _attachment_record(
-    item: PreparedAttachment,
-    content: bytes,
-    parsed: bytes,
-) -> bytes:
-    payload = {
-        "schema_version": 1,
-        "source_record_id": item.source_record_id,
-        "candidate_id": item.candidate_id,
-        "mime_type": item.mime_type,
-        "content_b64": base64.b64encode(content).decode("ascii"),
-        "parsed_b64": base64.b64encode(parsed).decode("ascii"),
-    }
-    return json.dumps(
-        payload, sort_keys=True, separators=(",", ":"), ensure_ascii=True
-    ).encode("ascii")
+def _attachment_record(content: bytes) -> bytes:
+    return b"MAILBOX-ATTACHMENT-BLOB-V1\0" + content
+
+
+def _persist_blob(
+    item: PreparedAttachment, content: bytes, vault: object,
+    token_factory: Callable[[bytes], str],
+    find_blob: Callable[[str], str | None],
+    bind_blob: Callable[[PreparedAttachment, str, str], object],
+) -> str:
+    try:
+        with vault.coordinated_mutation():
+            content_token = token_factory(content)
+            blob_record_id = find_blob(content_token)
+            result = vault.put_record_if_absent(
+                _attachment_record(content),
+                expires_at_utc=item.expires_at_utc,
+                extend_expiry_on_duplicate=True,
+            )
+            if blob_record_id is None:
+                blob_record_id = result.record_id
+            elif result.record_id != blob_record_id:
+                raise ValueError
+            binding = bind_blob(item, blob_record_id, content_token)
+            status = getattr(binding, "status", None)
+            if status not in {"new", "duplicate"}:
+                raise ValueError
+            return status
+    except Exception:
+        raise AttachmentScanError("attachment_persist_failed") from None
 
 
 def _prepare_temp_parent(vault_root: Path) -> Path:

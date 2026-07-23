@@ -1,31 +1,49 @@
-"""Metadata-only SQLite index and exclusive vault mutation lock."""
+"""Authenticated SQLite index and exclusive vault mutation lock."""
 
 from __future__ import annotations
 
-import re
+import hmac
 import sqlite3
 import uuid
 from contextlib import closing
 from pathlib import Path
+from typing import Callable, TypeVar
 
+from ._vault_index_auth import (
+    decode_intent,
+    decode_record,
+    register_authenticator,
+    registered_authenticator,
+)
+from ._vault_index_mutations import (
+    activate_reserved as _activate_reserved,
+    add_record as _add_record,
+    constrain_intent_expiry as _constrain_intent_expiry,
+    mark_delete_pending as _mark_delete_pending,
+    reserve_write as _reserve_write,
+    update_record_expiry as _update_record_expiry,
+)
+from ._vault_index_records import (
+    validate_digest as _validate_digest,
+    validate_limit as _validate_limit,
+    validate_record_id as _validate_record_id,
+)
+from ._vault_index_schema import (
+    APPLICATION_ID,
+    MAX_BATCH_LIMIT,
+    SCHEMA_VERSION,
+    VAULT_STATES as _VAULT_STATES,
+    initialize_index,
+    validate_index_schema,
+)
 from .errors import VaultError
-from .models import VaultRecord
+from .models import VaultRecord, VaultWriteIntent
+from .vault_crypto import VaultCrypto
 from .vault_lock import VaultMutationLock
 
 
-APPLICATION_ID = 0x4D42564C
-SCHEMA_VERSION = 1
-MAX_BATCH_LIMIT = 1_000
-_RECORD_ID = re.compile(r"^[0-9a-f]{32}$")
-_RECORD_PATH = re.compile(r"^records/[0-9a-f]{2}/[0-9a-f]{32}\.mvlt$")
-_RECORD_STATES = {"active", "delete_pending"}
-_VAULT_STATES = {"active", "revoking", "revoke_incomplete", "revoked"}
-_RECORD_COLUMNS = (
-    "record_id", "encrypted_relpath", "dedup_hmac", "created_at_utc",
-    "expires_at_utc", "ciphertext_size", "format_version", "key_version",
-    "lifecycle_state",
-)
-_STATE_COLUMNS = ("singleton", "vault_id", "lifecycle_state")
+Result = TypeVar("Result")
+Mutation = Callable[..., Result]
 
 
 class VaultIndex:
@@ -38,6 +56,7 @@ class VaultIndex:
         if str(parsed) != vault_id:
             raise VaultError("invalid_vault_id")
         self._vault_id = vault_id
+        self._crypto: VaultCrypto | None = None
 
     def _connect(self) -> sqlite3.Connection:
         connection = sqlite3.connect(self._path, timeout=5, isolation_level=None)
@@ -55,104 +74,100 @@ class VaultIndex:
         return connection
 
     def initialize(self) -> None:
-        try:
-            self._path.parent.mkdir(parents=True, exist_ok=True)
-            with closing(self._connect()) as connection:
-                connection.execute("BEGIN IMMEDIATE")
-                connection.execute(_CREATE_RECORDS)
-                connection.execute(_CREATE_STATE)
-                connection.execute(
-                    "INSERT OR IGNORE INTO vault_state VALUES (1, ?, 'active')",
-                    (self._vault_id,),
-                )
-                connection.execute(f"PRAGMA application_id={APPLICATION_ID}")
-                connection.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
-                connection.commit()
-            self._validate_schema()
-        except VaultError:
-            raise
-        except (OSError, sqlite3.Error):
-            raise VaultError("index_initialize_failed") from None
+        initialize_index(self._path, self._vault_id, self._connect)
 
-    def _validate_schema(self) -> None:
-        try:
-            with closing(self._connect()) as connection:
-                tables = {
-                    row[0] for row in connection.execute(
-                        "SELECT name FROM sqlite_master WHERE type='table'"
-                    )
-                }
-                records = tuple(
-                    row[1] for row in connection.execute("PRAGMA table_info(records)")
-                )
-                state_columns = tuple(
-                    row[1] for row in connection.execute("PRAGMA table_info(vault_state)")
-                )
-                state_rows = list(
-                    connection.execute(
-                        "SELECT singleton,vault_id,lifecycle_state FROM vault_state"
-                    )
-                )
-                identifiers = (
-                    connection.execute("PRAGMA application_id").fetchone()[0],
-                    connection.execute("PRAGMA user_version").fetchone()[0],
-                )
-        except sqlite3.Error:
-            raise VaultError("index_schema_invalid") from None
-        if tables != {"records", "vault_state"}:
-            raise VaultError("index_schema_invalid")
-        if records != _RECORD_COLUMNS or state_columns != _STATE_COLUMNS:
-            raise VaultError("index_schema_invalid")
-        if identifiers != (APPLICATION_ID, SCHEMA_VERSION):
-            raise VaultError("index_schema_invalid")
-        if len(state_rows) != 1:
-            raise VaultError("index_schema_invalid")
-        state_row = state_rows[0]
-        if state_row[0] != 1 or state_row[1] != self._vault_id:
-            raise VaultError("index_schema_invalid")
-        if state_row[2] not in _VAULT_STATES:
-            raise VaultError("index_schema_invalid")
+    def bind_metadata_authenticator(self, crypto: VaultCrypto) -> None:
+        if not isinstance(crypto, VaultCrypto):
+            raise VaultError("record_authentication_failed")
+        if self._crypto is not None and self._crypto is not crypto:
+            raise VaultError("record_authentication_failed")
+        validate_index_schema(self._vault_id, self._connect)
+        self._crypto = crypto
+        register_authenticator(self._path, self._vault_id, crypto)
+        self.list_records()
+        self.list_write_intents()
 
     def add_record(self, record: VaultRecord) -> None:
-        _validate_record(record)
-        values = tuple(getattr(record, column) for column in _RECORD_COLUMNS)
-        placeholders = ",".join("?" for _ in _RECORD_COLUMNS)
-        sql = f"INSERT INTO records VALUES ({placeholders})"
-        self._write(sql, values)
+        self._mutate(_add_record, record)
+
+    def reserve_write(self, intent: VaultWriteIntent) -> VaultWriteIntent:
+        return self._mutate(_reserve_write, intent)
+
+    def find_write_intent(self, dedup_hmac: bytes) -> VaultWriteIntent | None:
+        _validate_digest(dedup_hmac)
+        matches = [
+            row for row in self.list_write_intents()
+            if hmac.compare_digest(row.dedup_hmac, dedup_hmac)
+        ]
+        if len(matches) > 1:
+            raise VaultError("index_schema_invalid")
+        return None if not matches else matches[0]
+
+    def list_write_intents(self) -> list[VaultWriteIntent]:
+        crypto = self._require_crypto()
+        return [
+            decode_intent(row, crypto)
+            for row in self._read(
+                "SELECT * FROM write_intents ORDER BY record_id", ()
+            )
+        ]
+
+    def constrain_write_intent_expiry(
+        self, record_id: str, expires_at_utc: int,
+    ) -> VaultWriteIntent:
+        return self._mutate(
+            _constrain_intent_expiry, record_id, expires_at_utc,
+        )
+
+    def activate_reserved(self, record_id: str) -> VaultRecord:
+        return self._mutate(_activate_reserved, record_id)
+
+    def delete_write_intent(self, record_id: str) -> None:
+        _validate_record_id(record_id)
+        self._write("DELETE FROM write_intents WHERE record_id=?", (record_id,))
 
     def get_record(self, record_id: str) -> VaultRecord | None:
         _validate_record_id(record_id)
-        rows = self._read(
-            "SELECT * FROM records WHERE record_id = ?", (record_id,)
+        return next(
+            (row for row in self.list_records() if row.record_id == record_id),
+            None,
         )
-        return None if not rows else _row_to_record(rows[0])
 
     def find_by_dedup_hmac(self, dedup_hmac: bytes) -> VaultRecord | None:
-        if type(dedup_hmac) is not bytes or len(dedup_hmac) != 32:
-            raise VaultError("invalid_record_metadata")
-        rows = self._read(
-            "SELECT * FROM records WHERE dedup_hmac=? "
-            "AND lifecycle_state='active' ORDER BY record_id LIMIT 2",
-            (dedup_hmac,),
-        )
-        if len(rows) > 1:
+        _validate_digest(dedup_hmac)
+        matches = [
+            row for row in self.list_records()
+            if row.lifecycle_state == "active"
+            and hmac.compare_digest(row.dedup_hmac, dedup_hmac)
+        ]
+        if len(matches) > 1:
             raise VaultError("index_schema_invalid")
-        return None if not rows else _row_to_record(rows[0])
+        return None if not matches else matches[0]
 
     def validate(self) -> None:
-        self._validate_schema()
+        validate_index_schema(self._vault_id, self._connect)
+        if self._crypto is not None:
+            self.list_records()
+            self.list_write_intents()
 
     def list_records(self) -> list[VaultRecord]:
+        crypto = self._require_crypto()
         return [
-            _row_to_record(row)
+            decode_record(row, crypto)
             for row in self._read("SELECT * FROM records ORDER BY record_id", ())
         ]
 
     def mark_delete_pending(self, record_id: str) -> None:
-        _validate_record_id(record_id)
-        self._write(
-            "UPDATE records SET lifecycle_state='delete_pending' WHERE record_id=?",
-            (record_id,),
+        self._mutate(_mark_delete_pending, record_id)
+
+    def extend_expiry(self, record_id: str, expires_at_utc: int) -> None:
+        self._mutate(
+            _update_record_expiry, record_id, expires_at_utc, extend=True,
+        )
+
+    def constrain_expiry(self, record_id: str, expires_at_utc: int) -> None:
+        self._mutate(
+            _update_record_expiry, record_id, expires_at_utc, extend=False,
         )
 
     def delete_record(self, record_id: str) -> None:
@@ -160,37 +175,51 @@ class VaultIndex:
         self._write("DELETE FROM records WHERE record_id=?", (record_id,))
 
     def list_expired(self, *, now_utc: int, limit: int) -> list[VaultRecord]:
-        _validate_limit(limit)
-        if type(now_utc) is not int:
-            raise VaultError("invalid_expiry")
-        rows = self._read(
-            "SELECT * FROM records WHERE lifecycle_state='active' "
-            "AND expires_at_utc<=? ORDER BY expires_at_utc,record_id LIMIT ?",
-            (now_utc, limit),
-        )
-        return [_row_to_record(row) for row in rows]
+        _validate_time_and_limit(now_utc, limit)
+        records = [
+            row for row in self.list_records()
+            if row.lifecycle_state == "active" and row.expires_at_utc <= now_utc
+        ]
+        return sorted(
+            records, key=lambda row: (row.expires_at_utc, row.record_id),
+        )[:limit]
 
     def count_expired(self, *, now_utc: int) -> int:
-        rows = self._read(
-            "SELECT COUNT(*) AS count FROM records WHERE lifecycle_state='active' "
-            "AND expires_at_utc<=?", (now_utc,),
+        _validate_time(now_utc)
+        return sum(
+            row.lifecycle_state == "active" and row.expires_at_utc <= now_utc
+            for row in self.list_records()
         )
-        return int(rows[0]["count"])
+
+    def list_expired_write_intents(
+        self, *, now_utc: int, limit: int,
+    ) -> list[VaultWriteIntent]:
+        _validate_time_and_limit(now_utc, limit)
+        intents = [
+            row for row in self.list_write_intents()
+            if row.expires_at_utc <= now_utc
+        ]
+        return sorted(
+            intents, key=lambda row: (row.expires_at_utc, row.record_id),
+        )[:limit]
+
+    def count_expired_write_intents(self, *, now_utc: int) -> int:
+        _validate_time(now_utc)
+        return sum(
+            row.expires_at_utc <= now_utc for row in self.list_write_intents()
+        )
 
     def list_delete_pending(self, *, limit: int) -> list[VaultRecord]:
         _validate_limit(limit)
-        rows = self._read(
-            "SELECT * FROM records WHERE lifecycle_state='delete_pending' "
-            "ORDER BY record_id LIMIT ?", (limit,),
-        )
-        return [_row_to_record(row) for row in rows]
+        return [
+            row for row in self.list_records()
+            if row.lifecycle_state == "delete_pending"
+        ][:limit]
 
     def count_delete_pending(self) -> int:
-        rows = self._read(
-            "SELECT COUNT(*) AS count FROM records "
-            "WHERE lifecycle_state='delete_pending'", ()
+        return sum(
+            row.lifecycle_state == "delete_pending" for row in self.list_records()
         )
-        return int(rows[0]["count"])
 
     def get_vault_state(self) -> str:
         rows = self._read(
@@ -206,6 +235,27 @@ class VaultIndex:
         self._write(
             "UPDATE vault_state SET lifecycle_state=? WHERE singleton=1", (state,)
         )
+
+    def _require_crypto(self) -> VaultCrypto:
+        crypto = self._crypto or registered_authenticator(
+            self._path, self._vault_id,
+        )
+        if crypto is None:
+            raise VaultError("record_authentication_failed")
+        return crypto
+
+    def _mutate(
+        self, operation: Mutation[Result], *args: object, **kwargs: object,
+    ) -> Result:
+        try:
+            with closing(self._connect()) as connection:
+                return operation(
+                    connection, self._require_crypto(), *args, **kwargs,
+                )
+        except VaultError:
+            raise
+        except sqlite3.Error:
+            raise VaultError("index_write_failed") from None
 
     def _write(self, sql: str, parameters: tuple[object, ...]) -> None:
         try:
@@ -226,65 +276,11 @@ class VaultIndex:
             raise VaultError("index_read_failed") from None
 
 
-def _validate_record(record: VaultRecord) -> None:
-    if not isinstance(record, VaultRecord):
-        raise VaultError("invalid_record_metadata")
-    _validate_record_id(record.record_id)
-    if _RECORD_PATH.fullmatch(record.encrypted_relpath) is None:
-        raise VaultError("invalid_record_metadata")
-    if type(record.dedup_hmac) is not bytes or len(record.dedup_hmac) != 32:
-        raise VaultError("invalid_record_metadata")
-    integer_values = (
-        record.created_at_utc, record.expires_at_utc, record.ciphertext_size,
-        record.format_version, record.key_version,
-    )
-    if any(type(value) is not int or value < 0 for value in integer_values):
-        raise VaultError("invalid_record_metadata")
-    if record.format_version != 1 or record.key_version != 1:
-        raise VaultError("invalid_record_metadata")
-    if record.lifecycle_state not in _RECORD_STATES:
-        raise VaultError("invalid_record_metadata")
+def _validate_time(now_utc: int) -> None:
+    if type(now_utc) is not int:
+        raise VaultError("invalid_expiry")
 
 
-def _validate_record_id(record_id: str) -> None:
-    if not isinstance(record_id, str) or _RECORD_ID.fullmatch(record_id) is None:
-        raise VaultError("invalid_record_id")
-
-
-def _validate_limit(limit: int) -> None:
-    if type(limit) is not int or not 1 <= limit <= MAX_BATCH_LIMIT:
-        raise VaultError("invalid_limit")
-
-
-def _row_to_record(row: sqlite3.Row) -> VaultRecord:
-    try:
-        record = VaultRecord(**{column: row[column] for column in _RECORD_COLUMNS})
-    except (IndexError, KeyError, TypeError):
-        raise VaultError("invalid_record_metadata") from None
-    _validate_record(record)
-    return record
-
-
-_CREATE_RECORDS = """
-CREATE TABLE IF NOT EXISTS records (
-    record_id TEXT PRIMARY KEY,
-    encrypted_relpath TEXT NOT NULL UNIQUE,
-    dedup_hmac BLOB NOT NULL,
-    created_at_utc INTEGER NOT NULL,
-    expires_at_utc INTEGER NOT NULL,
-    ciphertext_size INTEGER NOT NULL,
-    format_version INTEGER NOT NULL,
-    key_version INTEGER NOT NULL,
-    lifecycle_state TEXT NOT NULL CHECK(lifecycle_state IN ('active','delete_pending'))
-)
-"""
-
-_CREATE_STATE = """
-CREATE TABLE IF NOT EXISTS vault_state (
-    singleton INTEGER PRIMARY KEY CHECK(singleton = 1),
-    vault_id TEXT NOT NULL,
-    lifecycle_state TEXT NOT NULL CHECK(
-        lifecycle_state IN ('active','revoking','revoke_incomplete','revoked')
-    )
-)
-"""
+def _validate_time_and_limit(now_utc: int, limit: int) -> None:
+    _validate_time(now_utc)
+    _validate_limit(limit)

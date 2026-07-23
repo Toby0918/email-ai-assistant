@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import base64
 import io
 import json
 import tempfile
 import unittest
 from collections import deque
+from contextlib import contextmanager
 from pathlib import Path
 
 from backend.mailbox_ingest.attachment_scan import (
@@ -91,12 +91,63 @@ class FakeAttachmentSession:
 
 
 class FakeAttachmentVault:
-    def __init__(self) -> None:
+    def __init__(self, *, created: bool = True) -> None:
         self.records: list[tuple[bytes, int]] = []
+        self._payload_records: dict[bytes, str] = {}
+        self.extended_expiries: list[int] = []
+        self.created = created
+        self.coordinated_depth = 0
 
-    def put_record_if_absent(self, value: bytes, *, expires_at_utc: int):
+    @contextmanager
+    def coordinated_mutation(self):
+        self.coordinated_depth += 1
+        try:
+            yield
+        finally:
+            self.coordinated_depth -= 1
+
+    def put_record_if_absent(
+        self, value: bytes, *, expires_at_utc: int,
+        extend_expiry_on_duplicate: bool = False,
+    ):
+        if self.coordinated_depth != 1:
+            raise AssertionError("blob binding must share the vault mutation lock")
+        if value in self._payload_records:
+            if extend_expiry_on_duplicate:
+                self.extended_expiries.append(expires_at_utc)
+            return PutRecordResult(self._payload_records[value], False)
         self.records.append((value, expires_at_utc))
-        return PutRecordResult("3" * 32, True)
+        record_id = "3" * 32
+        self._payload_records[value] = record_id
+        return PutRecordResult(record_id, self.created)
+
+
+class FakeAttachmentCorpus:
+    def __init__(self, *, existing_blob: str | None = None) -> None:
+        self.existing_blob = existing_blob
+        self.bindings: list[tuple[str, str]] = []
+
+    def content_token(self, content: bytes) -> str:
+        if not content:
+            raise AssertionError("synthetic attachment content must not be empty")
+        return "e" * 64
+
+    def find_blob(self, token: str) -> str | None:
+        if token != "e" * 64:
+            raise AssertionError("unexpected synthetic content token")
+        return self.existing_blob
+
+    def bind_blob(self, _item: object, blob_id: str, token: str) -> object:
+        self.bindings.append((blob_id, token))
+        status = "duplicate" if self.existing_blob is not None else "new"
+        return type("Binding", (), {"status": status})()
+
+    def callbacks(self) -> dict[str, object]:
+        return {
+            "content_token_factory": self.content_token,
+            "find_existing_blob": self.find_blob,
+            "bind_blob": self.bind_blob,
+        }
 
 
 class AttachmentManifestTests(unittest.TestCase):
@@ -185,6 +236,7 @@ class AttachmentManifestTests(unittest.TestCase):
         prepared = prepare_attachments(
             manifest,
             read_source_record=lambda record_id: reads.append(record_id) or secret,
+            source_is_paired=lambda _record_id: True,
         )
 
         self.assertEqual(reads, [SOURCE_ID])
@@ -192,6 +244,43 @@ class AttachmentManifestTests(unittest.TestCase):
         self.assertEqual(len(prepared.items), 1)
         self.assertNotIn("SYNTHETIC-INBOX", repr(prepared))
         self.assertNotIn("SYNTHETIC-NAME", repr(prepared))
+
+    def test_prepare_requires_pair_gate_before_raw_record_read(self) -> None:
+        manifest = parse_reviewed_manifest(
+            manifest_payload(),
+            expected_scope=SCOPE,
+            expected_fingerprint=FINGERPRINT,
+            now_utc=1_700_000_100,
+        )
+        reads: list[str] = []
+
+        with self.assertRaises(TypeError):
+            prepare_attachments(
+                manifest,
+                read_source_record=lambda record_id: reads.append(record_id),
+            )
+
+        self.assertEqual(reads, [])
+
+    def test_prepare_rejects_an_unpaired_source_before_raw_record_read(self) -> None:
+        manifest = parse_reviewed_manifest(
+            manifest_payload(),
+            expected_scope=SCOPE,
+            expected_fingerprint=FINGERPRINT,
+            now_utc=1_700_000_100,
+        )
+        reads: list[str] = []
+
+        with self.assertRaisesRegex(
+            AttachmentScanError, "attachment_source_not_paired"
+        ):
+            prepare_attachments(
+                manifest,
+                read_source_record=lambda record_id: reads.append(record_id),
+                source_is_paired=lambda _record_id: False,
+            )
+
+        self.assertEqual(reads, [])
 
 
 class PdfSecurityTests(unittest.TestCase):
@@ -239,7 +328,40 @@ class AttachmentFetchTests(unittest.TestCase):
             read_source_record=lambda _record_id: SecretBuffer(
                 source_payload(mime_type=mime_type, size=len(content))
             ),
+            source_is_paired=lambda _record_id: True,
         )
+
+    def test_fetch_requires_all_corpus_callbacks_before_network_access(self) -> None:
+        content = b"\x89PNG\r\n\x1a\nDATA"
+        prepared = self._prepared(content=content)
+        session = FakeAttachmentSession(content)
+
+        with tempfile.TemporaryDirectory() as directory, self.assertRaises(TypeError):
+            fetch_prepared_attachments(
+                prepared,
+                session=session,
+                vault=FakeAttachmentVault(),
+                vault_root=Path(directory),
+                parser=lambda _path, _mime: b"parsed",
+                clock=lambda: 1_700_000_100,
+            )
+
+        with tempfile.TemporaryDirectory() as directory, self.assertRaisesRegex(
+            AttachmentScanError, "attachment_fetch_invalid"
+        ):
+            fetch_prepared_attachments(
+                prepared,
+                session=session,
+                vault=FakeAttachmentVault(),
+                vault_root=Path(directory),
+                parser=lambda _path, _mime: b"parsed",
+                clock=lambda: 1_700_000_100,
+                content_token_factory=None,  # type: ignore[arg-type]
+                find_existing_blob=None,  # type: ignore[arg-type]
+                bind_blob=None,  # type: ignore[arg-type]
+            )
+
+        self.assertEqual(session.calls, [])
 
     def test_success_rechecks_uidvalidity_chunks_with_peek_and_encrypts(self) -> None:
         content = b"\x89PNG\r\n\x1a\nDATA"
@@ -248,6 +370,7 @@ class AttachmentFetchTests(unittest.TestCase):
         vault = FakeAttachmentVault()
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
+            corpus = FakeAttachmentCorpus()
 
             report = fetch_prepared_attachments(
                 prepared,
@@ -257,9 +380,20 @@ class AttachmentFetchTests(unittest.TestCase):
                 parser=lambda path, _mime: path.read_bytes()[-4:],
                 chunk_size=4,
                 clock=lambda: 1_700_000_100,
+                **corpus.callbacks(),
             )
 
-            self.assertEqual((report.accepted_count, report.skipped_count), (1, 0))
+            self.assertEqual(
+                (
+                    report.selected_count,
+                    report.fetched_count,
+                    report.parsed_count,
+                    report.new_blob_count,
+                    report.duplicate_blob_count,
+                    report.semantic_unreviewed_count,
+                ),
+                (1, 1, 1, 1, 0, 1),
+            )
             self.assertTrue(all(call[-1] <= 4 for call in session.calls if call[0] == "peek"))
             transferred = sum(
                 len(content[call[3]:call[3] + call[4]])
@@ -268,9 +402,146 @@ class AttachmentFetchTests(unittest.TestCase):
             )
             self.assertEqual(transferred, len(content))
             self.assertEqual(len(vault.records), 1)
-            self.assertIn(base64.b64encode(content).decode("ascii").encode("ascii"), vault.records[0][0])
+            record = vault.records[0][0]
+            self.assertEqual(
+                record, b"MAILBOX-ATTACHMENT-BLOB-V1\0" + content
+            )
+            self.assertNotIn(SOURCE_ID.encode("ascii"), record)
+            self.assertNotIn(CANDIDATE_ID.encode("ascii"), record)
             temp_root = root / "restricted-temp"
             self.assertTrue(not temp_root.exists() or not any(temp_root.iterdir()))
+
+    def test_existing_content_blob_is_reported_without_inflating_new_evidence(self) -> None:
+        content = b"\x89PNG\r\n\x1a\nDATA"
+        prepared = self._prepared(content=content)
+        vault = FakeAttachmentVault()
+        vault._payload_records[
+            b"MAILBOX-ATTACHMENT-BLOB-V1\0" + content
+        ] = "3" * 32
+        corpus = FakeAttachmentCorpus(existing_blob="3" * 32)
+
+        with tempfile.TemporaryDirectory() as directory:
+            report = fetch_prepared_attachments(
+                prepared,
+                session=FakeAttachmentSession(content),
+                vault=vault,
+                vault_root=Path(directory),
+                parser=lambda path, _mime: path.read_bytes()[-4:],
+                clock=lambda: 1_700_000_100,
+                **corpus.callbacks(),
+            )
+
+        self.assertEqual(vault.records, [])
+        self.assertEqual(
+            vault.extended_expiries, [prepared.items[0].expires_at_utc]
+        )
+        self.assertEqual(report.new_blob_count, 0)
+        self.assertEqual(report.duplicate_blob_count, 1)
+        self.assertEqual(report.semantic_unreviewed_count, 0)
+
+    def test_binding_retry_reuses_raw_byte_blob_when_parser_output_changes(self) -> None:
+        content = b"\x89PNG\r\n\x1a\nDATA"
+        prepared = self._prepared(content=content)
+        vault = FakeAttachmentVault()
+        parser_outputs = deque((b"PARSE-ONE", b"PARSE-TWO"))
+        bind_calls = 0
+
+        def bind(_item: object, _blob_id: str, _token: str) -> object:
+            nonlocal bind_calls
+            bind_calls += 1
+            if bind_calls == 1:
+                raise RuntimeError("synthetic bind interruption")
+            return type("Binding", (), {"status": "new"})()
+
+        def run(root: Path):
+            return fetch_prepared_attachments(
+                prepared, session=FakeAttachmentSession(content), vault=vault,
+                vault_root=root,
+                parser=lambda _path, _mime: parser_outputs.popleft(),
+                clock=lambda: 1_700_000_100,
+                content_token_factory=lambda _content: "e" * 64,
+                find_existing_blob=lambda _token: None,
+                bind_blob=bind,
+            )
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with self.assertRaisesRegex(
+                AttachmentScanError, "attachment_persist_failed"
+            ):
+                run(root)
+            report = run(root)
+
+        self.assertEqual(report.new_blob_count, 1)
+        self.assertEqual(len(vault.records), 1)
+        self.assertEqual(
+            vault.records[0][0], b"MAILBOX-ATTACHMENT-BLOB-V1\0" + content
+        )
+        self.assertNotIn(b"PARSE-ONE", vault.records[0][0])
+        self.assertNotIn(b"PARSE-TWO", vault.records[0][0])
+
+    def test_index_lookup_reuses_blob_and_extends_bounded_expiry(self) -> None:
+        content = b"\x89PNG\r\n\x1a\nDATA"
+        prepared = self._prepared(content=content)
+        vault = FakeAttachmentVault()
+        vault._payload_records[
+            b"MAILBOX-ATTACHMENT-BLOB-V1\0" + content
+        ] = "3" * 32
+        bindings: list[tuple[str, str]] = []
+
+        with tempfile.TemporaryDirectory() as directory:
+            report = fetch_prepared_attachments(
+                prepared,
+                session=FakeAttachmentSession(content),
+                vault=vault,
+                vault_root=Path(directory),
+                parser=lambda path, _mime: path.read_bytes()[-4:],
+                clock=lambda: 1_700_000_100,
+                content_token_factory=lambda value: (
+                    self.assertEqual(value, content) or "e" * 64
+                ),
+                find_existing_blob=lambda token: (
+                    self.assertEqual(token, "e" * 64) or "3" * 32
+                ),
+                bind_blob=lambda _item, blob_id, token: (
+                    bindings.append((blob_id, token))
+                    or type("Binding", (), {"status": "duplicate"})()
+                ),
+            )
+
+        self.assertEqual(vault.records, [])
+        self.assertEqual(
+            vault.extended_expiries, [prepared.items[0].expires_at_utc]
+        )
+        self.assertEqual(bindings, [("3" * 32, "e" * 64)])
+        self.assertEqual(report.duplicate_blob_count, 1)
+
+    def test_index_blob_id_must_match_vault_dedup_record(self) -> None:
+        content = b"\x89PNG\r\n\x1a\nDATA"
+        prepared = self._prepared(content=content)
+        vault = FakeAttachmentVault()
+        vault._payload_records[
+            b"MAILBOX-ATTACHMENT-BLOB-V1\0" + content
+        ] = "4" * 32
+        bindings: list[tuple[str, str]] = []
+
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(
+                AttachmentScanError, "attachment_persist_failed"
+            ):
+                fetch_prepared_attachments(
+                    prepared, session=FakeAttachmentSession(content), vault=vault,
+                    vault_root=Path(directory), parser=lambda _path, _mime: b"ok",
+                    clock=lambda: 1_700_000_100,
+                    content_token_factory=lambda _content: "e" * 64,
+                    find_existing_blob=lambda _token: "3" * 32,
+                    bind_blob=lambda _item, blob_id, token: (
+                        bindings.append((blob_id, token))
+                        or type("Binding", (), {"status": "duplicate"})()
+                    ),
+                )
+
+        self.assertEqual(bindings, [])
 
     def test_uidvalidity_size_magic_and_active_content_fail_before_persist(self) -> None:
         cases = {
@@ -294,6 +565,7 @@ class AttachmentFetchTests(unittest.TestCase):
                             parser=lambda _path, _mime: b"parsed",
                             chunk_size=4,
                             clock=lambda: 1_700_000_100,
+                            **FakeAttachmentCorpus().callbacks(),
                         )
                 self.assertEqual(vault.records, [])
 
@@ -320,6 +592,7 @@ class AttachmentFetchTests(unittest.TestCase):
                         parser=parser,
                         chunk_size=4,
                         clock=lambda: 1_700_000_100,
+                        **FakeAttachmentCorpus().callbacks(),
                     )
                 temp_root = root / "restricted-temp"
                 self.assertTrue(not temp_root.exists() or not any(temp_root.iterdir()))
@@ -342,6 +615,7 @@ class AttachmentFetchTests(unittest.TestCase):
                     parser=lambda _path, _mime: b"parsed",
                     chunk_size=4,
                     clock=ticks.popleft,
+                    **FakeAttachmentCorpus().callbacks(),
                 )
 
         self.assertEqual(vault.records, [])

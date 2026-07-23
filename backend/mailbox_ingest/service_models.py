@@ -6,6 +6,28 @@ import argparse
 from dataclasses import dataclass
 from typing import Callable, Protocol
 
+from .inventory import InventoryV1
+
+
+_AGGREGATE_FIELDS = {
+    "scan_complete": frozenset(
+        {
+            "processed", "unique_messages", "duplicate_messages",
+            "customer_requests", "sales_replies", "pairs",
+            "duplicate_quotations", "excluded_automated",
+            "excluded_non_sales", "excluded_forwards", "sensitive",
+            "ambiguous", "supported_attachments", "unsupported_attachments",
+        }
+    ),
+    "attachments_complete": frozenset(
+        {
+            "selected", "supported", "unsupported", "fetched",
+            "acquisition_failed", "parsed", "parse_failed", "new_blobs",
+            "duplicate_blobs", "semantic_unreviewed",
+        }
+    ),
+}
+
 
 @dataclass(frozen=True)
 class CliResult:
@@ -13,6 +35,8 @@ class CliResult:
     count: int | None = None
     fingerprint: str | None = None
     opaque_ids: tuple[str, ...] = ()
+    inventory: InventoryV1 | None = None
+    aggregate_counts: dict[str, int] | None = None
 
     def to_dict(self) -> dict[str, object]:
         payload: dict[str, object] = {"ok": True, "code": self.code}
@@ -22,7 +46,23 @@ class CliResult:
             payload["fingerprint"] = self.fingerprint
         if self.opaque_ids:
             payload["opaque_ids"] = list(self.opaque_ids)
+        if self.inventory is not None:
+            payload["inventory"] = self.inventory.to_dict()
+        if self.aggregate_counts is not None:
+            _validate_aggregate_counts(self.code, self.aggregate_counts)
+            payload["counts"] = dict(self.aggregate_counts)
         return payload
+
+
+def _validate_aggregate_counts(code: str, values: object) -> None:
+    expected = _AGGREGATE_FIELDS.get(code)
+    if (
+        expected is None
+        or not isinstance(values, dict)
+        or set(values) != expected
+        or any(type(value) is not int or value < 0 for value in values.values())
+    ):
+        raise ValueError("aggregate_counts_invalid")
 
 
 class PreparedOperation(Protocol):

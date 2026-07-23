@@ -15,6 +15,7 @@ from typing import Callable
 from .dpapi import DpapiProtector
 from .errors import VaultError
 from .existing_vault_policy import validate_existing_vault_location
+from .knowledge_stage_helpers import conversation_bucket, counterparty_bucket, filenames
 from .models import SecretBuffer
 from .vault_access import open_mailbox_vault
 
@@ -64,6 +65,12 @@ class _RawRecordContext:
     def __enter__(self) -> RawStageRecord:
         if self._record is not None:
             raise VaultError("stage_record_invalid")
+        try:
+            paired = self._source._opened.corpus_index.belongs_to_pair(self._record_id)
+        except Exception:
+            raise VaultError("stage_record_invalid") from None
+        if paired is not True:
+            raise VaultError("stage_record_invalid")
         secret = self._source._opened.vault.get_record(self._record_id)
         if not isinstance(secret, SecretBuffer):
             raise VaultError("stage_record_invalid")
@@ -111,8 +118,8 @@ class MailboxKnowledgeStageSource:
     def evidence(self) -> tuple[str, str]:
         if self._threads is None or self._counterparties is None:
             raise VaultError("stage_evidence_unavailable")
-        return (_conversation_bucket(len(self._threads)),
-                _counterparty_bucket(len(self._counterparties)))
+        return (conversation_bucket(len(self._threads)),
+                counterparty_bucket(len(self._counterparties)))
 
     def _decode(self, payload: bytes, record_id: str) -> RawStageRecord:
         try:
@@ -135,11 +142,11 @@ class MailboxKnowledgeStageSource:
                     and not address.casefold().endswith("@" + self._account_domain)
                 )
                 self._threads.add(_thread_key(message, record_id))
-            filenames = _filenames(value["attachments"])
+            attachment_names = filenames(value["attachments"])
             text = "\n".join(
                 [header.decode("utf-8", errors="replace")]
                 + [item.decode("utf-8", errors="replace") for item in bodies]
-                + filenames
+                + attachment_names
             )
             return RawStageRecord(text, people, organizations)
         except (ValueError, TypeError, KeyError, UnicodeError, json.JSONDecodeError):
@@ -260,6 +267,13 @@ def _header_identities(
     return people, organizations, addresses
 
 
+def _thread_key(message: object, fallback: str) -> str:
+    references = str(message.get("references", "")).split()
+    return (references[0] if references else str(
+        message.get("in-reply-to") or message.get("message-id") or fallback
+    ))[:500]
+
+
 def _valid_identity_list(values: object) -> bool:
     return (
         isinstance(values, list)
@@ -272,29 +286,3 @@ def _valid_identity_list(values: object) -> bool:
             for value in values
         )
     )
-
-
-def _thread_key(message: object, fallback: str) -> str:
-    references = str(message.get("references", "")).split()
-    return (references[0] if references else str(
-        message.get("in-reply-to") or message.get("message-id") or fallback
-    ))[:500]
-
-
-def _filenames(attachments: object) -> list[str]:
-    result: list[str] = []
-    for item in attachments:
-        if not isinstance(item, dict):
-            raise ValueError
-        filename = item.get("filename")
-        if isinstance(filename, str) and filename:
-            result.append(filename[:500])
-    return result
-
-
-def _conversation_bucket(count: int) -> str:
-    return "1" if count <= 1 else "2" if count == 2 else "3-5" if count <= 5 else "6-10" if count <= 10 else "11+"
-
-
-def _counterparty_bucket(count: int) -> str:
-    return "1" if count <= 1 else "2-3" if count <= 3 else "4-10" if count <= 10 else "11+"

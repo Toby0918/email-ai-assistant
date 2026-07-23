@@ -188,11 +188,14 @@ def prepare_attachments(
     manifest: ReviewedManifest,
     *,
     read_source_record: Callable[[str], SecretBuffer],
+    source_is_paired: Callable[[str], bool],
 ) -> PreparedAttachments:
     items: list[PreparedAttachment] = []
     for selection in manifest.selections:
         secret: SecretBuffer | None = None
         try:
+            if source_is_paired(selection.source_record_id) is not True:
+                raise AttachmentScanError("attachment_source_not_paired")
             secret = read_source_record(selection.source_record_id)
             if not isinstance(secret, SecretBuffer):
                 raise AttachmentScanError("attachment_source_invalid")

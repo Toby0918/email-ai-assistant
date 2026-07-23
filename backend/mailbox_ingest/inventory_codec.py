@@ -15,15 +15,19 @@ from .inventory import (
 from .imap_utf7 import MailboxDecodeError, decode_modified_utf7
 
 
+_FOLDER_ROLES = frozenset({"inbox", "sent", "archive", "business_custom"})
+
+
 def encode_inventory_bundle(bundle: InventoryBundle) -> dict[str, object]:
     inventory = bundle.inventory
     return {
-        "schema_version": 1,
+        "schema_version": 2,
         "public": inventory.to_dict(),
         "evidence": [
             {
                 "mailbox": folder.mailbox,
                 "wire_mailbox": folder.wire_mailbox.decode("ascii"),
+                "role": folder.role,
                 "opaque_folder_id": folder.opaque_folder_id,
                 "uidvalidity": folder.uidvalidity,
                 "messages": [
@@ -43,7 +47,7 @@ def encode_inventory_bundle(bundle: InventoryBundle) -> dict[str, object]:
 def decode_inventory_bundle(payload: object) -> InventoryBundle:
     if not isinstance(payload, dict) or set(payload) != {
         "schema_version", "public", "evidence"
-    } or payload["schema_version"] != 1:
+    } or payload["schema_version"] != 2:
         raise InventoryError("inventory_control_invalid")
     public = payload["public"]
     evidence = payload["evidence"]
@@ -94,7 +98,8 @@ def _public_folder(value: object) -> FolderInventory:
 
 def _private_folder(value: object) -> FolderEvidence:
     if not isinstance(value, dict) or set(value) != {
-        "mailbox", "wire_mailbox", "opaque_folder_id", "uidvalidity", "messages"
+        "mailbox", "wire_mailbox", "role", "opaque_folder_id", "uidvalidity",
+        "messages",
     }:
         raise InventoryError()
     mailbox = value["mailbox"]
@@ -119,6 +124,7 @@ def _private_folder(value: object) -> FolderEvidence:
         raise InventoryError()
     return FolderEvidence(
         mailbox,
+        _role(value["role"]),
         _hex(value["opaque_folder_id"], 64),
         _integer(value["uidvalidity"], minimum=1),
         parsed,
@@ -150,6 +156,12 @@ def _datetime(value: object) -> datetime:
 
 def _integer(value: object, *, minimum: int, maximum: int | None = None) -> int:
     if type(value) is not int or value < minimum or maximum is not None and value > maximum:
+        raise InventoryError()
+    return value
+
+
+def _role(value: object) -> str:
+    if not isinstance(value, str) or value not in _FOLDER_ROLES:
         raise InventoryError()
     return value
 

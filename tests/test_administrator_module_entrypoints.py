@@ -194,6 +194,10 @@ class AdministratorModuleEntrypointTests(unittest.TestCase):
                         "--confirm-inventory-fingerprint",
                         text[scan_index:scan_index + 500],
                     )
+                    self.assertIn(
+                        "--sales-policy",
+                        text[scan_index:scan_index + 500],
+                    )
 
     def test_live_runbooks_verify_before_and_after_approved_attachments(self) -> None:
         scan_command = "python -B -m scripts.manage_mailbox_vault scan"

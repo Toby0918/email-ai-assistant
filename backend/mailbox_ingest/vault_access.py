@@ -19,6 +19,7 @@ from .folder_policy import RawFolder, SelectedFolder, select_mail_folders
 from .inventory import InventoryBundle, build_inventory
 from .key_envelopes import load_vault_identity, open_master_key
 from .models import SecretBuffer
+from .sales_corpus_index import SalesCorpusIndex
 from .vault import MailboxVault
 from .vault_crypto import VaultCrypto
 from .vault_index import VaultIndex
@@ -34,9 +35,12 @@ class VaultIdentity:
 class _OpeningResources:
     crypto: VaultCrypto | None = None
     control: EncryptedControlStore | None = None
+    corpus_index: SalesCorpusIndex | None = None
     keys: list[SecretBuffer] = field(default_factory=list)
 
     def close(self) -> None:
+        if self.corpus_index is not None:
+            self.corpus_index.close()
         if self.control is not None:
             self.control.close()
         if self.crypto is not None:
@@ -50,10 +54,12 @@ class OpenedMailboxVault:
     identity: VaultIdentity
     vault: MailboxVault
     control: EncryptedControlStore
+    corpus_index: SalesCorpusIndex
     vault_root: Path = field(repr=False)
     _scope_key: SecretBuffer = field(repr=False)
     _folder_key: SecretBuffer = field(repr=False)
     _fingerprint_key: SecretBuffer = field(repr=False)
+    _sales_identity_key: SecretBuffer = field(repr=False)
     _closed: bool = False
 
     def close(self) -> None:
@@ -61,10 +67,12 @@ class OpenedMailboxVault:
             return
         self._closed = True
         self.control.close()
+        self.corpus_index.close()
         self.vault.close()
         self._scope_key.wipe()
         self._folder_key.wipe()
         self._fingerprint_key.wipe()
+        self._sales_identity_key.wipe()
 
     def authorization_scope(
         self, authorization_id: str, account: str
@@ -135,6 +143,10 @@ class OpenedMailboxVault:
             fingerprint_key=bytes(self._fingerprint_key),
         )
 
+    def sales_identity_key(self) -> SecretBuffer:
+        self._ensure_open()
+        return SecretBuffer(self._sales_identity_key)
+
     def _ensure_open(self) -> None:
         if self._closed:
             raise VaultError("vault_revoked")
@@ -204,7 +216,10 @@ def _open_from_master(
         resources.control = EncryptedControlStore(
             root, vault_id=identity.vault_id, master_key=master, rng=rng,
         )
-        for purpose in (b"scope", b"folder", b"inventory-fingerprint"):
+        for purpose in (
+            b"scope", b"folder", b"inventory-fingerprint", b"sales-corpus",
+            b"sales-message-identity",
+        ):
             resources.keys.append(
                 _derive_opaque_key(master, identity.vault_id, purpose)
             )
@@ -214,9 +229,14 @@ def _open_from_master(
             root, vault_id=identity.vault_id, crypto=resources.crypto,
             index=index, clock=clock,
         )
+        resources.corpus_index = SalesCorpusIndex(
+            root / "corpus-index.sqlite3", key=bytes(resources.keys[3])
+        )
+        resources.keys[3].wipe()
         return OpenedMailboxVault(
-            identity, vault, resources.control, root,
+            identity, vault, resources.control, resources.corpus_index, root,
             resources.keys[0], resources.keys[1], resources.keys[2],
+            resources.keys[4],
         )
     except Exception:
         resources.close()

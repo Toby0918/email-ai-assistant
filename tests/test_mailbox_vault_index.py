@@ -7,6 +7,7 @@ import sqlite3
 import tempfile
 import unittest
 from contextlib import closing
+from dataclasses import replace
 from pathlib import Path
 from unittest import mock
 
@@ -32,8 +33,10 @@ RECORD_COLUMNS = (
     "format_version",
     "key_version",
     "lifecycle_state",
+    "metadata_mac",
 )
 STATE_COLUMNS = ("singleton", "vault_id", "lifecycle_state")
+INTENT_COLUMNS = RECORD_COLUMNS[:-2] + ("metadata_mac",)
 
 
 def _record(
@@ -64,8 +67,18 @@ class VaultIndexTests(unittest.TestCase):
         self.vault_id = "11111111-2222-4333-8444-555555555555"
         self.index = VaultIndex(self.path, vault_id=self.vault_id)
         self.index.initialize()
+        self.master = SecretBuffer(b"M" * 32)
+        self.crypto = VaultCrypto(
+            self.master,
+            vault_id=self.vault_id,
+            rng=lambda size: b"N" * size,
+            max_plaintext_size=1_024,
+        )
+        self.index.bind_metadata_authenticator(self.crypto)
 
     def tearDown(self) -> None:
+        self.crypto.close()
+        self.master.wipe()
         self.temporary.cleanup()
 
     def test_exact_schema_and_durable_local_pragmas(self) -> None:
@@ -83,20 +96,104 @@ class VaultIndexTests(unittest.TestCase):
                 row[1]
                 for row in connection.execute("PRAGMA table_info(vault_state)")
             )
+            intents = tuple(
+                row[1]
+                for row in connection.execute("PRAGMA table_info(write_intents)")
+            )
             application_id = connection.execute("PRAGMA application_id").fetchone()[0]
             user_version = connection.execute("PRAGMA user_version").fetchone()[0]
             journal_mode = connection.execute("PRAGMA journal_mode").fetchone()[0]
             synchronous = connection.execute("PRAGMA synchronous").fetchone()[0]
             temp_store = connection.execute("PRAGMA temp_store").fetchone()[0]
 
-        self.assertEqual(tables, {"records", "vault_state"})
+        self.assertEqual(tables, {"records", "write_intents", "vault_state"})
         self.assertEqual(records, RECORD_COLUMNS)
+        self.assertEqual(intents, INTENT_COLUMNS)
         self.assertEqual(state, STATE_COLUMNS)
         self.assertEqual(application_id, APPLICATION_ID)
         self.assertEqual(user_version, SCHEMA_VERSION)
         self.assertEqual(journal_mode.lower(), "delete")
         self.assertEqual(synchronous, 2)
         self.assertEqual(temp_store, 2)
+
+    def test_older_schema_fails_closed_without_implicit_migration(self) -> None:
+        with closing(sqlite3.connect(self.path)) as connection:
+            connection.execute("DROP TABLE write_intents")
+            connection.execute("PRAGMA user_version=1")
+            connection.commit()
+
+        with self.assertRaisesRegex(VaultError, "index_schema_invalid"):
+            self.index.initialize()
+
+        with closing(sqlite3.connect(self.path)) as connection:
+            tables = {
+                row[0]
+                for row in connection.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table'"
+                )
+            }
+            user_version = connection.execute("PRAGMA user_version").fetchone()[0]
+        self.assertEqual(tables, {"records", "vault_state"})
+        self.assertEqual(user_version, 1)
+
+    def test_schema_rejects_removed_unique_constraint(self) -> None:
+        with closing(sqlite3.connect(self.path)) as connection:
+            connection.execute(
+                "ALTER TABLE write_intents RENAME TO old_write_intents"
+            )
+            connection.execute("""
+                CREATE TABLE write_intents (
+                    record_id TEXT PRIMARY KEY,
+                    encrypted_relpath TEXT NOT NULL UNIQUE,
+                    dedup_hmac BLOB NOT NULL,
+                    created_at_utc INTEGER NOT NULL,
+                    expires_at_utc INTEGER NOT NULL,
+                    ciphertext_size INTEGER NOT NULL,
+                    format_version INTEGER NOT NULL,
+                    key_version INTEGER NOT NULL,
+                    metadata_mac BLOB NOT NULL
+                )
+            """)
+            connection.execute("DROP TABLE old_write_intents")
+            connection.commit()
+
+        with self.assertRaisesRegex(VaultError, "index_schema_invalid"):
+            self.index.validate()
+
+    def test_schema_rejects_injected_trigger(self) -> None:
+        with closing(sqlite3.connect(self.path)) as connection:
+            connection.execute(
+                "CREATE TRIGGER injected_metadata_trigger "
+                "AFTER INSERT ON records BEGIN SELECT 1; END"
+            )
+            connection.commit()
+
+        with self.assertRaisesRegex(VaultError, "index_schema_invalid"):
+            self.index.validate()
+
+    def test_schema_rejects_unexpected_view_and_explicit_index(self) -> None:
+        objects = (
+            (
+                "view",
+                "CREATE VIEW injected_metadata_view AS SELECT record_id FROM records",
+                "DROP VIEW injected_metadata_view",
+            ),
+            (
+                "index",
+                "CREATE INDEX injected_metadata_index ON records(expires_at_utc)",
+                "DROP INDEX injected_metadata_index",
+            ),
+        )
+        for label, create_sql, drop_sql in objects:
+            with self.subTest(label=label):
+                with closing(sqlite3.connect(self.path)) as connection:
+                    connection.execute(create_sql)
+                    connection.commit()
+                with self.assertRaisesRegex(VaultError, "index_schema_invalid"):
+                    self.index.validate()
+                with closing(sqlite3.connect(self.path)) as connection:
+                    connection.execute(drop_sql)
+                    connection.commit()
 
     def test_existing_index_is_bound_to_exact_vault_id(self) -> None:
         other = VaultIndex(
@@ -143,7 +240,8 @@ class VaultIndexTests(unittest.TestCase):
         pending = self.index.get_record(record.record_id)
         self.index.delete_record(record.record_id)
 
-        self.assertEqual(loaded, record)
+        self.assertEqual(replace(loaded, metadata_mac=b""), record)
+        self.assertEqual(len(loaded.metadata_mac), 32)
         self.assertEqual(pending.lifecycle_state, "delete_pending")
         self.assertIsNone(self.index.get_record(record.record_id))
         self.assertNotIn(record.encrypted_relpath, repr(record))
@@ -151,27 +249,16 @@ class VaultIndexTests(unittest.TestCase):
 
     def test_plaintext_canary_never_appears_in_database_bytes(self) -> None:
         canary = b"SYNTHETIC-PLAINTEXT-CANARY"
-        master = SecretBuffer(b"M" * 32)
-        crypto = VaultCrypto(
-            master,
-            vault_id=self.vault_id,
-            rng=lambda size: b"N" * size,
-            max_plaintext_size=1_024,
-        )
         identifiers = iter(("1" * 32, "a" * 32))
         vault = MailboxVault(
             self.root,
             vault_id=self.vault_id,
-            crypto=crypto,
+            crypto=self.crypto,
             index=self.index,
             clock=lambda: 1_000,
             random_identifier=lambda: next(identifiers),
         )
-        try:
-            vault.put_record(canary, expires_at_utc=2_000)
-        finally:
-            crypto.close()
-            master.wipe()
+        vault.put_record(canary, expires_at_utc=2_000)
 
         for artifact in self.root.rglob("*"):
             if artifact.is_file():
@@ -238,7 +325,8 @@ class VaultIndexTests(unittest.TestCase):
         with self.assertRaisesRegex(VaultError, "index_write_failed"):
             self.index.add_record(_record(relpath="records/cd/bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb.mvlt"))
 
-        self.assertEqual(self.index.get_record(original.record_id), original)
+        loaded = self.index.get_record(original.record_id)
+        self.assertEqual(replace(loaded, metadata_mac=b""), original)
         self.assertEqual(len(self.index.list_records()), 1)
 
     def test_expired_and_delete_pending_queries_are_bounded(self) -> None:

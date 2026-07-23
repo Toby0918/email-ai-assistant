@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .attachment_scan import fetch_prepared_attachments
 from .authorization import AuthorizationScope, DateWindow
 from .folder_policy import SelectedFolder
 from .inventory import InventoryBundle
@@ -14,8 +13,7 @@ from .key_envelopes import (
     load_vault_identity,
     rewrap_recovery_key,
 )
-from .private_attachment_parser import parse_private_attachment
-from .scan import scan_mailbox
+from .governed_scan import scan_governed_mailbox
 from .service_models import CliResult
 from .vault_access import OpenedMailboxVault
 from .vault_index import VaultIndex
@@ -81,6 +79,7 @@ class InitOperation:
             self.vault, dpapi=self.dpapi, clock=self.clock
         )
         try:
+            opened.corpus_index.initialize()
             opened.create_authorization_binding(
                 self.authorization_id, self.account
             )
@@ -118,6 +117,7 @@ class InventoryOperation(OpenedOperation):
             opaque_ids=tuple(
                 item.opaque_folder_id for item in bundle.inventory.folders
             ),
+            inventory=bundle.inventory,
         )
 
 
@@ -128,6 +128,7 @@ class ScanOperation(OpenedOperation):
         scope: AuthorizationScope,
         bundle: InventoryBundle,
         confirmed_fingerprint: str,
+        sales_policy: object | None = None,
     ) -> None:
         super().__init__(opened)
         if confirmed_fingerprint != bundle.inventory.fingerprint:
@@ -137,6 +138,7 @@ class ScanOperation(OpenedOperation):
         self.scope = scope
         self.bundle = bundle
         self.confirmed = confirmed_fingerprint
+        self.sales_policy = sales_policy
 
     def execute(self, session: object | None) -> CliResult:
         if session is None:
@@ -144,7 +146,7 @@ class ScanOperation(OpenedOperation):
         folders = tuple(
             SelectedFolder(
                 folder.mailbox,
-                "business_custom",
+                folder.role,
                 folder.opaque_folder_id,
                 folder.wire_mailbox,
             )
@@ -160,41 +162,40 @@ class ScanOperation(OpenedOperation):
                 session, scope=self.scope, folders=folders, window=window
             )
 
-        report = scan_mailbox(
-            session=session,
-            inventory_bundle=self.bundle,
-            confirmed_fingerprint=self.confirmed,
-            vault=self.opened.vault,
-            control_store=self.opened.control,
-            rebuild_inventory=rebuild,
+        if self.sales_policy is None:
+            raise ValueError("sales_policy_invalid")
+        with self.opened.sales_identity_key() as identity_key:
+            report = scan_governed_mailbox(
+                session=session,
+                inventory_bundle=self.bundle,
+                confirmed_fingerprint=self.confirmed,
+                vault=self.opened.vault,
+                control_store=self.opened.control,
+                rebuild_inventory=rebuild,
+                sales_policy=self.sales_policy,
+                corpus_index=self.opened.corpus_index,
+                identity_key=bytes(identity_key),
+            )
+        return CliResult(
+            "scan_complete",
+            count=report.processed_count,
+            aggregate_counts=report.to_counts(),
         )
-        return CliResult("scan_complete", count=report.processed_count)
-
-
-class AttachmentOperation(OpenedOperation):
-    def __init__(self, opened: OpenedMailboxVault, prepared: object) -> None:
-        super().__init__(opened)
-        self.prepared = prepared
-
-    def execute(self, session: object | None) -> CliResult:
-        if session is None:
-            raise ValueError
-        report = fetch_prepared_attachments(
-            self.prepared,
-            session=session,
-            vault=self.opened.vault,
-            vault_root=self.opened.vault_root,
-            parser=parse_private_attachment,
-        )
-        return CliResult("attachments_complete", count=report.accepted_count)
 
 
 class VerifyOperation(OpenedOperation):
     def execute(self, session: object | None) -> CliResult:
         if session is not None:
             raise ValueError
+        self.opened.corpus_index.validate()
+        record_ids = self.opened.corpus_index.vault_record_ids()
         report = self.opened.vault.verify()
-        failures = report.missing_count + report.orphan_count + report.integrity_failure_count
+        dangling = self.opened.vault.count_inactive_or_missing_records(record_ids)
+        failures = (
+            report.missing_count + report.orphan_count
+            + report.integrity_failure_count + report.write_pending_count
+            + dangling
+        )
         return CliResult("verify_complete", count=failures)
 
 
@@ -206,7 +207,10 @@ class PurgeOperation(OpenedOperation):
     def execute(self, session: object | None) -> CliResult:
         if session is not None:
             raise ValueError
-        report = self.opened.vault.purge_expired(limit=self.limit)
+        with self.opened.vault.coordinated_mutation():
+            record_ids = self.opened.vault.plan_expired_purge(limit=self.limit)
+            self.opened.corpus_index.purge_records(record_ids)
+            report = self.opened.vault.purge_planned(record_ids)
         return CliResult("purge_complete", count=report.deleted_count)
 
 
@@ -268,7 +272,6 @@ class RewrapOperation:
     def close(self) -> None:
         self.opened.close()
 __all__ = [
-    "AttachmentOperation",
     "InitOperation",
     "InventoryOperation",
     "PurgeOperation",

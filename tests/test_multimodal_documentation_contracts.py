@@ -66,6 +66,10 @@ BOUNDED_HANDOFF_TOUCHED_ACTIVE_DOCS = frozenset(
     }
 )
 
+GOVERNED_CORPUS_TOUCHED_ACTIVE_DOCS = frozenset(
+    {"docs/operations/testing_checklist.md"}
+)
+
 AUTOMATIC_ATTACHMENT_SMOKE_TOUCHED_DOCS = frozenset(
     {
         "docs/operations/testing_checklist.md",
@@ -431,7 +435,10 @@ class MultimodalDocumentationContractTests(unittest.TestCase):
             text = self._read(relative)
             expected_date = (
                 "2026-07-22"
-                if relative in BOUNDED_HANDOFF_TOUCHED_ACTIVE_DOCS
+                if relative in (
+                    BOUNDED_HANDOFF_TOUCHED_ACTIVE_DOCS
+                    | GOVERNED_CORPUS_TOUCHED_ACTIVE_DOCS
+                )
                 else "2026-07-21"
                 if relative
                 == "docs/operations/multimodal_current_email_analysis_task_brief.md"

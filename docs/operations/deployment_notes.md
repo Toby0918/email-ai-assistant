@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-15
+last_update: 2026-07-22
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -121,7 +121,7 @@ python -B -m scripts.manage_mailbox_vault inventory --vault $VaultRoot --authori
 未变化的 fingerprint 后，才可运行：
 
 ```powershell
-python -B -m scripts.manage_mailbox_vault scan --vault $VaultRoot --authorization-id $AuthorizationId --account $Account --confirm-inventory-fingerprint $Fingerprint
+python -B -m scripts.manage_mailbox_vault scan --vault $VaultRoot --authorization-id $AuthorizationId --account $Account --confirm-inventory-fingerprint $Fingerprint --sales-policy $SalesPolicy
 ```
 
 `scan` 完成后必须立即做第一次完整性检查；只有固定结果中的完整性失败数为零，
