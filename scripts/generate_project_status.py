@@ -51,6 +51,8 @@ KEY_FILES = [
     "backend/email_agent/attachment_storage.py",
     "backend/email_agent/config.py",
     "backend/email_agent/managed_runtime.py",
+    "backend/email_agent/managed_runtime_errors.py",
+    "backend/email_agent/managed_runtime_validation.py",
     "backend/email_agent/logging_config.py",
     "backend/email_agent/email_cleaner.py",
     "backend/email_agent/analyzer.py",

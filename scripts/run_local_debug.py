@@ -13,12 +13,19 @@ if str(ROOT) not in sys.path:
 
 from backend.email_agent.config import load_config
 from backend.email_agent.logging_config import configure_logging
-from backend.email_agent.managed_runtime import prepare_managed_runtime
+from backend.email_agent.managed_runtime import (
+    ManagedRuntimeError,
+    managed_failure_code,
+    prepare_managed_runtime,
+)
 from backend.email_agent.server import run_server, validate_local_server_host
 from backend.email_agent.standalone_verification import (
     prepare_standalone_runtime,
 )
 from backend.private_knowledge.runtime_bootstrap import load_configured_runtime_cards
+
+
+MANAGED_FAILURE_EXIT_CODE = 8
 
 
 def parse_args() -> argparse.Namespace:
@@ -74,7 +81,7 @@ def _run_standalone(args: argparse.Namespace, host: str) -> None:
 
 def _run_managed(args: argparse.Namespace, host: str) -> None:
     if args.database is not None:
-        raise ValueError("managed database path is derived from Project Container")
+        raise ManagedRuntimeError("managed_runtime_invalid")
     runtime = prepare_managed_runtime(
         repository_root=ROOT,
         project_container=ROOT.parent,
@@ -92,16 +99,24 @@ def _run_managed(args: argparse.Namespace, host: str) -> None:
     )
 
 
+def _run_managed_entry(args: argparse.Namespace) -> int:
+    try:
+        host = validate_local_server_host(args.host)
+        if args.standalone_state_root is not None:
+            raise ManagedRuntimeError("managed_runtime_invalid")
+        _run_managed(args, host)
+    except Exception as error:
+        print(managed_failure_code(error), file=sys.stderr)
+        return MANAGED_FAILURE_EXIT_CODE
+    return 0
+
+
 def main() -> int:
     args = parse_args()
-    host = validate_local_server_host(args.host)
     if args.managed_container:
-        if args.standalone_state_root is not None:
-            raise ValueError(
-                "managed and standalone runtime modes are mutually exclusive"
-            )
-        _run_managed(args, host)
-    elif args.standalone_state_root is not None:
+        return _run_managed_entry(args)
+    host = validate_local_server_host(args.host)
+    if args.standalone_state_root is not None:
         _run_standalone(args, host)
     else:
         _run_configured(args, host)

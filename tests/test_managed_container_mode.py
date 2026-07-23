@@ -13,6 +13,7 @@ from unittest import mock
 
 from backend.email_agent.managed_runtime import (
     ManagedRuntimeError,
+    managed_failure_code,
     prepare_managed_runtime,
 )
 from backend.email_agent.server import create_server
@@ -32,6 +33,32 @@ MANAGED_ZONE_NAMES = (
 
 
 class ManagedContainerModeTests(unittest.TestCase):
+    def test_managed_failure_mapping_never_echoes_unreviewed_exception(
+        self,
+    ) -> None:
+        class HostileError(RuntimeError):
+            @property
+            def code(self) -> str:
+                raise RuntimeError("D:/private/credential.txt")
+
+        class CodedError(RuntimeError):
+            def __init__(self, code: str) -> None:
+                self.code = code
+                super().__init__("untrusted native detail")
+
+        self.assertEqual(
+            managed_failure_code(HostileError("D:/private/secret")),
+            "managed_runtime_invalid",
+        )
+        self.assertEqual(
+            managed_failure_code(CodedError("managed_relationship_invalid")),
+            "managed_relationship_invalid",
+        )
+        self.assertEqual(
+            managed_failure_code(CodedError("D:/private/credential.txt")),
+            "managed_runtime_invalid",
+        )
+
     def test_invalid_placement_fails_before_managed_config_is_read(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             project_container = Path(temporary_directory) / "wrong_container"
@@ -343,6 +370,48 @@ class ManagedContainerModeTests(unittest.TestCase):
                         project_container=project_container,
                     )
 
+    def test_managed_zone_identity_drift_during_preflight_fails_closed(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            project_container, repository_root = _create_managed_layout(
+                Path(temporary_directory)
+            )
+            artifact_root = project_container / "Artifacts"
+            original_lstat = Path.lstat
+            artifact_lstat_count = 0
+
+            def lstat_with_identity_drift(path: Path) -> object:
+                nonlocal artifact_lstat_count
+                metadata = original_lstat(path)
+                if path != artifact_root:
+                    return metadata
+                artifact_lstat_count += 1
+                inode_offset = 0 if artifact_lstat_count <= 2 else 1
+                return SimpleNamespace(
+                    st_mode=metadata.st_mode,
+                    st_dev=metadata.st_dev,
+                    st_ino=metadata.st_ino + inode_offset,
+                    st_file_attributes=int(
+                        getattr(metadata, "st_file_attributes", 0)
+                    ),
+                )
+
+            with mock.patch.object(
+                Path,
+                "lstat",
+                autospec=True,
+                side_effect=lstat_with_identity_drift,
+            ):
+                with self.assertRaisesRegex(
+                    ManagedRuntimeError,
+                    "^managed_operational_layout_invalid$",
+                ):
+                    prepare_managed_runtime(
+                        repository_root=repository_root,
+                        project_container=project_container,
+                    )
+
     def test_missing_managed_runtime_executable_does_not_fall_back(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             project_container, repository_root = _create_managed_layout(
@@ -397,6 +466,56 @@ class ManagedContainerModeTests(unittest.TestCase):
                         repository_root=repository_root,
                         project_container=project_container,
                     )
+
+    def test_managed_unwritable_file_target_fails_before_config_read(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            project_container, repository_root = _create_managed_layout(
+                Path(temporary_directory)
+            )
+            database_path = (
+                project_container / "LocalData" / "email_agent.sqlite3"
+            )
+            database_path.write_bytes(b"synthetic")
+            settings_file = project_container / "Config" / "settings.env"
+            settings_file.write_text(
+                "EMAIL_AGENT_LOG_LEVEL=INFO\n",
+                encoding="utf-8",
+            )
+            original_access = __import__("os").access
+
+            def access_with_unwritable_database(
+                path: object,
+                mode: int,
+            ) -> bool:
+                if Path(path) == database_path:
+                    return False
+                return original_access(path, mode)
+
+            with (
+                mock.patch(
+                    (
+                        "backend.email_agent."
+                        "managed_runtime_validation.os.access"
+                    ),
+                    side_effect=access_with_unwritable_database,
+                ),
+                mock.patch.object(
+                    Path,
+                    "open",
+                    autospec=True,
+                    side_effect=AssertionError("Config was read"),
+                ),
+                self.assertRaisesRegex(
+                    ManagedRuntimeError,
+                    "^managed_operational_layout_invalid$",
+                ),
+            ):
+                prepare_managed_runtime(
+                    repository_root=repository_root,
+                    project_container=project_container,
+                )
 
     def test_managed_settings_reparse_file_fails_before_read(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:

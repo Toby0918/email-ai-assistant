@@ -23,7 +23,7 @@ feature
 ## 3. Current status
 
 ```text
-implementation_verified_review_pending
+implementation_verified_re_review_pending
 ```
 
 ## 4. Goal
@@ -81,6 +81,8 @@ Expected implementation and test paths:
 
 - `backend/email_agent/config.py`
 - `backend/email_agent/managed_runtime.py`
+- `backend/email_agent/managed_runtime_errors.py`
+- `backend/email_agent/managed_runtime_validation.py`
 - `scripts/manage_local_service.py`
 - `scripts/run_local_debug.py`
 - `tests/test_config.py`
@@ -320,7 +322,9 @@ Not applicable. Mailbox sync and current-click evidence handoffs are unchanged.
 Actual changed files:
 
 - Managed config/runtime: `backend/email_agent/config.py`,
-  `backend/email_agent/managed_runtime.py`.
+  `backend/email_agent/managed_runtime.py`,
+  `backend/email_agent/managed_runtime_errors.py`, and
+  `backend/email_agent/managed_runtime_validation.py`.
 - Lifecycle/launch/status: `scripts/manage_local_service.py`,
   `scripts/run_local_debug.py`, `scripts/generate_project_status.py`,
   `docs/operations/project_status_log.md`.
@@ -341,11 +345,29 @@ Test results:
   manifest JSON parsed successfully.
 - Maintenance report: no findings. Repository leakage summary: `total=0`.
 - `git diff --check` passed.
+- Initial Standards review found one P2 zone-identity drift gap, two mechanical
+  P3 documentation gaps, and one ordinary P3 provider-disabled config-factory
+  duplication. Initial Spec review found two P2 gaps: writable operational
+  targets were not preflighted and Managed CLI exceptions could expose native
+  tracebacks and absolute paths.
+- P2 repairs add pre-Config writable-zone/target checks, post-Config identity
+  revalidation for every zone/runtime/target, and fixed content-free Managed
+  CLI failures. New RED tests now pass. The two mechanical documentation P3
+  findings were also corrected.
+- The ordinary P3 config-factory duplication is recorded as non-blocking and
+  intentionally left unchanged because deduplication is outside Issue #32's
+  acceptance boundary.
+- Post-repair focused Managed/launcher/architecture/mechanical/mailbox/status
+  suites: 95 passed, 1 host-capability skip. Post-repair full unittest
+  discovery: 1751 passed, 2 skips.
+- Post-repair compileall, 10 JavaScript syntax checks, manifest parsing,
+  status generation, maintenance scan, and `git diff --check` passed.
 
 Incomplete items:
 
-- Standards/Spec dual-axis review, any required P1/P2 repair and re-review.
-- Final staged-snapshot leakage/diff verification, commit/push, and PR creation.
+- Standards/Spec second-pass review of the P2 repairs.
+- Final staged-snapshot leakage/diff verification, repair commit, push, and PR
+  creation.
 
 Follow-up suggestions:
 

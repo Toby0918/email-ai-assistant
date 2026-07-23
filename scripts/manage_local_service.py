@@ -22,7 +22,10 @@ if str(ROOT) not in sys.path:
 
 from backend.email_agent import attachment_storage
 from backend.email_agent import config as backend_config
-from backend.email_agent.managed_runtime import prepare_managed_runtime
+from backend.email_agent.managed_runtime import (
+    managed_failure_code,
+    prepare_managed_runtime,
+)
 from backend.email_agent.server import validate_local_server_host
 from backend.email_agent.standalone_verification import (
     prepare_standalone_runtime,
@@ -35,6 +38,7 @@ COMMANDS = ("start", "stop", "restart", "status", "health", "analysis")
 CLEANUP_FAILURE_MESSAGE = (
     "Attachment cleanup failed. Check the configured temporary directory and permissions, then retry."
 )
+MANAGED_FAILURE_EXIT_CODE = 8
 
 
 @dataclass(frozen=True)
@@ -317,8 +321,21 @@ def restart_service(
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    if args.managed_container:
+        return _run_managed_entry(args)
     config = config_from_args(args)
     result = _dispatch(args.command, config)
+    print(result.message)
+    return result.exit_code
+
+
+def _run_managed_entry(args: argparse.Namespace) -> int:
+    try:
+        config = config_from_args(args)
+        result = _dispatch(args.command, config)
+    except Exception as error:
+        print(managed_failure_code(error), file=sys.stderr)
+        return MANAGED_FAILURE_EXIT_CODE
     print(result.message)
     return result.exit_code
 

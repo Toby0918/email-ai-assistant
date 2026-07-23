@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from contextlib import redirect_stderr
+from io import StringIO
 import subprocess
 import sys
 import tempfile
@@ -11,7 +13,6 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, call, patch
 
 from backend.email_agent.config import load_config
-from backend.project_layout import PlacementError
 from scripts import run_local_debug
 
 
@@ -236,6 +237,7 @@ class RunLocalDebugTests(unittest.TestCase):
                 standalone_state_root=None,
                 managed_container=True,
             )
+            stderr = StringIO()
             with (
                 patch.object(run_local_debug, "ROOT", repository),
                 patch.object(run_local_debug, "parse_args", return_value=args),
@@ -246,13 +248,12 @@ class RunLocalDebugTests(unittest.TestCase):
                     "load_configured_runtime_cards",
                 ) as bootstrap,
                 patch.object(run_local_debug, "run_server") as run_server,
-                self.assertRaisesRegex(
-                    PlacementError,
-                    "^managed_relationship_invalid$",
-                ),
+                redirect_stderr(stderr),
             ):
-                run_local_debug.main()
+                result = run_local_debug.main()
 
+        self.assertEqual(result, 8)
+        self.assertEqual(stderr.getvalue(), "managed_relationship_invalid\n")
         config_loader.assert_not_called()
         configure.assert_not_called()
         bootstrap.assert_not_called()
@@ -287,6 +288,37 @@ class RunLocalDebugTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("supported loopback address", result.stderr)
         self.assertNotIn("0.0.0.0", result.stderr)
+
+    def test_managed_cli_failures_are_fixed_and_content_free(self) -> None:
+        commands = (
+            (
+                SCRIPT,
+                ("--managed-container",),
+            ),
+            (
+                ROOT / "scripts" / "manage_local_service.py",
+                ("status", "--managed-container"),
+            ),
+        )
+        for script, arguments in commands:
+            with self.subTest(script=script.name):
+                result = subprocess.run(
+                    [sys.executable, "-B", str(script), *arguments],
+                    cwd=ROOT,
+                    check=False,
+                    capture_output=True,
+                    text=True,
+                    timeout=10,
+                )
+
+                self.assertNotEqual(result.returncode, 0)
+                self.assertEqual(
+                    result.stderr.strip(),
+                    "managed_relationship_invalid",
+                )
+                self.assertEqual(result.stdout, "")
+                self.assertNotIn("Traceback", result.stderr)
+                self.assertNotIn(str(ROOT), result.stderr)
 
 
 if __name__ == "__main__":

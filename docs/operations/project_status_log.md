@@ -91,6 +91,8 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 | `backend/email_agent/attachment_storage.py` | yes |
 | `backend/email_agent/config.py` | yes |
 | `backend/email_agent/managed_runtime.py` | yes |
+| `backend/email_agent/managed_runtime_errors.py` | yes |
+| `backend/email_agent/managed_runtime_validation.py` | yes |
 | `backend/email_agent/logging_config.py` | yes |
 | `backend/email_agent/email_cleaner.py` | yes |
 | `backend/email_agent/analyzer.py` | yes |
