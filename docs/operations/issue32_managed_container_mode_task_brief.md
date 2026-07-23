@@ -23,7 +23,7 @@ feature
 ## 3. Current status
 
 ```text
-implementation_verified_re_review_pending
+accepted
 ```
 
 ## 4. Goal
@@ -362,12 +362,18 @@ Test results:
   discovery: 1751 passed, 2 skips.
 - Post-repair compileall, 10 JavaScript syntax checks, manifest parsing,
   status generation, maintenance scan, and `git diff --check` passed.
+- Final Standards re-review reported no P1/P2 and retained only the recorded
+  ordinary P3 config-factory duplication. Its 127-test review matrix passed
+  with 1 host-capability skip.
+- Final Spec re-review reported no findings. Its 26-test Managed acceptance
+  matrix passed with 1 host-capability skip.
 
 Incomplete items:
 
-- Standards/Spec second-pass review of the P2 repairs.
-- Final staged-snapshot leakage/diff verification, repair commit, push, and PR
-  creation.
+- No Issue #32 implementation, P1/P2 repair, or review item remains.
+- Delivery remains intentionally limited to the authorized branch and
+  non-draft PR. The PR must not be auto-merged, and parent Spec #29 must remain
+  open.
 
 Follow-up suggestions:
 
