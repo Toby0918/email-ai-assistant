@@ -42,12 +42,14 @@ class TextBodySection:
     transfer_encoding: str
     charset: str
     size: int
+    mime_type: str = "text/plain"
 
 
 @dataclass(frozen=True)
 class BodyPlan:
     body_sections: tuple[TextBodySection, ...]
     attachments: tuple[AttachmentMetadata, ...]
+    all_leaf_bytes_selected: bool
 
 
 def parse_bodystructure(source: str) -> BodyPlan:
@@ -58,7 +60,11 @@ def parse_bodystructure(source: str) -> BodyPlan:
     bodies, part_count = _walk(root, "", attachments)
     if part_count > MAX_PARTS:
         raise BodyStructureError()
-    return BodyPlan(tuple(bodies), tuple(attachments))
+    return BodyPlan(
+        tuple(bodies),
+        tuple(attachments),
+        len(bodies) == part_count,
+    )
 
 
 def _walk(
@@ -124,7 +130,7 @@ def _single_part(
     if mime_type not in {"text/plain", "text/html"}:
         return []
     charset = _text_charset(parameters)
-    return [TextBodySection(section, encoding.upper(), charset, size)]
+    return [TextBodySection(section, encoding.upper(), charset, size, mime_type)]
 
 
 def _text_charset(parameters: dict[str, str]) -> str:

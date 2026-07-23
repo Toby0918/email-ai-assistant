@@ -11,6 +11,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from backend.mailbox_ingest.knowledge_stage_source import open_knowledge_stage_source
+from backend.mailbox_ingest.errors import VaultError
 from backend.mailbox_ingest.models import SecretBuffer
 from backend.mailbox_ingest.scan_record import encode_scan_record
 from backend.private_knowledge.deidentifier import deidentify_private_text
@@ -334,12 +335,21 @@ class StageKnowledgeTests(unittest.TestCase):
                 b"To: Internal User <one@example.test>\r\n"
                 b"Message-ID: <synthetic-1@partner.example>\r\n\r\n"
             ),
-            bodies=(b"Please confirm delivery status.",), attachments=(),
+            bodies=(
+                b"Please confirm delivery status.\r\n"
+                b"> prior private history\r\n"
+                b"--\r\nConfidentiality notice",
+            ),
+            learning_projection="Please confirm delivery status.",
+            attachments=(),
             candidate_id_factory=lambda: "d" * 32,
         )
 
         class Opened:
             identity = type("Identity", (), {"vault_id": vault_id})()
+            corpus_index = type("CorpusIndex", (), {
+                "belongs_to_pair": staticmethod(lambda _record_id: True)
+            })()
             vault = type("Vault", (), {
                 "get_record": staticmethod(lambda selected: SecretBuffer(payload)
                                 if selected == record_id else None)
@@ -368,11 +378,50 @@ class StageKnowledgeTests(unittest.TestCase):
         with source:
             context = source.read_one_record(record_id)
             with context as raw:
-                self.assertIn("Alex Example", raw.text)
+                self.assertEqual(raw.text, "Please confirm delivery status.")
+                self.assertNotIn("prior private history", raw.text)
                 self.assertEqual(raw.context["people"], ["Alex Example", "Internal User"])
             self.assertEqual(raw.text, "")
             self.assertEqual(source.evidence, ("1", "1"))
         self.assertTrue(opened.closed)
+
+    def test_vault_source_rejects_unpaired_record_before_plaintext_release(self) -> None:
+        vault_id = "11111111-2222-4333-8444-555555555555"
+        scope = "a" * 64
+        record_id = "8" * 32
+        reads: list[str] = []
+
+        class Opened:
+            identity = type("Identity", (), {"vault_id": vault_id})()
+            corpus_index = type("CorpusIndex", (), {
+                "belongs_to_pair": staticmethod(lambda _record_id: False)
+            })()
+            vault = type("Vault", (), {
+                "get_record": staticmethod(lambda selected: reads.append(selected))
+            })()
+
+            def require_authorization_scope(self, _authorization, _account):
+                return type("Scope", (), {"opaque_scope_id": scope})()
+
+            def close(self):
+                return None
+
+        source = open_knowledge_stage_source(
+            Path("E:/synthetic-vault"), authorization_id="AUTH-STAGE-1",
+            account="one@example.test", expected_vault_id=vault_id,
+            expected_scope=scope,
+            window_start=datetime(2024, 7, 14, tzinfo=timezone.utc),
+            window_end=datetime(2026, 7, 14, tzinfo=timezone.utc),
+            project_root=Path("C:/synthetic-project"),
+            validate_existing=lambda *_args: object(),
+            dpapi_factory=lambda: object(), opener=lambda *_args, **_kwargs: Opened(),
+            clock=lambda: 1_750_000_000,
+        )
+
+        with source, self.assertRaises(VaultError):
+            with source.read_one_record(record_id):
+                self.fail("unpaired record released plaintext")
+        self.assertEqual(reads, [])
 
     def test_vault_source_separates_validated_header_organizations_from_people(self) -> None:
         vault_id = "11111111-2222-4333-8444-555555555555"
@@ -389,11 +438,15 @@ class StageKnowledgeTests(unittest.TestCase):
                 b"Message-ID: <synthetic-2@partner.example>\r\n\r\n"
             ),
             bodies=(b"Please confirm current status.",), attachments=(),
+            learning_projection="Please confirm current status.",
             candidate_id_factory=lambda: "d" * 32,
         )
 
         opened = type("Opened", (), {
             "identity": type("Identity", (), {"vault_id": vault_id})(),
+            "corpus_index": type("CorpusIndex", (), {
+                "belongs_to_pair": staticmethod(lambda _record_id: True)
+            })(),
             "vault": type("Vault", (), {
                 "get_record": staticmethod(lambda _selected: SecretBuffer(payload))
             })(),

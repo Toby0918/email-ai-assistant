@@ -68,6 +68,7 @@ class VaultRecord:
     format_version: int
     key_version: int
     lifecycle_state: str
+    metadata_mac: bytes = field(default=b"", repr=False)
 
     def __repr__(self) -> str:
         return (
@@ -82,12 +83,36 @@ class VaultRecord:
 
 
 @dataclass(frozen=True)
+class VaultWriteIntent:
+    record_id: str = field(repr=False)
+    encrypted_relpath: str = field(repr=False)
+    dedup_hmac: bytes = field(repr=False)
+    created_at_utc: int
+    expires_at_utc: int
+    ciphertext_size: int
+    format_version: int
+    key_version: int
+    metadata_mac: bytes = field(default=b"", repr=False)
+
+    def __repr__(self) -> str:
+        return (
+            "VaultWriteIntent(<redacted>, "
+            f"created_at_utc={self.created_at_utc}, "
+            f"expires_at_utc={self.expires_at_utc}, "
+            f"ciphertext_size={self.ciphertext_size}, "
+            f"format_version={self.format_version}, "
+            f"key_version={self.key_version})"
+        )
+
+
+@dataclass(frozen=True)
 class VerifyReport:
     total_count: int
     missing_count: int
     orphan_count: int
     integrity_failure_count: int
     delete_pending_count: int
+    write_pending_count: int = 0
 
 
 @dataclass(frozen=True)

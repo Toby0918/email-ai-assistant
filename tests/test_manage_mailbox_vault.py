@@ -5,7 +5,7 @@ from __future__ import annotations
 import tempfile
 import unittest
 import argparse
-from contextlib import AbstractContextManager
+from contextlib import AbstractContextManager, contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from unittest import mock
@@ -16,12 +16,14 @@ from backend.mailbox_ingest.authorization import (
     AuthorizationScope,
     freeze_window,
 )
+from backend.mailbox_ingest.attachment_manifest import AttachmentScanError
 from backend.mailbox_ingest.control_store import ControlStoreError
 from backend.mailbox_ingest.folder_policy import RawFolder, select_mail_folders
 from backend.mailbox_ingest.inventory import build_inventory
 from backend.mailbox_ingest.inventory_codec import encode_inventory_bundle
-from backend.mailbox_ingest.models import PutRecordResult
+from backend.mailbox_ingest.models import PutRecordResult, SecretBuffer
 from backend.mailbox_ingest.models import VolumeEvidence
+from backend.mailbox_ingest.sales_message_policy import parse_sales_corpus_policy
 from backend.mailbox_ingest.errors import VaultError
 from backend.mailbox_ingest.service import MailboxVaultService, build_cli_dependencies
 
@@ -46,13 +48,19 @@ class FakeSessionContext(AbstractContextManager):
 
 
 class FakeOperation:
-    def __init__(self, events: list[object], command: str, *, failure=False) -> None:
+    def __init__(
+        self, events: list[object], command: str, *,
+        failure: bool = False, error: Exception | None = None,
+    ) -> None:
         self.events = events
         self.command = command
         self.failure = failure
+        self.error = error
 
     def execute(self, session):
         self.events.append(("execute", self.command, session is not None))
+        if self.error is not None:
+            raise self.error
         if self.failure:
             raise RuntimeError("SECRET-CANARY-FAILURE")
         return CliResult(code=f"{self.command}_complete", count=1)
@@ -61,14 +69,19 @@ class FakeOperation:
         self.events.append(("operation-close", self.command))
 
 
-def fake_dependencies(events: list[object], *, failure=False) -> CliDependencies:
+def fake_dependencies(
+    events: list[object], *, failure: bool = False,
+    error: Exception | None = None,
+) -> CliDependencies:
     def preflight(arguments):
         events.append(("preflight", arguments.command))
         return object()
 
     def prepare(arguments, _local):
         events.append(("prepare", arguments.command))
-        return FakeOperation(events, arguments.command, failure=failure)
+        return FakeOperation(
+            events, arguments.command, failure=failure, error=error,
+        )
 
     def getpass(prompt: str):
         events.append(("getpass", prompt))
@@ -94,6 +107,8 @@ class ManageMailboxVaultCliTests(unittest.TestCase):
         self.recovery.parent.mkdir()
         self.manifest = self.root / "reviewed.json"
         self.manifest.write_text("{}", encoding="utf-8")
+        self.sales_policy = self.root / "sales-policy.json"
+        self.sales_policy.write_text("{}", encoding="utf-8")
 
     def tearDown(self) -> None:
         self.temporary.cleanup()
@@ -108,7 +123,10 @@ class ManageMailboxVaultCliTests(unittest.TestCase):
         if command == "init":
             argv += ["--recovery-key", str(self.recovery)]
         elif command == "scan":
-            argv += ["--confirm-inventory-fingerprint", "a" * 64]
+            argv += [
+                "--confirm-inventory-fingerprint", "a" * 64,
+                "--sales-policy", str(self.sales_policy),
+            ]
         elif command == "attachments":
             argv += ["--manifest", str(self.manifest)]
         elif command == "revoke":
@@ -213,6 +231,25 @@ class ManageMailboxVaultCliTests(unittest.TestCase):
                     for event in events
                 ))
 
+    def test_scan_requires_an_absolute_private_sales_policy_before_preflight(self) -> None:
+        complete = self._argv("scan")
+        marker = complete.index("--sales-policy")
+        cases = (
+            complete[:marker] + complete[marker + 2:],
+            complete[:marker + 1] + ["relative-policy.json"],
+        )
+
+        for argv in cases:
+            events: list[object] = []
+            with self.subTest(argv=argv):
+                self.assertEqual(
+                    run_cli(argv, dependencies=fake_dependencies(events)), 2
+                )
+                self.assertFalse(any(
+                    isinstance(event, tuple) and event[0] in {"preflight", "getpass"}
+                    for event in events
+                ))
+
     def test_failure_output_is_fixed_and_never_contains_exception_or_password(self) -> None:
         events: list[object] = []
 
@@ -227,6 +264,27 @@ class ManageMailboxVaultCliTests(unittest.TestCase):
         self.assertNotIn("SYNTHETIC-PASSWORD", rendered)
         self.assertIn("internal_error", rendered)
 
+    def test_attachment_acquisition_and_parse_failures_are_distinct_codes(self) -> None:
+        for failure_code in (
+            "attachment_fetch_failed", "attachment_parse_failed",
+        ):
+            events: list[object] = []
+            code = run_cli(
+                self._argv("attachments"),
+                dependencies=fake_dependencies(
+                    events, error=AttachmentScanError(failure_code),
+                ),
+            )
+
+            self.assertEqual(code, 2)
+            emitted = [
+                event[1] for event in events
+                if isinstance(event, tuple) and event[0] == "emit"
+            ]
+            self.assertEqual(
+                emitted, [{"ok": False, "code": failure_code}]
+            )
+
     def test_help_and_parser_do_not_construct_default_host_probes_or_socket(self) -> None:
         with mock.patch("imaplib.IMAP4_SSL") as imap, mock.patch(
             "subprocess.run"
@@ -236,6 +294,35 @@ class ManageMailboxVaultCliTests(unittest.TestCase):
         imap.assert_not_called()
         process.assert_not_called()
 
+    def test_cli_result_accepts_only_exact_aggregate_count_contracts(self) -> None:
+        attachment_counts = {
+            "selected": 2,
+            "supported": 2,
+            "unsupported": 0,
+            "fetched": 2,
+            "acquisition_failed": 0,
+            "parsed": 2,
+            "parse_failed": 0,
+            "new_blobs": 1,
+            "duplicate_blobs": 1,
+            "semantic_unreviewed": 2,
+        }
+        payload = CliResult(
+            "attachments_complete", count=2, aggregate_counts=attachment_counts
+        ).to_dict()
+        self.assertEqual(payload["counts"], attachment_counts)
+
+        invalid = (
+            {**attachment_counts, "raw_sample": 1},
+            {**attachment_counts, "selected": True},
+            {**attachment_counts, "selected": -1},
+        )
+        for counts in invalid:
+            with self.subTest(counts=counts), self.assertRaises(ValueError):
+                CliResult(
+                    "attachments_complete", aggregate_counts=counts
+                ).to_dict()
+
 
 class _FacadeSession:
     def __init__(self, events: list[str]) -> None:
@@ -244,6 +331,10 @@ class _FacadeSession:
     def examine(self, _mailbox: str) -> int:
         self.events.append("examine")
         return 77
+
+    def list_folders(self):
+        self.events.append("list")
+        return ()
 
     def uid_search(self, _since):
         return (7,)
@@ -294,7 +385,17 @@ class _FacadeControl:
 
 
 class _FacadeVault:
-    def put_record_if_absent(self, _value: bytes, *, expires_at_utc: int):
+    def __init__(self) -> None:
+        self.write_pending_count = 0
+
+    @contextmanager
+    def coordinated_mutation(self):
+        yield
+
+    def put_record_if_absent(
+        self, _value: bytes, *, expires_at_utc: int,
+        extend_expiry_on_duplicate: bool = False,
+    ):
         return PutRecordResult("1" * 32, True)
 
     def verify(self):
@@ -303,7 +404,41 @@ class _FacadeVault:
                 "missing_count": 0,
                 "orphan_count": 0,
                 "integrity_failure_count": 0,
+                "write_pending_count": self.write_pending_count,
             }
+        )()
+
+    def count_inactive_or_missing_records(self, _record_ids: tuple[str, ...]) -> int:
+        return 0
+
+
+class _FacadeCorpusIndex:
+    def __init__(self) -> None:
+        self.validated = False
+
+    def validate(self, *, require_policy: bool = False) -> None:
+        self.validated = not require_policy
+
+    def bind_policy(self, _fingerprint: str) -> None:
+        return None
+
+    def vault_record_ids(self) -> tuple[str, ...]:
+        return ()
+
+    def summary(self):
+        return type(
+            "Summary",
+            (),
+            {
+                "canonical_message_count": 0,
+                "duplicate_message_count": 0,
+                "request_count": 0,
+                "reply_count": 0,
+                "pair_count": 0,
+                "duplicate_quotation_count": 0,
+                "supported_attachment_count": 0,
+                "unsupported_attachment_count": 0,
+            },
         )()
 
 
@@ -314,6 +449,7 @@ class _FacadeOpened:
         self.events = events
         self.control = _FacadeControl(encode_inventory_bundle(bundle))
         self.vault = _FacadeVault()
+        self.corpus_index = _FacadeCorpusIndex()
         self.vault_root = Path("C:/synthetic-vault")
         self.closed = False
 
@@ -326,6 +462,12 @@ class _FacadeOpened:
     def inventory(self, _session, *, scope, folders, window):
         self.events.append("rebuild")
         return self.bundle
+
+    def select_folders(self, _folders):
+        return ()
+
+    def sales_identity_key(self):
+        return SecretBuffer(b"K" * 32)
 
     def close(self):
         self.closed = True
@@ -379,6 +521,33 @@ class ServiceFacadeTests(unittest.TestCase):
             )
         self.assertEqual(calls, ["validate", "dpapi", "open"])
 
+    def test_inventory_returns_the_complete_content_free_projection(self) -> None:
+        scope, bundle = self._fixture()
+        opened = _FacadeOpened(bundle, scope, [])
+        service = MailboxVaultService(
+            project_root=Path("C:/project"),
+            validate_existing=lambda *_args, **_kwargs: None,
+            open_vault=lambda *_args, **_kwargs: opened,
+            dpapi_factory=lambda: object(),
+            sales_policy_reader=lambda *_args, **_kwargs: object(),
+        )
+        arguments = argparse.Namespace(
+            command="inventory",
+            vault=Path("C:/vault"),
+            authorization_id="AUTH-SERVICE-1",
+            account="one@example.test",
+        )
+
+        operation = service.prepare(arguments, service.preflight(arguments))
+        self.assertTrue(opened.corpus_index.validated)
+        result = operation.execute(_FacadeSession([])).to_dict()
+        operation.close()
+
+        self.assertEqual(result["inventory"], bundle.inventory.to_dict())
+        rendered = repr(result)
+        self.assertNotIn("INBOX", rendered)
+        self.assertNotIn("one@example.test", rendered)
+
     def test_scan_operation_rebuilds_frozen_inventory_before_any_content_fetch(self) -> None:
         scope, bundle = self._fixture()
         events: list[str] = []
@@ -388,6 +557,13 @@ class ServiceFacadeTests(unittest.TestCase):
             validate_existing=lambda *_args, **_kwargs: None,
             open_vault=lambda *_args, **_kwargs: opened,
             dpapi_factory=lambda: object(),
+            sales_policy_reader=lambda *_args, **_kwargs: parse_sales_corpus_policy(
+                {
+                    "schema_version": 1,
+                    "company_domain": "example.test",
+                    "salesperson_allowlist": ["one@example.test"],
+                }
+            ),
         )
         arguments = argparse.Namespace(
             command="scan",
@@ -395,6 +571,7 @@ class ServiceFacadeTests(unittest.TestCase):
             authorization_id="AUTH-SERVICE-1",
             account="one@example.test",
             confirm_inventory_fingerprint=bundle.inventory.fingerprint,
+            sales_policy=Path("C:/private/sales-policy.json"),
         )
         local = service.preflight(arguments)
         operation = service.prepare(arguments, local)
@@ -407,9 +584,39 @@ class ServiceFacadeTests(unittest.TestCase):
         self.assertLess(events.index("rebuild"), events.index("bodystructure"))
         self.assertTrue(opened.closed)
 
+    def test_scan_reads_and_validates_private_policy_during_local_preflight(self) -> None:
+        scope, bundle = self._fixture()
+        events: list[str] = []
+        policy = object()
+        opened = _FacadeOpened(bundle, scope, events)
+        service = MailboxVaultService(
+            project_root=Path("C:/project"),
+            validate_existing=lambda *_args, **_kwargs: events.append("vault-policy"),
+            open_vault=lambda *_args, **_kwargs: events.append("open") or opened,
+            dpapi_factory=lambda: object(),
+            sales_policy_reader=lambda path, **_kwargs: (
+                events.append(f"sales-policy:{path.name}") or policy
+            ),
+        )
+        arguments = argparse.Namespace(
+            command="scan",
+            vault=Path("C:/vault"),
+            authorization_id="AUTH-SERVICE-1",
+            account="one@example.test",
+            confirm_inventory_fingerprint=bundle.inventory.fingerprint,
+            sales_policy=Path("C:/private/sales-policy.json"),
+        )
+
+        local = service.preflight(arguments)
+        operation = service.prepare(arguments, local)
+        operation.close()
+
+        self.assertLess(events.index("sales-policy:sales-policy.json"), events.index("open"))
+
     def test_local_verify_operation_does_not_construct_or_require_session(self) -> None:
         scope, bundle = self._fixture()
         opened = _FacadeOpened(bundle, scope, [])
+        opened.vault.write_pending_count = 2
         service = MailboxVaultService(
             project_root=Path("C:/project"),
             validate_existing=lambda *_args, **_kwargs: None,
@@ -429,6 +636,28 @@ class ServiceFacadeTests(unittest.TestCase):
         operation.close()
 
         self.assertEqual(result.code, "verify_complete")
+        self.assertEqual(result.count, 2)
+        self.assertTrue(opened.corpus_index.validated)
+
+    def test_purge_prevalidates_corpus_before_returning_operation(self) -> None:
+        scope, bundle = self._fixture()
+        opened = _FacadeOpened(bundle, scope, [])
+        service = MailboxVaultService(
+            project_root=Path("C:/project"),
+            validate_existing=lambda *_args, **_kwargs: None,
+            open_vault=lambda *_args, **_kwargs: opened,
+            dpapi_factory=lambda: object(),
+        )
+        arguments = argparse.Namespace(
+            command="purge-expired", vault=Path("C:/vault"),
+            authorization_id="AUTH-SERVICE-1", account="one@example.test",
+            limit=10,
+        )
+
+        operation = service.prepare(arguments, service.preflight(arguments))
+        operation.close()
+
+        self.assertTrue(opened.corpus_index.validated)
 
     def test_init_and_rewrap_reject_execute_time_volume_identity_change(self) -> None:
         for command in ("init", "rewrap-recovery"):
@@ -598,6 +827,7 @@ class ServiceFacadeTests(unittest.TestCase):
             result = operation.execute(None)
 
         self.assertEqual(result.code, "vault_initialized")
+        opened.corpus_index.initialize.assert_called_once_with()
         opened.create_authorization_binding.assert_called_once_with(
             "AUTH-BOUND-1", "one@example.test"
         )

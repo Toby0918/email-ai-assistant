@@ -9,6 +9,7 @@ from typing import Callable
 
 from .attachment_types import SUPPORTED_MIME_TYPES
 from .models import SecretBuffer
+from .scan_record_validation import validate_scan_record
 
 
 MAX_SELECTIONS = 50
@@ -188,11 +189,14 @@ def prepare_attachments(
     manifest: ReviewedManifest,
     *,
     read_source_record: Callable[[str], SecretBuffer],
+    source_is_paired: Callable[[str], bool],
 ) -> PreparedAttachments:
     items: list[PreparedAttachment] = []
     for selection in manifest.selections:
         secret: SecretBuffer | None = None
         try:
+            if source_is_paired(selection.source_record_id) is not True:
+                raise AttachmentScanError("attachment_source_not_paired")
             secret = read_source_record(selection.source_record_id)
             if not isinstance(secret, SecretBuffer):
                 raise AttachmentScanError("attachment_source_invalid")
@@ -219,24 +223,16 @@ def _match_source(
     manifest: ReviewedManifest,
     selection: ManifestSelection,
 ) -> PreparedAttachment:
-    required = {
-        "schema_version", "scope", "fingerprint", "opaque_folder_id",
-        "mailbox", "uidvalidity", "uid", "expires_at_utc", "attachments",
-    }
-    if not isinstance(source, dict) or not required.issubset(source):
-        raise AttachmentScanError("attachment_source_invalid")
+    try:
+        source = validate_scan_record(source).value
+    except (TypeError, ValueError):
+        raise AttachmentScanError("attachment_source_invalid") from None
     uid = source["uid"]
     validity = source["uidvalidity"]
     expiry = source["expires_at_utc"]
     if (
-        source["schema_version"] != 1
-        or source["scope"] != manifest.scope
+        source["scope"] != manifest.scope
         or source["fingerprint"] != manifest.fingerprint
-        or not isinstance(source["mailbox"], str)
-        or type(uid) is not int or not 1 <= uid <= 4_294_967_295
-        or type(validity) is not int or validity < 1
-        or type(expiry) is not int
-        or not isinstance(source["attachments"], list)
     ):
         raise AttachmentScanError("attachment_source_invalid")
     matches = [

@@ -15,7 +15,7 @@ from scripts.repo_utils import read_text
 ROOT = Path(__file__).resolve().parents[1]
 
 STATUS_GENERATOR_AST_SHA256 = (
-    "f7669b6269903684ec559b4dcd30ca3e6e5c9da945c26b9f9931f15951c346d4"
+    "0b1ac22711888a84632ecdfd9069b96e3324a03172c691c6d62250796c5b6ef6"
 )
 
 POLICY_DOCS = (
@@ -2054,7 +2054,7 @@ class MailboxTransportConstraintTests(unittest.TestCase):
                     "utf-8"
                 )
             ).hexdigest(),
-            "8018f90f2e93b2822b4e15b31a282bae401612ac78e9656874a3b4cc2c7bb1c4",
+            "6f65b8f9cb62e6b1f5a8e283df05298ca3bd97aed775b0b2b44bf9a7cde1a8f1",
         )
         cli_constants = _python_literal_constants(cli_tree)
         protected_literal_names = {

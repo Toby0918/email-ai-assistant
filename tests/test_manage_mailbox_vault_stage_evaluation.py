@@ -72,6 +72,9 @@ class _Source:
 class _SyntheticOpenedVault:
     def __init__(self, records: dict[str, bytes], *, vault_id: str, scope: str) -> None:
         self.identity = type("Identity", (), {"vault_id": vault_id})()
+        self.corpus_index = type("CorpusIndex", (), {
+            "belongs_to_pair": staticmethod(lambda _record_id: True)
+        })()
         self.vault = type("Vault", (), {
             "get_record": staticmethod(
                 lambda record_id: SecretBuffer(records[record_id])

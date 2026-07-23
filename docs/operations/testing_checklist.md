@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-20
+last_update: 2026-07-22
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -182,7 +182,9 @@ automatic mailbox scan。所有管理员入口只使用下列 `python -B -m ...`
 3. **STOP after inventory.** 人工核对 content-free 结果并另行确认相同 fingerprint
    后，才可运行 `python -B -m scripts.manage_mailbox_vault scan --vault $VaultRoot
    --authorization-id $AuthorizationId --account $Account
-   --confirm-inventory-fingerprint $Fingerprint` 读取固定 24 个月窗口的正文。
+   --confirm-inventory-fingerprint $Fingerprint --sales-policy $SalesPolicy`
+   读取固定 24 个月窗口的正文。`$SalesPolicy` 必须是项目、OneDrive、系统临时目录
+   和 raw vault 之外、经本地负责人维护的绝对路径；其值不会进入公开输出。
 4. `scan` 完成后立即运行第一次
    `python -B -m scripts.manage_mailbox_vault verify --vault $VaultRoot
    --authorization-id $AuthorizationId --account $Account`。只有完整性失败数为零，

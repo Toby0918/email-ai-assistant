@@ -133,6 +133,21 @@ class GenerateProjectStatusTests(unittest.TestCase):
             with self.subTest(marker=marker):
                 self.assertIn(marker, report)
 
+    def test_governed_sales_corpus_bootstrap_is_reported(self) -> None:
+        module = load_script_module(SCRIPT, "generate_project_status_sales_corpus")
+        report = module.build_project_status()
+
+        for marker in (
+            "Issue #11 governed sales-corpus bootstrap is offline implemented",
+            "`backend/mailbox_ingest/governed_scan.py`",
+            "`backend/mailbox_ingest/sales_corpus_index.py`",
+            "`backend/mailbox_ingest/sales_message_policy.py`",
+            "`docs/operations/issue11_governed_sales_corpus_task_brief.md`",
+            "`tests/test_mailbox_governed_scan.py`",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, report)
+
     def test_attachment_acquisition_safeguards_and_live_gate_are_reported(self) -> None:
         module = load_script_module(SCRIPT, "generate_project_status_attachments")
         report = module.build_project_status()

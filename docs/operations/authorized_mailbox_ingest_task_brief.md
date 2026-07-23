@@ -82,6 +82,38 @@ Every operator-run inventory or scan must fail closed unless all gates pass:
 7. Attachment collection requires a separately reviewed local manifest and is
    capped at 50 representative files, 10 MiB per file, and 25 MiB per
    conversation.
+8. A bootstrap `scan` also requires an absolute, bounded private sales-policy
+   file on approved storage. It names one exact company domain and an exact
+   salesperson-address allowlist. The values are never emitted or persisted;
+   only a vault-keyed policy fingerprint is bound to the corpus index.
+
+The governed corpus contains only an external customer request paired through
+strict `Message-ID` references with a later reply from an allowlisted
+salesperson. Message-ID local-part case remains exact and only its domain is
+normalized; subject-only matching is prohibited. Automated/list/bulk mail,
+notifications, pure forwards, non-sales internal mail, signatures,
+disclaimers, bounded Outlook or Chinese quoted-header history, cross-folder
+message copies, and exact duplicate quotations do not inflate learning evidence.
+Raw authorized records remain only
+in the encrypted vault; a separate external metadata-only corpus index stores
+opaque record IDs, keyed lookup values, enums, integer timestamps, and aggregate
+state. It stores no addresses, domains, subject, body, filename, Message-ID,
+mailbox, UID, path, or locator.
+
+The corpus index receives a purpose-separated key derived independently from
+the vault master key with HKDF. Every metadata row and relationship edge has a
+table-domain-separated HMAC over a canonical typed encoding. Safety-relevant
+reads authenticate the selected row or edge before use, and `validate`
+authenticates the complete index. Missing, malformed, substituted, or tampered
+metadata fails closed.
+
+Reviewed attachments may be acquired only for a source in a governed pair.
+The attachment lifecycle distinguishes supported versus unsupported metadata,
+byte acquisition, parse success, exact blob reuse, and semantic-unreviewed
+state. An encrypted attachment record contains fixed attachment framing and the
+exact acquired raw bytes only; its parsed projection is not written into that
+blob. Parse and semantic-review outcomes remain authenticated metadata, and
+parsing alone is never reported as semantic correctness.
 
 The administrator-only CLI is `scripts/manage_mailbox_vault.py`. Its approved
 commands are `init`, `inventory`, `scan`, `attachments`, `verify`,
@@ -228,6 +260,18 @@ prove the required read-only state fails closed.
   directories on a proven NTFS BitLocker To Go volume.
 - Every raw record is independently protected with AES-256-GCM and a random
   nonce. The random record ID is authenticated as associated data.
+- Fresh initialization creates only the exact schema-v3 index. Record IDs and
+  encrypted relative-path tokens are independently random and opaque. The
+  index durably reserves those identifiers and bounded metadata in a write
+  intent before ciphertext publication, then activates the same row after the
+  ciphertext commit. A close/reopen retry after a crash reuses the original
+  intent, identifiers, creation time, and expiry. An existing pre-v3 schema
+  fails closed; this workflow performs no implicit migration.
+- Active-record and write-intent rows authenticate all identity, path, dedup,
+  size, version, creation, and expiry metadata with a distinct HKDF-derived key.
+  Reads, activation, expiry mutation, verification, and purge planning verify
+  that MAC first. Exact schema validation rejects changed constraints, triggers,
+  views, and other unexpected objects.
 - The master key has a current-user DPAPI envelope and a separate offline
   recovery-key envelope. Recovery material cannot share the vault volume.
 - Windows DPAPI and BitLocker probes are loaded lazily behind injected probes,
@@ -236,6 +280,22 @@ prove the required read-only state fails closed.
   activation/reconciliation protocol. It must not claim cross-volume atomicity.
 - The index contains only random record IDs, encrypted relative paths, HMAC
   deduplication values, timestamps, expiry timestamps, and integrity metadata.
+- `verify` reports durable but unactivated write intents as pending. Expired
+  intents participate in the same bounded purge plan as active expired and
+  delete-pending records.
+- Deduplicated copies of the same message can only tighten the shared record's
+  expiry to the earliest source-derived value. Duplicate attachment bytes do
+  not extend retention by default; only a separately reviewed, still-valid
+  governed attachment binding may explicitly extend the shared blob to that
+  binding's bounded expiry.
+- One cross-process mutation lock spans each vault-plus-corpus message upsert,
+  attachment binding, and exact purge plan/transaction/delete sequence.
+  Corpus-aware purge first removes all affected message, pair, source,
+  reference, quotation, attachment-binding, and attachment-blob metadata in
+  one authenticated corpus transaction, then deletes exactly the planned
+  vault records. If the corpus transaction fails, vault deletion does not
+  start. If later ciphertext deletion fails, extra encrypted material may
+  remain, but no corpus-to-vault dangling reference is permitted.
 - Plaintext may exist only in memory or a restricted vault-local temporary
   directory and is deleted after use. No secure-erase claim is made for
   SSD/flash media.

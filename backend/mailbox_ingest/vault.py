@@ -2,26 +2,32 @@
 
 from __future__ import annotations
 
-import hmac
 import secrets
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Iterator
 
 from .errors import VaultError
 from .key_envelopes import revoke_key_envelopes
 from .retention import max_expiry_utc, validate_batch_limit, validate_expiry
 from .models import (
-    PurgeReport,
-    PutRecordResult,
-    RevokeResult,
-    SecretBuffer,
-    VaultRecord,
-    VerifyReport,
+    PurgeReport, PutRecordResult, RevokeResult,
+    SecretBuffer, VaultRecord, VerifyReport,
 )
 from .vault_crypto import VaultCrypto
 from .vault_files import AtomicCiphertextStore
 from .vault_index import VaultIndex, VaultMutationLock
-from .vault_record_writer import write_vault_record
+from .vault_record_writer import (
+    validate_committed_ciphertext, validate_identifier,
+    write_vault_record,
+)
+from ._vault_lifecycle import (
+    count_inactive_or_missing_records,
+    plan_expired_record_ids,
+    purge_expired_locked,
+    purge_planned_locked,
+    verify_vault,
+)
 
 class MailboxVault:
     def __init__(
@@ -51,6 +57,7 @@ class MailboxVault:
             else random_identifier
         )
         self.mutation_lock = VaultMutationLock(self._root / ".mutation.lock")
+        self._index.bind_metadata_authenticator(self._crypto)
 
     def _ensure_active(self) -> None:
         if self._index.get_vault_state() != "active":
@@ -71,8 +78,8 @@ class MailboxVault:
             path_token = self._random_identifier()
         except Exception:
             raise VaultError("invalid_record_id") from None
-        _validate_identifier(record_id)
-        _validate_identifier(path_token)
+        validate_identifier(record_id)
+        validate_identifier(path_token)
         if path_token == record_id:
             raise VaultError("invalid_record_id")
         return record_id, path_token
@@ -92,7 +99,7 @@ class MailboxVault:
                     local,
                     now=now,
                     expires_at_utc=expires_at_utc,
-                    identifiers=self._new_identifiers(),
+                    identifiers=self._new_identifiers,
                     crypto=self._crypto,
                     index=self._index,
                     store=self._store,
@@ -101,8 +108,14 @@ class MailboxVault:
             local.wipe()
 
     def put_record_if_absent(
-        self, plaintext: bytes | bytearray, *, expires_at_utc: int
+        self,
+        plaintext: bytes | bytearray,
+        *,
+        expires_at_utc: int,
+        extend_expiry_on_duplicate: bool = False,
     ) -> PutRecordResult:
+        if type(extend_expiry_on_duplicate) is not bool:
+            raise VaultError("invalid_expiry")
         now = self._now()
         validate_expiry(expires_at_utc, now)
         local = SecretBuffer(plaintext) if isinstance(plaintext, (bytes, bytearray)) else None
@@ -114,12 +127,17 @@ class MailboxVault:
                 digest = self._crypto.dedup_hmac(local)
                 existing = self._index.find_by_dedup_hmac(digest)
                 if existing is not None:
+                    validate_committed_ciphertext(existing, self._crypto, self._store)
+                    if extend_expiry_on_duplicate:
+                        self._index.extend_expiry(
+                            existing.record_id, expires_at_utc,
+                        )
                     return PutRecordResult(existing.record_id, False)
                 return write_vault_record(
                     local,
                     now=now,
                     expires_at_utc=expires_at_utc,
-                    identifiers=self._new_identifiers(),
+                    identifiers=self._new_identifiers,
                     crypto=self._crypto,
                     index=self._index,
                     store=self._store,
@@ -127,6 +145,25 @@ class MailboxVault:
                 )
         finally:
             local.wipe()
+
+    def constrain_record_expiry(
+        self, record_id: str, expires_at_utc: int,
+    ) -> None:
+        if type(expires_at_utc) is not int or expires_at_utc < 0:
+            raise VaultError("invalid_expiry")
+        with self.mutation_lock:
+            self._ensure_active()
+            metadata = self._index.get_record(record_id)
+            if metadata is None:
+                raise VaultError("record_not_found")
+            validate_committed_ciphertext(metadata, self._crypto, self._store)
+            self._index.constrain_expiry(record_id, expires_at_utc)
+
+    @contextmanager
+    def coordinated_mutation(self) -> Iterator[None]:
+        with self.mutation_lock:
+            self._ensure_active()
+            yield
 
     def get_record(self, record_id: str) -> SecretBuffer:
         self._ensure_active()
@@ -174,62 +211,43 @@ class MailboxVault:
         now = self._now()
         with self.mutation_lock:
             self._ensure_active()
-            reconciled = self._reconcile_locked(limit)
-            remaining_budget = limit - reconciled
-            records = (
-                self._index.list_expired(now_utc=now, limit=remaining_budget)
-                if remaining_budget
-                else []
+            return purge_expired_locked(
+                self._index,
+                self._store,
+                now_utc=now,
+                limit=limit,
+                reconcile=self._reconcile_locked,
+                delete_record=self._delete_locked,
             )
-            for record in records:
-                self._delete_locked(record)
-            remaining = (
-                self._index.count_expired(now_utc=now)
-                + self._index.count_delete_pending()
+
+    def plan_expired_purge(self, *, limit: int = 100) -> tuple[str, ...]:
+        validate_batch_limit(limit)
+        now = self._now()
+        with self.mutation_lock:
+            self._ensure_active()
+            return plan_expired_record_ids(self._index, now_utc=now, limit=limit)
+
+    def purge_planned(self, record_ids: tuple[str, ...]) -> PurgeReport:
+        now = self._now()
+        with self.mutation_lock:
+            self._ensure_active()
+            return purge_planned_locked(
+                self._index,
+                self._store,
+                record_ids,
+                now_utc=now,
+                delete_record=self._delete_locked,
             )
-        return PurgeReport(reconciled + len(records), remaining)
+
+    def count_inactive_or_missing_records(self, record_ids: tuple[str, ...]) -> int:
+        with self.mutation_lock:
+            return count_inactive_or_missing_records(self._index, record_ids)
 
     def verify(self) -> VerifyReport:
         with self.mutation_lock:
-            records = self._index.list_records()
-            indexed_paths = {record.encrypted_relpath for record in records}
-            actual_paths = self._store.iter_paths()
-            missing = 0
-            integrity_failures = 0
-            pending = 0
-            for record in records:
-                if record.lifecycle_state == "delete_pending":
-                    pending += 1
-                    continue
-                if not self._store.exists(record.encrypted_relpath):
-                    missing += 1
-                    continue
-                if not self._record_integrity_ok(record):
-                    integrity_failures += 1
-            return VerifyReport(
-                total_count=len(records),
-                missing_count=missing,
-                orphan_count=len(actual_paths - indexed_paths),
-                integrity_failure_count=integrity_failures,
-                delete_pending_count=pending,
+            return verify_vault(
+                self._index, self._crypto, self._store,
             )
-
-    def _record_integrity_ok(self, record: VaultRecord) -> bool:
-        plaintext: SecretBuffer | None = None
-        try:
-            frame = self._store.read(
-                record.encrypted_relpath, max_size=record.ciphertext_size
-            )
-            if len(frame) != record.ciphertext_size:
-                return False
-            plaintext = self._crypto.decrypt(record.record_id, frame)
-            expected_hmac = self._crypto.dedup_hmac(plaintext)
-            return hmac.compare_digest(expected_hmac, record.dedup_hmac)
-        except VaultError:
-            return False
-        finally:
-            if plaintext is not None:
-                plaintext.wipe()
 
     def revoke(
         self,
@@ -277,13 +295,4 @@ class MailboxVault:
 
     def close(self) -> None:
         self._crypto.close()
-
-
-def _validate_identifier(value: object) -> None:
-    if not isinstance(value, str) or len(value) != 32:
-        raise VaultError("invalid_record_id")
-    if value != value.lower() or any(character not in "0123456789abcdef" for character in value):
-        raise VaultError("invalid_record_id")
-
-
 __all__ = ["AtomicCiphertextStore", "MailboxVault", "max_expiry_utc"]

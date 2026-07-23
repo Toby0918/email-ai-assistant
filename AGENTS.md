@@ -75,6 +75,17 @@ future issue #18 可在同一 Analyze 点击后生成严格验证的
 也不得获得 mailbox、raw vault、authority store、path、key 或 repository 能力；
 批准知识仍只在服务启动时加载，不允许 polling 或 hot reload。
 
+Issue #11 的 bootstrap `scan` 在 exact inventory fingerprint 门禁之外，还必须读取
+外部严格私有 sales policy，并把 one external-customer request 与 strictly later、
+exact allowlisted salesperson reply 通过精确 Message-ID 引用配对。自动/list/bulk、
+通知、纯转发、非销售内部邮件、签名/免责声明、引用历史、跨文件夹副本和 exact
+重复 quotation 不得膨胀学习证据。私有 corpus index 只能保存经独立用途 HMAC
+认证的 opaque metadata；raw message/attachment bytes 只能进入加密 vault。附件获取
+还必须通过 reviewed manifest 和 paired-source 门禁，解析成功不等于语义批准。
+所有 vault-plus-corpus 写入、binding 与 purge 使用同一跨进程 mutation lock；公开
+成功只返回固定 aggregate counts，失败只返回固定 code。该实现不增加命令、后台
+任务、邮箱写操作、浏览器入口、正常后端 API、provider call 或 live execution 授权。
+
 导入传输只允许 `LIST`、只读 `EXAMINE`、`UID SEARCH` 和使用
 `BODY.PEEK` 的有界 `UID FETCH`。禁止 `STORE`、`APPEND`、`COPY`、
 `MOVE`、`EXPUNGE`、`CREATE`、`DELETE`、`RENAME`、`SUBSCRIBE`、

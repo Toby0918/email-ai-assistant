@@ -16,7 +16,8 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.hazmat.primitives.kdf.hkdf import HKDF
 
 from .errors import VaultError
-from .models import SecretBuffer
+from .models import SecretBuffer, VaultRecord, VaultWriteIntent
+from .vault_metadata_auth import VaultMetadataAuthenticator
 
 
 FRAME_MAGIC = b"MBVLT001"
@@ -64,12 +65,32 @@ class VaultCrypto:
         self._dedup_hmac_key = _derive_key(
             master_key, self._vault_id_bytes, _DEDUP_INFO
         )
+        self._metadata_auth = VaultMetadataAuthenticator(
+            master_key, self._vault_id_bytes,
+        )
         self._seen_nonces: set[bytes] = set()
         self._closed = False
 
     @property
     def key_version(self) -> int:
         return self._key_version
+
+    @property
+    def max_frame_size(self) -> int:
+        return (
+            _HEADER.size + 32 + NONCE_SIZE
+            + self._max_plaintext_size + TAG_SIZE
+        )
+
+    def frame_size_for_plaintext(self, plaintext_size: int) -> int:
+        self._ensure_open()
+        if (
+            type(plaintext_size) is not int
+            or plaintext_size < 0
+            or plaintext_size > self._max_plaintext_size
+        ):
+            raise VaultError("record_too_large")
+        return _HEADER.size + 32 + NONCE_SIZE + plaintext_size + TAG_SIZE
 
     def _ensure_open(self) -> None:
         if self._closed:
@@ -175,11 +196,28 @@ class VaultCrypto:
             bytes(self._dedup_hmac_key), bytes(plaintext), hashlib.sha256
         ).digest()
 
+    def sign_record_metadata(self, record: VaultRecord) -> VaultRecord:
+        self._ensure_open()
+        return self._metadata_auth.sign_record(record)
+
+    def sign_intent_metadata(self, intent: VaultWriteIntent) -> VaultWriteIntent:
+        self._ensure_open()
+        return self._metadata_auth.sign_intent(intent)
+
+    def verify_record_metadata(self, record: VaultRecord) -> None:
+        self._ensure_open()
+        self._metadata_auth.verify_record(record)
+
+    def verify_intent_metadata(self, intent: VaultWriteIntent) -> None:
+        self._ensure_open()
+        self._metadata_auth.verify_intent(intent)
+
     def close(self) -> None:
         if self._closed:
             return
         self._record_encryption_key.wipe()
         self._dedup_hmac_key.wipe()
+        self._metadata_auth.close()
         self._seen_nonces.clear()
         self._closed = True
 

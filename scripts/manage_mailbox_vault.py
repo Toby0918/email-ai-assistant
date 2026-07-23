@@ -63,6 +63,7 @@ _SAFE_CODES = frozenset(
         "account_invalid", "path_not_absolute", "inventory_fingerprint_mismatch",
         "attachment_manifest_invalid", "revoke_confirmation_required",
         "rewrap_confirmation_required",
+        "attachment_fetch_failed", "attachment_parse_failed",
     }
 )
 
@@ -88,6 +89,7 @@ def build_parser() -> argparse.ArgumentParser:
             subparser.add_argument(
                 "--confirm-inventory-fingerprint", required=True
             )
+            subparser.add_argument("--sales-policy", type=Path, required=True)
         elif command == "attachments":
             subparser.add_argument("--manifest", type=Path, required=True)
         elif command == "purge-expired":
@@ -195,7 +197,7 @@ def _validate_local_arguments(arguments: argparse.Namespace) -> None:
     for name in (
         "recovery_key", "manifest", "current_recovery_key", "new_recovery_key",
         "selection_manifest", "candidate_batch_root",
-        "staging_dataset",
+        "staging_dataset", "sales_policy",
     ):
         value = getattr(arguments, name, None)
         if value is not None and not value.is_absolute():

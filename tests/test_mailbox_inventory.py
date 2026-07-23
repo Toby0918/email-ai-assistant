@@ -81,9 +81,21 @@ class InventoryTests(unittest.TestCase):
 
         public = bundle.inventory.to_dict()
         rendered = json.dumps(public, sort_keys=True)
+        self.assertEqual(
+            set(public),
+            {
+                "schema_version", "opaque_scope_id", "endpoint", "window_start",
+                "window_end", "folders", "total_count", "aggregate_size",
+                "fingerprint",
+            },
+        )
         self.assertEqual(public["schema_version"], 1)
         self.assertEqual(public["total_count"], 3)
         self.assertEqual(public["aggregate_size"], 600)
+        self.assertEqual(
+            set(public["folders"][0]),
+            {"opaque_folder_id", "uidvalidity", "count", "aggregate_size"},
+        )
         self.assertEqual(public["folders"][0]["uidvalidity"], 77)
         self.assertRegex(public["fingerprint"], r"^[0-9a-f]{64}$")
         for forbidden in (
@@ -95,6 +107,7 @@ class InventoryTests(unittest.TestCase):
             session.searches,
             [datetime(2022, 2, 28, 0, 0, tzinfo=timezone.utc)],
         )
+        self.assertEqual(bundle.evidence[0].role, "inbox")
         self.assertEqual(tuple(item.uid for item in bundle.evidence[0].messages), (2, 3, 4))
 
     def test_fingerprint_is_deterministic_but_binds_private_evidence(self) -> None:
@@ -110,6 +123,34 @@ class InventoryTests(unittest.TestCase):
 
         self.assertEqual(first, second)
         self.assertNotEqual(first, changed)
+
+    def test_fingerprint_binds_private_folder_role(self) -> None:
+        inbox = select_mail_folders(
+            (RawFolder(("\\Inbox",), "CANARY-INBOX"),),
+            hmac_key=b"F" * 32,
+        )
+        business_custom = select_mail_folders(
+            (RawFolder((), "CANARY-INBOX"),),
+            hmac_key=b"F" * 32,
+        )
+        self.assertEqual(inbox[0].opaque_folder_id, business_custom[0].opaque_folder_id)
+
+        inbox_fingerprint = build_inventory(
+            FakeInventorySession(),
+            scope=self.scope,
+            folders=inbox,
+            window=self.window,
+            fingerprint_key=b"I" * 32,
+        ).inventory.fingerprint
+        custom_fingerprint = build_inventory(
+            FakeInventorySession(),
+            scope=self.scope,
+            folders=business_custom,
+            window=self.window,
+            fingerprint_key=b"I" * 32,
+        ).inventory.fingerprint
+
+        self.assertNotEqual(inbox_fingerprint, custom_fingerprint)
 
     def test_invalid_missing_future_or_duplicate_internaldate_fails_closed(self) -> None:
         cases = {
@@ -184,6 +225,8 @@ class InventoryTests(unittest.TestCase):
         original = self._build()
 
         payload = encode_inventory_bundle(original)
+        self.assertEqual(payload["schema_version"], 2)
+        self.assertEqual(payload["evidence"][0]["role"], "inbox")
         restored = decode_inventory_bundle(payload)
 
         self.assertEqual(restored.inventory.to_dict(), original.inventory.to_dict())
@@ -191,6 +234,24 @@ class InventoryTests(unittest.TestCase):
         payload["unexpected"] = "CANARY"
         with self.assertRaises(InventoryError):
             decode_inventory_bundle(payload)
+
+    def test_inventory_control_codec_rejects_legacy_schema_with_fixed_code(self) -> None:
+        payload = encode_inventory_bundle(self._build())
+        payload["schema_version"] = 1
+
+        with self.assertRaises(InventoryError) as caught:
+            decode_inventory_bundle(payload)
+
+        self.assertEqual(caught.exception.code, "inventory_control_invalid")
+
+    def test_inventory_control_codec_rejects_unknown_private_role(self) -> None:
+        payload = encode_inventory_bundle(self._build())
+        payload["evidence"][0]["role"] = "unknown"
+
+        with self.assertRaises(InventoryError) as caught:
+            decode_inventory_bundle(payload)
+
+        self.assertEqual(caught.exception.code, "inventory_control_invalid")
 
     def test_inventory_preserves_canonical_wire_mailbox_for_future_selects(self) -> None:
         session = FakeInventorySession()
@@ -243,11 +304,37 @@ class InventoryTests(unittest.TestCase):
                 self.assertFalse(second.created)
                 self.assertEqual(first.record_id, second.record_id)
                 self.assertNotIn(first.record_id, repr(first))
-                self.assertEqual(len(index.list_records()), 1)
+                self.assertEqual(opened.vault.verify().total_count, 1)
                 opened.control.write("inventory", {"schema_version": 1})
 
             with self.assertRaises(Exception):
                 opened.control.read("inventory")
+
+    def test_opened_vault_owns_a_distinct_wiped_metadata_only_corpus_index(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            vault_id = "11111111-2222-4333-8444-555555555555"
+            VaultIndex(root / "vault-index.sqlite3", vault_id=vault_id).initialize()
+
+            with open_mailbox_vault(
+                root,
+                dpapi=object(),
+                clock=lambda: 1_700_000_000,
+                identity_loader=lambda _root: VaultIdentity(vault_id, 1),
+                master_key_loader=lambda _root, _dpapi: SecretBuffer(b"M" * 32),
+            ) as opened:
+                self.assertFalse((root / "corpus-index.sqlite3").exists())
+                with opened.sales_identity_key() as identity_key:
+                    self.assertEqual(len(identity_key), 32)
+                    self.assertEqual(repr(identity_key), "SecretBuffer(<redacted>)")
+                self.assertEqual(bytes(identity_key), bytes(32))
+                opened.corpus_index.initialize()
+                self.assertTrue((root / "corpus-index.sqlite3").is_file())
+                self.assertNotIn("M" * 8, repr(opened.corpus_index))
+                corpus_index = opened.corpus_index
+
+            with self.assertRaises(Exception):
+                corpus_index.summary()
 
     def test_vault_authorization_binding_is_encrypted_immutable_and_exact(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
