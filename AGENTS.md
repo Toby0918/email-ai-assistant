@@ -192,13 +192,35 @@ only frozen repr-redacted synthetic evidence; Issue #34 performs no real
 Container audit or host-security probe. Future real composition and all
 migration work remain separately authorized.
 
+Issue #35 adds the offline-only `backend.migration_evidence` deep module. Its
+three keyword-only seams prepare an exact repr-redacted review value, create one
+confirmed single-file package, and independently verify that package. Only
+reviewed local `refs/heads/*`, the selected root/linked-worktree branch and HEAD
+metadata, content-free ACL/volume fingerprints, and exact approved dirty
+source/tests/docs may enter the package. Tracked index and worktree layers are
+separate; deleted paths are tombstones. Git commands run with sanitized
+environment/config, no network verbs, and hidden index flags or unsupported
+Git states fail closed.
+
+The package target must be external to every selected worktree, absent,
+non-reparse, and create-only. A canonical SHA-256 manifest binds the review
+fingerprint, Git bundle, baseline evidence, selection, snapshot index, and every
+payload. Public create/verify results contain only fixed status and aggregate
+counts. There is no CLI, default target, normal-runtime/browser/workflow
+consumer, service stop, repository move, ACL mutation, mailbox/provider/vault/
+private-store access, or cleanup action. Automated tests use only synthetic Git
+repositories and temporary destinations. No real package was created; any real
+capture must first publish the exact target, content-free inclusion/exclusion
+manifest, reviewed refs, and worktree selection, then stop for separate
+operator confirmation.
+
 The pure project-layout seam performs no directory creation, move, deletion,
 migration, mailbox or
 provider operation, secret read, vault/private-store access, ACL change, or host
 security change. Managed placement requires the exact canonical
 `email_ai_assistant\main` relationship. Standalone Verification Mode requires an
 explicit synthetic or temporary state root. The flat-layout adapter is temporary
-compatibility only and is not a third final placement mode. Issues #35 through
+compatibility only and is not a third final placement mode. Issues #36 through
 #40 remain separately authorized work.
 
 ## 技术栈基线

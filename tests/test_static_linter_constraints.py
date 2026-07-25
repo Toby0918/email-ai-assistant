@@ -780,6 +780,25 @@ class StaticLinterConstraintTests(unittest.TestCase):
                     ),
                 )
 
+    def test_migration_evidence_packages_are_reserved_and_ignored(self) -> None:
+        pattern = "*.migration-evidence.zip"
+        self.assertIn(pattern, read_text(ROOT / ".gitignore").splitlines())
+        observed = [
+            path
+            for path in iter_project_files(ROOT)
+            if path.name.casefold().endswith(
+                ".migration-evidence.zip"
+            )
+        ]
+        self.assertFalse(
+            observed,
+            failure_message(
+                "migration evidence package appeared inside the repository.",
+                "Use a separately reviewed external create-only target.",
+                "docs/constraints/linter_constraints.md",
+            ),
+        )
+
     def test_no_print_traceback_or_bare_except_in_backend_business_code(self) -> None:
         backend = ROOT / "backend"
         if not backend.exists():

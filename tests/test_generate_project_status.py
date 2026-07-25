@@ -48,6 +48,10 @@ class GenerateProjectStatusTests(unittest.TestCase):
         self.assertIn("不读取真实邮箱数据", report)
         self.assertIn("不自动发送邮件", report)
         self.assertIn("不把 OpenAI API key 放入前端", report)
+        self.assertIn(
+            "真实 migration evidence package 必须先展示 exact target",
+            report,
+        )
 
     def test_golden_fixture_files_move_stage_to_local_eval(self) -> None:
         module = load_script_module(SCRIPT, "generate_project_status")
@@ -245,7 +249,7 @@ class GenerateProjectStatusTests(unittest.TestCase):
             "`docs/operations/issue32_managed_container_mode_task_brief.md`",
             "`tests/test_managed_container_mode.py`",
             "no real Project Container migration or operational cutover",
-            "Issues #35 through #40 remain separate",
+            "No real Container audit or host-security probe",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, report)
@@ -265,7 +269,30 @@ class GenerateProjectStatusTests(unittest.TestCase):
             "No real Container audit or host-security probe",
             "fixed status/counts",
             "`docs/decisions/0009-project-container-and-repository-boundaries.md`",
-            "Issues #35 through #40 remain separate",
+            "Issue #35 no-clobber migration evidence package is offline implemented",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, report)
+
+    def test_migration_evidence_checkpoint_is_reported_without_real_package_claim(
+        self,
+    ) -> None:
+        module = load_script_module(
+            SCRIPT,
+            "generate_project_status_migration_evidence",
+        )
+        report = module.build_project_status()
+
+        for marker in (
+            "Issue #35 no-clobber migration evidence package is offline implemented",
+            "exact reviewed local refs",
+            "external-target, create-only and fail-closed",
+            "No real evidence package or migration action was performed",
+            "Issues #36 through #40 remain separate",
+            "`backend/migration_evidence/package.py`",
+            "`backend/migration_evidence/verification.py`",
+            "`docs/operations/issue35_migration_evidence_package_task_brief.md`",
+            "`tests/test_migration_evidence_restore.py`",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, report)

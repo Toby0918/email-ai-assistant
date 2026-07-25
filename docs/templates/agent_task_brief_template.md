@@ -310,6 +310,11 @@ the manual ContainerAudit contract.
 [ ] `ContainerAudit` remains manual, content-free, fail-closed, and separately injected; it has no default/real host adapter, CLI, scheduler, repair, or normal-runtime consumer.
 [ ] ContainerAudit public results contain only fixed status and aggregate counts; evidence contains no path, account, SID, reader, secret, content, or native exception.
 [ ] Cleanup, leakage scanning, browser/frontend, root wrappers, and workflows cannot import or invoke ContainerAudit.
+[ ] Migration-evidence review receives an exact external absent target, exact local refs, approved root/linked worktrees, exact dirty allowlist, and injected content-free ACL/volume evidence.
+[ ] Migration-evidence create requires a separately confirmed review fingerprint; no default target, ambient repository, CLI, runtime, browser, script, or workflow consumer is added.
+[ ] Dirty snapshot preserves separate regular stage-zero index/worktree layers and mechanically vetoes credentials, signing material, SQLite, logs/PID, environments, IDE/private/cache/output data before reads.
+[ ] Package publication is single-file, create-only, reparse/race/partial-write/drift fail-closed, and the canonical SHA-256 manifest binds all Git/host/selection/snapshot evidence and payloads.
+[ ] Automated migration-evidence verification uses only synthetic repositories and temporary destinations; a real target/manifest/refs/worktree selection is displayed and execution stops for separate confirmation.
 [ ] Tests are synthetic/offline and perform no real migration or Managed Container creation.
 ```
 

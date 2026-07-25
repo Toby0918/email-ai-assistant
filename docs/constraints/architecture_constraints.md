@@ -124,6 +124,30 @@ typing support. Normal runtime, cleanup, leakage scanning, browser/frontend,
 root wrappers, and workflows must not reference or invoke it. Real preflight or
 post-cutover adapter composition belongs to a separately approved later Issue.
 
+The `Migration Evidence layer` is a separate offline manual boundary in
+`backend.migration_evidence`. Its only public operations prepare an exact review
+value, create one separately confirmed no-clobber package, and independently
+verify one package. The module may read only local Git metadata/objects and
+exact approved source/tests/docs through bounded readers; ACL and volume data
+arrive only as content-free reviewed fingerprints. It cannot import normal
+runtime, lifecycle, mailbox, provider, SQLite, private-knowledge/evaluation,
+vault, credential, frontend, cleanup, or scheduler capabilities.
+
+The bundle source is exact reviewed local `refs/heads/*`. Dirty snapshot records
+bind the source-root worktree plus separate stage-zero regular index and
+worktree layers. A content-free selection manifest records every
+included/excluded status and reason; the canonical package manifest binds it,
+Git/worktree/host evidence, the independently verified bundle, snapshot index,
+and every payload. Package publication is a single external create-only commit;
+no target inside any selected worktree is valid.
+
+No backend service, browser/frontend, root wrapper, script, maintenance scan, or
+workflow may import or invoke this layer. The leakage scanner recognizes only
+the reserved package suffix so an accidental repository package fails; it is
+not a package creator or reader. Tests use synthetic Git repositories and
+temporary destinations only. Any real capture remains a manual two-step
+review/confirmation operation outside normal runtime.
+
 ## 2. 允许依赖方向
 
 允许的核心依赖方向：
@@ -145,6 +169,7 @@ future launcher -> backend.project_layout validated path values
 Managed launcher -> backend.email_agent.managed_runtime -> backend.project_layout/config
 reviewed private location policies -> backend.project_layout protected path value
 manual external composition (future Issue only) -> backend.container_audit injected values
+manual offline operator -> backend.migration_evidence review/create/verify
 ```
 
 禁止反向依赖：
@@ -172,6 +197,8 @@ backend.project_layout -> backend.email_agent/mailbox_ingest/private knowledge/p
 public request/config/frontend/CLI -> protected roots or Project Container override
 normal runtime/cleanup/leakage/browser/workflow -> backend.container_audit
 backend.container_audit -> filesystem/Git/SQLite/ACL/volume/host/private-content capability
+normal runtime/browser/scripts/workflows -> backend.migration_evidence
+backend.migration_evidence -> mailbox/provider/SQLite/vault/private-store/lifecycle capability
 ```
 
 `backend/project_layout/` may import only its own modules plus the reviewed

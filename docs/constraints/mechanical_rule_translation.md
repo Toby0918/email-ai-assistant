@@ -237,3 +237,42 @@ These checks deliberately do not expand repository leakage scanning above the
 Repository Root and do not make maintenance scanning traverse the Project
 Container. Real preflight/post-cutover composition remains a separately
 approved later Issue.
+
+## 12. No-clobber migration evidence package rule
+
+Issue #35 translates evidence preservation into four executable layers:
+
+1. `tests/test_migration_evidence_review.py`,
+   `test_migration_evidence_policy.py`, and
+   `test_migration_evidence_git_guardrails.py` pin exact review inputs,
+   sanitized local Git discovery with incrementally bounded stdout and
+   whole-process-tree timeout cleanup, content-free Git/ACL/volume baselines,
+   root/linked worktree selection, special-index rejection, ancestor-bound
+   source reads, and the mechanical inclusion/exclusion veto before content
+   reads. `test_migration_evidence_process_tree.py` additionally proves
+   suspended-create/job-assign/resume ordering and fail-closed cleanup on
+   Windows, plus process-group closure before parent reap on POSIX. The
+   verifier independently replays the same veto instead of trusting manifest
+   labels.
+2. `test_migration_evidence_restore.py` creates only temporary synthetic
+   repositories, bundles exact local refs, restores staged/unstaged index and
+   worktree layers plus deletion/rename/untracked state, compares porcelain and
+   stage records byte-for-byte, verifies objects, and reconstructs linked
+   worktree branch/HEAD identity.
+3. `test_migration_evidence_no_clobber.py` pins absent-target publication,
+   descriptor/stage/parent identity, pre-publication semantic validation,
+   partial-write cleanup, stage-swap rejection, and exact commit recognition.
+   No test target is inside the real Repository Root or any real worktree.
+4. `test_migration_evidence_verification.py`, architecture guards, static
+   linter, and repository leakage tests require all Git/host/selection/snapshot
+   evidence, canonical manifest and file hashes, independent bundle verify,
+   fixed code/count receipts, no runtime/workflow consumer, a reserved ignored
+   suffix, and name-only leakage rejection.
+
+Every backend file remains at most 300 lines and every function at most 50
+lines. The module adds no CLI, default target, provider/mailbox/private-store
+adapter, service action, directory migration, ACL mutation, or Issues #36–#40
+implementation. Real review values and package generation are not automated;
+after presenting the exact target, content-free inclusion/exclusion manifest,
+reviewed refs, and worktree selection, execution must stop for separate
+confirmation.

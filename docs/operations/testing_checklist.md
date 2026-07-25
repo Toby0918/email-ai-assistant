@@ -120,6 +120,43 @@ source_type: operation_guide
   and workflow consumers. Do not add a CLI, default/real adapter, scheduler,
   maintenance integration, or host composition under Issue #34.
 
+## No-clobber migration evidence package
+
+- Run
+  `python -B -m unittest discover -s tests -p "test_migration_evidence_*.py"`
+  with the pinned interpreter. Every source repository and target must live
+  under a test-owned temporary directory; never pass the real Repository Root
+  to the create seam.
+- Verify exact local branch refs and independent bundle `verify/list-heads`,
+  Git object integrity, local-only remote fingerprints, branch/HEAD/upstream
+  and ahead/behind counts, selected root plus linked worktree identities, and
+  injected content-free NTFS/ACL/volume evidence.
+- Restore modified/staged/mixed/deleted/renamed tracked paths and approved
+  untracked source/tests/docs from separate index/worktree layers. Compare
+  fixed porcelain status and `ls-files --stage -z` records byte-for-byte in a
+  fresh temporary repository.
+- Prove explicit approval cannot override credentials, signing material,
+  SQLite/sidecars, logs, PID state, environments, IDE state, private data,
+  caches, or outputs; excluded canaries must never reach the checked reader.
+- Reject global/system Git config, ambient secrets and Git overrides,
+  fsmonitor, unbounded Git stdout, timeout descendants retaining stdout,
+  Windows execution before Job assignment, Windows assignment/resume cleanup
+  failure, POSIX process-group cleanup after parent reap, skip-worktree,
+  assume-unchanged, unmerged/symlink/submodule index, non-local refs, missing
+  root worktree selection, reparse/hardlink/path escape, oversize input, and
+  source/index/worktree drift.
+- Verify required Git/host/selection/snapshot evidence, canonical JSON,
+  manifest comment identity, every file SHA-256, exact cross-references,
+  bounded counts/sizes, and fixed content-free public status/counts.
+- Exercise existing target, target racer, stage swap, short/partial write,
+  semantic failure before publication, wrapper error after exact commit, and
+  package verification above the per-source-file size limit. Never overwrite
+  or roll back a final target by pathname.
+- Run architecture/static/mechanical/leakage guards and assert there is no CLI,
+  normal-runtime/browser/workflow consumer, real package, service stop,
+  repository/worktree move, ACL mutation, provider/mailbox/vault/private-store
+  access, or Issues #36–#40 implementation.
+
 ## Option C 多模态离线门
 
 - all providers disabled by default；自动化只使用 synthetic DOM/media fixtures、fake provider 和 injected clock，不读取邮箱、不访问网络、不读取 `.env` 或 key。

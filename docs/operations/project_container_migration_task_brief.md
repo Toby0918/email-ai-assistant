@@ -36,10 +36,10 @@ maintenance evidence. Issue #30 separately authorizes only the
 RepositoryPlacement/OperationalLayout compatibility seam from the stable
 `origin/master@772a34d` checkpoint.
 
-Issues #31 through #34 subsequently implemented the bounded Standalone,
-Managed, protected-root, and pure manual audit contracts in their own task
-briefs. No real Project Container audit, directory migration, ACL operation, or
-cutover has occurred.
+Issues #31 through #35 subsequently implemented the bounded Standalone,
+Managed, protected-root, pure manual audit, and offline migration-evidence
+contracts in their own task briefs. No real Project Container audit, evidence
+package, directory migration, ACL operation, or cutover has occurred.
 
 ## 4. 任务目标
 
@@ -334,21 +334,24 @@ separately approved Issue without widening this core contract.
 1. 当前代码修改先形成 independently reviewed stable Git checkpoint。
 2. 为目录迁移建立独立 approved Issue and task brief。
 3. 先实现并测试 container/repository path abstraction、dual modes 和 audit guards。
-4. 记录 baseline status, refs, worktrees, file hashes, ACL and volume evidence，
+4. 先人工审核 exact external target、content-free inclusion/exclusion manifest、
+   reviewed local refs and worktree selection；另行确认后才可 create and
+   independently verify the real no-clobber migration evidence package。
+5. 记录 baseline status, refs, worktrees, file hashes, ACL and volume evidence，
    并通过 mandatory manual preflight container audit。
-5. 正常停止 local service。
-6. 创建 allowlisted rollback artifacts and empty target directories。
-7. 收紧 container ACL，但不影响 `D:\Projects` 或 finance project。
-8. 将完整 Git repository 重新归属到 `main`。
-9. 重建 runtime and worktrees。
-10. 迁移 LocalData and non-sensitive artifacts。
-11. 在 operator identity ready 后隔离 legacy credentials。
-12. 更新 project config, docs and local bindings。
-13. 运行 full verification、disabled-provider health check 和 mandatory manual
+6. 正常停止 local service。
+7. 创建其余 allowlisted rollback artifacts and empty target directories。
+8. 收紧 container ACL，但不影响 `D:\Projects` 或 finance project。
+9. 将完整 Git repository 重新归属到 `main`。
+10. 重建 runtime and worktrees。
+11. 迁移 LocalData and non-sensitive artifacts。
+12. 在 operator identity ready 后隔离 legacy credentials。
+13. 更新 project config, docs and local bindings。
+14. 运行 full verification、disabled-provider health check 和 mandatory manual
     post-cutover container audit。
-14. 保留所有旧来源，直到单独 cleanup approval；此时 `D:\Projects` 暂时仍可超过
+15. 保留所有旧来源，直到单独 cleanup approval；此时 `D:\Projects` 暂时仍可超过
     两个一级目录。
-15. 仅在另一个 cleanup Issue 获得明确删除批准后，把已验证旧来源送入 Recycle Bin，
+16. 仅在另一个 cleanup Issue 获得明确删除批准后，把已验证旧来源送入 Recycle Bin，
     再验证 `D:\Projects` 只剩两个 approved project directories。
 
 ### 8.13 Issue #30 compatibility checkpoint
@@ -384,6 +387,32 @@ It performs no real migration, runtime rebuild, database/artifact copy, worktree
 relocation, container audit, preflight evidence capture, ACL change, mailbox or
 provider call, private-store/credential read, or Issue #34 through #40 work.
 
+### 8.15 Issue #35 migration-evidence checkpoint
+
+Issue #35 implements only:
+
+- live, read-only discovery of exact local `refs/heads/*`, branch-attached
+  worktrees, dirty status, remote fingerprints and ahead/behind metadata；
+- an independently verified Git bundle for reviewed local refs, including
+  original branch commit sequences that no longer have GitHub feature refs；
+- an exact-allowlist snapshot with separate tracked index/worktree layers,
+  approved untracked source/tests/docs, and content-free deletion records；
+- canonical SHA-256 binding of package identity, Git/worktree/host evidence,
+  dirty selection and every payload file；
+- mechanically excluded credentials, signing material, SQLite, logs, PID state,
+  virtual environments, IDE state, private data, caches and unapproved outputs；
+- create-only, external-target publication with reparse, race, partial-write and
+  identity-drift failures closed；
+- synthetic repository restore tests only。
+
+It creates no real evidence package and does not choose a real target, reviewed
+refs, worktrees or dirty-source allowlist for the operator. A real package
+requires the exact target, content-free inclusion/exclusion manifest, reviewed
+refs and worktree selection to be displayed first, followed by a separate
+operator confirmation. It performs no service stop, repository move, ACL
+change, mailbox/provider/vault/private-store/credential access, or Issue #36
+through #40 work.
+
 ## 9. 数据结构或接口变化
 
 ### 数据库变化
@@ -393,7 +422,9 @@ provider call, private-store/credential read, or Issue #34 through #40 work.
 ### API 变化
 
 新增内部 Python `RepositoryPlacement`/`OperationalLayout` compatibility
-interfaces 和 provider-disabled Managed launcher adapter；无 HTTP API 变化。
+interfaces、provider-disabled Managed launcher adapter，以及 Issue #35 的
+`prepare_migration_evidence_review`、`create_migration_evidence_package` 和
+`verify_migration_evidence_package` manual seams；无 HTTP API 变化。
 
 ### AI 输出 JSON 变化
 
@@ -434,6 +465,12 @@ interfaces 和 provider-disabled Managed launcher adapter；无 HTTP API 变化�
 8. 区分已删除的 Codex cleanup automation 与仍存在的 GitHub scheduled workflow，
    并明确 future automation isolation rules。
 9. 本规划阶段没有业务代码、文件迁移、删除、ACL 或 automation change。
+10. Issue #35 synthetic restore proves reviewed Git objects/refs, separate dirty
+    index/worktree layers and linked-worktree identity can be independently
+    recovered without generating a real package。
+11. Evidence publication rejects existing target, reparse, race, partial write
+    and identity drift, and semantic verification rejects manifest/evidence/
+    snapshot tampering。
 
 后续 migration cutover acceptance 至少包括:
 
@@ -462,6 +499,8 @@ interfaces 和 provider-disabled Managed launcher adapter；无 HTTP API 变化�
 后续 implementation 阶段:
 
 - focused path, config, service, worktree and audit tests
+- focused synthetic migration-evidence review, restore, exclusion, no-clobber
+  and semantic-verification tests
 - `python -m unittest discover -s tests`
 - `python -m compileall backend scripts tests`
 - architecture, linter and mechanical guards
@@ -484,6 +523,8 @@ BitLocker private content 或 ignored SQLite text。
 - 回滚时先停止新 service，恢复原 directory identity，修复 linked worktree paths，
   恢复 ACL and project bindings，再重新验证 original service。
 - Git bundle 只作为 object/ref recovery，不替代 allowlisted dirty-source snapshot。
+- Issue #35 已实现 create-only package mechanism，但本次没有生成真实 rollback
+  artifact；未获审核与单独确认前，不能把 synthetic verification 视为 real baseline。
 - 任何 material deletion 使用单独批准和 recoverable Recycle Bin。
 
 ## 15. 需要人工确认的问题
@@ -516,6 +557,10 @@ BitLocker private content 或 ignored SQLite text。
 
 仍需在后续 implementation Issue 明确:
 
+- exact external migration-evidence target
+- exact content-free inclusion/exclusion selection
+- exact reviewed local refs and root/linked-worktree selection
+- matching review-fingerprint confirmation after the above values are displayed
 - exact migration date and maintenance window
 - exact operator account name
 - exact ACL command transcript and recovery location
@@ -560,14 +605,15 @@ Not applicable. Manual sync and current-click evidence contracts are unchanged.
 
 ```text
 实际修改文件:
-- Planning documents plus the bounded Issue #30/#31/#32/#33/#34 checkpoints.
+- Planning documents plus the bounded Issue #30/#31/#32/#33/#34/#35 checkpoints.
 
 测试结果:
 - Each implemented checkpoint records focused and full verification in its
   dedicated task brief.
 
 未完成事项:
-- All real audit composition/migration and Issue #35 through #40 work.
+- Real audit composition, real evidence-package generation, migration and
+  Issues #36 through #40.
 
 后续建议:
 - Continue only with the next separately approved dependency-ordered Issue.

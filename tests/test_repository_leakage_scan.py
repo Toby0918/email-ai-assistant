@@ -162,6 +162,28 @@ class RepositoryLeakageScanTests(unittest.TestCase):
             (self.module.LeakageFinding("LEAK_FORBIDDEN_PRIVATE_DATASET", "git_tracked", 1),),
         )
 
+    def test_migration_package_is_rejected_by_name_without_reading(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            root = Path(tmp_dir)
+            package = root / "reviewed.migration-evidence.zip"
+            package.write_bytes(b"must-not-be-opened")
+
+            findings = self.module.scan_file_set(
+                root,
+                (self.module.ScopedFile("git_tracked", package.name),),
+            )
+
+        self.assertEqual(
+            findings,
+            (
+                self.module.LeakageFinding(
+                    "LEAK_FORBIDDEN_MIGRATION_PACKAGE",
+                    "git_tracked",
+                    1,
+                ),
+            ),
+        )
+
     def test_repo_local_private_dataset_is_named_but_never_opened(self) -> None:
         with tempfile.TemporaryDirectory() as tmp_dir:
             root = Path(tmp_dir)
