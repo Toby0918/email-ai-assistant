@@ -104,6 +104,7 @@ KEY_FILES = [
     "docs/decisions/0006-authorized-mailbox-ingest-and-private-knowledge.md",
     "docs/decisions/0007-multimodal-current-email-analysis.md",
     "docs/decisions/0008-bounded-corpus-to-runtime-handoffs.md",
+    "docs/decisions/0009-project-container-and-repository-boundaries.md",
     "docs/operations/authorized_mailbox_ingest_task_brief.md",
     "docs/operations/bounded_corpus_runtime_handoffs_task_brief.md",
     "docs/operations/issue11_governed_sales_corpus_task_brief.md",
@@ -474,7 +475,9 @@ Current-message attachment acquisition recognizes only a verified legacy current
 
 Prior Task 9 synthetic and current-clicked smokes remain valid acquisition, routing, status, and cleanup evidence only. Task 9 semantic accuracy repair is offline complete. A parsed attachment status does not prove semantic correctness. Current/history evidence alignment, provider-visible attachment coverage, deterministic reconciliation safeguards, and the documented private human gold-standard method now pass the offline gate; the reviewed repair is integrated into the current release line. Any new live operation still requires fresh explicit authorization. All providers remain disabled by default.
 
-Issue #32 Managed launcher is implemented for the exact `email_ai_assistant\\main` placement. It routes provider-disabled SQLite, attachment temp, logs, PID, runtime, artifact, worktree, and bounded non-secret Config paths to their approved zones while source and repository tooling remain at `main`. Synthetic loopback lifecycle verification passes, but no real Project Container migration or operational cutover has occurred. Issues #34 through #40 remain separate.
+Issue #32 Managed launcher is implemented for the exact `email_ai_assistant\\main` placement. It routes provider-disabled SQLite, attachment temp, logs, PID, runtime, artifact, worktree, and bounded non-secret Config paths to their approved zones while source and repository tooling remain at `main`. Synthetic loopback lifecycle verification passes, but no real Project Container migration or operational cutover has occurred.
+
+Issue #34 manual content-free Container Audit is offline implemented behind seven injected read-only metadata adapters. Its exact nine-entry, ACL, volume, Git/worktree, runtime, SQLite, Config, Logs/Artifacts, and disabled-private-state contract fails closed and exposes only fixed status/counts. No real Container audit or host-security probe was run, and Issues #35 through #40 remain separate.
 
 The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器扩展, with current-message collection only after an explicit user click.
 

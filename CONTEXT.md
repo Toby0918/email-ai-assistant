@@ -57,3 +57,11 @@ A temporary compatibility mapping for the current repository-local `.venv`,
 `outputs`, and `.worktrees` locations. It is not a third placement mode and must
 not survive the completed cutover.
 _Avoid_: Legacy mode, standalone mode
+
+**Container Audit**:
+A manual, read-only, content-free, fail-closed comparison of an independent
+trusted policy with injected filesystem, ACL, volume, Git, worktree, runtime,
+and SQLite metadata. It returns only a fixed overall status and aggregate
+counts; it is separate from repository leakage and maintenance scanning and
+does not repair or probe a host by itself.
+_Avoid_: Repository scan, cleanup scan, migration repair

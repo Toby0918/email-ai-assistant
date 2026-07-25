@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-23
+last_update: 2026-07-25
 status: draft
 owner: "@tobyWang"
 review_cycle: monthly
@@ -35,6 +35,11 @@ migration remains blocked pending its separately approved cutover Issues and
 maintenance evidence. Issue #30 separately authorizes only the
 RepositoryPlacement/OperationalLayout compatibility seam from the stable
 `origin/master@772a34d` checkpoint.
+
+Issues #31 through #34 subsequently implemented the bounded Standalone,
+Managed, protected-root, and pure manual audit contracts in their own task
+briefs. No real Project Container audit, directory migration, ACL operation, or
+cutover has occurred.
 
 ## 4. 任务目标
 
@@ -294,6 +299,13 @@ identity、ACL、volume、reparse、runtime、database metadata 或 unreadable-s
 aggregate counts，不得输出 sensitive path、account、record、secret、matched value
 或 native exception detail。
 
+Issue #34 implements only the pure injected validation core described above.
+It has no CLI, default/real host adapter, normal-runtime consumer, maintenance
+integration, scheduler, or composition root. Its automated tests use synthetic
+content-free evidence and do not execute a real preflight/post-cutover audit.
+The future migration gate must compose reviewed real adapters under a later
+separately approved Issue without widening this core contract.
+
 ### 8.11 Codex and automation
 
 - Daily human Codex/IDE workspace 只能是 `main`；经单独批准的 automation 只可
@@ -548,14 +560,14 @@ Not applicable. Manual sync and current-click evidence contracts are unchanged.
 
 ```text
 实际修改文件:
-- Planning documents plus the bounded Issue #30/#31/#32/#33 checkpoints.
+- Planning documents plus the bounded Issue #30/#31/#32/#33/#34 checkpoints.
 
 测试结果:
 - Each implemented checkpoint records focused and full verification in its
   dedicated task brief.
 
 未完成事项:
-- All real migration and Issue #34 through #40 work.
+- All real audit composition/migration and Issue #35 through #40 work.
 
 后续建议:
 - Continue only with the next separately approved dependency-ordered Issue.

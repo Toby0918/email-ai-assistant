@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-22
+last_update: 2026-07-25
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -26,6 +26,7 @@ source_type: operation_guide
 - `docs/` 下 Markdown 文件缺少 YAML front matter。
 - 架构边界被破坏，例如 `email_cleaner.py` 调用 OpenAI 或数据库。
 - 管理员 mailbox ingest 出现任意 IMAP passthrough、write/flag-mutation command、SMTP、非 PEEK body fetch，或被浏览器/正常 runtime 引用。
+- `backend.container_audit` 获得 host/content/mutation capability，或被 normal runtime、cleanup、browser、root wrapper、workflow 调用。
 
 ## 2. Linter 报错格式
 
@@ -404,6 +405,30 @@ Before placeholder and residual-PII scanning, contract text is NFKC-normalized f
 validation only. Fullwidth or compatibility-form email, phone, URL, and placeholder
 text therefore fails, while the original bounded text is retained only after the
 normalized view passes every check.
+
+### Content-free ContainerAudit mechanical guards
+
+`backend/container_audit/` must remain an exact pure-module allowlist. It may
+import only its own modules plus `dataclasses`, `enum`, and typing support. AST
+checks reject path/filesystem reads, host probes, Git or subprocess execution,
+SQLite clients, ACL/volume clients, logging, content readers, mutation calls,
+default adapters, CLI modules, and composition roots.
+
+The audit package must remain a distinct module from repository leakage and
+maintenance scanning. A recursive consumer guard scans all other backend
+modules, `scripts/` (including cleanup and leakage tooling), root Python
+wrappers, frontend/browser files, and workflows for
+`container_audit`, `ContainerAudit`, or `run_container_audit` references.
+No repository consumer is allowlisted in Issue #34. The exact seven injected
+adapter fields and keyword-only no-default entrypoint are pinned by contract
+tests.
+
+Behavior tests use only frozen repr-redacted synthetic evidence. They cover the
+exact nine-entry direct-child allowlist; alias/reparse/unreadable/incomplete and
+two-pass drift failures; ACL/NTFS/Git/worktree/runtime/SQLite relationships;
+bounded Config/Logs/Artifacts metadata; disabled private zones; adapter
+exceptions; fixed status/count output; and first-failure short circuit. No test
+runs a real Container audit or host-security probe.
 
 ### Private evaluation mechanical guards
 

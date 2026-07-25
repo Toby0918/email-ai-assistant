@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-23
+last_update: 2026-07-25
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -214,3 +214,26 @@ provider-disabled injection, main-root cwd/script, and synthetic
 start/health/analysis-persistence/stop behavior. The existing public-surface
 guard continues to reject `--project-container` and environment/config aliases
 for protected roots.
+
+## 11. Manual content-free ContainerAudit rule
+
+Issue #34 translates the manual audit boundary into three executable layers:
+
+1. `tests/test_container_audit*.py` exercises only strict synthetic evidence
+   through `run_container_audit(policy=..., adapters=...)`. It pins exact
+   policy/evidence types, seven injected callbacks, two stable reads, fixed
+   pass/fail results, first-error short circuit, and every adapter's positive
+   and negative paths.
+2. `test_container_audit_has_only_pure_injected_metadata_capability` pins the
+   exact package file list, standard-library import allowlist, and forbidden
+   host/content/mutation calls. Adding a CLI, default adapter, host probe,
+   content reader, logger, scheduler, repair helper, or composition root fails.
+3. `test_container_audit_has_no_runtime_or_workflow_consumer` recursively
+   rejects audit references from every other backend module, all scripts
+   including maintenance/leakage tooling, root wrappers, frontend/browser
+   files, and workflows.
+
+These checks deliberately do not expand repository leakage scanning above the
+Repository Root and do not make maintenance scanning traverse the Project
+Container. Real preflight/post-cutover composition remains a separately
+approved later Issue.

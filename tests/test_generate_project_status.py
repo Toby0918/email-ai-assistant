@@ -245,7 +245,27 @@ class GenerateProjectStatusTests(unittest.TestCase):
             "`docs/operations/issue32_managed_container_mode_task_brief.md`",
             "`tests/test_managed_container_mode.py`",
             "no real Project Container migration or operational cutover",
-            "Issues #34 through #40 remain separate",
+            "Issues #35 through #40 remain separate",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, report)
+
+    def test_container_audit_checkpoint_is_reported_without_host_probe_claim(
+        self,
+    ) -> None:
+        module = load_script_module(
+            SCRIPT,
+            "generate_project_status_container_audit",
+        )
+        report = module.build_project_status()
+
+        for marker in (
+            "Issue #34 manual content-free Container Audit is offline implemented",
+            "seven injected read-only metadata adapters",
+            "No real Container audit or host-security probe",
+            "fixed status/counts",
+            "`docs/decisions/0009-project-container-and-repository-boundaries.md`",
+            "Issues #35 through #40 remain separate",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, report)

@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-23
+last_update: 2026-07-25
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -189,6 +189,29 @@ ambient `.env`, credentials, provider/private settings, mailbox/vault/private
 stores, or public request data. Container audit, real migration, runtime rebuild,
 data/artifact/worktree activation, and Issues #34 through #40 remain out of
 scope.
+
+### Manual content-free ContainerAudit tooling boundary
+
+Issue #34 adds `backend.container_audit` without a dependency. The package uses
+only standard-library frozen dataclasses, enums, and typing plus its own pure
+validators. Its public function accepts no path, environment, Config root,
+request value, account, credential, client, reader, command, or host capability.
+There is no default policy, default adapter, CLI, launcher, composition root, or
+real Windows/Git/SQLite implementation.
+
+Exactly seven caller-bound callbacks return strict repr-redacted filesystem,
+ACL, volume, Git, worktree, runtime, and SQLite metadata values. The core may
+call those callbacks in the fixed bounded order and compare two complete
+snapshots; it may not import `os`, `pathlib`, `subprocess`, `sqlite3`, `ctypes`,
+`logging`, mailbox/provider/vault/private-store code, maintenance/leakage code,
+or any content reader or mutator. Adapter exceptions and malformed evidence are
+discarded without formatting and map to the same fixed failure result.
+
+No repository module currently composes the callbacks. Normal runtime,
+cleanup, leakage scanning, browser/frontend, root wrappers, and workflows must
+not reference the package. All automated evidence is synthetic and offline;
+running a real Project Container or host-security audit requires a later,
+separately approved composition Issue.
 
 本地邮件分析 HTTP 服务沿用 Python 标准库 `ThreadingHTTPServer`，不得为 Host/Content-Type 门禁新增 HTTP 框架。服务 bind 只支持 `localhost` 或字面 IPv4 `127.0.0.0/8`；分析 POST 必须在读 body 前校验单一 loopback Host 和单一 JSON media type。
 

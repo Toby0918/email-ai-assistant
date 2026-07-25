@@ -89,6 +89,91 @@ _CURRENT_EVIDENCE_FORBIDDEN_ATTRIBUTES = {
     "watch", "write",
 }
 
+_CONTAINER_AUDIT_FILES = {
+    "__init__.py",
+    "adapters.py",
+    "audit.py",
+    "contract.py",
+    "filesystem_checks.py",
+    "policy.py",
+    "system_checks.py",
+}
+_CONTAINER_AUDIT_ALLOWED_IMPORTS = {
+    "__future__",
+    "dataclasses",
+    "enum",
+    "typing",
+    "backend.container_audit.adapters",
+    "backend.container_audit.audit",
+    "backend.container_audit.contract",
+    "backend.container_audit.filesystem_checks",
+    "backend.container_audit.policy",
+    "backend.container_audit.system_checks",
+}
+_CONTAINER_AUDIT_FORBIDDEN_CALLS = {
+    "chmod",
+    "chown",
+    "connect",
+    "cursor",
+    "execute",
+    "getenv",
+    "glob",
+    "iterdir",
+    "lstat",
+    "mkdir",
+    "open",
+    "popen",
+    "read",
+    "read_bytes",
+    "read_text",
+    "remove",
+    "rename",
+    "replace",
+    "resolve",
+    "rglob",
+    "rmdir",
+    "rmtree",
+    "run",
+    "stat",
+    "touch",
+    "unlink",
+    "walk",
+    "write",
+    "write_bytes",
+    "write_text",
+}
+_CONTAINER_AUDIT_FORBIDDEN_LOAD_NAMES = {
+    "__builtins__",
+    "__import__",
+    "breakpoint",
+    "compile",
+    "delattr",
+    "eval",
+    "exec",
+    "getattr",
+    "globals",
+    "input",
+    "locals",
+    "open",
+    "print",
+    "setattr",
+    "vars",
+}
+_CONTAINER_AUDIT_FORBIDDEN_ATTRIBUTES = (
+    _CONTAINER_AUDIT_FORBIDDEN_CALLS
+    | {
+        "Popen",
+        "__getattribute__",
+        "__subclasses__",
+        "call",
+        "check_call",
+        "check_output",
+        "import_module",
+        "load_module",
+        "system",
+    }
+)
+
 
 def parse_import_roots(path: Path) -> set[str]:
     # Import roots are enough to enforce the project's layer boundaries.
@@ -107,6 +192,46 @@ def parse_import_roots(path: Path) -> set[str]:
         elif isinstance(node, ast.ImportFrom) and node.module:
             imports.add(node.module.split(".")[0])
     return imports
+
+
+def container_audit_package_files(package: Path) -> tuple[Path, ...]:
+    return tuple(
+        sorted(
+            path
+            for path in package.rglob("*")
+            if path.is_file()
+            and "__pycache__"
+            not in path.relative_to(package).parts
+        )
+    )
+
+
+def container_audit_python_paths(package: Path) -> tuple[Path, ...]:
+    return tuple(
+        path
+        for path in container_audit_package_files(package)
+        if path.suffix == ".py"
+    )
+
+
+def parse_forbidden_container_audit_references(
+    path: Path,
+) -> set[str]:
+    tree = ast.parse(read_text(path))
+    references: set[str] = set()
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Name)
+            and isinstance(node.ctx, ast.Load)
+            and node.id in _CONTAINER_AUDIT_FORBIDDEN_LOAD_NAMES
+        ):
+            references.add(node.id)
+        elif (
+            isinstance(node, ast.Attribute)
+            and node.attr in _CONTAINER_AUDIT_FORBIDDEN_ATTRIBUTES
+        ):
+            references.add(_expression_target(node))
+    return references
 
 
 def parse_called_names(path: Path) -> set[str]:
@@ -1550,6 +1675,128 @@ class ArchitectureConstraintTests(unittest.TestCase):
             with self.subTest(path=path.name):
                 self.assertLessEqual(imported, allowed_import_roots)
                 self.assertTrue(forbidden_calls.isdisjoint(called_attributes))
+
+    def test_container_audit_has_only_pure_injected_metadata_capability(
+        self,
+    ) -> None:
+        package = ROOT / "backend" / "container_audit"
+        package_files = container_audit_package_files(package)
+        paths = container_audit_python_paths(package)
+        files = {
+            path.relative_to(package).as_posix()
+            for path in package_files
+        }
+        self.assertEqual(files, _CONTAINER_AUDIT_FILES)
+
+        for path in paths:
+            imports = parse_import_modules(path)
+            calls = parse_called_names(path)
+            references = parse_forbidden_container_audit_references(
+                path
+            )
+            with self.subTest(path=path.name, boundary="imports"):
+                self.assertLessEqual(
+                    imports,
+                    _CONTAINER_AUDIT_ALLOWED_IMPORTS,
+                )
+            with self.subTest(path=path.name, boundary="calls"):
+                self.assertTrue(
+                    calls.isdisjoint(
+                        _CONTAINER_AUDIT_FORBIDDEN_CALLS
+                    ),
+                    sorted(
+                        calls
+                        & _CONTAINER_AUDIT_FORBIDDEN_CALLS
+                    ),
+                )
+            with self.subTest(path=path.name, boundary="references"):
+                self.assertFalse(references, sorted(references))
+
+    def test_container_audit_guard_rejects_nested_dynamic_capability(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            package = Path(temporary) / "container_audit"
+            nested = package / "host" / "probe.py"
+            nested.parent.mkdir(parents=True)
+            nested.write_text(
+                'reader = open\n'
+                'module = __import__("os")\n'
+                'runner = module.system\n'
+                'getattr(module, "system")("whoami")\n',
+                encoding="utf-8",
+            )
+            executable = package / "host" / "probe.sh"
+            executable.write_text("#!/bin/sh\nwhoami\n", encoding="utf-8")
+
+            package_files = container_audit_package_files(package)
+            paths = container_audit_python_paths(package)
+            references = parse_forbidden_container_audit_references(
+                nested
+            )
+
+        self.assertIn(executable, package_files)
+        self.assertIn(nested, paths)
+        self.assertNotIn(executable, paths)
+        self.assertLessEqual(
+            {"open", "__import__", "getattr", "module.system"},
+            references,
+        )
+
+    def test_container_audit_has_no_runtime_or_workflow_consumer(
+        self,
+    ) -> None:
+        package = (ROOT / "backend" / "container_audit").resolve()
+        candidates = [
+            path
+            for path in (ROOT / "backend").rglob("*.py")
+            if not path.resolve().is_relative_to(package)
+        ]
+        candidates.extend((ROOT / "scripts").rglob("*.py"))
+        candidates.extend(ROOT.glob("*.py"))
+        candidates.extend(
+            path
+            for pattern in ("*.cmd", "*.bat", "*.ps1", "*.sh")
+            for path in ROOT.glob(pattern)
+            if path.is_file()
+        )
+        candidates.extend(
+            path
+            for path in (ROOT / "frontend").rglob("*")
+            if path.is_file() and is_text_file(path)
+        )
+        workflows = ROOT / ".github" / "workflows"
+        if workflows.exists():
+            candidates.extend(
+                path
+                for path in workflows.rglob("*")
+                if path.is_file() and is_text_file(path)
+            )
+        expected_root_wrappers = {
+            (ROOT / name).resolve()
+            for name in (
+                "start_local_service.cmd",
+                "status_local_service.cmd",
+                "restart_local_service.cmd",
+                "stop_local_service.cmd",
+            )
+        }
+        self.assertLessEqual(
+            expected_root_wrappers,
+            {path.resolve() for path in candidates},
+        )
+
+        reference = re.compile(
+            r"\b(?:backend[./])?container[_-]?audit\b"
+            r"|\brun_container_audit\b",
+            re.IGNORECASE,
+        )
+        for path in candidates:
+            with self.subTest(path=path.relative_to(ROOT)):
+                self.assertIsNone(
+                    reference.search(read_text(path)),
+                    f"{path} must not invoke the manual ContainerAudit",
+                )
 
     def test_protected_location_policy_has_only_reviewed_internal_consumers(
         self,

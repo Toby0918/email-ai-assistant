@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-23
+last_update: 2026-07-25
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -109,6 +109,21 @@ creates only the request attachment subdirectory. It returns a provider-disabled
 mailbox, provider, credential, private-store, migration, audit, ACL, worktree,
 artifact-copy, or repository-tooling capability.
 
+The `ContainerAudit layer` is a separate pure manual validation boundary in
+`backend.container_audit`. It accepts only a frozen trusted content-free policy
+and exactly seven injected metadata callbacks. It fixes the nine direct
+top-level entries, Config key allowlist, metadata bounds and roles, runtime and
+SQLite expectations, public status/count schema, and two-pass stability checks.
+Evidence contains opaque identities/fingerprints, fixed names/enums, bounded
+sizes/counts, and relationship/completeness flags only.
+
+Issue #34 supplies no path input, real/default adapter, host probe, CLI,
+composition root, service hook, scheduler, mutation, or diagnostic output.
+The package may import only its own modules plus `dataclasses`, `enum`, and
+typing support. Normal runtime, cleanup, leakage scanning, browser/frontend,
+root wrappers, and workflows must not reference or invoke it. Real preflight or
+post-cutover adapter composition belongs to a separately approved later Issue.
+
 ## 2. 允许依赖方向
 
 允许的核心依赖方向：
@@ -129,6 +144,7 @@ normal runtime -> backend.current_evidence append-only contract
 future launcher -> backend.project_layout validated path values
 Managed launcher -> backend.email_agent.managed_runtime -> backend.project_layout/config
 reviewed private location policies -> backend.project_layout protected path value
+manual external composition (future Issue only) -> backend.container_audit injected values
 ```
 
 禁止反向依赖：
@@ -154,6 +170,8 @@ backend.mailbox_ingest -> DeepSeek/OpenAI/Ollama/local model endpoint
 backend.current_evidence -> backend.mailbox_ingest/raw vault/authority repository
 backend.project_layout -> backend.email_agent/mailbox_ingest/private knowledge/private evaluation
 public request/config/frontend/CLI -> protected roots or Project Container override
+normal runtime/cleanup/leakage/browser/workflow -> backend.container_audit
+backend.container_audit -> filesystem/Git/SQLite/ACL/volume/host/private-content capability
 ```
 
 `backend/project_layout/` may import only its own modules plus the reviewed
