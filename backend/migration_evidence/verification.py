@@ -27,23 +27,38 @@ def verify_migration_evidence_package(*, package: Path):
 
     try:
         payload = _read_package(package)
-        manifest, manifest_bytes, files, archive_payloads = _verify_archive(
-            payload
-        )
-        refs, worktrees = validate_package_semantics(
-            manifest,
-            manifest_bytes,
-            archive_payloads,
-        )
-        _verify_bundle(archive_payloads["git/repository.bundle"], refs)
+        files, refs, worktrees = _validate_package_payload(payload)
         return _success_result(
             MigrationEvidenceStatus.VERIFIED,
             len(files),
             len(refs),
             len(worktrees),
         )
-    except BaseException:
+    except Exception:
         return _failure_result()
+
+
+def _validate_package_payload(
+    payload: bytes,
+) -> tuple[
+    tuple[dict[str, object], ...],
+    tuple[tuple[str, str], ...],
+    tuple[dict[str, object], ...],
+]:
+    """Validate complete package bytes before any publication commit."""
+
+    if type(payload) is not bytes or not payload:
+        raise MigrationEvidenceError("migration_evidence_verify_failed")
+    manifest, manifest_bytes, files, archive_payloads = _verify_archive(
+        payload
+    )
+    refs, worktrees = validate_package_semantics(
+        manifest,
+        manifest_bytes,
+        archive_payloads,
+    )
+    _verify_bundle(archive_payloads["git/repository.bundle"], refs)
+    return files, refs, worktrees
 
 
 def _read_package(package: Path) -> bytes:

@@ -6,7 +6,11 @@ import hashlib
 
 from .contract import DirtyDisposition, DirtyReason
 from .errors import MigrationEvidenceError
-from .policy import validate_relative_path
+from .policy import (
+    inclusion_reason,
+    require_approved_source,
+    validate_relative_path,
+)
 
 
 _EMPTY_SHA256 = hashlib.sha256(b"").hexdigest()
@@ -126,10 +130,20 @@ def _selection_entry(value: object) -> dict[str, object]:
         _fail()
     if value["reason"] not in {item.value for item in DirtyReason}:
         _fail()
-    if value["disposition"] == DirtyDisposition.INCLUDED.value and (
-        value["reason"] != DirtyReason.APPROVED_SOURCE.value
-        or value["ignored"] is not False
-    ):
+    if value["disposition"] == DirtyDisposition.INCLUDED.value:
+        if (
+            value["reason"] != DirtyReason.APPROVED_SOURCE.value
+            or value["ignored"] is not False
+        ):
+            _fail()
+        try:
+            require_approved_source(path)
+        except MigrationEvidenceError:
+            _fail()
+    elif value["reason"] != inclusion_reason(
+        path,
+        ignored=value["ignored"],
+    ).value:
         _fail()
     return value
 

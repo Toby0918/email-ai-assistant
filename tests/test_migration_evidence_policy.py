@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 import tempfile
 import unittest
@@ -20,6 +21,7 @@ from backend.migration_evidence.policy import (
     require_approved_source,
 )
 from backend.migration_evidence.snapshot import read_checked_file
+from backend.migration_evidence.verification_snapshot import _selection_entry
 from tests.test_migration_evidence_review import (
     create_repository,
     host_baseline,
@@ -29,8 +31,14 @@ from tests.test_migration_evidence_review import (
 FORBIDDEN_PATHS = {
     "backend/credentials.json": DirtyReason.CREDENTIAL,
     "backend/client-secret.json": DirtyReason.CREDENTIAL,
+    "backend/api_key.json": DirtyReason.CREDENTIAL,
+    "backend/client_secret.json": DirtyReason.CREDENTIAL,
+    "backend/refresh_token.json": DirtyReason.CREDENTIAL,
+    "backend/credentials/settings.json": DirtyReason.CREDENTIAL,
+    "backend/secrets/config.py": DirtyReason.CREDENTIAL,
     "backend/signing_key.json": DirtyReason.SIGNING_MATERIAL,
     "backend/private-key.json": DirtyReason.SIGNING_MATERIAL,
+    "backend/signing_key/key.py": DirtyReason.SIGNING_MATERIAL,
     "backend/state.sqlite3-wal": DirtyReason.SQLITE,
     "backend/service.log": DirtyReason.LOG,
     "backend/service.log.1": DirtyReason.LOG,
@@ -40,6 +48,7 @@ FORBIDDEN_PATHS = {
     "frontend/.vs/settings.json": DirtyReason.IDE_STATE,
     "tests/private_data/customer.json": DirtyReason.PRIVATE_DATA,
     "tests/customer-data/customer.json": DirtyReason.PRIVATE_DATA,
+    "docs/private_data.md": DirtyReason.PRIVATE_DATA,
     "backend/.coverage/cache.json": DirtyReason.CACHE,
     "tests/reports/result.json": DirtyReason.OUTPUT,
     "docs/package.migration-evidence.zip": DirtyReason.OUTPUT,
@@ -58,6 +67,96 @@ class MigrationEvidencePolicyTests(unittest.TestCase):
                 )
                 with self.assertRaises(MigrationEvidenceError):
                     require_approved_source(path)
+
+    def test_forbidden_directory_approval_stops_before_source_read(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            repository = create_repository(root)
+            forbidden = repository / "backend" / "secrets" / "config.py"
+            forbidden.parent.mkdir()
+            forbidden.write_text(
+                "SYNTHETIC_CREDENTIAL = 'never-read'\n",
+                encoding="utf-8",
+            )
+            target = (
+                root
+                / "target"
+                / "forbidden.migration-evidence.zip"
+            )
+            target.parent.mkdir()
+
+            with mock.patch(
+                "backend.migration_evidence.snapshot.read_checked_file",
+            ) as checked_read:
+                with self.assertRaises(MigrationEvidenceError):
+                    prepare_migration_evidence_review(
+                        repository_root=repository,
+                        target=target,
+                        approved_dirty_paths=(
+                            "backend/secrets/config.py",
+                        ),
+                        reviewed_refs=("refs/heads/master",),
+                        approved_worktrees=(repository,),
+                        host_baseline=host_baseline(),
+                    )
+
+            checked_read.assert_not_called()
+
+    def test_checked_reader_rejects_reparse_source_parent(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            real = root / "real"
+            real.mkdir()
+            (real / "source.py").write_text(
+                "VALUE = 'synthetic'\n",
+                encoding="utf-8",
+            )
+            alias = root / "alias"
+            if os.name == "nt":
+                completed = subprocess.run(
+                    (
+                        os.environ.get("COMSPEC", "cmd.exe"),
+                        "/c",
+                        "mklink",
+                        "/J",
+                        str(alias),
+                        str(real),
+                    ),
+                    check=False,
+                    capture_output=True,
+                )
+                if completed.returncode != 0:
+                    self.skipTest("temporary junction unavailable")
+            else:
+                alias.symlink_to(real, target_is_directory=True)
+
+            with self.assertRaises(MigrationEvidenceError):
+                read_checked_file(root, "alias/source.py")
+
+    def test_independent_verifier_rechecks_forbidden_source_policy(
+        self,
+    ) -> None:
+        for path in (
+            "backend/client-secret.json",
+            "backend/credentials/settings.json",
+            "tests/private_data/customer.json",
+        ):
+            with self.subTest(path=path):
+                with self.assertRaises(MigrationEvidenceError):
+                    _selection_entry(
+                        {
+                            "path": path,
+                            "status": "??",
+                            "tracked": False,
+                            "ignored": False,
+                            "disposition": "included",
+                            "reason": "approved_source",
+                        }
+                    )
 
     def test_git_ignore_semantics_and_excluded_bytes_are_not_opened(
         self,

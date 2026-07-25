@@ -44,15 +44,16 @@ def create_migration_evidence_package(
                 refs=tuple({"name": item.name, "oid": item.oid} for item in review.reviewed_refs),
                 worktrees=_worktree_mappings(review),
             )
+            _require_package_valid(archive)
+            result = _success_result(
+                MigrationEvidenceStatus.CREATED,
+                len(payloads),
+                len(review.reviewed_refs),
+                len(review.worktrees),
+            )
         publish_new_package(review.target, archive)
-        _require_published_package_valid(review.target)
-        return _success_result(
-            MigrationEvidenceStatus.CREATED,
-            len(payloads),
-            len(review.reviewed_refs),
-            len(review.worktrees),
-        )
-    except BaseException:
+        return result
+    except Exception:
         return _failure_result()
 
 
@@ -63,12 +64,10 @@ def _validate_confirmation(review, confirmed: str) -> None:
         raise MigrationEvidenceError("migration_evidence_create_failed")
 
 
-def _require_published_package_valid(target: Path) -> None:
-    from .verification import verify_migration_evidence_package
+def _require_package_valid(payload: bytes) -> None:
+    from .verification import _validate_package_payload
 
-    result = verify_migration_evidence_package(package=target)
-    if result.status is not MigrationEvidenceStatus.VERIFIED:
-        raise MigrationEvidenceError("migration_evidence_create_failed")
+    _validate_package_payload(payload)
 
 
 def _require_review_stable(review: MigrationEvidenceReview) -> None:

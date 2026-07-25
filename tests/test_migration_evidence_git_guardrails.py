@@ -31,12 +31,12 @@ class MigrationEvidenceGitGuardrailTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             repository = create_repository(Path(temporary).resolve())
             observed: dict[str, object] = {}
-            real_run = subprocess.run
+            real_popen = subprocess.Popen
 
-            def capture_run(arguments, **kwargs):
+            def capture_popen(arguments, **kwargs):
                 observed["arguments"] = arguments
                 observed["environment"] = kwargs["env"]
-                return real_run(arguments, **kwargs)
+                return real_popen(arguments, **kwargs)
 
             ambient = {
                 "OPENAI_API_KEY": "provider-canary",
@@ -49,8 +49,8 @@ class MigrationEvidenceGitGuardrailTests(unittest.TestCase):
             }
             with mock.patch.dict(os.environ, ambient, clear=False):
                 with mock.patch(
-                    "backend.migration_evidence.git_runner.subprocess.run",
-                    side_effect=capture_run,
+                    "backend.migration_evidence.git_runner.subprocess.Popen",
+                    side_effect=capture_popen,
                 ):
                     output = git_output(
                         repository,
@@ -65,6 +65,46 @@ class MigrationEvidenceGitGuardrailTests(unittest.TestCase):
             self.assertEqual(arguments[0], "git")
             self.assertIn("core.fsmonitor=false", arguments)
             self.assertEqual(environment["GIT_CONFIG_NOSYSTEM"], "1")
+
+    def test_git_output_kills_process_at_bounded_stdout_limit(
+        self,
+    ) -> None:
+        class OversizedStdout:
+            def read(self, limit):
+                return b"x" * limit
+
+            def close(self):
+                return None
+
+        class OversizedProcess:
+            def __init__(self):
+                self.stdout = OversizedStdout()
+                self.killed = False
+                self.returncode = None
+
+            def poll(self):
+                return self.returncode
+
+            def kill(self):
+                self.killed = True
+                self.returncode = -9
+
+            def wait(self, timeout=None):
+                return self.returncode
+
+        process = OversizedProcess()
+        with mock.patch(
+            "backend.migration_evidence.git_runner.subprocess.Popen",
+            return_value=process,
+        ):
+            with self.assertRaises(MigrationEvidenceError):
+                git_output(
+                    Path("C:/synthetic"),
+                    ("status", "--porcelain=v1"),
+                    maximum=32,
+                )
+
+        self.assertTrue(process.killed)
 
     def test_assume_unchanged_and_skip_worktree_are_rejected(
         self,

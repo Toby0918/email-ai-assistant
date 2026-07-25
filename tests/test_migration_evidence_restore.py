@@ -244,7 +244,7 @@ class MigrationEvidenceRestoreTests(unittest.TestCase):
                     restored,
                     "config",
                     "user.email",
-                    "restorer@example.invalid",
+                    "restorer@example.test",
                 )
                 restore_snapshot(restored, archive, records)
 

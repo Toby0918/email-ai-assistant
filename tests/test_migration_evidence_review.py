@@ -36,7 +36,7 @@ def create_repository(root: Path) -> Path:
     repository.mkdir()
     run_git(repository, "init", "--initial-branch=master")
     run_git(repository, "config", "user.name", "Synthetic Reviewer")
-    run_git(repository, "config", "user.email", "reviewer@example.invalid")
+    run_git(repository, "config", "user.email", "reviewer@example.test")
     (repository / ".gitignore").write_text(
         ".env\n*.sqlite3\n.venv/\n",
         encoding="utf-8",
@@ -82,7 +82,7 @@ class MigrationEvidenceReviewTests(unittest.TestCase):
                 peer,
                 "config",
                 "user.email",
-                "peer@example.invalid",
+                "peer@example.test",
             )
             (peer / "peer.md").write_text("peer\n", encoding="utf-8")
             run_git(peer, "add", "peer.md")

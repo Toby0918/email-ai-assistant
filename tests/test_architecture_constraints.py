@@ -162,6 +162,7 @@ _CONTAINER_AUDIT_FORBIDDEN_LOAD_NAMES = {
 
 _MIGRATION_EVIDENCE_FILES = {
     "__init__.py",
+    "bound_file.py",
     "checked_io.py",
     "contract.py",
     "errors.py",
@@ -182,16 +183,19 @@ _MIGRATION_EVIDENCE_FILES = {
 }
 _MIGRATION_EVIDENCE_ALLOWED_IMPORT_ROOTS = {
     "__future__",
+    "ctypes",
     "dataclasses",
     "enum",
     "hashlib",
     "io",
     "json",
+    "msvcrt",
     "os",
     "pathlib",
     "stat",
     "subprocess",
     "tempfile",
+    "threading",
     "typing",
     "urllib",
     "uuid",

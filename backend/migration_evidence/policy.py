@@ -52,9 +52,9 @@ def inclusion_reason(path: str, *, ignored: bool) -> DirtyReason:
     name = parts[-1]
     stem = PurePosixPath(name).stem.casefold()
     suffix = PurePosixPath(name).suffix.casefold()
-    if _has_credential_marker(name, stem, suffix):
+    if _has_credential_marker(parts, name, stem, suffix):
         return DirtyReason.CREDENTIAL
-    if _has_signing_marker(name, stem, suffix):
+    if _has_signing_marker(parts, name, stem, suffix):
         return DirtyReason.SIGNING_MATERIAL
     if _has_sqlite_marker(name, suffix):
         return DirtyReason.SQLITE
@@ -66,7 +66,7 @@ def inclusion_reason(path: str, *, ignored: bool) -> DirtyReason:
         return DirtyReason.VIRTUAL_ENVIRONMENT
     if any(part in {".fleet", ".idea", ".vs", ".vscode"} for part in parts):
         return DirtyReason.IDE_STATE
-    if _has_private_marker(parts, suffix):
+    if _has_private_marker(parts, stem, suffix):
         return DirtyReason.PRIVATE_DATA
     if _has_cache_marker(parts, suffix):
         return DirtyReason.CACHE
@@ -90,7 +90,11 @@ def require_approved_source(path: str) -> str:
     return normalized
 
 
-def _has_private_marker(parts: tuple[str, ...], suffix: str) -> bool:
+def _has_private_marker(
+    parts: tuple[str, ...],
+    stem: str,
+    suffix: str,
+) -> bool:
     markers = {
         "operatorprivate",
         "private",
@@ -101,7 +105,7 @@ def _has_private_marker(parts: tuple[str, ...], suffix: str) -> bool:
         "recovery",
         "vault",
     }
-    return bool(markers.intersection(parts)) or suffix in {
+    return bool(markers.intersection(_marker_parts(parts, stem))) or suffix in {
         ".mailvault",
         ".pkeval",
         ".pkevalstage",
@@ -123,7 +127,12 @@ def _has_cache_marker(parts: tuple[str, ...], suffix: str) -> bool:
     return bool(markers.intersection(parts)) or suffix in {".pyc", ".pyo"}
 
 
-def _has_credential_marker(name: str, stem: str, suffix: str) -> bool:
+def _has_credential_marker(
+    parts: tuple[str, ...],
+    name: str,
+    stem: str,
+    suffix: str,
+) -> bool:
     names = {
         ".env",
         ".netrc",
@@ -133,32 +142,61 @@ def _has_credential_marker(name: str, stem: str, suffix: str) -> bool:
         "secrets",
         "tokens",
         "access-token",
+        "access-tokens",
         "api-key",
+        "api-keys",
         "client-secret",
+        "client-secrets",
         "refresh-token",
+        "refresh-tokens",
+        "service-account",
+        "service-accounts",
     }
-    return name in names or stem in names or suffix in {".secret", ".token"}
+    candidates = _marker_parts(parts, stem)
+    return (
+        bool(names.intersection(candidates))
+        or name.replace("_", "-") in names
+        or stem.replace("_", "-") in names
+        or suffix in {".secret", ".token"}
+    )
 
 
-def _has_signing_marker(name: str, stem: str, suffix: str) -> bool:
+def _has_signing_marker(
+    parts: tuple[str, ...],
+    name: str,
+    stem: str,
+    suffix: str,
+) -> bool:
     markers = {
+        ".ssh",
+        "certificates",
+        "certs",
         "id_dsa",
         "id_ecdsa",
         "id_ed25519",
         "id_rsa",
         "private_key",
         "private-key",
+        "private-keys",
+        "signing_keys",
         "signing_key",
         "signing-key",
+        "signing-keys",
     }
-    return name in markers or stem in markers or suffix in {
-        ".cer",
-        ".crt",
-        ".key",
-        ".p12",
-        ".pem",
-        ".pfx",
-    }
+    candidates = _marker_parts(parts, stem)
+    return (
+        bool(markers.intersection(candidates))
+        or name.replace("_", "-") in markers
+        or stem.replace("_", "-") in markers
+        or suffix in {
+            ".cer",
+            ".crt",
+            ".key",
+            ".p12",
+            ".pem",
+            ".pfx",
+        }
+    )
 
 
 def _has_sqlite_marker(name: str, suffix: str) -> bool:
@@ -188,7 +226,10 @@ def _has_environment_marker(parts: tuple[str, ...]) -> bool:
         "site-packages",
         "venv",
     }
-    return bool(markers.intersection(parts))
+    return bool(markers.intersection(parts)) or "site-packages" in _marker_parts(
+        parts,
+        "",
+    )
 
 
 def _has_output_marker(parts: tuple[str, ...], name: str) -> bool:
@@ -201,6 +242,18 @@ def _has_output_marker(parts: tuple[str, ...], name: str) -> bool:
         "test-results",
     }
     return (
-        bool(markers.intersection(parts))
+        bool(markers.intersection(_marker_parts(parts, "")))
         or name.endswith(".migration-evidence.zip")
     )
+
+
+def _marker_parts(
+    parts: tuple[str, ...],
+    stem: str,
+) -> frozenset[str]:
+    values = set(parts)
+    values.update(part.replace("_", "-") for part in parts)
+    if stem:
+        values.add(stem)
+        values.add(stem.replace("_", "-"))
+    return frozenset(values)

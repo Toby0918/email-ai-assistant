@@ -6,7 +6,9 @@ import os
 import stat
 from pathlib import Path
 
+from .bound_file import close_guards, open_bound_file, relative_parts
 from .errors import MigrationEvidenceError
+from .path_checks import require_existing_non_reparse_directory
 
 
 _DEFAULT_MAXIMUM = 16 * 1024 * 1024
@@ -23,15 +25,14 @@ def read_checked_file(
 
     if type(maximum) is not int or not 1 <= maximum <= 256 * 1024 * 1024:
         raise MigrationEvidenceError("migration_evidence_create_failed")
-    candidate = root.joinpath(*relative.split("/"))
+    parts = relative_parts(relative)
+    root_resolved = require_existing_non_reparse_directory(root)
+    candidate = root_resolved.joinpath(*parts)
     descriptor = -1
+    guards: list[int] = []
     try:
-        root_resolved = root.resolve(strict=True)
-        parent = candidate.parent.resolve(strict=True)
-        if root_resolved != parent and root_resolved not in parent.parents:
-            raise MigrationEvidenceError("migration_evidence_create_failed")
         before = _file_identity(candidate)
-        descriptor = os.open(candidate, _read_flags())
+        descriptor, guards = open_bound_file(root_resolved, parts)
         opened = _identity_from_stat(os.fstat(descriptor))
         if opened != before or opened[3] > maximum:
             raise MigrationEvidenceError("migration_evidence_create_failed")
@@ -50,6 +51,7 @@ def read_checked_file(
     finally:
         if descriptor >= 0:
             os.close(descriptor)
+        close_guards(guards)
 
 
 def _file_identity(path: Path) -> tuple[int, int, int, int, int]:
@@ -88,11 +90,3 @@ def _read_limit(descriptor: int, limit: int) -> bytes:
         chunks.append(chunk)
         remaining -= len(chunk)
     return b"".join(chunks)
-
-
-def _read_flags() -> int:
-    return (
-        os.O_RDONLY
-        | getattr(os, "O_BINARY", 0)
-        | getattr(os, "O_NOFOLLOW", 0)
-    )

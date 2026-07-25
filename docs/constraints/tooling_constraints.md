@@ -232,12 +232,16 @@ absolute package path. No ambient repository, target, worktree, host baseline,
 credential, private-store path, or environment value is a default.
 
 Snapshot file reads are bounded descriptor/identity reads after the mechanical
-path veto. Index bytes come only from exact stage-zero regular blobs; symlink,
-submodule, unmerged, skip-worktree, assume-unchanged, reparse, hardlink, size,
-or identity drift fails closed. Publication keeps a validated stage descriptor
-open, uses one same-volume atomic no-clobber link, verifies the final package,
-and never overwrites an existing target. Package output is ignored by Git and
-the leakage scanner rejects its reserved suffix without opening it.
+path veto. Source reads retain non-reparse ancestor handles and bind the exact
+leaf descriptor before reading bytes. Git stdout is read only to the fixed
+maximum plus one byte; overflow or timeout terminates the subprocess. Index
+bytes come only from exact stage-zero regular blobs; symlink, submodule,
+unmerged, skip-worktree, assume-unchanged, reparse, hardlink, size, or identity
+drift fails closed. The exact in-memory archive completes independent semantic
+verification before publication. Publication then keeps a validated stage
+descriptor open, uses one same-volume atomic no-clobber link as the final commit
+point, and never overwrites an existing target. Package output is ignored by
+Git and the leakage scanner rejects its reserved suffix without opening it.
 
 Automated tests may call these seams only with temporary synthetic Git
 repositories and temporary external destinations. They must never use the real

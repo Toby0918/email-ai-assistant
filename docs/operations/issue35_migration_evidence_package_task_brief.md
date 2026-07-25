@@ -156,15 +156,17 @@ Bundle source 只允许 exact reviewed `refs/heads/*`。Remote refs 和已删除
 GitHub feature branches不得成为 source。每个 approved worktree 必须来自实时
 `git worktree list`，保持 branch-attached，且 branch ref/OID/HEAD 与 review plan
 完全一致。Bundle 必须在一个 empty synthetic repository 中通过独立
-`git bundle verify`。
+`git bundle verify`。Git stdout 只增量读取到 fixed maximum plus one byte；
+overflow or timeout terminates the process and fails closed。
 
 ### 8.6 Create-only publication
 
 Target 和 parent 在写入前后进行 absolute、non-reparse 和 identity checks。Payload
-先写入 bounded internal stage；final publication 使用 same-volume atomic
-no-clobber link。Existing target、post-validation racer、partial write 或 identity
-drift 不得覆盖 target。Publication helper 成功返回是唯一 commit point；其后只允许
-best-effort internal-stage cleanup，绝不按 pathname rollback final target。
+先完成独立 bundle/manifest/evidence/snapshot semantic verification，再写入 bounded
+internal stage；final publication 使用 same-volume atomic no-clobber link。
+Existing target、post-validation racer、partial write 或 identity drift 不得覆盖
+target。Publication helper 成功返回是唯一 commit point；其后只允许 best-effort
+internal-stage cleanup，绝不按 pathname rollback final target。
 
 ### 8.7 Public result
 
@@ -327,7 +329,7 @@ branch/directory，也不得生成真实 package 后再尝试 pathname rollback�
   testing/template documentation
 
 测试结果:
-- focused migration-evidence: 20 passed, 1 skipped because Windows directory
+- focused migration-evidence: 25 passed, 1 skipped because Windows directory
   symlink creation privilege is unavailable
 - architecture/static/mechanical/leakage/status/transport: 120 passed
 - compileall: passed

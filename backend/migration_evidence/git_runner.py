@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import subprocess
+import threading
 from pathlib import Path
 
 from .errors import MigrationEvidenceError
@@ -24,32 +25,91 @@ def git_output(
     if type(maximum) is not int or not 1 <= maximum <= 20 * 1024 * 1024:
         raise MigrationEvidenceError()
     try:
-        completed = subprocess.run(
-            (
-                "git",
-                "-c",
-                "core.fsmonitor=false",
-                "-c",
-                "core.untrackedCache=false",
-                *arguments,
-            ),
+        payload, returncode, timed_out = _bounded_git_output(
+            root,
+            arguments,
+            maximum,
+        )
+    except Exception:
+        raise MigrationEvidenceError() from None
+    if timed_out or returncode != 0:
+        if optional and not timed_out:
+            return None
+        raise MigrationEvidenceError()
+    return payload
+
+
+def _bounded_git_output(
+    root: Path,
+    arguments: tuple[str, ...],
+    maximum: int,
+) -> tuple[bytes, int, bool]:
+    process = None
+    timer = None
+    timed_out = threading.Event()
+    try:
+        process = subprocess.Popen(
+            _git_command(arguments),
             cwd=root,
             env=_git_environment(),
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
-            timeout=30,
-            check=False,
         )
-    except Exception:
-        raise MigrationEvidenceError() from None
-    if completed.returncode != 0:
-        if optional:
-            return None
-        raise MigrationEvidenceError()
-    if len(completed.stdout) > maximum:
-        raise MigrationEvidenceError()
-    return completed.stdout
+        timer = threading.Timer(
+            30,
+            _expire_process,
+            args=(process, timed_out),
+        )
+        timer.daemon = True
+        timer.start()
+        if process.stdout is None:
+            raise MigrationEvidenceError()
+        payload = process.stdout.read(maximum + 1)
+        if len(payload) > maximum:
+            _kill_process(process)
+            raise MigrationEvidenceError()
+        returncode = process.wait()
+    finally:
+        if timer is not None:
+            timer.cancel()
+        if process is not None:
+            _kill_process(process)
+            if process.stdout is not None:
+                process.stdout.close()
+    return payload, returncode, timed_out.is_set()
+
+
+def _git_command(arguments: tuple[str, ...]) -> tuple[str, ...]:
+    return (
+        "git",
+        "-c",
+        "core.fsmonitor=false",
+        "-c",
+        "core.untrackedCache=false",
+        *arguments,
+    )
+
+
+def _expire_process(
+    process: subprocess.Popen,
+    timed_out: threading.Event,
+) -> None:
+    if process.poll() is None:
+        timed_out.set()
+        _kill_process(process)
+
+
+def _kill_process(process: subprocess.Popen) -> None:
+    if process.poll() is None:
+        try:
+            process.kill()
+        except OSError:
+            pass
+    try:
+        process.wait(timeout=5)
+    except (OSError, subprocess.TimeoutExpired):
+        pass
 
 
 def _git_environment() -> dict[str, str]:

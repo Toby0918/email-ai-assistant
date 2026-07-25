@@ -9,6 +9,7 @@ import unittest
 import zipfile
 from pathlib import Path
 from typing import Callable
+from unittest import mock
 
 from backend.migration_evidence import (
     MigrationEvidenceStatus,
@@ -16,6 +17,7 @@ from backend.migration_evidence import (
     prepare_migration_evidence_review,
     verify_migration_evidence_package,
 )
+from backend.migration_evidence.errors import MigrationEvidenceError
 from tests.test_migration_evidence_review import (
     create_repository,
     host_baseline,
@@ -60,6 +62,47 @@ def rewrite_package(
 
 
 class MigrationEvidenceVerificationTests(unittest.TestCase):
+    def test_semantic_validation_failure_cannot_cross_commit_point(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve()
+            repository = create_repository(root)
+            target = (
+                root
+                / "target"
+                / "prepublication.migration-evidence.zip"
+            )
+            target.parent.mkdir()
+            review = prepare_migration_evidence_review(
+                repository_root=repository,
+                target=target,
+                approved_dirty_paths=(),
+                reviewed_refs=("refs/heads/master",),
+                approved_worktrees=(repository,),
+                host_baseline=host_baseline(),
+            )
+
+            with mock.patch(
+                "backend.migration_evidence.package._require_package_valid",
+                create=True,
+                side_effect=MigrationEvidenceError(
+                    "migration_evidence_create_failed"
+                ),
+            ):
+                result = create_migration_evidence_package(
+                    review=review,
+                    confirmed_review_fingerprint=(
+                        review.review_fingerprint
+                    ),
+                )
+
+            self.assertEqual(
+                result.status,
+                MigrationEvidenceStatus.FAILED,
+            )
+            self.assertFalse(target.exists())
+
     def test_package_larger_than_one_snapshot_file_still_verifies(
         self,
     ) -> None:
