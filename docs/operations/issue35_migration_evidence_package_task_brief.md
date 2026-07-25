@@ -158,7 +158,9 @@ GitHub feature branches不得成为 source。每个 approved worktree 必须来�
 完全一致。Bundle 必须在一个 empty synthetic repository 中通过独立
 `git bundle verify`。Git stdout 只增量读取到 fixed maximum plus one byte；
 overflow or timeout terminates the complete POSIX process group or Windows
-kill-on-close Job Object and fails closed。
+kill-on-close Job Object and fails closed。Windows parent 在 suspended create
+之后先绑定 Job、再 resume；POSIX group 在 leader 保持 unreaped 时关闭、再
+reap parent，避免 pre-attach descendant escape 与 post-reap PGID reuse。
 
 ### 8.6 Create-only publication
 
@@ -330,17 +332,17 @@ branch/directory，也不得生成真实 package 后再尝试 pathname rollback�
   testing/template documentation
 
 测试结果:
-- focused migration-evidence: 26 passed, 1 skipped because Windows directory
+- focused migration-evidence: 32 passed, 1 skipped because Windows directory
   symlink creation privilege is unavailable
 - architecture/static/mechanical/leakage/status/transport: 120 passed
 - compileall: passed
-- full unittest final run: 1,818 passed, 3 skipped
+- full unittest final run: 1,830 passed, 3 skipped
 - repository leakage summary: total=0
 - maintenance scan: no findings
 - git diff --check: passed
 
 未完成事项:
-- Standards/Spec dual-axis review and publication workflow are pending
+- Standards/Spec dual-axis re-review and publication workflow are pending
 - real package review and separate confirmation remain intentionally pending
 
 后续建议:

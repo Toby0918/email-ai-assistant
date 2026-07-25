@@ -244,12 +244,16 @@ Issue #35 translates evidence preservation into four executable layers:
 
 1. `tests/test_migration_evidence_review.py`,
    `test_migration_evidence_policy.py`, and
-   `test_migration_evidence_git_guardrails.py` pin exact review inputs, sanitized
-   local Git discovery with incrementally bounded stdout and whole-process-tree
-   timeout cleanup, content-free Git/ACL/volume baselines, root/linked worktree
-   selection, special-index rejection, ancestor-bound source reads, and the mechanical
-   inclusion/exclusion veto before content reads. The verifier independently
-   replays the same veto instead of trusting manifest labels.
+   `test_migration_evidence_git_guardrails.py` pin exact review inputs,
+   sanitized local Git discovery with incrementally bounded stdout and
+   whole-process-tree timeout cleanup, content-free Git/ACL/volume baselines,
+   root/linked worktree selection, special-index rejection, ancestor-bound
+   source reads, and the mechanical inclusion/exclusion veto before content
+   reads. `test_migration_evidence_process_tree.py` additionally proves
+   suspended-create/job-assign/resume ordering and fail-closed cleanup on
+   Windows, plus process-group closure before parent reap on POSIX. The
+   verifier independently replays the same veto instead of trusting manifest
+   labels.
 2. `test_migration_evidence_restore.py` creates only temporary synthetic
    repositories, bundles exact local refs, restores staged/unstaged index and
    worktree layers plus deletion/rename/untracked state, compares porcelain and

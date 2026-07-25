@@ -140,9 +140,11 @@ source_type: operation_guide
   caches, or outputs; excluded canaries must never reach the checked reader.
 - Reject global/system Git config, ambient secrets and Git overrides,
   fsmonitor, unbounded Git stdout, timeout descendants retaining stdout,
-  skip-worktree, assume-unchanged, unmerged/symlink/submodule index, non-local
-  refs, missing root worktree selection, reparse/hardlink/path escape,
-  oversize input, and source/index/worktree drift.
+  Windows execution before Job assignment, Windows assignment/resume cleanup
+  failure, POSIX process-group cleanup after parent reap, skip-worktree,
+  assume-unchanged, unmerged/symlink/submodule index, non-local refs, missing
+  root worktree selection, reparse/hardlink/path escape, oversize input, and
+  source/index/worktree drift.
 - Verify required Git/host/selection/snapshot evidence, canonical JSON,
   manifest comment identity, every file SHA-256, exact cross-references,
   bounded counts/sizes, and fixed content-free public status/counts.

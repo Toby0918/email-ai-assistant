@@ -73,7 +73,7 @@ def _bounded_git_output(
         if len(payload) > maximum:
             process_tree.terminate(process)
             raise MigrationEvidenceError()
-        returncode = process.wait()
+        returncode = process_tree.finish(process)
     finally:
         if timer is not None:
             timer.cancel()

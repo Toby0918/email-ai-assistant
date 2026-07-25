@@ -15,6 +15,7 @@ if os.name == "nt":
 
 _JOB_OBJECT_EXTENDED_LIMIT_INFORMATION = 9
 _JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000
+_CREATE_SUSPENDED = 0x00000004
 
 
 if os.name == "nt":
@@ -60,6 +61,7 @@ class ProcessTree:
     def __init__(self, job_handle: int | None) -> None:
         self._job_handle = job_handle
         self._process_group: int | None = None
+        self._posix_open = True
         self._lock = threading.Lock()
 
     @classmethod
@@ -70,29 +72,70 @@ class ProcessTree:
     def popen_options(self) -> dict[str, object]:
         if os.name == "nt":
             return {
-                "creationflags": subprocess.CREATE_NEW_PROCESS_GROUP,
+                "creationflags": (
+                    subprocess.CREATE_NEW_PROCESS_GROUP
+                    | _CREATE_SUSPENDED
+                ),
             }
         return {"start_new_session": True}
 
     def attach(self, process: subprocess.Popen) -> None:
+        if os.name == "nt":
+            try:
+                attached = _assign_windows_job(
+                    self._job_handle,
+                    process,
+                )
+                resumed = attached and _resume_windows_process(process)
+            except Exception:
+                resumed = False
+            if not resumed:
+                self.terminate(process)
+                raise MigrationEvidenceError()
+            return
         self._process_group = process.pid
-        if os.name == "nt" and not _assign_windows_job(
-            self._job_handle,
-            process,
-        ):
-            self.terminate(process)
-            raise MigrationEvidenceError()
+
+    def finish(self, process: subprocess.Popen) -> int:
+        """Close a POSIX group while its leader identity is reserved."""
+
+        if os.name != "nt":
+            _wait_posix_parent_without_reap(process)
+            with self._lock:
+                if self._posix_open:
+                    process_group = (
+                        self._process_group
+                        if self._process_group is not None
+                        else process.pid
+                    )
+                    self._process_group = None
+                    self._posix_open = False
+                    _kill_posix_group(process_group)
+        return process.wait()
 
     def terminate(self, process: subprocess.Popen | None) -> None:
+        cleanup_failed = False
         with self._lock:
             if os.name == "nt":
-                _close_windows_job(self._job_handle)
-                self._job_handle = None
-            elif self._process_group is not None:
-                _kill_posix_group(self._process_group)
+                if _close_windows_job(self._job_handle):
+                    self._job_handle = None
+                else:
+                    cleanup_failed = True
+            elif self._posix_open and process is not None:
+                process_group = (
+                    self._process_group
+                    if self._process_group is not None
+                    else process.pid
+                )
                 self._process_group = None
+                self._posix_open = False
+                try:
+                    _kill_posix_group(process_group)
+                except MigrationEvidenceError:
+                    cleanup_failed = True
             _kill_parent_if_running(process)
         _wait_parent(process)
+        if cleanup_failed:
+            raise MigrationEvidenceError()
 
 
 def _create_windows_job() -> int:
@@ -130,20 +173,54 @@ def _assign_windows_job(
     )
 
 
-def _close_windows_job(handle: int | None) -> None:
+def _close_windows_job(handle: int | None) -> bool:
     if handle is None:
-        return
+        return True
+    kernel = _windows_kernel()
     try:
-        _windows_kernel().CloseHandle(handle)
+        if kernel.CloseHandle(handle):
+            return True
     except Exception:
         pass
+    try:
+        kernel.TerminateJobObject(handle, 1)
+    except Exception:
+        pass
+    return False
+
+
+def _resume_windows_process(process: subprocess.Popen) -> bool:
+    process_handle = getattr(process, "_handle", None)
+    if process_handle is None:
+        return False
+    return _windows_ntdll().NtResumeProcess(process_handle) == 0
+
+
+def _wait_posix_parent_without_reap(
+    process: subprocess.Popen,
+) -> None:
+    try:
+        waitid = os.waitid
+        process_id_type = os.P_PID
+        flags = os.WEXITED | os.WNOWAIT
+    except AttributeError:
+        raise MigrationEvidenceError() from None
+    try:
+        waitid(process_id_type, process.pid, flags)
+    except ChildProcessError:
+        if process.returncode is None:
+            raise MigrationEvidenceError() from None
+    except OSError:
+        raise MigrationEvidenceError() from None
 
 
 def _kill_posix_group(process_group: int) -> None:
     try:
         os.killpg(process_group, signal.SIGKILL)
-    except (OSError, ProcessLookupError):
+    except ProcessLookupError:
         pass
+    except OSError:
+        raise MigrationEvidenceError() from None
 
 
 def _kill_parent_if_running(
@@ -185,6 +262,18 @@ def _windows_kernel():
         ctypes.c_void_p,
     )
     kernel.AssignProcessToJobObject.restype = ctypes.c_int
+    kernel.TerminateJobObject.argtypes = (
+        ctypes.c_void_p,
+        ctypes.c_uint32,
+    )
+    kernel.TerminateJobObject.restype = ctypes.c_int
     kernel.CloseHandle.argtypes = (ctypes.c_void_p,)
     kernel.CloseHandle.restype = ctypes.c_int
     return kernel
+
+
+def _windows_ntdll():
+    ntdll = ctypes.WinDLL("ntdll")
+    ntdll.NtResumeProcess.argtypes = (ctypes.c_void_p,)
+    ntdll.NtResumeProcess.restype = ctypes.c_long
+    return ntdll

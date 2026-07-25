@@ -236,7 +236,12 @@ path veto. Source reads retain non-reparse ancestor handles and bind the exact
 leaf descriptor before reading bytes. Git stdout is read only to the fixed
 maximum plus one byte; overflow or timeout terminates the entire POSIX process
 group or Windows kill-on-close Job Object, including descendants that inherit
-stdout. Index bytes come only from exact stage-zero regular blobs; symlink,
+stdout. Windows Git parents are created suspended, assigned to the prepared
+Job Object, and resumed only after assignment succeeds. POSIX completion waits
+for the group leader without reaping it, closes the process group while that
+leader identity remains reserved, and only then reaps the parent. Assignment,
+resume, process-tree identity, or cleanup drift fails closed. Index bytes come
+only from exact stage-zero regular blobs; symlink,
 submodule, unmerged, skip-worktree, assume-unchanged, reparse, hardlink, size,
 or identity drift fails closed. The exact in-memory archive completes
 independent semantic verification before publication. Publication then keeps a

@@ -114,7 +114,10 @@ audit remains owned by later separately approved migration composition.
 local `refs/heads/*`, selected attached worktrees, branch/HEAD/upstream and
 ahead/behind state without contacting a remote. Remote configuration is
 local-only and hashed; Git subprocesses receive a sanitized environment with
-global/system config and fsmonitor disabled.
+global/system config and fsmonitor disabled. Windows subprocesses cannot run
+until their prepared kill-on-close Job Object assignment succeeds; POSIX
+process groups are closed while the unreaped leader still reserves group
+identity.
 
 The package is one external create-only ZIP. Its canonical manifest identity
 binds the exact review fingerprint, independently verified Git bundle, complete
