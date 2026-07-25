@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import os
 import subprocess
+import sys
 import tempfile
+import threading
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -92,10 +95,24 @@ class MigrationEvidenceGitGuardrailTests(unittest.TestCase):
             def wait(self, timeout=None):
                 return self.returncode
 
+        class FakeProcessTree:
+            def popen_options(self):
+                return {}
+
+            def attach(self, _process):
+                return None
+
+            def terminate(self, target):
+                if target is not None and target.poll() is None:
+                    target.kill()
+
         process = OversizedProcess()
         with mock.patch(
             "backend.migration_evidence.git_runner.subprocess.Popen",
             return_value=process,
+        ), mock.patch(
+            "backend.migration_evidence.git_runner.ProcessTree.prepare",
+            return_value=FakeProcessTree(),
         ):
             with self.assertRaises(MigrationEvidenceError):
                 git_output(
@@ -105,6 +122,50 @@ class MigrationEvidenceGitGuardrailTests(unittest.TestCase):
                 )
 
         self.assertTrue(process.killed)
+
+    def test_git_timeout_terminates_descendant_holding_stdout(
+        self,
+    ) -> None:
+        real_popen = subprocess.Popen
+        real_timer = threading.Timer
+        child_code = (
+            "import subprocess,sys,time;"
+            "subprocess.Popen([sys.executable,'-c',"
+            "'import time;time.sleep(5)']);"
+            "time.sleep(5)"
+        )
+
+        def launch_synthetic_parent(_arguments, **kwargs):
+            return real_popen(
+                (sys.executable, "-c", child_code),
+                **kwargs,
+            )
+
+        def short_timer(_interval, function, args=(), kwargs=None):
+            return real_timer(
+                0.2,
+                function,
+                args=args,
+                kwargs=kwargs or {},
+            )
+
+        started = time.monotonic()
+        with mock.patch(
+            "backend.migration_evidence.git_runner.subprocess.Popen",
+            side_effect=launch_synthetic_parent,
+        ), mock.patch(
+            "backend.migration_evidence.git_runner.threading.Timer",
+            side_effect=short_timer,
+        ):
+            with self.assertRaises(MigrationEvidenceError):
+                git_output(
+                    Path.cwd(),
+                    ("status", "--porcelain=v1"),
+                    maximum=32,
+                )
+        elapsed = time.monotonic() - started
+
+        self.assertLess(elapsed, 2.5)
 
     def test_assume_unchanged_and_skip_worktree_are_rejected(
         self,

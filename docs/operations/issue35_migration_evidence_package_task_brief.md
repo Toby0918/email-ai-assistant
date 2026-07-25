@@ -157,7 +157,8 @@ GitHub feature branches不得成为 source。每个 approved worktree 必须来�
 `git worktree list`，保持 branch-attached，且 branch ref/OID/HEAD 与 review plan
 完全一致。Bundle 必须在一个 empty synthetic repository 中通过独立
 `git bundle verify`。Git stdout 只增量读取到 fixed maximum plus one byte；
-overflow or timeout terminates the process and fails closed。
+overflow or timeout terminates the complete POSIX process group or Windows
+kill-on-close Job Object and fails closed。
 
 ### 8.6 Create-only publication
 
@@ -329,7 +330,7 @@ branch/directory，也不得生成真实 package 后再尝试 pathname rollback�
   testing/template documentation
 
 测试结果:
-- focused migration-evidence: 25 passed, 1 skipped because Windows directory
+- focused migration-evidence: 26 passed, 1 skipped because Windows directory
   symlink creation privilege is unavailable
 - architecture/static/mechanical/leakage/status/transport: 120 passed
 - compileall: passed

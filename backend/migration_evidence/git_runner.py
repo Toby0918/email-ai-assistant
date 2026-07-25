@@ -8,6 +8,7 @@ import threading
 from pathlib import Path
 
 from .errors import MigrationEvidenceError
+from .process_tree import ProcessTree
 
 
 _MAX_GIT_OUTPUT = 4 * 1024 * 1024
@@ -47,6 +48,7 @@ def _bounded_git_output(
     process = None
     timer = None
     timed_out = threading.Event()
+    process_tree = ProcessTree.prepare()
     try:
         process = subprocess.Popen(
             _git_command(arguments),
@@ -55,11 +57,13 @@ def _bounded_git_output(
             stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.DEVNULL,
+            **process_tree.popen_options(),
         )
+        process_tree.attach(process)
         timer = threading.Timer(
             30,
             _expire_process,
-            args=(process, timed_out),
+            args=(process_tree, process, timed_out),
         )
         timer.daemon = True
         timer.start()
@@ -67,16 +71,15 @@ def _bounded_git_output(
             raise MigrationEvidenceError()
         payload = process.stdout.read(maximum + 1)
         if len(payload) > maximum:
-            _kill_process(process)
+            process_tree.terminate(process)
             raise MigrationEvidenceError()
         returncode = process.wait()
     finally:
         if timer is not None:
             timer.cancel()
-        if process is not None:
-            _kill_process(process)
-            if process.stdout is not None:
-                process.stdout.close()
+        process_tree.terminate(process)
+        if process is not None and process.stdout is not None:
+            process.stdout.close()
     return payload, returncode, timed_out.is_set()
 
 
@@ -92,24 +95,12 @@ def _git_command(arguments: tuple[str, ...]) -> tuple[str, ...]:
 
 
 def _expire_process(
+    process_tree: ProcessTree,
     process: subprocess.Popen,
     timed_out: threading.Event,
 ) -> None:
-    if process.poll() is None:
-        timed_out.set()
-        _kill_process(process)
-
-
-def _kill_process(process: subprocess.Popen) -> None:
-    if process.poll() is None:
-        try:
-            process.kill()
-        except OSError:
-            pass
-    try:
-        process.wait(timeout=5)
-    except (OSError, subprocess.TimeoutExpired):
-        pass
+    timed_out.set()
+    process_tree.terminate(process)
 
 
 def _git_environment() -> dict[str, str]:
