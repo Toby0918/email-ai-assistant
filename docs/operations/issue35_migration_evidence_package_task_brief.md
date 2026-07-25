@@ -23,7 +23,7 @@ security
 ## 3. 当前状态
 
 ```text
-implementation_complete_review_pending
+implemented
 ```
 
 ## 4. 任务目标
@@ -341,8 +341,15 @@ branch/directory，也不得生成真实 package 后再尝试 pathname rollback�
 - maintenance scan: no findings
 - git diff --check: passed
 
+评审结果:
+- Standards: no P1/P2 findings
+- Standards non-blocking P3: after a first Windows CloseHandle failure, a
+  bounded second close attempt could avoid retaining the raw Job handle until
+  process exit; current behavior fails closed and does not discard the handle
+  identity
+- Spec: no findings
+
 未完成事项:
-- Standards/Spec dual-axis re-review and publication workflow are pending
 - real package review and separate confirmation remain intentionally pending
 
 后续建议:
