@@ -261,10 +261,17 @@ requires an explicit synthetic or temporary state root. Issue #31 routes the
 existing local-service lifecycle through that temporary layout with disabled
 providers. Issue #32 adds the validated provider-disabled Managed launcher while
 the transition adapter continues to preserve current `.venv`, `outputs`, and
-`.worktrees` paths for the ordinary flat launcher.
+`.worktrees` paths for the ordinary flat launcher. Issue #33 makes the complete
+Project Container an internally derived protected root for private stores.
 
-These checkpoints do not perform the real Project Container migration, access
-mailbox/vault/credential/private-store state, or start Issues #34 through #40.
+Issue #34 adds a separate pure `backend/container_audit/` contract. A manual
+caller must inject an independent trusted policy plus seven read-only,
+content-free metadata adapters; there is no CLI, default host adapter, runtime
+consumer, or real audit in this checkpoint. The function validates two stable
+snapshots and returns only fixed pass/fail status and accepted/rejected counts.
+These checkpoints do not perform the real Project Container migration or access
+mailbox/vault/credential/private-store state. Issues #35 through #40 remain
+separately authorized.
 
 ## 后台清理扫描
 

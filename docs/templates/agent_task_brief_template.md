@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-23
+last_update: 2026-07-25
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -288,7 +288,8 @@ current-click evidence seam.
 ## 21. Repository placement and operational layout checklist
 
 Complete this section whenever a task changes Repository Root, Project
-Container, ordinary operational locations, or the flat-layout transition seam.
+Container, ordinary operational locations, the flat-layout transition seam, or
+the manual ContainerAudit contract.
 
 ```text
 [ ] `RepositoryPlacement` has exactly Managed and explicit Standalone modes; no implicit third placement mode is added.
@@ -306,6 +307,9 @@ Container, ordinary operational locations, or the flat-layout transition seam.
 [ ] The flat-layout adapter is temporary compatibility only and creates no directory or migration side effect.
 [ ] The seam imports no mailbox, provider, vault, credential, private-store, persistence, frontend, or normal-runtime capability.
 [ ] Git, source inspection, status generation, maintenance, and leakage scanning continue to use `main` as Repository Root.
+[ ] `ContainerAudit` remains manual, content-free, fail-closed, and separately injected; it has no default/real host adapter, CLI, scheduler, repair, or normal-runtime consumer.
+[ ] ContainerAudit public results contain only fixed status and aggregate counts; evidence contains no path, account, SID, reader, secret, content, or native exception.
+[ ] Cleanup, leakage scanning, browser/frontend, root wrappers, and workflows cannot import or invoke ContainerAudit.
 [ ] Tests are synthetic/offline and perform no real migration or Managed Container creation.
 ```
 

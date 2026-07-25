@@ -175,13 +175,30 @@ Project Container migration, runtime rebuild, data copy, worktree relocation,
 container audit, mailbox/provider/private-store access, or Issue #34 through #40
 work.
 
+Issue #34 adds the pure `backend.container_audit` manual contract. Its only
+entrypoint is the keyword-only
+`run_container_audit(policy=..., adapters=...)` function with one independent
+trusted content-free policy and exactly seven injected filesystem, ACL, volume,
+Git, worktree, runtime, and SQLite metadata adapters. It fixes the nine-entry
+allowlist, non-secret Config keys, runtime versions, SQLite name/state, bounded
+Logs/Artifacts roles, disabled `OperatorPrivate`, not-provisioned raw
+vault/recovery, two stable reads, and fixed pass/fail counts in code.
+
+The package has no path, host probe, filesystem reader, ACL client, Git command,
+SQLite client, default adapter, CLI, launcher, scheduler, repair, logging, or
+private-content capability. Normal runtime, cleanup, leakage scanning, browser,
+root wrappers, and workflows must not import or invoke it. Automated tests use
+only frozen repr-redacted synthetic evidence; Issue #34 performs no real
+Container audit or host-security probe. Future real composition and all
+migration work remain separately authorized.
+
 The pure project-layout seam performs no directory creation, move, deletion,
 migration, mailbox or
 provider operation, secret read, vault/private-store access, ACL change, or host
 security change. Managed placement requires the exact canonical
 `email_ai_assistant\main` relationship. Standalone Verification Mode requires an
 explicit synthetic or temporary state root. The flat-layout adapter is temporary
-compatibility only and is not a third final placement mode. Issues #34 through
+compatibility only and is not a third final placement mode. Issues #35 through
 #40 remain separately authorized work.
 
 ## 技术栈基线

@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-23
+last_update: 2026-07-25
 status: draft
 owner: "@tobyWang"
 review_cycle: quarterly
@@ -11,11 +11,11 @@ source_type: decision_record
 ## Status
 
 Accepted as a design on 2026-07-23. The Issue #30 compatibility seam, Issue #31
-Standalone Verification route, Issue #32 Managed launcher, and Issue #33
-protected private-store policy are implemented, but no Project Container
-directory migration or operational cutover has occurred. While this ADR remains
-draft, the current flat paths and the active security contracts in ADR 0006
-through ADR 0008 remain authoritative.
+Standalone Verification route, Issue #32 Managed launcher, Issue #33 protected
+private-store policy, and Issue #34 pure manual audit contract are implemented,
+but no real audit, Project Container directory migration, or operational
+cutover has occurred. While this ADR remains draft, the current flat paths and
+the active security contracts in ADR 0006 through ADR 0008 remain authoritative.
 
 ### Issue #30 compatibility seam
 
@@ -81,6 +81,29 @@ loopback server. This checkpoint does not create the real container, rebuild or
 move a runtime, copy a database/artifact, relocate a worktree, perform an audit
 or ACL change, read credentials, contact a mailbox/provider/private store, or
 start Issues #34–#40.
+
+### Issue #34 manual content-free audit
+
+`backend.container_audit` now provides one keyword-only
+`run_container_audit(policy=..., adapters=...)` function. The policy carries
+only independent opaque expected identities/fingerprints, the approved
+worktree roster, clean-state requirement, and SQLite phase. Code fixes all
+names, versions, bounds, roles, relationship rules, public statuses, and counts.
+Seven injected callbacks provide strict frozen repr-redacted filesystem, ACL,
+volume, Git, worktree, runtime, and SQLite metadata; there is no path or reader
+capability in the contract.
+
+The audit validates two complete equal snapshots and fails closed on malformed,
+unknown, incomplete, unreadable, aliased, reparse-bearing, mismatched, or
+drifting evidence. Adapter and validator exceptions are neither logged nor
+formatted. Public results contain only `container_audit_passed` or
+`container_audit_failed` plus one accepted/rejected aggregate result.
+
+This checkpoint adds no CLI, default or real adapter, composition root, runtime
+consumer, cleanup/leakage integration, browser route, workflow, scheduler,
+repair, mutation, mailbox/provider/vault/private-store access, or host probe.
+Automated verification is wholly synthetic. A real preflight or post-cutover
+audit remains owned by later separately approved migration composition.
 
 ## Context
 

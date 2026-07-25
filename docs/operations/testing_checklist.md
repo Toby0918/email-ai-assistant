@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-23
+last_update: 2026-07-25
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -92,6 +92,33 @@ source_type: operation_guide
   frontend/CLI weakening seams.
 - Package guards reject mutating or external-capability imports/calls. Automated
   tests remain synthetic/offline and create no real Managed Container data.
+
+## Manual content-free ContainerAudit
+
+- Run `python -B -m unittest discover -s tests -p "test_container_audit*.py"`
+  with the pinned project interpreter. All fixtures must use opaque synthetic
+  identities and callbacks; never probe the real Container, ACL, volume, Git,
+  worktree, runtime, SQLite database, credentials, or private stores.
+- Verify the exact nine direct top-level directories and reject missing,
+  unexpected, wrong-case, non-directory, alias, unreadable, non-canonical,
+  reparse, incomplete, or drifting evidence.
+- Verify independent container and disabled-`OperatorPrivate` ACL fingerprints,
+  fixed NTFS volume identity and exact audited-object bindings, one `main`
+  Repository Root/common directory, and the exact approved worktree roster.
+- Verify the pinned Python/SQLite runtime objects and versions, exact
+  `Config/settings.env` key-only inventory, bounded role-only Logs metadata,
+  bounded Artifacts metadata, and both expected-absent and stopped-present
+  `LocalData/email_agent.sqlite3` states.
+- Assert Config values, file content, SQLite rows, Git/worktree content,
+  OperatorPrivate content, raw vault, recovery, paths, accounts, SIDs, readers,
+  clients, and native exceptions cannot enter evidence or output.
+- Every adapter exception, malformed value, first-pass failure, cross-adapter
+  mismatch, and second-pass drift must return the same fixed failure status and
+  `accepted=0, rejected=1`; success is only the complete stable two-pass result.
+- Run the two architecture guards that pin the package capability allowlist and
+  reject all normal-runtime, cleanup, leakage, browser/frontend, root-wrapper,
+  and workflow consumers. Do not add a CLI, default/real adapter, scheduler,
+  maintenance integration, or host composition under Issue #34.
 
 ## Option C 多模态离线门
 
