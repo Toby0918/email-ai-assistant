@@ -31,6 +31,7 @@ ALLOWED_CODES = frozenset(
         "LEAK_VAULT_MATERIAL",
         "LEAK_REAL_DERIVED_PROSE",
         "LEAK_FORBIDDEN_PRIVATE_DATASET",
+        "LEAK_FORBIDDEN_MIGRATION_PACKAGE",
         "LEAK_SCOPE_ESCAPE",
         "LEAK_SCAN_UNREADABLE",
     }
@@ -50,6 +51,7 @@ _ATTACHMENT_MARKER = "X-Private-" + "Attachment-Name:"
 _DERIVED_MARKER = "[[" + "PRIVATE-DERIVED" + "]]"
 _BINARY_MAGICS = (b"PKVAULT01", b"PKAUTH01", b"PKIMPORT01", b"PKSNAP01")
 _PRIVATE_DATASET_SUFFIX = ".pkeval"
+_MIGRATION_PACKAGE_SUFFIX = ".migration-evidence.zip"
 _SYNTHETIC_DOMAINS = frozenset(
     {
         "example.com",
@@ -213,6 +215,9 @@ def _scan_one(root: Path, item: ScopedFile) -> Counter[str]:
         return counts
     if item.relative_path.lower().endswith(_PRIVATE_DATASET_SUFFIX):
         counts["LEAK_FORBIDDEN_PRIVATE_DATASET"] += 1
+        return counts
+    if item.relative_path.lower().endswith(_MIGRATION_PACKAGE_SUFFIX):
+        counts["LEAK_FORBIDDEN_MIGRATION_PACKAGE"] += 1
         return counts
     path = _safe_candidate(root, item.relative_path)
     if path is None:

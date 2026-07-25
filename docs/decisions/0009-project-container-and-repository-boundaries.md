@@ -13,8 +13,9 @@ source_type: decision_record
 Accepted as a design on 2026-07-23. The Issue #30 compatibility seam, Issue #31
 Standalone Verification route, Issue #32 Managed launcher, Issue #33 protected
 private-store policy, and Issue #34 pure manual audit contract are implemented,
-but no real audit, Project Container directory migration, or operational
-cutover has occurred. While this ADR remains draft, the current flat paths and
+and Issue #35 offline migration-evidence package implementation is complete.
+No real evidence package, audit, Project Container directory migration, or
+operational cutover has occurred. While this ADR remains draft, the current flat paths and
 the active security contracts in ADR 0006 through ADR 0008 remain authoritative.
 
 ### Issue #30 compatibility seam
@@ -104,6 +105,40 @@ consumer, cleanup/leakage integration, browser route, workflow, scheduler,
 repair, mutation, mailbox/provider/vault/private-store access, or host probe.
 Automated verification is wholly synthetic. A real preflight or post-cutover
 audit remains owned by later separately approved migration composition.
+
+### Issue #35 no-clobber migration evidence package
+
+`backend.migration_evidence` provides three explicit manual Python seams:
+`prepare_migration_evidence_review`, `create_migration_evidence_package`, and
+`verify_migration_evidence_package`. Preparation discovers current Git status,
+local `refs/heads/*`, selected attached worktrees, branch/HEAD/upstream and
+ahead/behind state without contacting a remote. Remote configuration is
+local-only and hashed; Git subprocesses receive a sanitized environment with
+global/system config and fsmonitor disabled.
+
+The package is one external create-only ZIP. Its canonical manifest identity
+binds the exact review fingerprint, independently verified Git bundle, complete
+content-free selection and Git/ACL/volume evidence, snapshot index, and every
+payload SHA-256. Approved dirty tracked files preserve separate index and
+worktree bytes; staged/unstaged deletion is explicit and rename recovery does
+not rely on rename heuristics. Only exact approved source/tests/docs may be
+opened. Credentials, signing material, SQLite and sidecars, logs/PID,
+environments, IDE/cache/private data, and outputs are mechanically vetoed.
+
+Existing targets, repository-internal targets, reparse ancestors, unsupported
+Git/index types, hidden index flags, source drift, publication races, partial
+writes, or semantic verification drift fail closed. Create and verify receipts
+contain fixed status and aggregate counts only. The module has no CLI, default
+target, runtime/browser/workflow consumer, network/mailbox/provider/vault/
+private-store capability, service lifecycle action, repository relocation, ACL
+mutation, or cleanup behavior.
+
+Issue #35 tests use only temporary synthetic repositories and destinations and
+prove independent refs/objects, dirty index/worktree state, and linked-worktree
+branch/HEAD recovery. No real checkout package was created. A future real
+capture must first expose the exact external target, content-free
+inclusion/exclusion manifest, reviewed refs, and worktree selection, then stop
+for fresh operator confirmation. Issues #36 through #40 remain separate.
 
 ## Context
 

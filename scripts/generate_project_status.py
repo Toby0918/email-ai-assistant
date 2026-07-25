@@ -34,6 +34,10 @@ KEY_FILES = [
     "backend/current_evidence/artifact_policy.py",
     "backend/current_evidence/contract.py",
     "backend/current_evidence/handoff.py",
+    "backend/migration_evidence/__init__.py",
+    "backend/migration_evidence/package.py",
+    "backend/migration_evidence/review.py",
+    "backend/migration_evidence/verification.py",
     "backend/mailbox" + "_ingest/governed_scan.py",
     "backend/mailbox" + "_ingest/sales_corpus_index.py",
     "backend/mailbox" + "_ingest/sales_message_policy.py",
@@ -114,6 +118,7 @@ KEY_FILES = [
     "docs/operations/multimodal_current_email_analysis_task_brief.md",
     "docs/operations/current_email_grounding_and_attachment_repair_task_brief.md",
     "docs/operations/issue32_managed_container_mode_task_brief.md",
+    "docs/operations/issue35_migration_evidence_package_task_brief.md",
     "docs/operations/project_status_log.md",
     "docs/operations/project_status_log_guide.md",
     "docs/operations/agents_project_status_snippet.md",
@@ -151,6 +156,9 @@ KEY_FILES = [
     "tests/test_run_local_debug.py",
     "tests/test_manage_local_service.py",
     "tests/test_managed_container_mode.py",
+    "tests/test_migration_evidence_no_clobber.py",
+    "tests/test_migration_evidence_restore.py",
+    "tests/test_migration_evidence_verification.py",
     "tests/support.py",
     "tests/test_architecture_constraints.py",
     "tests/test_current_evidence_handoff.py",
@@ -218,6 +226,10 @@ GUARDRAILS = [
         "Governed sales corpus bootstrap",
         "docs/operations/issue11_governed_sales_corpus_task_brief.md",
     ),
+    (
+        "No-clobber migration evidence package",
+        "docs/operations/issue35_migration_evidence_package_task_brief.md",
+    ),
 ]
 
 AUTHORIZED_PRIVATE_INGEST_FILES = {
@@ -260,6 +272,7 @@ HARD_BOUNDARIES = [
     "不把 OpenAI API key 放入前端。",
     "不新增依赖，除非先更新约束文档并获得确认。",
     "不放宽任何测试、linter 或架构约束。",
+    "真实 migration evidence package 必须先展示 exact target、content-free inclusion/exclusion manifest、reviewed local refs 和 worktree selection，并在单独确认前停止。",
 ]
 
 
@@ -477,7 +490,9 @@ Prior Task 9 synthetic and current-clicked smokes remain valid acquisition, rout
 
 Issue #32 Managed launcher is implemented for the exact `email_ai_assistant\\main` placement. It routes provider-disabled SQLite, attachment temp, logs, PID, runtime, artifact, worktree, and bounded non-secret Config paths to their approved zones while source and repository tooling remain at `main`. Synthetic loopback lifecycle verification passes, but no real Project Container migration or operational cutover has occurred.
 
-Issue #34 manual content-free Container Audit is offline implemented behind seven injected read-only metadata adapters. Its exact nine-entry, ACL, volume, Git/worktree, runtime, SQLite, Config, Logs/Artifacts, and disabled-private-state contract fails closed and exposes only fixed status/counts. No real Container audit or host-security probe was run, and Issues #35 through #40 remain separate.
+Issue #34 manual content-free Container Audit is offline implemented behind seven injected read-only metadata adapters. Its exact nine-entry, ACL, volume, Git/worktree, runtime, SQLite, Config, Logs/Artifacts, and disabled-private-state contract fails closed and exposes only fixed status/counts. No real Container audit or host-security probe was run.
+
+Issue #35 no-clobber migration evidence package is offline implemented as a manual internal Python contract. It binds exact reviewed local refs, branch-attached worktree identities, an allowlisted two-layer dirty-source snapshot, content-free Git/ACL/volume baselines, and every payload file with canonical SHA-256 evidence. Publication is external-target, create-only and fail-closed; verification restores Git objects, refs, dirty state and worktree identity in synthetic repositories. No real evidence package or migration action was performed, and Issues #36 through #40 remain separate.
 
 The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器扩展, with current-message collection only after an explicit user click.
 

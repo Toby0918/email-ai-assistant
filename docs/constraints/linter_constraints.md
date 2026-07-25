@@ -430,6 +430,33 @@ bounded Config/Logs/Artifacts metadata; disabled private zones; adapter
 exceptions; fixed status/count output; and first-failure short circuit. No test
 runs a real Container audit or host-security probe.
 
+### No-clobber migration evidence mechanical guards
+
+`backend/migration_evidence/` has an exact module-file and import-root allowlist.
+AST checks reject imports from normal runtime, mailbox/provider, SQLite,
+private knowledge/evaluation, vault/private stores, frontend, cleanup,
+scheduler, or network clients. Only the internal Git runner may access
+`os.environ`, and it must construct a minimal sanitized child environment with
+global/system config, fsmonitor, terminal prompting, and optional locks
+disabled. Literal Git mutation/network verbs are forbidden.
+
+A recursive consumer guard rejects migration-evidence imports or invocations
+from every other backend module, scripts, frontend/browser files, and workflows.
+The only repository-tooling integration is the leakage scanner's fixed
+`.migration-evidence.zip` suffix check; it classifies by name before file reads
+and never imports or verifies the package. `.gitignore` reserves the same
+suffix, and static linter tests fail if such an artifact appears inside the
+repository.
+
+Behavior guards require exact local `refs/heads/*`, root worktree selection,
+regular stage-zero index entries, separate index/worktree bytes, full
+selection/snapshot cross-validation, strict canonical JSON, per-file SHA-256,
+semantic Git/host/selection consistency, and independent bundle verification.
+They reject ignored or explicitly approved forbidden categories before content
+reads, special index flags, unsupported Git states, target/source reparse,
+source drift, existing targets, partial writes, and commit races. Tests use only
+`TemporaryDirectory` synthetic repositories and destinations.
+
 ### Private evaluation mechanical guards
 
 Executable checks must enforce that `backend/private_evaluation/` cannot import

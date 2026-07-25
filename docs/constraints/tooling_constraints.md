@@ -213,6 +213,40 @@ not reference the package. All automated evidence is synthetic and offline;
 running a real Project Container or host-security audit requires a later,
 separately approved composition Issue.
 
+### No-clobber migration evidence tooling boundary
+
+Issue #35 adds only standard-library `backend.migration_evidence`; it adds no
+dependency, CLI, scheduled task, default target, or real host adapter. Git is
+invoked only as bounded local subprocesses with `shell=False`, a sanitized
+environment, global/system config disabled, fsmonitor disabled, optional locks
+disabled, no terminal prompt, fixed time/output bounds, and no network or
+repository-mutation verbs. Reviewed evidence sources are local
+`refs/heads/*`; remote-tracking/deleted GitHub branches are never bundle inputs.
+
+Preparation requires an explicit absolute repository root, absent external
+`.migration-evidence.zip` target, exact approved dirty paths, reviewed refs,
+approved attached worktrees including the source root, and injected
+content-free ACL/volume fingerprints. Create requires the exact review
+fingerprint from a prior separate review. Verify accepts only an explicit
+absolute package path. No ambient repository, target, worktree, host baseline,
+credential, private-store path, or environment value is a default.
+
+Snapshot file reads are bounded descriptor/identity reads after the mechanical
+path veto. Index bytes come only from exact stage-zero regular blobs; symlink,
+submodule, unmerged, skip-worktree, assume-unchanged, reparse, hardlink, size,
+or identity drift fails closed. Publication keeps a validated stage descriptor
+open, uses one same-volume atomic no-clobber link, verifies the final package,
+and never overwrites an existing target. Package output is ignored by Git and
+the leakage scanner rejects its reserved suffix without opening it.
+
+Automated tests may call these seams only with temporary synthetic Git
+repositories and temporary external destinations. They must never use the real
+Repository Root as a create source, choose a real destination, stop a service,
+move a repository/worktree, mutate ACLs, or access mailbox/provider/vault/
+private-store/credential data. A real preparation may produce the exact
+content-free review value only; create must stop until separate operator
+confirmation.
+
 本地邮件分析 HTTP 服务沿用 Python 标准库 `ThreadingHTTPServer`，不得为 Host/Content-Type 门禁新增 HTTP 框架。服务 bind 只支持 `localhost` 或字面 IPv4 `127.0.0.0/8`；分析 POST 必须在读 body 前校验单一 loopback Host 和单一 JSON media type。
 
 ## 4. 依赖管理规则

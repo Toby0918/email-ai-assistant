@@ -65,3 +65,11 @@ and SQLite metadata. It returns only a fixed overall status and aggregate
 counts; it is separate from repository leakage and maintenance scanning and
 does not repair or probe a host by itself.
 _Avoid_: Repository scan, cleanup scan, migration repair
+
+**Migration Evidence Package**:
+A single create-only external archive that binds reviewed local Git refs and
+objects, approved dirty index/worktree source layers, selected worktree
+identity, and content-free host baselines with one canonical SHA-256 manifest.
+It is prepared and verified offline before cutover; it is not a repository
+backup, runtime artifact, private-data container, or authorization to migrate.
+_Avoid_: Build artifact, cleanup archive, live cutover package

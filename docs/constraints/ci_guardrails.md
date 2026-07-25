@@ -39,6 +39,7 @@ tests/test_static_linter_constraints.py
 tests/test_mechanical_rule_constraints.py
 tests/test_maintenance_scan.py
 tests/test_generate_project_status.py
+tests/test_migration_evidence_*.py
 python -m unittest discover -s tests
 python scripts/maintenance_scan.py
 ```
@@ -61,6 +62,8 @@ docs/ 下 Markdown 缺少 YAML front matter
 后台清理 Agent 无法生成报告
 项目状态日志生成器无法生成 Agent 可读快照
 维护扫描脚本发现高风险项目卫生问题
+migration evidence package 出现在 Repository Root、覆盖目标、缺失必备 evidence、
+或无法在 synthetic temporary repository 中独立恢复
 ```
 
 ## 5. 失败处理原则

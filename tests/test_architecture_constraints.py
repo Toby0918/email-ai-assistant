@@ -159,6 +159,62 @@ _CONTAINER_AUDIT_FORBIDDEN_LOAD_NAMES = {
     "setattr",
     "vars",
 }
+
+_MIGRATION_EVIDENCE_FILES = {
+    "__init__.py",
+    "checked_io.py",
+    "contract.py",
+    "errors.py",
+    "git_discovery.py",
+    "git_remote.py",
+    "git_runner.py",
+    "manifest.py",
+    "package.py",
+    "path_checks.py",
+    "policy.py",
+    "publication.py",
+    "review.py",
+    "snapshot.py",
+    "verification.py",
+    "verification_schema.py",
+    "verification_snapshot.py",
+    "verification_values.py",
+}
+_MIGRATION_EVIDENCE_ALLOWED_IMPORT_ROOTS = {
+    "__future__",
+    "dataclasses",
+    "enum",
+    "hashlib",
+    "io",
+    "json",
+    "os",
+    "pathlib",
+    "stat",
+    "subprocess",
+    "tempfile",
+    "typing",
+    "urllib",
+    "uuid",
+    "zipfile",
+}
+_MIGRATION_EVIDENCE_FORBIDDEN_GIT_VERBS = {
+    "add",
+    "checkout",
+    "clean",
+    "commit",
+    "fetch",
+    "merge",
+    "move",
+    "prune",
+    "pull",
+    "push",
+    "rebase",
+    "remove",
+    "repair",
+    "reset",
+    "restore",
+    "stash",
+}
 _CONTAINER_AUDIT_FORBIDDEN_ATTRIBUTES = (
     _CONTAINER_AUDIT_FORBIDDEN_CALLS
     | {
@@ -1711,6 +1767,106 @@ class ArchitectureConstraintTests(unittest.TestCase):
                 )
             with self.subTest(path=path.name, boundary="references"):
                 self.assertFalse(references, sorted(references))
+
+    def test_migration_evidence_is_offline_local_only_and_fixed_scope(
+        self,
+    ) -> None:
+        package = ROOT / "backend" / "migration_evidence"
+        paths = tuple(sorted(package.glob("*.py")))
+        self.assertEqual(
+            {path.name for path in paths},
+            _MIGRATION_EVIDENCE_FILES,
+        )
+        for path in paths:
+            imports = parse_import_modules(path)
+            disallowed = {
+                module
+                for module in imports
+                if not module.startswith("backend.migration_evidence")
+                and module.split(".", 1)[0]
+                not in _MIGRATION_EVIDENCE_ALLOWED_IMPORT_ROOTS
+            }
+            tree = ast.parse(read_text(path))
+            string_values = {
+                node.value.casefold()
+                for node in ast.walk(tree)
+                if isinstance(node, ast.Constant)
+                and isinstance(node.value, str)
+            }
+            with self.subTest(path=path.name, boundary="imports"):
+                self.assertFalse(disallowed, sorted(disallowed))
+            with self.subTest(path=path.name, boundary="git-verbs"):
+                self.assertTrue(
+                    string_values.isdisjoint(
+                        _MIGRATION_EVIDENCE_FORBIDDEN_GIT_VERBS
+                    )
+                )
+            with self.subTest(path=path.name, boundary="shell"):
+                self.assertNotIn("shell=True", read_text(path))
+
+    def test_migration_evidence_has_no_runtime_or_workflow_consumer(
+        self,
+    ) -> None:
+        package = (ROOT / "backend" / "migration_evidence").resolve()
+        candidates = [
+            path
+            for path in (ROOT / "backend").rglob("*.py")
+            if not path.resolve().is_relative_to(package)
+        ]
+        candidates.extend((ROOT / "scripts").rglob("*.py"))
+        candidates.extend(
+            path
+            for path in (ROOT / "frontend").rglob("*")
+            if path.is_file() and is_text_file(path)
+        )
+        workflows = ROOT / ".github" / "workflows"
+        if workflows.exists():
+            candidates.extend(
+                path
+                for path in workflows.rglob("*")
+                if path.is_file() and is_text_file(path)
+            )
+        text_reference = re.compile(
+            r"\b(?:backend[./])?migration[_-]?evidence\b"
+            r"|\b(?:prepare|create|verify)_migration_evidence",
+            re.IGNORECASE,
+        )
+        public_calls = {
+            "prepare_migration_evidence_review",
+            "create_migration_evidence_package",
+            "verify_migration_evidence_package",
+        }
+        for path in candidates:
+            with self.subTest(path=path.relative_to(ROOT)):
+                if path.suffix == ".py":
+                    imports = parse_import_modules(path)
+                    migration_imports = {
+                        module
+                        for module in imports
+                        if module == "backend.migration_evidence"
+                        or module.startswith("backend.migration_evidence.")
+                    }
+                    tree = ast.parse(read_text(path))
+                    if any(
+                        isinstance(node, ast.ImportFrom)
+                        and node.module == "backend"
+                        and any(
+                            alias.name == "migration_evidence"
+                            for alias in node.names
+                        )
+                        for node in ast.walk(tree)
+                    ):
+                        migration_imports.add("backend.migration_evidence")
+                    called_seams = parse_called_names(path) & public_calls
+                    self.assertFalse(
+                        migration_imports | called_seams,
+                        f"{path} must not consume migration evidence",
+                    )
+                else:
+                    self.assertIsNone(
+                        text_reference.search(read_text(path)),
+                        f"{path} must not consume migration evidence",
+                    )
 
     def test_container_audit_guard_rejects_nested_dynamic_capability(
         self,

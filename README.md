@@ -270,7 +270,24 @@ content-free metadata adapters; there is no CLI, default host adapter, runtime
 consumer, or real audit in this checkpoint. The function validates two stable
 snapshots and returns only fixed pass/fail status and accepted/rejected counts.
 These checkpoints do not perform the real Project Container migration or access
-mailbox/vault/credential/private-store state. Issues #35 through #40 remain
+mailbox/vault/credential/private-store state. Issue #35 is the next bounded
+offline checkpoint described below.
+
+Issue #35 adds `backend/migration_evidence/` as an offline manual Python
+interface with no CLI or default target. It discovers exact local branch refs
+and approved worktrees, creates an independently verified Git bundle, preserves
+approved dirty index/worktree source layers, and binds Git/selection/host
+evidence plus every payload with a canonical SHA-256 manifest. Forbidden
+credentials, signing material, SQLite, logs/PID, environments, IDE/cache/private
+data, and outputs are mechanically excluded before file reads. Publication is
+external, single-file, create-only, and reparse/race/drift fail-closed; public
+results contain fixed status/counts only.
+
+All Issue #35 automated verification uses temporary synthetic repositories and
+destinations. This implementation did not create a package from the real
+checkout. A real capture requires a separately reviewed exact target,
+content-free inclusion/exclusion manifest, local-ref and worktree selection,
+followed by fresh operator confirmation. Issues #36 through #40 remain
 separately authorized.
 
 ## 后台清理扫描
