@@ -306,11 +306,45 @@ or free-form messages. A receipt is evidence only and is never authorization.
 
 `default_operator_entry()` accepts no path, adapter, callback, command or
 authorization and always returns `BLOCKED_NO_APPROVED_COMMAND` with one blocked
-count and zero executed count. The package has no real/default host adapter,
-composition root or production consumer and performs no preflight, evidence
-publication, ACL/repository/worktree/Runtime/database/artifact/Config action,
-activation, rollback or incident recovery. Issues #52 through #59 remain
-unstarted; Issues #38 and #39 are unchanged.
+count and zero executed count. The sole approved contract consumer is the exact
+`backend.cutover_journal.contracts_bridge`; normal runtime, scripts, frontend and
+operator entry points remain non-consumers.
+
+Issue #52 adds only the pathless `backend.cutover_journal` synthetic proof. Its
+canonical create-only hash chain requires durable `INTENT` before a synthetic
+effect, then exact observed effect and `COMMITTED`; reverse actions use the same
+triad, owner, pre-bound `RecoveryAuthorizationV1`, and journal-derived LIFO
+steps. Each ownership claim has a distinct synthetic lease, and each effect
+must consume a non-copyable/non-serializable store permit backed by one shared
+single-use issuance for the exact current lease, fully durable active `INTENT`,
+durable journal head, and hash-bound stable reread. Consumption uses one
+store-private atomic token claim, while one synthetic medium operation gate
+serializes append、restart、permit mint/claim and effect mutation. Any
+namespace-published current head must finish stable reread and full snapshot
+reverification before a successor append or permit. Any head advance, pending
+record, or durable observed fact invalidates that issuance. Windows
+and Linux are represented only by exact in-memory file/namespace barrier
+traces; this is not evidence of real NTFS or filesystem durability.
+
+Restart inspection accepts immutable synthetic snapshots only and performs no
+write, owner claim, resume, rollback, service start or host change. Explicit
+resume revalidates an unexpired phase-`resume` authorization and distinguishes
+exact pre-action from exact expected-post so the latter is never blindly
+repeated. A durable observed fact is authoritative, fresh resume authority may
+append a new `RESUME_BOUND`, and pending direction is verified before any
+publication completion. Explicit actions recheck exact Profile/master/operator,
+identity mapping, and the journal-bound synthetic transition before effect and
+commit. Explicit rollback revalidates the exact pre-bound recovery
+authorization, reconciles an exact partial fact, and derives reverse steps only
+from `COMMITTED/APPLIED` history. Public results contain only fixed status,
+phase, receipt fingerprint and allowlisted counts. `SAFE_ABORT`,
+`ROLLBACK_REQUIRED`, `INCIDENT_STOP`, and `CUTOVER_SUCCEEDED` remain distinct.
+
+The package accepts no path, callback, duck-typed adapter, CLI, HTTP route,
+filesystem, service, ACL, Git/worktree, Runtime, SQLite, provider, mailbox,
+vault, private data or production consumer. No real preflight, migration,
+cutover, resume or rollback was run. Issues #53 through #59 remain unstarted;
+Issues #38 and #39 and parent Spec #50 are unchanged.
 
 The pure project-layout seam performs no directory creation, move, deletion,
 migration, mailbox or

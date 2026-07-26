@@ -363,8 +363,7 @@ class GenerateProjectStatusTests(unittest.TestCase):
             "cannot create, issue, or mint",
             "strict canonical `ReceiptEnvelopeV1`",
             "`BLOCKED_NO_APPROVED_COMMAND`",
-            "No real host adapter, preflight, migration, or cutover was invoked",
-            "Issues #52 through #59 remain separate",
+            "sole approved consumer is the exact Issue #52 contracts bridge",
             "`backend/cutover_contracts/profile.py`",
             "`backend/cutover_contracts/authorization.py`",
             "`backend/cutover_contracts/receipt.py`",
@@ -372,6 +371,39 @@ class GenerateProjectStatusTests(unittest.TestCase):
             "`docs/security/project_container_cutover_contracts.md`",
             "`docs/operations/issue51_cutover_profile_authorization_receipt_task_brief.md`",
             "`tests/test_cutover_contract_architecture.py`",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, report)
+
+    def test_cutover_journal_is_reported_as_synthetic_and_closed(self) -> None:
+        module = load_script_module(
+            SCRIPT,
+            "generate_project_status_cutover_journal",
+        )
+        report = module.build_project_status()
+
+        for marker in (
+            "Issue #52 crash-safe journal and recovery classification are offline implemented",
+            "pathless synthetic-only",
+            "durable `INTENT`",
+            "single-use store permit",
+            "Pending or unbarriered records never authorize",
+            "verified pending direction",
+            "durable observed facts are authoritative",
+            "Profile/master/operator",
+            "derived LIFO",
+            "Restart inspection is read-only",
+            "expected-post is never blindly repeated",
+            "`SAFE_ABORT`",
+            "`ROLLBACK_REQUIRED`",
+            "`INCIDENT_STOP`",
+            "`CUTOVER_SUCCEEDED`",
+            "No real filesystem target",
+            "Issues #53 through #59 remain separate",
+            "`backend/cutover_journal/journal_store.py`",
+            "`backend/cutover_journal/recovery_classifier.py`",
+            "`docs/operations/issue52_crash_safe_journal_recovery_task_brief.md`",
+            "`tests/test_cutover_journal_crash_matrix.py`",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, report)

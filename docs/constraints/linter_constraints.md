@@ -548,7 +548,9 @@ direct, `from backend import ...`, and relative forms all reject
 `cutover_contracts`; direct, attribute, imported, rebound, or chained aliases
 of `__import__` and `importlib.import_module` are rejected at the call seam even
 when their module target is dynamically bound. JavaScript retains fixed-token
-rejection. The package has no current runtime, operator, script, or frontend
+rejection. The only allowlisted consumer is
+`backend/cutover_journal/contracts_bridge.py`, and its imported symbol set is
+exact. The package has no current runtime, operator, script, or frontend
 consumer.
 `default_operator_entry()` is mechanically pinned to zero arguments and the
 fixed `BLOCKED_NO_APPROVED_COMMAND`, `blocked=1`, `executed=0` result.
@@ -561,6 +563,37 @@ receipt-not-authorization behavior. All fixtures are synthetic and
 content-free; no test may call a real host adapter or inspect Runtime, SQLite,
 ACL, repository, worktree, mailbox, provider, vault, credential, or private
 data.
+
+### Synthetic cutover journal mechanical guards
+
+`backend/cutover_journal/` has an exact flat module-file and exact public-export
+allowlist. `tests/test_cutover_journal_architecture.py` permits only
+`dataclasses`, `enum`, `hashlib`, `json`, `__future__`, exact sibling imports,
+and the exact `contracts_bridge.py` symbol set. It rejects path/filesystem,
+process, SQLite, network, environment, dynamic-import, logging, host I/O,
+forbidden builtin loads, callback/`Protocol` surfaces, nested payloads, and
+files/functions beyond 300/50 lines.
+
+Public signature guards require inspection to accept an immutable snapshot, not
+a medium/store, and require explicit resume/rollback to accept no step,
+direction, before/after observation, path, command, callback, adapter, service,
+repository, database, provider, mailbox, or vault argument. Recursive consumer
+checks require zero references outside the package in `backend/`, `scripts/`,
+and `frontend/`.
+
+Behavior guards pin canonical duplicate/unknown rejection, exact sequence and
+hash links, full barrier verification, per-claim owner lease,
+non-copyable/non-serializable exact-head permit backed by a shared single-use
+atomic-token issuance for the round-trip-validated active durable intent,
+medium-gated append/restart/mint/claim/effect, stable-head completion before a
+successor append or permit, candidate-transition validation before pending
+write, exact lost-ack retry, forward/reverse
+`INTENT -> EFFECT_OBSERVED -> COMMITTED`, LIFO reversal, fresh authorization
+validation and `RESUME_BOUND` renewal, authoritative observed facts,
+direction-aware pending recovery, exact Profile/identity/transition mapping,
+no blind expected-post retry, inspection immutability, fixed public result
+fields, and every transaction/durability crash boundary. All fixtures are
+opaque in-memory values and may not access a real host or private capability.
 
 ### Private evaluation mechanical guards
 

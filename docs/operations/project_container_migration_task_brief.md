@@ -529,8 +529,48 @@ Issue #51 implements only the pure `backend.cutover_contracts` package:
 This checkpoint parses and validates contracts only. It does not execute real
 preflight, evidence publication, migration, cutover, resume, rollback, incident
 recovery or cleanup and does not access real Runtime, SQLite, ACL, repository,
-worktree, mailbox, provider, vault or private data. Issues #52 through #59
-remain unstarted；Issues #38 and #39 are unchanged.
+worktree, mailbox, provider, vault or private data. Its only approved consumer is
+the exact Issue #52 bridge.
+
+### 8.19 Issue #52 crash-safe journal and recovery-classification checkpoint
+
+Issue #52 implements only the pathless `backend.cutover_journal` synthetic
+transaction proof:
+
+- strict canonical create-only records with exact sequence, previous-record hash,
+  record hash, fixed synthetic step/direction/event, governing
+  master/operation/profile/authorization/owner bindings and opaque observations；
+- one pre-mutation binding that revalidates the exact execute authorization and
+  exact pre-bound rollback-phase `RecoveryAuthorizationV1` without issuing
+  authority；
+- fixed forward and reverse `INTENT -> EFFECT_OBSERVED -> COMMITTED` transitions,
+  with reverse intent derived LIFO only from verified `COMMITTED/APPLIED` forward
+  history；
+- exact in-memory Windows/Linux pending-file, published-file and namespace
+  barrier traces, stable reread, per-claim synthetic owner lease, complete-chain
+  recovery ownership, medium-gated atomic single-use durable-intent permit,
+  stable-current-head continuation and exact lost-ack retry；
+- immutable restart inspection with no append, owner claim or effect, plus
+  separately explicit resume/rollback seams that fresh-validate exact
+  phase-specific authorization and observation；
+- exact expected-post reconciliation without blind effect retry, and
+  authoritative durable observed facts, fresh `RESUME_BOUND` renewal,
+  direction-aware pending recovery, exact Profile/master/operator and synthetic
+  effect-mapping checks, and pre-bound-authority rollback after execute
+  authorization expiry；
+- fixed content-free public status/phase/receipt-fingerprint/allowlisted-count
+  output distinguishing `SAFE_ABORT`, `ROLLBACK_REQUIRED`, `INCIDENT_STOP`, and
+  `CUTOVER_SUCCEEDED`；
+- complete forward/reverse/durability crash matrices and exact architecture
+  guards.
+
+The package accepts no path, callback, host adapter, CLI, HTTP route, filesystem,
+service, ACL, Git repository/worktree, Runtime, SQLite, artifact, Config,
+provider, mailbox, vault, private store, credential or private data. The
+Windows/Linux trace is contract evidence only, not real filesystem durability
+evidence. No real preflight, migration, cutover, resume, rollback or recovery was
+executed. Issues #53 through #59 remain unstarted；Issues #38/#39 and parent Spec
+#50 are unchanged.
 
 ## 9. 数据结构或接口变化
 

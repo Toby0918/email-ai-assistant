@@ -121,3 +121,27 @@ The pre-Issue-#39 no-argument seam that always returns
 `BLOCKED_NO_APPROVED_COMMAND` with zero executions. It has no adapter,
 composition root, command, or real-host capability.
 _Avoid_: Cutover command, preflight launcher, migration CLI
+
+**Crash-Safe Cutover Journal**:
+The pathless Issue #52 synthetic state proof. Canonical create-only records bind
+one operation and owner through durable `INTENT`, exact observed effect, and
+`COMMITTED`; reverse records use the same model and are derived LIFO from
+committed applied forward records. Pending or unbarriered records are never
+action authority; a non-copyable/non-serializable store permit backed by one
+shared single-use issuance binds each effect to the current owner lease, active
+durable intent, exact durable journal head, and hash-bound stable reread; one
+store-private atomic token claim selects the sole consumer, and one synthetic
+medium operation gate serializes append/restart/mint/claim/effect. A
+namespace-published current head must complete stable reread before any
+successor append or permit. A head advance or durable observed fact invalidates
+it. Durable observed facts, pending direction, exact
+Profile/master/operator binding, and the fixed synthetic transition mapping are
+authoritative. Restart inspection is read-only.
+_Avoid_: Host journal, migration log, executable recovery command
+
+**Recovery Classification**:
+The content-free restart decision over one verified synthetic journal snapshot
+and exact observation. `SAFE_ABORT`, `ROLLBACK_REQUIRED`, `INCIDENT_STOP`, and
+`CUTOVER_SUCCEEDED` are distinct; `RESUME_ALLOWED` only identifies a separately
+authorized explicit resume seam and is not itself a capability.
+_Avoid_: Automatic recovery, guessed retry, host status probe

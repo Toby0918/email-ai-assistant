@@ -360,12 +360,49 @@ content-free evidence metadata and is never authorization. The zero-argument
 
 `tests/test_cutover_contract_architecture.py` pins the exact package files,
 public exports, standard-library import roots, forbidden imports/calls, absence
-of issuer/clock helpers, zero consumers in other `backend/`, `scripts/`, and
-`frontend/` files, and the always-blocked default entry. A future real adapter,
-authority issuer, consumer, preflight, migration, cutover, or recovery command
-requires its own approved Issue and a deliberate update to these exact guards.
+of issuer/clock helpers, the sole exact
+`backend/cutover_journal/contracts_bridge.py` consumer, and the always-blocked
+default entry. A future real adapter, authority issuer, additional consumer,
+preflight, migration, cutover, or recovery command requires its own approved
+Issue and a deliberate update to these exact guards.
 Issue #51 does not access a real Runtime, SQLite database, ACL, repository,
 worktree, mailbox, provider, vault, private store, credential, or private data.
+
+### Synthetic crash-safe journal tooling boundary
+
+Issue #52 adds only `backend.cutover_journal`, a pathless standard-library
+package using `dataclasses`, `enum`, `hashlib`, `json`, exact package-relative
+helpers, and the one exact Issue #51 bridge. It adds no dependency, filesystem
+adapter, path, callback, `Protocol`, CLI, HTTP route, workflow, environment
+option, clock, random source, logger, scheduler, host probe, or production
+consumer.
+
+The exact in-memory `SyntheticJournalMediumV1` models create-only pending write,
+pending-file barrier, no-replace publication, published-file barrier, namespace
+barrier, and stable reread for closed Windows/Linux trace codes. It does not
+open a file or claim real Windows, NTFS, Linux, or power-loss durability.
+`SyntheticEffectStateV1` changes only three opaque in-memory observation
+fingerprints and exposes bounded invocation counts. Every medium claim returns
+a distinct synthetic lease, and every effect consumes a
+non-copyable/non-serializable permit backed by one shared single-use issuance
+for that lease, the exact round-trip-validated active durable intent, and the
+exact durable/stable journal head. One in-memory operation gate serializes
+append, restart, permit mint/atomic claim, and effect mutation. A
+namespace-published head missing only its final stable reread is re-read and the
+full chain reverified before any new record or permit. Head advance, pending,
+and durable observed facts invalidate an older permit.
+
+`inspect_restart(...)` accepts snapshots rather than a medium/store and remains
+inspection-only. `resume_synthetic(...)` and `rollback_next_synthetic(...)` are
+explicit synthetic seams with fresh externally supplied authorization and epoch
+inputs; they accept no step, direction, path, command, callback, adapter, or host
+capability. A renewed valid resume authorization appends a new
+`RESUME_BOUND`; durable observed facts cannot be overwritten or replayed.
+Verified pending direction, exact Profile/master/operator binding, identity
+mapping, transition mapping, and post-effect observation all fail closed.
+Tests and package guards must reject any filesystem, service, ACL,
+Git/worktree, Runtime, SQLite, provider, mailbox, vault, private-data, dynamic
+import, or normal-runtime surface.
 
 本地邮件分析 HTTP 服务沿用 Python 标准库 `ThreadingHTTPServer`，不得为 Host/Content-Type 门禁新增 HTTP 框架。服务 bind 只支持 `localhost` 或字面 IPv4 `127.0.0.0/8`；分析 POST 必须在读 body 前校验单一 loopback Host 和单一 JSON media type。
 

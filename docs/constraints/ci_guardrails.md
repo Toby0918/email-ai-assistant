@@ -41,6 +41,8 @@ tests/test_maintenance_scan.py
 tests/test_generate_project_status.py
 tests/test_migration_evidence_*.py
 tests/test_runtime_activation_rehearsal_*.py
+tests/test_cutover_contract_*.py
+tests/test_cutover_journal_*.py
 python -m unittest discover -s tests
 python scripts/maintenance_scan.py
 ```
@@ -72,6 +74,14 @@ runtime activation rehearsal 接受 path/default host adapter、出现真实 hos
 绑定 start/health/analysis/`post_activation` fresh-stop proof、放宽 provider-disabled/
 Managed-role/source-preservation 门禁，或访问真实 runtime/SQLite/artifact/evidence/
 private capability
+cutover journal 出现真实 path/adapter/host consumer，pending/unbarriered record
+可授权 effect，candidate transition 在写入后才失败，restart inspection 发生写入或
+自动动作，stale owner handle 仍可操作，effect 不消费 exact durable-intent permit，
+durable observed fact 可被覆盖或重放，pending direction 被猜测，Profile/identity/
+transition mapping 未 fail closed，expected-post 被 blind retry，resume/recovery
+authority 未 fresh revalidate，reverse 非 journal-derived LIFO，public result 泄漏
+observation/path/command/exception，或任一 forward/reverse/durability crash boundary
+未被分类
 ```
 
 ## 5. 失败处理原则

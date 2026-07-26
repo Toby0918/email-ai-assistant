@@ -340,7 +340,9 @@ the manual ContainerAudit or locked cutover contract.
 [ ] `default_operator_entry()` accepts no capability and remains fixed at `BLOCKED_NO_APPROVED_COMMAND` until a separately approved Issue #39 implementation.
 [ ] The cutover-contract package has no path, host adapter, filesystem, environment, network, process, SQLite, ACL, Git/worktree, runtime, browser, mailbox, provider, vault, private-store, logging, scheduler or dynamic-import capability.
 [ ] Tests and documentation do not run a real preflight, evidence publication, migration, cutover, resume, rollback, incident recovery or cleanup.
-[ ] Issues #52 through #59 remain separate and require their own approval; this task does not modify or close Issues #38/#39 or parent Spec #50.
+[ ] If Issue #52 is in scope, journal/effect state is exact synthetic-only; INTENT/observed/COMMITTED, pending non-authority, stable-head continuation, atomic single-winner permit use, read-only restart inspection, fresh resume/recovery validation, no blind retry, and journal-derived LIFO reverse are tested.
+[ ] Issue #52 adds no real filesystem/service/ACL/Git/worktree/Runtime/SQLite/provider/mailbox/vault/private-data adapter or operation.
+[ ] Issues #53 through #59 remain separate and require their own approval; this task does not modify or close Issues #38/#39 or parent Spec #50.
 ```
 
 ## 22. 执行后记录
