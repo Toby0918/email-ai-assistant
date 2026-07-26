@@ -2,6 +2,12 @@
 
 from __future__ import annotations
 
+from ._canonical import (
+    is_commit as _is_commit,
+    is_exact_str,
+    is_exact_str_list,
+    is_fingerprint as _is_fingerprint,
+)
 from .errors import CutoverContractError
 
 PROFILE_ERROR = "CUTOVER_PROFILE_INVALID"
@@ -112,7 +118,7 @@ MAINTENANCE_KEYS = (
 def validate_profile_body(value: object) -> dict[str, object]:
     source = _exact_dict(value, PROFILE_BODY_KEYS)
     if (
-        source["profile_type"] != PROFILE_TYPE
+        not is_exact_str(source["profile_type"], PROFILE_TYPE)
         or not _is_commit(source["governing_master_commit"])
         or not _is_fingerprint(source["operator_fingerprint"])
     ):
@@ -145,8 +151,8 @@ def validate_profile_body(value: object) -> dict[str, object]:
 def _runtime_inputs(value: object) -> dict[str, object]:
     source = _exact_dict(value, RUNTIME_KEYS)
     if (
-        source["python_version"] != "3.12.13"
-        or source["sqlite_version"] != "3.50.4"
+        not is_exact_str(source["python_version"], "3.12.13")
+        or not is_exact_str(source["sqlite_version"], "3.50.4")
         or not _is_fingerprint(source["python_runtime_fingerprint"])
         or not _is_fingerprint(source["wheelhouse_fingerprint"])
         or not _is_fingerprint(source["dependency_lock_fingerprint"])
@@ -159,10 +165,10 @@ def _runtime_inputs(value: object) -> dict[str, object]:
 def _sqlite_source(value: object) -> dict[str, object]:
     source = _exact_dict(value, SQLITE_KEYS)
     if (
-        source["role"] != "legacy_analysis_database"
+        not is_exact_str(source["role"], "legacy_analysis_database")
         or not _is_fingerprint(source["source_fingerprint"])
         or not _is_fingerprint(source["schema_fingerprint"])
-        or source["publication"] != "create_only"
+        or not is_exact_str(source["publication"], "create_only")
         or source["requires_stopped_service"] is not True
         or source["requires_absent_sidecars"] is not True
     ):
@@ -172,11 +178,11 @@ def _sqlite_source(value: object) -> dict[str, object]:
 def _crx(value: object) -> dict[str, object]:
     source = _exact_dict(value, CRX_KEYS)
     if (
-        source["role"] != "reviewed_browser_extension"
+        not is_exact_str(source["role"], "reviewed_browser_extension")
         or not _is_fingerprint(source["artifact_fingerprint"])
         or type(source["size_bytes"]) is not int
         or not 1 <= source["size_bytes"] <= 1024 * 1024 * 1024
-        or source["publication"] != "create_only"
+        or not is_exact_str(source["publication"], "create_only")
         or source["signing_allowed"] is not False
     ):
         _invalid()
@@ -189,11 +195,10 @@ def _config(value: object) -> dict[str, object]:
         "EMAIL_AGENT_LOG_LEVEL",
     ]
     if (
-        source["role"] != "managed_non_secret_config"
+        not is_exact_str(source["role"], "managed_non_secret_config")
         or not _is_fingerprint(source["config_fingerprint"])
-        or source["allowed_keys"] != allowed_keys
-        or type(source["allowed_keys"]) is not list
-        or source["provider_mode"] != "disabled"
+        or not is_exact_str_list(source["allowed_keys"], allowed_keys)
+        or not is_exact_str(source["provider_mode"], "disabled")
         or source["reads_environment"] is not False
     ):
         _invalid()
@@ -207,11 +212,12 @@ def _acl_policy(value: object) -> dict[str, object]:
     principal_roles = ["builtin_administrators", "operator", "system"]
     if (
         not _is_fingerprint(source["policy_fingerprint"])
-        or source["container_principal_roles"] != principal_roles
-        or type(source["container_principal_roles"]) is not list
+        or not is_exact_str_list(
+            source["container_principal_roles"], principal_roles
+        )
         or source["container_dacl_protected"] is not True
-        or source["parent_mode"] != "capture_compare_only"
-        or source["finance_mode"] != "capture_compare_only"
+        or not is_exact_str(source["parent_mode"], "capture_compare_only")
+        or not is_exact_str(source["finance_mode"], "capture_compare_only")
         or source["recursive_rewrite"] is not False
     ):
         _invalid()
@@ -248,8 +254,8 @@ def _worktree_roster(value: object) -> list[dict[str, str]]:
         expected_placement = "embedded" if index <= 8 else "external"
         fingerprint = source["selection_fingerprint"]
         if (
-            source["role"] != expected_role
-            or source["placement"] != expected_placement
+            not is_exact_str(source["role"], expected_role)
+            or not is_exact_str(source["placement"], expected_placement)
             or not _is_fingerprint(fingerprint)
             or fingerprint in fingerprints
         ):
@@ -277,23 +283,13 @@ def _fingerprint_map(value: object, names: tuple[str, ...]) -> dict[str, str]:
 def _exact_dict(
     value: object, expected_keys: tuple[str, ...]
 ) -> dict[str, object]:
-    if type(value) is not dict or set(value) != set(expected_keys):
+    if type(value) is not dict:
+        _invalid()
+    if any(type(key) is not str for key in value):
+        _invalid()
+    if set(value) != set(expected_keys):
         _invalid()
     return value
-
-def _is_fingerprint(value: object) -> bool:
-    return (
-        type(value) is str
-        and len(value) == 64
-        and all(character in "0123456789abcdef" for character in value)
-    )
-
-def _is_commit(value: object) -> bool:
-    return (
-        type(value) is str
-        and len(value) == 40
-        and all(character in "0123456789abcdef" for character in value)
-    )
 
 def _invalid() -> None:
     raise CutoverContractError(PROFILE_ERROR)

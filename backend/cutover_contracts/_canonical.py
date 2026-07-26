@@ -10,7 +10,39 @@ from .errors import CutoverContractError
 _MAX_JSON_BYTES = 128 * 1024
 
 
-def canonical_json(value: object) -> bytes:
+def is_exact_str(value: object, expected: str) -> bool:
+    return type(value) is str and value == expected
+
+
+def is_exact_str_list(value: object, expected: list[str]) -> bool:
+    return (
+        type(value) is list
+        and all(type(item) is str for item in value)
+        and value == expected
+    )
+
+
+def is_fingerprint(value: object) -> bool:
+    return (
+        type(value) is str
+        and len(value) == 64
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
+def is_commit(value: object) -> bool:
+    return (
+        type(value) is str
+        and len(value) == 40
+        and all(character in "0123456789abcdef" for character in value)
+    )
+
+
+def canonical_json(
+    value: object,
+    *,
+    code: str = "CUTOVER_CONTRACT_INVALID",
+) -> bytes:
     try:
         return json.dumps(
             value,
@@ -20,7 +52,7 @@ def canonical_json(value: object) -> bytes:
             allow_nan=False,
         ).encode("utf-8")
     except (TypeError, ValueError, OverflowError, RecursionError):
-        raise CutoverContractError("CUTOVER_CONTRACT_INVALID") from None
+        raise CutoverContractError(code) from None
 
 
 def strict_json_object(payload: object, *, code: str) -> dict[str, object]:

@@ -132,7 +132,7 @@ def _profile_is_intact(profile: object) -> bool:
         return False
     try:
         CutoverProfileV1.from_mapping(profile.to_mapping())
-    except (AttributeError, CutoverContractError):
+    except Exception:
         return False
     return True
 
@@ -140,7 +140,7 @@ def _profile_is_intact(profile: object) -> bool:
 def _authorization_is_intact(authorization: object) -> bool:
     try:
         type(authorization).from_mapping(authorization.to_mapping())
-    except (AttributeError, CutoverContractError):
+    except Exception:
         return False
     return True
 

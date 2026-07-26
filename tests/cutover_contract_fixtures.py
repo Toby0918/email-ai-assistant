@@ -9,6 +9,22 @@ import json
 GOVERNING_MASTER = "0c99d89195162a766d58c06baf2af2a81fede796"
 
 
+class HostileComparison:
+    def __eq__(self, _other: object) -> bool:
+        raise RuntimeError("hostile comparison must not run")
+
+    def __ne__(self, _other: object) -> bool:
+        raise RuntimeError("hostile comparison must not run")
+
+
+class HostileKey(HostileComparison):
+    def __init__(self, collision_target: str) -> None:
+        self._collision_target = collision_target
+
+    def __hash__(self) -> int:
+        return hash(self._collision_target)
+
+
 def opaque_fingerprint(index: int) -> str:
     return f"{index:064x}"
 

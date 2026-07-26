@@ -330,10 +330,10 @@ Not applicable。Mailbox sync and current-click evidence remain unchanged。
 测试结果:
 - TDD profile、authorization、receipt and architecture slices each recorded a
   failing public-seam test before implementation.
-- Focused Issue #51: 37 tests, `OK`.
+- Focused Issue #51 after review repairs: 44 tests, `OK`.
 - Affected Project Container、architecture、status、documentation、leakage and
-  maintenance regression: 215 tests, `OK`.
-- Full unittest with Python 3.12.13 and exact locked dependencies: 1935 tests,
+  maintenance regression after review repairs: 255 tests, `OK`.
+- Full unittest with Python 3.12.13 and exact locked dependencies: 1942 tests,
   `OK (skipped=3)`.
 - `python -m compileall -q backend scripts tests`: exit 0.
 - 10 JavaScript syntax checks and one browser-extension manifest JSON check:
@@ -345,11 +345,18 @@ Not applicable。Mailbox sync and current-click evidence remain unchanged。
   bypasses, and dotted-module/stdin capability bypasses. Each received a
   focused RED regression, a bounded fix, and successful re-review; no P1/P2
   remains.
-- Standards/Spec closing review: pending the fixed-point implementation commit.
+- Initial Standards/Spec fixed-point review found two additional P2 groups:
+  hostile mapping/cyclic/canonical error escape and equivalent capability-guard
+  bypasses. Exact-type-before-comparison parsing, fixed per-contract errors,
+  bounded integrity failure, recursive package closure, forbidden-load checks,
+  package-wide issuer checks and dynamic-consumer checks now have RED/GREEN
+  regressions. Closing re-review is pending the repair commit.
 - Recorded P3 only: receipt status/count/detail semantic relationships are left
   to future real consumers; internal authorization/receipt schema registries
-  remain mutable; and the architecture test file exceeds the advisory 300-line
-  size. None grants a current host capability or changes Issue #51 acceptance.
+  remain mutable; authorization/receipt/architecture test files exceed the
+  advisory 300-line size; and Profile/Receipt frozen projection helpers remain
+  duplicated. None grants a current host capability or changes Issue #51
+  acceptance.
 
 未完成事项:
 - No local Issue #51 implementation or acceptance item remains.

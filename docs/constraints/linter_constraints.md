@@ -524,24 +524,29 @@ caller-owned teardown.
 ### Locked Cutover contract mechanical guards
 
 `backend/cutover_contracts/` has an exact module-file and public-export
-allowlist. Absolute imports are limited to exact pure standard-library modules
-and exact imported symbols; relative imports are limited to exact sibling
-package modules. Parent-relative, unknown, dotted-module, filesystem, process,
-SQLite, network, environment, dynamic-import, logging, clock, random, stdin,
-host, and ambient-authority imports or calls fail AST checks.
+allowlist. Recursive file enumeration rejects nested or non-source payloads
+outside generated `__pycache__`. Absolute imports are limited to exact pure
+standard-library modules and exact imported symbols; relative imports are
+limited to exact sibling package modules. Parent-relative, unknown,
+dotted-module, filesystem, process, SQLite, network, environment,
+dynamic-import, logging, clock, random, stdin, host, forbidden builtin loads or
+aliases, and ambient-authority imports or calls fail AST checks.
 
 The authorization module must remain parse-only for externally supplied
 canonical values. Function-name and call guards reject real-authorization
 `create`, `issue`, `mint`, `generate`, `sign`, `uuid4`, `now`, `utcnow`,
-`time`, or token-generation surfaces. Exact-type behavior tests require
+`time`, or token-generation surfaces across the whole package, except the
+exact Profile, Receipt, and synthetic-test `create` methods. Exact-type
+behavior tests require
 mapping, receipt, duck-typed, subclassed, and
 `TestSandboxAuthorizationV1` values to fail real-host validation.
 
 A recursive consumer guard scans every other Python/JavaScript file under
 `backend/`, `scripts/`, and `frontend/`. Python imports are parsed as AST so
 direct, `from backend import ...`, and relative forms all reject
-`cutover_contracts`; JavaScript retains fixed-token rejection. The package has
-no current runtime, operator, script, or frontend consumer.
+`cutover_contracts`; literal dynamic-import expressions are folded and
+rejected, while JavaScript retains fixed-token rejection. The package has no
+current runtime, operator, script, or frontend consumer.
 `default_operator_entry()` is mechanically pinned to zero arguments and the
 fixed `BLOCKED_NO_APPROVED_COMMAND`, `blocked=1`, `executed=0` result.
 

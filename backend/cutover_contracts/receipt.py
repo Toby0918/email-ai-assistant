@@ -10,8 +10,10 @@ from .errors import CutoverContractError
 from .receipt_schema import (
     RECEIPT_BODY_KEYS,
     RECEIPT_ERROR,
+    _exact_dict,
     validate_receipt_body,
 )
+from .profile_schema import _is_fingerprint
 
 
 @dataclass(frozen=True, slots=True, repr=False)
@@ -48,22 +50,27 @@ class ReceiptEnvelopeV1:
     @classmethod
     def create(cls, value: object) -> ReceiptEnvelopeV1:
         body = validate_receipt_body(value)
-        fingerprint = hashlib.sha256(canonical_json(body)).hexdigest()
+        fingerprint = hashlib.sha256(
+            canonical_json(body, code=RECEIPT_ERROR)
+        ).hexdigest()
         return cls.from_mapping(
             {**body, "receipt_fingerprint": fingerprint}
         )
 
     @classmethod
     def from_mapping(cls, value: object) -> ReceiptEnvelopeV1:
-        if type(value) is not dict:
-            raise CutoverContractError(RECEIPT_ERROR)
-        expected_keys = set(RECEIPT_BODY_KEYS) | {"receipt_fingerprint"}
-        if set(value) != expected_keys:
-            raise CutoverContractError(RECEIPT_ERROR)
-        body = {key: value[key] for key in RECEIPT_BODY_KEYS}
+        source = _exact_dict(
+            value,
+            (*RECEIPT_BODY_KEYS, "receipt_fingerprint"),
+        )
+        body = {key: source[key] for key in RECEIPT_BODY_KEYS}
         normalized = validate_receipt_body(body)
-        fingerprint = value["receipt_fingerprint"]
-        expected = hashlib.sha256(canonical_json(normalized)).hexdigest()
+        fingerprint = source["receipt_fingerprint"]
+        if not _is_fingerprint(fingerprint):
+            raise CutoverContractError(RECEIPT_ERROR)
+        expected = hashlib.sha256(
+            canonical_json(normalized, code=RECEIPT_ERROR)
+        ).hexdigest()
         if fingerprint != expected:
             raise CutoverContractError(RECEIPT_ERROR)
         receipt = object.__new__(cls)
@@ -75,18 +82,31 @@ class ReceiptEnvelopeV1:
     @classmethod
     def from_json(cls, payload: object) -> ReceiptEnvelopeV1:
         value = strict_json_object(payload, code=RECEIPT_ERROR)
-        if canonical_json(value) != payload:
+        if canonical_json(value, code=RECEIPT_ERROR) != payload:
             raise CutoverContractError(RECEIPT_ERROR)
         return cls.from_mapping(value)
 
     def to_mapping(self) -> dict[str, object]:
         return {
-            name: _thaw(getattr(self, name))
-            for name in (*RECEIPT_BODY_KEYS, "receipt_fingerprint")
+            "receipt_type": self.receipt_type,
+            "status": self.status,
+            "operation": self.operation,
+            "operation_fingerprint": self.operation_fingerprint,
+            "profile_fingerprint": self.profile_fingerprint,
+            "governing_master_commit": self.governing_master_commit,
+            "authorization_fingerprint": self.authorization_fingerprint,
+            "producer": self.producer,
+            "subject_role": self.subject_role,
+            "input_fingerprints": _thaw(self.input_fingerprints),
+            "observation_fingerprint": self.observation_fingerprint,
+            "counts": _thaw(self.counts),
+            "validity": _thaw(self.validity),
+            "details": _thaw(self.details),
+            "receipt_fingerprint": self.receipt_fingerprint,
         }
 
     def to_canonical_json(self) -> bytes:
-        return canonical_json(self.to_mapping())
+        return canonical_json(self.to_mapping(), code=RECEIPT_ERROR)
 
 
 def _freeze(value: object) -> object:

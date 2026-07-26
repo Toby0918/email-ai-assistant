@@ -17,6 +17,8 @@ from backend.cutover_contracts import (
 )
 from tests.cutover_contract_fixtures import (
     GOVERNING_MASTER,
+    HostileComparison,
+    HostileKey,
     canonical_json,
     opaque_fingerprint,
     valid_profile_body,
@@ -235,8 +237,19 @@ class CutoverReceiptContractTests(unittest.TestCase):
         tampered = receipt.to_mapping()
         tampered["observation_fingerprint"] = opaque_fingerprint(399)
         pretty = json.dumps(receipt.to_mapping(), indent=2).encode("utf-8")
+        lone_surrogate = canonical.replace(
+            b'"receipt_type":"PreflightReceiptV1"',
+            b'"receipt_type":"\\ud800"',
+            1,
+        )
 
-        for payload in (duplicate_top, duplicate_nested, canonical + b"\n", pretty):
+        for payload in (
+            duplicate_top,
+            duplicate_nested,
+            canonical + b"\n",
+            pretty,
+            lone_surrogate,
+        ):
             with self.subTest(payload=payload[:40]):
                 with self.assertRaisesRegex(
                     CutoverContractError,
@@ -307,6 +320,45 @@ class CutoverReceiptContractTests(unittest.TestCase):
                         "^RECEIPT_CONTRACT_INVALID$",
                     ):
                         parser(value)
+
+    def test_receipt_mapping_fails_closed_before_hostile_comparison(self) -> None:
+        for field in ("status", "operation", "producer", "subject_role"):
+            body = receipt_body()
+            body[field] = HostileComparison()
+            with self.subTest(field=field):
+                with self.assertRaisesRegex(
+                    CutoverContractError,
+                    "^RECEIPT_CONTRACT_INVALID$",
+                ):
+                    ReceiptEnvelopeV1.create(body)
+
+        input_role = receipt_body()
+        input_role["input_fingerprints"][0]["role"] = HostileComparison()
+        with self.assertRaisesRegex(
+            CutoverContractError,
+            "^RECEIPT_CONTRACT_INVALID$",
+        ):
+            ReceiptEnvelopeV1.create(input_role)
+
+        mapping = ReceiptEnvelopeV1.create(receipt_body()).to_mapping()
+        mapping["receipt_fingerprint"] = HostileComparison()
+        with self.assertRaisesRegex(
+            CutoverContractError,
+            "^RECEIPT_CONTRACT_INVALID$",
+        ):
+            ReceiptEnvelopeV1.from_mapping(mapping)
+
+        hostile_key = receipt_body()
+        receipt_type = hostile_key.pop("receipt_type")
+        hostile_key = {
+            HostileKey("receipt_type"): receipt_type,
+            **hostile_key,
+        }
+        with self.assertRaisesRegex(
+            CutoverContractError,
+            "^RECEIPT_CONTRACT_INVALID$",
+        ):
+            ReceiptEnvelopeV1.create(hostile_key)
 
     def test_receipt_counts_validity_and_fingerprints_are_strict(self) -> None:
         mutations = []

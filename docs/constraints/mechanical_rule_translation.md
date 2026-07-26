@@ -363,18 +363,20 @@ layers:
    operation/profile/master/operator/validity bindings, fixed aggregate
    allow/block results, and exact-type rejection of missing, test, receipt,
    mapping, subclassed, and duck-typed inputs. It also proves that canonical
-   Profile and authorization integrity is revalidated before `AUTHORIZED`.
+   Profile and authorization integrity is revalidated before `AUTHORIZED`,
+   including hostile keys/values and cyclic tampered state.
 3. `tests/test_cutover_receipt_contract.py` pins the twelve closed receipt
    families, exact type/status/operation/producer/subject/input/count/detail
    compatibility matrix, strict canonical JSON, deterministic receipt
-   fingerprint, hostile parsing rejection, content-free values, and the rule
-   that no receipt is authorization.
+   fingerprint, hostile comparison/key and lone-surrogate rejection,
+   content-free values, and the rule that no receipt is authorization.
 4. `tests/test_cutover_contract_architecture.py` pins the exact package files
-   and public exports, pure standard-library import roots, forbidden host I/O
-   and ambient-authority calls, exact sibling-only relative imports, absence of
-   authorization issuer/mint/clock helpers, AST-complete zero-consumer checks
-   across other `backend/`/`scripts/`/`frontend/` files, bounded files/functions,
-   and the zero-argument always-blocked operator entry.
+   and public exports, recursive package-file closure, exact pure
+   standard-library imports, forbidden host I/O loads/aliases and
+   ambient-authority calls, exact sibling-only relative imports, package-wide
+   absence of authorization issuer/mint/clock helpers, static/dynamic
+   zero-consumer checks across other `backend/`/`scripts/`/`frontend/` files,
+   bounded files/functions, and the zero-argument always-blocked operator entry.
 
 These checks create no authority and execute no preflight, migration, cutover,
 resume, rollback, recovery, or cleanup. The package contains no path, adapter,

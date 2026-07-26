@@ -42,7 +42,9 @@ value. Its canonical identity binds:
 The public profile contains no `Path`, drive, directory, SID, SDDL, Git ref or
 branch name, command, exception, database row, message, arbitrary detail, or
 free text. Unknown fields, wrong types, duplicate or non-canonical JSON,
-incorrect enum values, and fingerprint drift fail closed. The profile
+incorrect enum values, hostile Python mapping keys/values, lone-surrogate
+strings, and fingerprint drift fail closed without invoking user comparison
+methods. The profile
 fingerprint is SHA-256 over the canonical body; it is an integrity identity, not
 a signature or an authorization.
 
@@ -117,10 +119,12 @@ Issue; Issue #51 does not implement Issues #52 through #59.
   modules; parent-relative and dotted-module imports fail;
 - absence of filesystem, process, SQLite, network, environment, dynamic-import,
   clock, random, host, and ambient-authority calls;
-- absence of real-authorization issuer or mint functions;
+- recursive rejection of nested/non-source package payloads, forbidden builtin
+  loads/aliases, dotted modules, and parent-relative imports;
+- package-wide absence of real-authorization issuer or mint functions;
 - zero consumers in every other Python/JavaScript file under `backend/`,
   `scripts/`, and `frontend/`, using AST checks for equivalent Python import
-  forms and fixed token checks for JavaScript;
+  forms, literal dynamic imports, and fixed token checks for JavaScript;
 - the zero-argument, always-blocked default operator entry;
 - the existing 300-line file and 50-line function bounds.
 

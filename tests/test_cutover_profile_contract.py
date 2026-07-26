@@ -8,7 +8,11 @@ import unittest
 from dataclasses import FrozenInstanceError, fields
 
 from backend.cutover_contracts import CutoverContractError, CutoverProfileV1
-from tests.cutover_contract_fixtures import valid_profile_body
+from tests.cutover_contract_fixtures import (
+    HostileComparison,
+    HostileKey,
+    valid_profile_body,
+)
 
 
 def canonical_json(value: object) -> bytes:
@@ -105,7 +109,12 @@ class CutoverProfileContractTests(unittest.TestCase):
         unknown["message"] = "not allowed"
         pretty = json.dumps(profile.to_mapping(), indent=2).encode("utf-8")
 
-        for payload in (duplicate, canonical + b" ", pretty):
+        lone_surrogate = canonical.replace(
+            b'"profile_type":"CutoverProfileV1"',
+            b'"profile_type":"\\ud800"',
+            1,
+        )
+        for payload in (duplicate, canonical + b" ", pretty, lone_surrogate):
             with self.subTest(payload=payload[:40]):
                 with self.assertRaisesRegex(
                     CutoverContractError,
@@ -179,6 +188,60 @@ class CutoverProfileContractTests(unittest.TestCase):
             "^CUTOVER_PROFILE_INVALID$",
         ):
             CutoverProfileV1.from_mapping(tampered)
+
+    def test_profile_mapping_fails_closed_before_hostile_comparison(self) -> None:
+        mutations = []
+        for section, field in (
+            (None, "profile_type"),
+            ("runtime_inputs", "python_version"),
+            ("sqlite_source", "role"),
+            ("crx", "publication"),
+            ("config", "provider_mode"),
+            ("acl_policy", "parent_mode"),
+        ):
+            body = valid_profile_body()
+            target = body if section is None else body[section]
+            target[field] = HostileComparison()
+            mutations.append(body)
+        roster = valid_profile_body()
+        roster["worktree_roster"][0]["placement"] = HostileComparison()
+        mutations.append(roster)
+        allowed_keys = valid_profile_body()
+        allowed_keys["config"]["allowed_keys"][0] = HostileComparison()
+        mutations.append(allowed_keys)
+        principals = valid_profile_body()
+        principals["acl_policy"]["container_principal_roles"][0] = (
+            HostileComparison()
+        )
+        mutations.append(principals)
+
+        for value in mutations:
+            with self.subTest(value=value):
+                with self.assertRaisesRegex(
+                    CutoverContractError,
+                    "^CUTOVER_PROFILE_INVALID$",
+                ):
+                    CutoverProfileV1.create(value)
+
+        mapping = CutoverProfileV1.create(valid_profile_body()).to_mapping()
+        mapping["profile_fingerprint"] = HostileComparison()
+        with self.assertRaisesRegex(
+            CutoverContractError,
+            "^CUTOVER_PROFILE_INVALID$",
+        ):
+            CutoverProfileV1.from_mapping(mapping)
+
+        hostile_key = valid_profile_body()
+        profile_type = hostile_key.pop("profile_type")
+        hostile_key = {
+            HostileKey("profile_type"): profile_type,
+            **hostile_key,
+        }
+        with self.assertRaisesRegex(
+            CutoverContractError,
+            "^CUTOVER_PROFILE_INVALID$",
+        ):
+            CutoverProfileV1.create(hostile_key)
 
     def test_profile_mapping_results_do_not_alias_mutable_input(self) -> None:
         body = valid_profile_body()

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from ._canonical import is_exact_str
 from .errors import CutoverContractError
 from .profile_schema import _is_commit, _is_fingerprint
 from .receipt_matrix import RECEIPT_SCHEMAS, ReceiptSchema
@@ -59,14 +60,15 @@ def _valid_envelope_bindings(
 ) -> bool:
     return (
         type(source["receipt_type"]) is str
+        and type(source["status"]) is str
         and source["status"] in schema.statuses
-        and source["operation"] == schema.operation
+        and is_exact_str(source["operation"], schema.operation)
         and _is_fingerprint(source["operation_fingerprint"])
         and _is_fingerprint(source["profile_fingerprint"])
         and _is_commit(source["governing_master_commit"])
         and _is_fingerprint(source["authorization_fingerprint"])
-        and source["producer"] == schema.producer
-        and source["subject_role"] == schema.subject_role
+        and is_exact_str(source["producer"], schema.producer)
+        and is_exact_str(source["subject_role"], schema.subject_role)
         and _is_fingerprint(source["observation_fingerprint"])
     )
 
@@ -82,7 +84,7 @@ def _input_fingerprints(
         source = _exact_dict(item, ("role", "fingerprint"))
         fingerprint = source["fingerprint"]
         if (
-            source["role"] != expected_role
+            not is_exact_str(source["role"], expected_role)
             or not _is_fingerprint(fingerprint)
             or fingerprint in fingerprints
         ):
@@ -132,10 +134,13 @@ def _details(value: object, schema: ReceiptSchema) -> dict[str, str]:
 def _exact_dict(
     value: object, expected_keys: tuple[str, ...]
 ) -> dict[str, object]:
-    if type(value) is not dict or set(value) != set(expected_keys):
+    if (
+        type(value) is not dict
+        or any(type(key) is not str for key in value)
+        or set(value) != set(expected_keys)
+    ):
         _invalid()
     return value
-
 
 def _invalid() -> None:
     raise CutoverContractError(RECEIPT_ERROR)

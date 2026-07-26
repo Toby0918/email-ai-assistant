@@ -258,7 +258,9 @@ source_type: operation_guide
 - Verify `CutoverProfileV1` accepts only the closed Issue #51 mapping, produces
   deterministic canonical UTF-8 JSON and SHA-256 identity, and rejects duplicate
   keys, unknown fields, booleans-as-integers, non-canonical bytes and every
-  path/drive/directory/SID/SDDL/Git-ref/command/free-text surface.
+  path/drive/directory/SID/SDDL/Git-ref/command/free-text surface. Hostile
+  mapping keys/values, lone surrogates and cyclic tampered state must return
+  only the fixed contract error or invalid status.
 - Exercise the four exact real-host authorization value types independently:
   preflight, evidence publication, cutover execution and recovery. Assert exact
   type, operation, phase, profile, master, operator, validity and external
@@ -285,8 +287,9 @@ source_type: operation_guide
   `backend/cutover_contracts/` imports no filesystem, environment, network,
   process, SQLite, ACL, Git/worktree, runtime, browser, mailbox, provider, vault,
   private-store, logging, scheduler or dynamic-import capability. Exercise
-  parent-relative, dotted-standard-library, stdin, and equivalent production
-  consumer import variants against the AST guard.
+  nested/non-source package files, parent-relative, dotted-standard-library,
+  stdin/builtin aliases, package-wide issuer helpers, and equivalent
+  static/dynamic production consumer import variants against the AST guard.
 - Do not run a real host adapter, preflight, evidence publication, migration,
   cutover, resume, rollback or cleanup. Issues #52 through #59 remain separate
   implementation slices.

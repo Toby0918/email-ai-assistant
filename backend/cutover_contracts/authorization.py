@@ -10,9 +10,11 @@ from ._canonical import canonical_json, strict_json_object
 from .authorization_schema import (
     AUTHORIZATION_BODY_KEYS,
     AUTHORIZATION_ERROR,
+    _exact_dict,
     validate_authorization_body,
 )
 from .errors import CutoverContractError
+from .profile_schema import _is_fingerprint
 
 
 @dataclass(frozen=True, slots=True, init=False)
@@ -36,19 +38,20 @@ class _RealAuthorizationV1:
 
     @classmethod
     def from_mapping(cls, value: object) -> _RealAuthorizationV1:
-        if type(value) is not dict:
-            raise CutoverContractError(AUTHORIZATION_ERROR)
-        expected_keys = set(AUTHORIZATION_BODY_KEYS) | {
-            "authorization_fingerprint"
-        }
-        if set(value) != expected_keys:
-            raise CutoverContractError(AUTHORIZATION_ERROR)
-        body = {key: value[key] for key in AUTHORIZATION_BODY_KEYS}
+        source = _exact_dict(
+            value,
+            (*AUTHORIZATION_BODY_KEYS, "authorization_fingerprint"),
+        )
+        body = {key: source[key] for key in AUTHORIZATION_BODY_KEYS}
         normalized = validate_authorization_body(
             body, expected_type=cls.AUTHORIZATION_TYPE
         )
-        fingerprint = value["authorization_fingerprint"]
-        expected = hashlib.sha256(canonical_json(normalized)).hexdigest()
+        fingerprint = source["authorization_fingerprint"]
+        if not _is_fingerprint(fingerprint):
+            raise CutoverContractError(AUTHORIZATION_ERROR)
+        expected = hashlib.sha256(
+            canonical_json(normalized, code=AUTHORIZATION_ERROR)
+        ).hexdigest()
         if fingerprint != expected:
             raise CutoverContractError(AUTHORIZATION_ERROR)
         authorization = object.__new__(cls)
@@ -62,21 +65,27 @@ class _RealAuthorizationV1:
     @classmethod
     def from_json(cls, payload: object) -> _RealAuthorizationV1:
         value = strict_json_object(payload, code=AUTHORIZATION_ERROR)
-        if canonical_json(value) != payload:
+        if canonical_json(value, code=AUTHORIZATION_ERROR) != payload:
             raise CutoverContractError(AUTHORIZATION_ERROR)
         return cls.from_mapping(value)
 
     def to_mapping(self) -> dict[str, object]:
         return {
-            name: getattr(self, name)
-            for name in (
-                *AUTHORIZATION_BODY_KEYS,
-                "authorization_fingerprint",
-            )
+            "authorization_type": self.authorization_type,
+            "operation": self.operation,
+            "operation_fingerprint": self.operation_fingerprint,
+            "profile_fingerprint": self.profile_fingerprint,
+            "governing_master_commit": self.governing_master_commit,
+            "operator_fingerprint": self.operator_fingerprint,
+            "phase": self.phase,
+            "issued_at_epoch": self.issued_at_epoch,
+            "not_before_epoch": self.not_before_epoch,
+            "expires_at_epoch": self.expires_at_epoch,
+            "authorization_fingerprint": self.authorization_fingerprint,
         }
 
     def to_canonical_json(self) -> bytes:
-        return canonical_json(self.to_mapping())
+        return canonical_json(self.to_mapping(), code=AUTHORIZATION_ERROR)
 
 
 class RealPreflightAuthorizationV1(_RealAuthorizationV1):

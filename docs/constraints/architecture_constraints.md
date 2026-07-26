@@ -305,11 +305,12 @@ backend.cutover_contracts -> filesystem/SQLite/process/network/Git/ACL/provider/
 ```
 
 `tests/test_cutover_contract_architecture.py` enforces the Cutover Contract
-layer's exact package files and public surface, pure standard-library import
-roots, forbidden host/ambient-authority calls, absence of authorization minting
-or clocks, zero current production consumers, and the zero-argument blocked
-operator entry. These guards must be updated only by a separately approved
-Issue that introduces the corresponding composition boundary.
+layer's recursively exact package files and public surface, exact pure
+standard-library imports, sibling-only relative imports, forbidden
+host/ambient-authority loads and calls, package-wide absence of authorization
+minting or clocks, static/dynamic zero-consumer checks, and the zero-argument
+blocked operator entry. These guards must be updated only by a separately
+approved Issue that introduces the corresponding composition boundary.
 
 `backend/project_layout/` may import only its own modules plus the reviewed
 standard-library path/value modules. Placement validates identity twice and fails

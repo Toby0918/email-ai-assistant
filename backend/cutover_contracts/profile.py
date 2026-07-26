@@ -11,6 +11,8 @@ from .profile_schema import (
     PROFILE_BODY_KEYS,
     PROFILE_ERROR,
     PROFILE_TYPE,
+    _exact_dict,
+    _is_fingerprint,
     validate_profile_body,
 )
 
@@ -50,22 +52,27 @@ class CutoverProfileV1:
     @classmethod
     def create(cls, value: object) -> CutoverProfileV1:
         body = validate_profile_body(value)
-        fingerprint = hashlib.sha256(canonical_json(body)).hexdigest()
+        fingerprint = hashlib.sha256(
+            canonical_json(body, code=PROFILE_ERROR)
+        ).hexdigest()
         return cls.from_mapping(
             {**body, "profile_fingerprint": fingerprint}
         )
 
     @classmethod
     def from_mapping(cls, value: object) -> CutoverProfileV1:
-        if type(value) is not dict:
+        source = _exact_dict(
+            value,
+            (*PROFILE_BODY_KEYS, "profile_fingerprint"),
+        )
+        fingerprint = source["profile_fingerprint"]
+        if not _is_fingerprint(fingerprint):
             raise CutoverContractError(PROFILE_ERROR)
-        expected = set(PROFILE_BODY_KEYS) | {"profile_fingerprint"}
-        if set(value) != expected:
-            raise CutoverContractError(PROFILE_ERROR)
-        fingerprint = value["profile_fingerprint"]
-        body = {key: value[key] for key in PROFILE_BODY_KEYS}
+        body = {key: source[key] for key in PROFILE_BODY_KEYS}
         normalized = validate_profile_body(body)
-        expected_fingerprint = hashlib.sha256(canonical_json(normalized)).hexdigest()
+        expected_fingerprint = hashlib.sha256(
+            canonical_json(normalized, code=PROFILE_ERROR)
+        ).hexdigest()
         if fingerprint != expected_fingerprint:
             raise CutoverContractError(PROFILE_ERROR)
         profile = object.__new__(cls)
@@ -87,7 +94,7 @@ class CutoverProfileV1:
     @classmethod
     def from_json(cls, payload: object) -> CutoverProfileV1:
         value = strict_json_object(payload, code=PROFILE_ERROR)
-        if canonical_json(value) != payload:
+        if canonical_json(value, code=PROFILE_ERROR) != payload:
             raise CutoverContractError(PROFILE_ERROR)
         return cls.from_mapping(value)
 
@@ -111,7 +118,7 @@ class CutoverProfileV1:
         }
 
     def to_canonical_json(self) -> bytes:
-        return canonical_json(self.to_mapping())
+        return canonical_json(self.to_mapping(), code=PROFILE_ERROR)
 
 
 def _freeze(value: object) -> object:

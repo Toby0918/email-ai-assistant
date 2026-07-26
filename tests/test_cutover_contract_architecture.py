@@ -76,6 +76,13 @@ FORBIDDEN_CALL_NAMES = {
     "input",
     "open",
 }
+FORBIDDEN_LOAD_NAMES = FORBIDDEN_CALL_NAMES | {
+    "__builtins__",
+    "getattr",
+    "globals",
+    "locals",
+    "vars",
+}
 FORBIDDEN_CALL_ATTRIBUTES = {
     "connect",
     "getenv",
@@ -83,8 +90,18 @@ FORBIDDEN_CALL_ATTRIBUTES = {
     "run",
     "system",
     "time",
+    "token_bytes",
     "utcnow",
     "uuid4",
+}
+FORBIDDEN_ISSUER_NAMES = {"generate", "issue", "mint", "sign"}
+ALLOWED_CREATE_FUNCTIONS = {
+    ("profile.py", "CutoverProfileV1.create"),
+    ("receipt.py", "ReceiptEnvelopeV1.create"),
+    (
+        "authorization_validation.py",
+        "TestSandboxAuthorizationV1.create",
+    ),
 }
 PACKAGE_MODULES = {
     Path(name).stem
@@ -115,10 +132,46 @@ def _is_forbidden_call(node: ast.Call) -> bool:
     return False
 
 
+def _contains_forbidden_load(tree: ast.AST) -> bool:
+    return any(
+        isinstance(node, ast.Name)
+        and isinstance(node.ctx, ast.Load)
+        and node.id in FORBIDDEN_LOAD_NAMES
+        for node in ast.walk(tree)
+    )
+
+
+def _is_allowed_package_relative_path(relative_path: str) -> bool:
+    return relative_path in EXPECTED_FILES
+
+
+def _package_python_paths() -> tuple[Path, ...]:
+    return tuple(
+        sorted(
+            path
+            for path in PACKAGE.rglob("*.py")
+            if "__pycache__" not in path.relative_to(PACKAGE).parts
+        )
+    )
+
+
+def _literal_string(node: ast.AST) -> str | None:
+    if isinstance(node, ast.Constant) and type(node.value) is str:
+        return node.value
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        left = _literal_string(node.left)
+        right = _literal_string(node.right)
+        if left is not None and right is not None:
+            return left + right
+    return None
+
+
 def _imports_cutover_contracts(source: str) -> bool:
     if "backend.cutover_contracts" in source:
         return True
-    for node in ast.walk(ast.parse(source)):
+    tree = ast.parse(source)
+    dynamic_import = False
+    for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             if any(
                 alias.name == "backend.cutover_contracts"
@@ -137,7 +190,56 @@ def _imports_cutover_contracts(source: str) -> bool:
                 or any(alias.name == "cutover_contracts" for alias in node.names)
             ):
                 return True
+        elif isinstance(node, ast.Call):
+            dynamic_import = dynamic_import or (
+                isinstance(node.func, ast.Name)
+                and node.func.id in {"__import__", "import_module"}
+            ) or (
+                isinstance(node.func, ast.Attribute)
+                and node.func.attr == "import_module"
+            )
+    if dynamic_import:
+        return any(
+            (_literal_string(node) or "").startswith(
+                "backend.cutover_contracts"
+            )
+            for node in ast.walk(tree)
+        )
     return False
+
+
+def _qualified_function_names(
+    nodes: list[ast.stmt],
+    owners: tuple[str, ...] = (),
+) -> set[str]:
+    result: set[str] = set()
+    for node in nodes:
+        if isinstance(node, ast.ClassDef):
+            result.update(_qualified_function_names(node.body, (*owners, node.name)))
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            qualified = ".".join((*owners, node.name))
+            result.add(qualified)
+            result.update(
+                _qualified_function_names(node.body, (*owners, node.name))
+            )
+    return result
+
+
+def _forbidden_issuer_functions(
+    tree: ast.Module,
+    filename: str,
+) -> set[str]:
+    result: set[str] = set()
+    for qualified in _qualified_function_names(tree.body):
+        name = qualified.rsplit(".", 1)[-1]
+        if name in FORBIDDEN_ISSUER_NAMES:
+            result.add(qualified)
+        elif name == "create" and (
+            filename,
+            qualified,
+        ) not in ALLOWED_CREATE_FUNCTIONS:
+            result.add(qualified)
+    return result
 
 
 class CutoverContractArchitectureTests(unittest.TestCase):
@@ -171,6 +273,23 @@ class CutoverContractArchitectureTests(unittest.TestCase):
             with self.subTest(source=source):
                 self.assertEqual(_is_allowed_package_import(node), expected)
 
+    def test_package_file_guard_rejects_nested_and_non_python_payloads(
+        self,
+    ) -> None:
+        cases = (
+            ("authorization.py", True),
+            ("host/adapter.py", False),
+            ("payload.exe", False),
+            ("payload.pyc", False),
+            ("nested/payload.ps1", False),
+        )
+        for relative_path, expected in cases:
+            with self.subTest(relative_path=relative_path):
+                self.assertEqual(
+                    _is_allowed_package_relative_path(relative_path),
+                    expected,
+                )
+
     def test_call_guard_rejects_stdin_and_host_io(self) -> None:
         cases = (
             ("input()", True),
@@ -186,6 +305,21 @@ class CutoverContractArchitectureTests(unittest.TestCase):
             with self.subTest(source=source):
                 self.assertEqual(_is_forbidden_call(node), expected)
 
+    def test_load_guard_rejects_aliased_builtins_and_dynamic_access(self) -> None:
+        cases = (
+            ("reader = open", True),
+            ("loader = __import__", True),
+            ("lookup = getattr", True),
+            ("scope = globals", True),
+            ("serializer = json.dumps", False),
+        )
+        for source, expected in cases:
+            with self.subTest(source=source):
+                self.assertEqual(
+                    _contains_forbidden_load(ast.parse(source)),
+                    expected,
+                )
+
     def test_consumer_guard_recognizes_equivalent_python_imports(self) -> None:
         cases = (
             ("import backend.cutover_contracts", True),
@@ -196,11 +330,52 @@ class CutoverContractArchitectureTests(unittest.TestCase):
             ("from ..cutover_contracts import ReceiptEnvelopeV1", True),
             ("from backend import email_agent", False),
             ("from .errors import CutoverContractError", False),
+            (
+                "import importlib\n"
+                "importlib.import_module('backend.' + 'cutover_contracts')",
+                True,
+            ),
         )
         for source, expected in cases:
             with self.subTest(source=source):
                 self.assertEqual(
                     _imports_cutover_contracts(source),
+                    expected,
+                )
+
+    def test_issuer_guard_is_package_wide_and_create_is_allowlisted(self) -> None:
+        cases = (
+            (
+                "profile.py",
+                "class CutoverProfileV1:\n"
+                "    def create(self):\n"
+                "        return None\n",
+                set(),
+            ),
+            (
+                "authorization_validation.py",
+                "def mint():\n"
+                "    return None\n",
+                {"mint"},
+            ),
+            (
+                "host/issuer.py",
+                "class HostIssuer:\n"
+                "    def sign(self):\n"
+                "        return None\n",
+                {"HostIssuer.sign"},
+            ),
+            (
+                "helper.py",
+                "def create():\n"
+                "    return None\n",
+                {"create"},
+            ),
+        )
+        for filename, source, expected in cases:
+            with self.subTest(filename=filename):
+                self.assertEqual(
+                    _forbidden_issuer_functions(ast.parse(source), filename),
                     expected,
                 )
 
@@ -220,15 +395,16 @@ class CutoverContractArchitectureTests(unittest.TestCase):
 
     def test_package_files_and_public_surface_are_exact(self) -> None:
         files = {
-            path.name
-            for path in PACKAGE.iterdir()
-            if path.is_file() and path.suffix == ".py"
+            path.relative_to(PACKAGE).as_posix()
+            for path in PACKAGE.rglob("*")
+            if path.is_file()
+            and "__pycache__" not in path.relative_to(PACKAGE).parts
         }
         self.assertEqual(files, EXPECTED_FILES)
         self.assertEqual(set(contracts.__all__), EXPECTED_PUBLIC)
 
     def test_package_imports_only_pure_standard_library_values(self) -> None:
-        for path in sorted(PACKAGE.glob("*.py")):
+        for path in _package_python_paths():
             tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
             for node in ast.walk(tree):
                 if isinstance(node, ast.Import):
@@ -243,8 +419,9 @@ class CutoverContractArchitectureTests(unittest.TestCase):
                     )
 
     def test_package_has_no_host_io_or_ambient_authority_calls(self) -> None:
-        for path in sorted(PACKAGE.glob("*.py")):
+        for path in _package_python_paths():
             tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            self.assertFalse(_contains_forbidden_load(tree), path)
             for node in ast.walk(tree):
                 if not isinstance(node, ast.Call):
                     continue
@@ -253,27 +430,15 @@ class CutoverContractArchitectureTests(unittest.TestCase):
                     (path, ast.unparse(node)),
                 )
 
-    def test_real_authorization_module_has_no_issuer_or_clock(self) -> None:
-        path = PACKAGE / "authorization.py"
-        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-        names = {
-            node.name
-            for node in ast.walk(tree)
-            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-        }
-        calls = {
-            node.func.attr
-            for node in ast.walk(tree)
-            if isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Attribute)
-        }
-
-        self.assertTrue(
-            {"create", "issue", "mint", "generate", "sign"}.isdisjoint(names)
-        )
-        self.assertTrue(
-            {"uuid4", "now", "utcnow", "time", "token_bytes"}.isdisjoint(calls)
-        )
+    def test_package_has_no_real_authorization_issuer(self) -> None:
+        violations = {}
+        for path in _package_python_paths():
+            relative = path.relative_to(PACKAGE).as_posix()
+            tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+            findings = _forbidden_issuer_functions(tree, relative)
+            if findings:
+                violations[relative] = findings
+        self.assertEqual(violations, {})
 
     def test_no_runtime_or_operator_surface_consumes_the_package(self) -> None:
         roots = (
@@ -304,7 +469,7 @@ class CutoverContractArchitectureTests(unittest.TestCase):
         self.assertEqual(violations, [])
 
     def test_backend_files_and_functions_remain_bounded(self) -> None:
-        for path in sorted(PACKAGE.glob("*.py")):
+        for path in _package_python_paths():
             lines = path.read_text(encoding="utf-8").splitlines()
             self.assertLessEqual(len(lines), 300, path)
             tree = ast.parse("\n".join(lines), filename=str(path))

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from ._canonical import is_exact_str
 from .errors import CutoverContractError
 from .profile_schema import _is_commit, _is_fingerprint
 
@@ -64,22 +65,22 @@ AUTHORIZATION_SPECS = {
 def validate_authorization_body(
     value: object, *, expected_type: str
 ) -> dict[str, object]:
-    if type(value) is not dict or set(value) != set(AUTHORIZATION_BODY_KEYS):
-        _invalid()
+    source = _exact_dict(value, AUTHORIZATION_BODY_KEYS)
     spec = AUTHORIZATION_SPECS.get(expected_type)
     if (
         spec is None
-        or value["authorization_type"] != expected_type
-        or value["operation"] != spec.operation
-        or value["phase"] not in spec.phases
-        or not _is_fingerprint(value["operation_fingerprint"])
-        or not _is_fingerprint(value["profile_fingerprint"])
-        or not _is_commit(value["governing_master_commit"])
-        or not _is_fingerprint(value["operator_fingerprint"])
+        or not is_exact_str(source["authorization_type"], expected_type)
+        or not is_exact_str(source["operation"], spec.operation)
+        or type(source["phase"]) is not str
+        or source["phase"] not in spec.phases
+        or not _is_fingerprint(source["operation_fingerprint"])
+        or not _is_fingerprint(source["profile_fingerprint"])
+        or not _is_commit(source["governing_master_commit"])
+        or not _is_fingerprint(source["operator_fingerprint"])
     ):
         _invalid()
-    _validate_validity(value, spec)
-    return {key: value[key] for key in AUTHORIZATION_BODY_KEYS}
+    _validate_validity(source, spec)
+    return {key: source[key] for key in AUTHORIZATION_BODY_KEYS}
 
 
 def spec_for_operation(operation: object) -> AuthorizationSpec | None:
@@ -106,6 +107,16 @@ def _validate_validity(
     ):
         _invalid()
 
+def _exact_dict(
+    value: object, expected_keys: tuple[str, ...]
+) -> dict[str, object]:
+    if (
+        type(value) is not dict
+        or any(type(key) is not str for key in value)
+        or set(value) != set(expected_keys)
+    ):
+        _invalid()
+    return value
 
 def _invalid() -> None:
     raise CutoverContractError(AUTHORIZATION_ERROR)

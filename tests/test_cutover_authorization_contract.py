@@ -18,6 +18,8 @@ from backend.cutover_contracts import (
 )
 from tests.cutover_contract_fixtures import (
     GOVERNING_MASTER,
+    HostileComparison,
+    HostileKey,
     canonical_json,
     opaque_fingerprint,
     valid_authorization_mapping,
@@ -364,6 +366,37 @@ class CutoverAuthorizationContractTests(unittest.TestCase):
         )
         self.assertEqual((result.accepted, result.rejected), (0, 1))
 
+    def test_validator_fails_closed_on_cyclic_profile_state(self) -> None:
+        authorization = parsed_authorization(
+            RealPreflightAuthorizationV1,
+            self.profile,
+            authorization_type="RealPreflightAuthorizationV1",
+            operation="real_preflight",
+            phase="current_topology_preflight",
+        )
+        frozen_roles = self.profile.role_selections
+        object.__setattr__(
+            frozen_roles,
+            "items",
+            (("projects_parent", frozen_roles),),
+        )
+
+        result = validate_real_host_authorization(
+            authorization,
+            profile=self.profile,
+            expected_operation="real_preflight",
+            expected_operation_fingerprint=opaque_fingerprint(201),
+            expected_phase="current_topology_preflight",
+            expected_operator_fingerprint=self.profile.operator_fingerprint,
+            observed_at_epoch=1_800_000_010,
+        )
+
+        self.assertIs(
+            result.status,
+            AuthorizationValidationStatus.BLOCKED_AUTHORIZATION_INVALID,
+        )
+        self.assertEqual((result.accepted, result.rejected), (0, 1))
+
     def test_real_authorization_types_expose_no_unchecked_body_constructor(
         self,
     ) -> None:
@@ -390,6 +423,11 @@ class CutoverAuthorizationContractTests(unittest.TestCase):
             b'{"phase":"current_topology_preflight","authorization_fingerprint":',
             1,
         )
+        lone_surrogate = authorization.to_canonical_json().replace(
+            b'"authorization_type":"RealPreflightAuthorizationV1"',
+            b'"authorization_type":"\\ud800"',
+            1,
+        )
         for value in (unknown, tampered):
             with self.assertRaisesRegex(
                 CutoverContractError,
@@ -401,6 +439,64 @@ class CutoverAuthorizationContractTests(unittest.TestCase):
             "^AUTHORIZATION_CONTRACT_INVALID$",
         ):
             RealPreflightAuthorizationV1.from_json(duplicate)
+        with self.assertRaisesRegex(
+            CutoverContractError,
+            "^AUTHORIZATION_CONTRACT_INVALID$",
+        ):
+            RealPreflightAuthorizationV1.from_json(lone_surrogate)
+
+    def test_authorization_mapping_fails_closed_before_hostile_comparison(
+        self,
+    ) -> None:
+        base = valid_authorization_mapping(
+            "RealPreflightAuthorizationV1",
+            profile_fingerprint=self.profile.profile_fingerprint,
+            operator_fingerprint=self.profile.operator_fingerprint,
+            operation="real_preflight",
+            phase="current_topology_preflight",
+        )
+        for field in (
+            "authorization_type",
+            "operation",
+            "phase",
+            "authorization_fingerprint",
+        ):
+            value = dict(base)
+            value[field] = HostileComparison()
+            with self.subTest(field=field):
+                with self.assertRaisesRegex(
+                    CutoverContractError,
+                    "^AUTHORIZATION_CONTRACT_INVALID$",
+                ):
+                    RealPreflightAuthorizationV1.from_mapping(value)
+
+        authorization = RealPreflightAuthorizationV1.from_mapping(base)
+        object.__setattr__(authorization, "phase", HostileComparison())
+        result = validate_real_host_authorization(
+            authorization,
+            profile=self.profile,
+            expected_operation="real_preflight",
+            expected_operation_fingerprint=opaque_fingerprint(201),
+            expected_phase="current_topology_preflight",
+            expected_operator_fingerprint=self.profile.operator_fingerprint,
+            observed_at_epoch=1_800_000_010,
+        )
+        self.assertIs(
+            result.status,
+            AuthorizationValidationStatus.BLOCKED_AUTHORIZATION_INVALID,
+        )
+
+        hostile_key = dict(base)
+        authorization_type = hostile_key.pop("authorization_type")
+        hostile_key = {
+            HostileKey("authorization_type"): authorization_type,
+            **hostile_key,
+        }
+        with self.assertRaisesRegex(
+            CutoverContractError,
+            "^AUTHORIZATION_CONTRACT_INVALID$",
+        ):
+            RealPreflightAuthorizationV1.from_mapping(hostile_key)
 
     def test_validity_and_numeric_fields_are_strictly_bounded(self) -> None:
         invalid_overrides = (
