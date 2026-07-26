@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-25
+last_update: 2026-07-26
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -305,6 +305,36 @@ administrative directory to a sibling holding namespace before `git worktree
 add --force`; it performs no clone, prune or deletion. Each fixed publication
 boundary can return only completed, rollback-verified or failed aggregate
 results. No result contains a path, ref, OID, exception or file content.
+
+### Synthetic Managed runtime activation rehearsal tooling boundary
+
+Issue #37 adds only standard-library value/validation modules under
+`backend.runtime_activation_rehearsal`; it adds no dependency, install command,
+CLI, workflow, scheduler, environment option, path override, network client,
+host reader, or default adapter. The public operation accepts exactly five
+injected adapters and returns only fixed aggregate status/counts.
+
+Only test-owned `issue37-synthetic-*` parents may perform filesystem or SQLite
+operations. They create exact-cased Managed zones and represent
+`Runtimes\venv\Scripts\python.exe` as rebuilt from the fixed dependency lock.
+No network install or dependency upgrade is permitted, and the real `.venv`,
+runtime and requirements files remain read-only. Runtime/venv/dependency source,
+legacy venv, source SQLite and reviewed artifact are re-observed rather than
+moved or cleaned.
+
+Database and artifact test publishers use exclusive create-only targets.
+Lifecycle-manager stop plus an independent `pre_publication` proof is required
+before SQLite copy. Start, health, analysis and final stop bind one fresh
+activation nonce to the initial gate；the `post_activation` proof uses a fresh
+stop token for the
+same service and rejects old stopped evidence. The test fixture may use local
+synthetic SQLite only to verify
+identity, SHA-256, `integrity_check`, expected schema, absent sidecars and
+aggregate counts. A pre-frozen reviewed CRX hash gates artifact copy; signing
+material has no adapter capability. The activated fake service binds only exact
+Managed resources, both providers disabled, literal loopback health and one
+persisted rules analysis. No real migration package, runtime, database, artifact,
+provider, mailbox, vault, private store or credential may be opened.
 
 本地邮件分析 HTTP 服务沿用 Python 标准库 `ThreadingHTTPServer`，不得为 Host/Content-Type 门禁新增 HTTP 框架。服务 bind 只支持 `localhost` 或字面 IPv4 `127.0.0.0/8`；分析 POST 必须在读 body 前校验单一 loopback Host 和单一 JSON media type。
 

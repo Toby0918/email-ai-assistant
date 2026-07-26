@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-23
+last_update: 2026-07-26
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -38,6 +38,7 @@ source_type: operation_guide
 - 请求分析路径继续执行既有过期清理。没有后台邮箱 poller、任务队列或常驻清理 scheduler。
 - 成功只报告删除数量和服务状态。失败返回通用错误并中止 start/restart；不报告附件名、内容、私有 URL、cookie、token、OCR 文本或异常中的私有路径。
 - `python scripts/manage_local_service.py status` 与 `GET http://127.0.0.1:8765/api/health` 只提供本地服务健康信息，不读取附件内容。
+- `stop` 只有在 loopback health 明确变为 unavailable 后才删除 PID state 并返回 `stopped`。等待超时返回非零 `unknown`、保留 PID，且不能作为 SQLite create-only copy 的停机证明。
 
 ### Managed Container Mode
 
@@ -60,7 +61,8 @@ source_type: operation_guide
   maintenance, and leakage scanning remain rooted at `main`.
 - Issue #32 verifies this path only with a synthetic loopback layout. Do not
   create or migrate the real Project Container, runtime, database, artifacts, or
-  worktrees under this checkpoint; Issues #34–#40 remain separate.
+  worktrees under this checkpoint. Issue #37 adds only an injected-adapter
+  temporary synthetic activation rehearsal; Issues #38–#40 remain separate.
 
 ### Standalone Verification Mode
 

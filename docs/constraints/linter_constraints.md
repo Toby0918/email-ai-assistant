@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-25
+last_update: 2026-07-26
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -492,6 +492,34 @@ directory identity, clean linked status, Managed relationship, actual
 ContainerAudit pass, existing-target no-clobber, and a verified rollback at all
 six fixed publication boundaries. They create no real evidence package or
 Project Container and never accept the current Repository Root as input.
+
+### Synthetic Managed runtime activation rehearsal mechanical guards
+
+`backend/runtime_activation_rehearsal/` has an exact module-file allowlist and
+may import only its own modules plus reviewed standard-library value helpers.
+AST guards reject filesystem, SQLite, subprocess, network, provider, mailbox,
+vault, private-store, credential, signing, ContainerAudit and migration-evidence
+imports. They also reject destructive/cleanup capability names and any
+normal-runtime, script, frontend, root-wrapper, cleanup, leakage or workflow
+consumer, including direct calls and non-Python text references.
+
+Contract guards pin one keyword-only no-default `adapters` parameter, exactly
+five required adapter fields, frozen/slotted/repr-redacted evidence, and fixed
+aggregate-only results. Validation uses exact types, so boolean schema versions
+or counts cannot pass integer contracts. Runtime checks bind actual
+runtime/venv/Scripts/executable parents, stable dependency-lock identity/hash,
+exact pins, offline rebuild and untouched sources.
+
+Behavior guards require phase-bound stop-plus-independent-probe before SQLite
+work, create-only database/artifact publication, stable source re-observation,
+pre-frozen reviewed artifact identity/hash, exact Managed resource roles, and
+one activation token echoed by start, health, analysis and the
+`post_activation` final stopped proof. Final proof must use a fresh stop token
+for the same service. Temporary integration tests inject equality spoofing,
+stale stop replay, runtime/database/artifact race, reparse, existing target,
+dependency, integrity and health failure and independently assert
+source/legacy/competitor preservation plus zero forbidden access before
+caller-owned teardown.
 
 ### Private evaluation mechanical guards
 

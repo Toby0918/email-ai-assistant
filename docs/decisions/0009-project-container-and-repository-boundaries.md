@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-25
+last_update: 2026-07-26
 status: draft
 owner: "@tobyWang"
 review_cycle: quarterly
@@ -186,6 +186,43 @@ evidence package before the test-owned temporary directory is disposed. The
 module has no CLI, default/real adapter, normal-runtime/browser/script/workflow
 consumer, ACL/runtime/database action, mailbox/provider/vault/private-store
 access or authority for real cutover.
+
+### Issue #37 synthetic Managed runtime activation rehearsal
+
+`backend.runtime_activation_rehearsal` exposes one keyword-only Python seam
+whose only argument is an exact five-field injected adapter bundle. The module
+accepts no path, repository, source, destination, environment, reader factory,
+failure selector, CLI input, or default host adapter. Its fixed public result
+contains only completed/failed status and aggregate counts.
+
+The rehearsal validates a complete synthetic Managed layout, exact Python
+3.12.13 and SQLite 3.50.4 evidence, stable dependency-lock identity and digest,
+offline Windows venv rebuild evidence, and an untouched legacy venv. Lifecycle
+stop output and an independent stopped probe must echo `pre_publication` before
+the database adapter can run. SQLite publication is create-only and requires
+distinct stable identities, equal pre-activation SHA-256/size/counts, successful
+integrity/schema checks, and no WAL/SHM/journal sidecar. The source is observed
+again after publication and after service activation.
+
+A reviewed synthetic browser-extension identity and SHA-256 must match the
+source before create-only artifact publication; filesystem and probe destination
+observations must agree. No signing-material capability exists. The synthetic
+service start binds the rebuilt venv executable plus attachment temp, log, PID
+and non-secret Config resources to their approved Managed zones, fixes both
+providers disabled, and binds one fresh activation nonce to the initial gate；
+that nonce is echoed through literal-loopback health and one user-confirmed
+persisted `rule_fallback` analysis. The
+`post_activation` final proof binds that token and the same service, rejects
+stale evidence, uses a fresh stop token, and precedes post-analysis checks.
+
+Tests own all mutable state beneath `issue37-synthetic-*` temporary parents and
+independently inspect source, legacy and competitor preservation before teardown.
+Race, reparse, existing-target, dependency, integrity and health failures return
+the same fixed failure and never authorize overwrite or source cleanup. The
+production package imports no filesystem, SQLite, subprocess, network, mailbox,
+provider, vault, private-store, credential, ContainerAudit or migration-evidence
+capability and has no host consumer. No real runtime, database, extension
+artifact, evidence package or Project Container activation occurred.
 
 ## Context
 

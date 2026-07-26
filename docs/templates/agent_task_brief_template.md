@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-25
+last_update: 2026-07-26
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -322,6 +322,15 @@ the manual ContainerAudit contract.
 [ ] Every fixed publication boundary injects failure and proves original-source or independently verified rollback preservation before temporary cleanup.
 [ ] Only exact synthetic audit/evidence/layout bridges are allowlisted; normal runtime, scripts, frontend, cleanup, leakage and workflows cannot consume the rehearsal.
 [ ] Tests are synthetic/offline and perform no real migration or Managed Container creation.
+[ ] A runtime activation rehearsal accepts exactly five injected adapters and no path, ambient environment, default host adapter, CLI or normal-runtime consumer.
+[ ] Pinned runtime and dependency-lock evidence binds a create-only runtime plus `Runtimes\venv\Scripts\python.exe` rebuilt without network or legacy-venv reuse.
+[ ] Lifecycle stop and independent proof echo `pre_publication` before create-only SQLite publication; start/health/analysis/final-stop bind one activation token, and `post_activation` rejects stale stop replay with a fresh stop token.
+[ ] SQLite source/destination identity, SHA-256, integrity, schema, sidecars and aggregate counts are independently verified; source remains unchanged after every outcome.
+[ ] RuntimeTemp attachment, Logs log/PID, Config non-secret settings and Artifacts browser-extension roles bind to the actual synthetic Managed topology.
+[ ] Browser-extension publication uses a pre-frozen reviewed identity/hash, is create-only, and exposes no signing-material capability.
+[ ] Synthetic activation binds the rebuilt venv executable, keeps all providers disabled, uses literal loopback health, persists exactly one rule-fallback analysis and proves final stop.
+[ ] Race, reparse, existing-target, dependency, integrity and health failures preserve source/legacy/competitor state without overwrite, rollback-by-deletion or source cleanup.
+[ ] No real runtime, SQLite, extension artifact, migration evidence package, provider, mailbox, vault, private store or credential is opened or activated.
 ```
 
 ## 22. 执行后记录

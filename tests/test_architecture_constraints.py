@@ -2516,6 +2516,29 @@ class ArchitectureConstraintTests(unittest.TestCase):
         self.assertIn("OperationalLayout", template)
         self.assertIn("ProtectedLocationPolicy", template)
 
+    def test_runtime_activation_rehearsal_architecture_is_documented(
+        self,
+    ) -> None:
+        architecture = read_text(
+            ROOT / "docs" / "constraints" / "architecture_constraints.md"
+        )
+        template = read_text(
+            ROOT / "docs" / "templates" / "agent_task_brief_template.md"
+        )
+
+        self.assertIn("backend.runtime_activation_rehearsal", architecture)
+        self.assertIn(
+            "rehearse_managed_runtime_activation(*, adapters=...)",
+            architecture,
+        )
+        self.assertIn("with no defaults", architecture)
+        self.assertIn(
+            "A runtime activation rehearsal accepts exactly five injected adapters",
+            template,
+        )
+        self.assertIn("no path", template)
+        self.assertIn("default host adapter", template)
+
     def test_python_modules_do_not_contain_raw_secret_literals(self) -> None:
         secret_patterns = {
             "openai_key": r"\bsk-[A-Za-z0-9_-]{10,}",

@@ -40,6 +40,9 @@ KEY_FILES = [
     "backend/migration_evidence/verification.py",
     "backend/reparenting_rehearsal/__init__.py",
     "backend/reparenting_rehearsal/rehearsal.py",
+    "backend/runtime_activation_rehearsal/__init__.py",
+    "backend/runtime_activation_rehearsal/rehearsal.py",
+    "backend/runtime_activation_rehearsal/service_checks.py",
     "backend/mailbox" + "_ingest/governed_scan.py",
     "backend/mailbox" + "_ingest/sales_corpus_index.py",
     "backend/mailbox" + "_ingest/sales_message_policy.py",
@@ -122,6 +125,7 @@ KEY_FILES = [
     "docs/operations/issue32_managed_container_mode_task_brief.md",
     "docs/operations/issue35_migration_evidence_package_task_brief.md",
     "docs/operations/issue36_reparenting_rehearsal_task_brief.md",
+    "docs/operations/issue37_managed_runtime_localdata_rehearsal_task_brief.md",
     "docs/operations/project_status_log.md",
     "docs/operations/project_status_log_guide.md",
     "docs/operations/agents_project_status_snippet.md",
@@ -165,6 +169,9 @@ KEY_FILES = [
     "tests/test_reparenting_rehearsal_rollback.py",
     "tests/test_reparenting_rehearsal_safety.py",
     "tests/test_reparenting_rehearsal_success.py",
+    "tests/test_runtime_activation_rehearsal_architecture.py",
+    "tests/test_runtime_activation_rehearsal_integration.py",
+    "tests/test_runtime_activation_rehearsal_service.py",
     "tests/support.py",
     "tests/test_architecture_constraints.py",
     "tests/test_current_evidence_handoff.py",
@@ -240,6 +247,10 @@ GUARDRAILS = [
         "Synthetic repository reparenting rehearsal",
         "docs/operations/issue36_reparenting_rehearsal_task_brief.md",
     ),
+    (
+        "Synthetic Managed runtime activation rehearsal",
+        "docs/operations/issue37_managed_runtime_localdata_rehearsal_task_brief.md",
+    ),
 ]
 
 AUTHORIZED_PRIVATE_INGEST_FILES = {
@@ -284,6 +295,7 @@ HARD_BOUNDARIES = [
     "不放宽任何测试、linter 或架构约束。",
     "真实 migration evidence package 必须先展示 exact target、content-free inclusion/exclusion manifest、reviewed local refs 和 worktree selection，并在单独确认前停止。",
     "Issue #36 只证明 temporary synthetic rehearsal；不得把它当作真实 migration、audit、worktree repair 或 cutover 授权。",
+    "Issue #37 只证明 injected-adapter temporary synthetic activation rehearsal；不得把它当作真实 runtime、SQLite、artifact activation 或 cutover 授权。",
 ]
 
 
@@ -505,7 +517,9 @@ Issue #34 manual content-free Container Audit is offline implemented behind seve
 
 Issue #35 no-clobber migration evidence package is offline implemented as a manual internal Python contract. It binds exact reviewed local refs, branch-attached worktree identities, an allowlisted two-layer dirty-source snapshot, content-free Git/ACL/volume baselines, and every payload file with canonical SHA-256 evidence. Publication is external-target, create-only and fail-closed; verification restores Git objects, refs, dirty state and worktree identity in synthetic repositories. No real evidence package was created.
 
-Issue #36 repository/worktree reparenting rehearsal is offline implemented as one pathless synthetic-only Python seam. It builds a temporary repository with a bound marker filesystem identity and a non-trivial Git baseline, creates and verifies one synthetic Issue #35 package, no-clobber moves the existing Git common directory and reviewed source into a synthetic `main`, applies injected repair/recreate worktree choices, verifies exact post-state and passes a synthetic ContainerAudit. All six publication-boundary failures verify rollback preservation; post-main failures preserve the complete Container at the single sibling rollback path. The public operation leaves the synthetic topology intact for independent caller observation. No real workspace, worktree, branch, directory, ACL, runtime, database or private data was touched; Issues #37 through #40 remain separate.
+Issue #36 repository/worktree reparenting rehearsal is offline implemented as one pathless synthetic-only Python seam. It builds a temporary repository with a bound marker filesystem identity and a non-trivial Git baseline, creates and verifies one synthetic Issue #35 package, no-clobber moves the existing Git common directory and reviewed source into a synthetic `main`, applies injected repair/recreate worktree choices, verifies exact post-state and passes a synthetic ContainerAudit. All six publication-boundary failures verify rollback preservation; post-main failures preserve the complete Container at the single sibling rollback path. The public operation leaves the synthetic topology intact for independent caller observation. No real workspace, worktree, branch, directory, ACL, runtime, database or private data was touched; Issues #38 through #40 remain separate.
+
+Issue #37 managed runtime and LocalData activation rehearsal is offline implemented behind exact five injected adapters and one pathless synthetic-only seam. Temporary synthetic sources prove a create-only pinned runtime, a Windows venv rebuilt from the exact dependency lock, `pre_publication` stopped-service create-only SQLite publication with identity/SHA-256/integrity/sidecar/count checks, reviewed-hash browser-extension publication, exact Managed writable roles, and one strict activation token across provider-disabled start, literal-loopback health, one persisted rule-fallback analysis and the same-service `post_activation` fresh-stop proof. Stale evidence and equality spoofing fail closed. The source database remains unchanged after success and every simulated race, reparse, existing-target, dependency, integrity or health failure. No real runtime, SQLite database, browser-extension artifact or migration evidence package was activated; Issues #38 through #40 remain separate.
 
 The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器扩展, with current-message collection only after an explicit user click.
 
