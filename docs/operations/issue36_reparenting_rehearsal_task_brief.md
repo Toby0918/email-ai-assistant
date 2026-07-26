@@ -324,6 +324,10 @@ scope、injected choices、failure boundaries 与禁止事项。
 - `compileall` and `git diff --check`: exit 0.
 - Inclusive repository leakage scan: `total=0`.
 - Maintenance scan: `No cleanup findings detected.`
+- Standards/Spec dual-axis review: no P1/P2 findings.
+- Non-blocking P3: `test_reparenting_rehearsal_has_no_host_consumers` is
+  54 lines versus the 50-line recommendation; no behavior or safety boundary
+  is affected.
 
 未完成事项：
 - Real evidence package, audit, migration/cutover and Issues #37 through #40.
