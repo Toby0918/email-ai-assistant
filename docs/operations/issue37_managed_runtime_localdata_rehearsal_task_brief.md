@@ -387,7 +387,7 @@ Not applicable。Mailbox sync and current-click evidence remain unchanged。
 - Focused Issue #37: 37 tests, `OK`.
 - Affected lifecycle、Managed Container、architecture、status and documentation
   regression: 197 tests, `OK (skipped=1)`.
-- Full unittest after the final lifecycle/nonce fix: 1897 tests,
+- Full unittest after the final CI portability fix: 1897 tests,
   `OK (skipped=3)`.
 - `python -m compileall -q backend scripts tests`: exit 0.
 - JavaScript syntax and browser-extension manifest JSON checks: exit 0.
@@ -395,6 +395,12 @@ Not applicable。Mailbox sync and current-click evidence remain unchanged。
 - `git diff --check`: exit 0.
 - Standards closing review: no P1/P2 findings.
 - Spec closing review: zero findings across all ten Issue #37 acceptance areas.
+- Initial GitHub/Linux CI exposed an integration-test assertion against the
+  host SQLite library (`3.45.1`) instead of the injected rehearsal runtime.
+  The scoped correction removes host-runtime coupling while preserving exact
+  Python/SQLite pin checks in injected evidence and mismatch tests; focused,
+  simulated-host and full regressions pass, and incremental Standards/Spec
+  re-review found no P1/P2 or Spec findings.
 - Non-blocking P3 items: eight new test/fixture files and thirteen test
   functions exceed the advisory size recommendations; the dependency-lock
   fixture shares policy constants instead of independently parsing

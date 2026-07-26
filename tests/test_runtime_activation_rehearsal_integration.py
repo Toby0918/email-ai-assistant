@@ -3,8 +3,6 @@
 from __future__ import annotations
 
 from dataclasses import replace
-import platform
-import sqlite3
 import unittest
 
 from backend.runtime_activation_rehearsal import (
@@ -19,8 +17,6 @@ from tests.runtime_activation_rehearsal_fixtures import (
 
 class RuntimeActivationRehearsalIntegrationTests(unittest.TestCase):
     def test_temporary_synthetic_activation_completes(self) -> None:
-        self.assertEqual(platform.python_version(), "3.12.13")
-        self.assertEqual(sqlite3.sqlite_version, "3.50.4")
         with SyntheticActivationWorld() as world:
             source_before = world.source_state()
             legacy_before = world.legacy_state()
