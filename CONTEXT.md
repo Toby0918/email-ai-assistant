@@ -80,3 +80,12 @@ rename, existing Git common-directory move, reviewed linked-worktree recovery,
 ContainerAudit, and rollback sequence. It accepts no repository path and grants
 no authority to operate on a real workspace.
 _Avoid_: Dry run on the real repository, migration command, cutover
+
+**Managed Runtime Activation Rehearsal**:
+A pathless, injected-adapter proof using only caller-owned temporary synthetic
+sources and destinations. It validates create-only pinned runtime and SQLite
+publication, reviewed browser-extension publication, exact Managed writable
+roles, provider-disabled loopback health, one persisted rule-fallback analysis,
+final service stop, and unchanged sources. It grants no real-host activation or
+cutover authority.
+_Avoid_: Runtime installer, migration command, real LocalData activation

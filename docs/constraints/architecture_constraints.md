@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-25
+last_update: 2026-07-26
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -181,6 +181,41 @@ administrative move. Their direct `Worktrees` parent must retain resolved
 containment and be a non-reparse directory; Git may not populate a pre-existing
 empty directory or follow a junction outside the Container.
 
+The `Managed Runtime Activation Rehearsal layer` in
+`backend.runtime_activation_rehearsal` is a synthetic-only deep module. Its sole
+public seam is
+`rehearse_managed_runtime_activation(*, adapters=...)`; the exact bundle contains
+runtime, filesystem, database, lifecycle and probe adapters with no defaults.
+The seam accepts no path, repository, source, target, environment, failure
+selector, reader factory, CLI value, or ambient state, and there is
+no default host adapter.
+
+The package fixes Python 3.12.13, SQLite 3.50.4, the exact dependency lock,
+Managed roles, both disabled provider routes, literal loopback health and one
+persisted `rule_fallback` analysis. Frozen repr-redacted evidence binds the
+actual temporary synthetic topology. A Windows venv is represented only as a
+network-free rebuild at `Runtimes\venv\Scripts\python.exe`; the service start
+must echo that exact venv and executable identity. Lifecycle-manager stop output
+and an independent stopped probe must echo the code-fixed `pre_publication`
+phase before every SQLite publication. Start, health and analysis then echo one
+fresh activation nonce bound to that stopped gate. Final stop and probe
+must echo it under `post_activation`, use a fresh stop token and bind the same
+service identity before post-analysis database/source checks.
+Database and reviewed browser-extension publication are create-only and require
+stable, distinct identities plus SHA-256/integrity/sidecar/count or reviewed-hash
+cross-checks.
+
+The production package may import only standard-library value helpers and its
+own modules. It may not import or expose filesystem, SQLite, process, network,
+provider, mailbox, vault, private-store, credential, signing-material,
+ContainerAudit, migration-evidence, cleanup, delete, move, overwrite, or
+rollback capability. No normal runtime, script, frontend, wrapper, cleanup,
+leakage scanner, or workflow may import or call it. Tests alone own
+`issue37-synthetic-*` temporary sources/destinations and may dispose of their
+parent only after source, legacy, competitor and no-forbidden-access assertions.
+Race, reparse, existing-target, dependency, integrity and health failures all
+return the same aggregate-only failure and never authorize source cleanup.
+
 ## 2. 允许依赖方向
 
 允许的核心依赖方向：
@@ -204,6 +239,7 @@ reviewed private location policies -> backend.project_layout protected path valu
 manual real external composition (future Issue only) -> backend.container_audit injected values
 manual offline operator -> backend.migration_evidence review/create/verify
 backend.reparenting_rehearsal -> exact synthetic audit/evidence/layout bridges
+tests only -> backend.runtime_activation_rehearsal exact injected adapters
 ```
 
 禁止反向依赖：
@@ -235,6 +271,8 @@ normal runtime/browser/scripts/workflows -> backend.migration_evidence
 normal runtime/browser/scripts/workflows/cleanup/leakage -> backend.reparenting_rehearsal
 backend.reparenting_rehearsal public seam -> Path/repository/target/host capability
 backend.migration_evidence -> mailbox/provider/SQLite/vault/private-store/lifecycle capability
+normal runtime/browser/scripts/wrappers/workflows/cleanup/leakage -> backend.runtime_activation_rehearsal
+backend.runtime_activation_rehearsal -> filesystem/SQLite/process/network/provider/mailbox/vault/private-store/credential/audit/evidence capability
 ```
 
 `backend/project_layout/` may import only its own modules plus the reviewed
@@ -560,6 +598,7 @@ backend/ 不得 import frontend。
 frontend、backend/email_agent 和除 scripts/manage_mailbox_vault.py 之外的脚本不得引用 backend.mailbox_ingest。
 mailbox ingest 不得 import analyzer、llm_client、provider client 或 frontend。
 mailbox ingest 和 CLI 不得 import smtplib、构造 SMTP client、发出 write IMAP command 或使用 BODY[]。
+runtime_activation_rehearsal 必须保持 exact-file、internal-import、pathless、no-host-consumer，并且不得获得 filesystem、SQLite、process、network、signing、audit、evidence 或 cleanup capability。
 docs/ 下 Markdown 文件必须包含 YAML front matter。
 项目中不得提交 .env、数据库文件、密钥文件或真实 token 文件。
 ```
@@ -572,6 +611,7 @@ docs/ 下 Markdown 文件必须包含 YAML front matter。
 
 ```text
 tests/test_architecture_constraints.py
+tests/test_runtime_activation_rehearsal_architecture.py
 tests/test_mailbox_transport_constraints.py
 ```
 

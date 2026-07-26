@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-25
+last_update: 2026-07-26
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -314,4 +314,36 @@ The public seam cannot accept or discover the real Repository Root and does not
 clean up any synthetic source, legacy source, worktree, target, or rollback
 path. Test-only caller-owned teardown happens after independent assertions.
 This rule creates no real evidence package, audit, Container, ACL, runtime,
-database or worktree mutation and does not implement Issues #37–#40.
+database or worktree mutation and does not implement Issues #38–#40.
+
+## 14. Synthetic Managed runtime activation rehearsal rule
+
+Issue #37 translates the approved activation rehearsal into five executable
+layers:
+
+1. `test_runtime_activation_rehearsal_contract.py` pins the single keyword-only,
+   no-default public seam, exact five-field adapter bundle, frozen evidence and
+   aggregate-only fixed results.
+2. Runtime and Managed-zone tests pin exact Python/SQLite/dependency evidence,
+   stable lock identity/hash, sibling fixed-runtime and Windows venv topology,
+   actual venv executable binding, exact writable roles and no signing
+   capability.
+3. SQLite and artifact tests require lifecycle-manager stop plus independent
+   `pre_publication` proof, create-only publication, source/destination identity,
+   SHA-256, integrity, schema, sidecars, counts, a pre-frozen reviewed CRX hash,
+   two destination observations and source preservation.
+4. Service tests require one activation token across start, health, exactly one
+   user-confirmed persisted `rule_fallback` analysis and the
+   `post_activation` stopped proof. The final proof binds the same service,
+   rejects stale replay, uses a fresh stop token and precedes final source
+   checks；both providers remain disabled with no key/client/private knowledge.
+5. Temporary integration and architecture tests bind evidence to actual
+   `issue37-synthetic-*` topology, inject every approved failure class, inspect
+   source/legacy/competitor preservation, and enforce exact imports plus zero
+   real-host consumers.
+
+All evidence version/count fields use exact integer types; `bool` cannot satisfy
+them. The production deep module owns no filesystem, SQLite, process, network,
+provider, mailbox, vault, private-store, credential, signing, audit, migration
+evidence, destructive or cleanup capability. No real activation or migration
+evidence package is produced, and Issues #38–#40 remain separate.

@@ -1,5 +1,5 @@
 ---
-last_update: 2026-06-30
+last_update: 2026-07-26
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -40,6 +40,7 @@ tests/test_mechanical_rule_constraints.py
 tests/test_maintenance_scan.py
 tests/test_generate_project_status.py
 tests/test_migration_evidence_*.py
+tests/test_runtime_activation_rehearsal_*.py
 python -m unittest discover -s tests
 python scripts/maintenance_scan.py
 ```
@@ -66,6 +67,11 @@ migration evidence package 出现在 Repository Root、覆盖目标、缺失必�
 或无法在 synthetic temporary repository 中独立恢复
 reparenting rehearsal 接受外部 path、出现非 reviewed bridge/consumer、使用
 clone/prune/delete/overwrite，或任一 synthetic publication boundary 无法验证 rollback
+runtime activation rehearsal 接受 path/default host adapter、出现真实 host consumer、
+未在 `pre_publication` stopped proof 后 create-only 发布、未用 activation token
+绑定 start/health/analysis/`post_activation` fresh-stop proof、放宽 provider-disabled/
+Managed-role/source-preservation 门禁，或访问真实 runtime/SQLite/artifact/evidence/
+private capability
 ```
 
 ## 5. 失败处理原则

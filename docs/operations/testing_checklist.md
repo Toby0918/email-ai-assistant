@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-25
+last_update: 2026-07-26
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -204,6 +204,50 @@ source_type: operation_guide
   normal-runtime/script/frontend/cleanup/leakage/workflow consumer, real host
   adapter, destructive filesystem call, network Git verb, real evidence
   package or real workspace mutation.
+
+## Synthetic Managed runtime and LocalData activation rehearsal
+
+- Run
+  `python -B -m unittest discover -s tests -p "test_runtime_activation_rehearsal_*.py"`
+  with the pinned interpreter. The public seam has one keyword-only, no-default
+  `adapters` parameter and the exact runtime/filesystem/database/lifecycle/probe
+  bundle; it has no path or default host adapter.
+- Use only caller-owned `issue37-synthetic-*` temporary parents. Build exact
+  `main`, `Runtimes`, `LocalData`, `RuntimeTemp`, `Logs`, `Artifacts`,
+  `Worktrees` and `Config` topology and bind every evidence identity to that
+  actual synthetic topology before teardown.
+- Verify exact Python 3.12.13, SQLite 3.50.4 and dependency-lock identity/hash
+  before and after a network-free rebuild of
+  `Runtimes\venv\Scripts\python.exe`. The legacy venv and runtime source remain
+  unchanged and are never rebuild inputs.
+- Require lifecycle-manager stop output plus an independent stopped probe to
+  echo the code-fixed `pre_publication` phase before the first database call.
+  A stop timeout remains nonzero `unknown`, preserves PID state, and cannot
+  open the SQLite publication gate.
+- Exercise create-only SQLite publication, distinct stable source/destination
+  identities, exact pre-activation SHA-256/size/count equality, integrity/schema
+  success, absent WAL/SHM/journal, and source re-observation. Start, health and
+  analysis must echo a fresh activation nonce bound to the initial gate.
+  Final stop/probe must bind the same service and activation token under
+  `post_activation`, reject replayed/old stop evidence, use a fresh stop token,
+  and precede one-row destination and unchanged-source checks.
+- Freeze the reviewed synthetic CRX identity/hash before rehearsal, reject a
+  later source tamper, publish only create-only into the browser-extension
+  artifact role, and require filesystem/probe destination equality. The adapter
+  surface contains no signing-material reader, copier or enumerator.
+- Bind attachment temp, log, PID and non-secret Config to their exact Managed
+  roles. Start only the rebuilt venv executable with both providers disabled,
+  no key/private knowledge/provider client, literal `127.0.0.1` health and
+  exactly one user-confirmed persisted `rule_fallback` analysis.
+- Inject runtime/database/artifact race, reparse, existing target, dependency,
+  integrity and health failures. Every case returns fixed failure, preserves
+  source/legacy/competitor state, stops any service it started, and performs no
+  provider, external-network, mailbox, vault, private-store, credential or
+  signing access.
+- Run exact package/import/consumer guards and assert the production module has
+  no filesystem, SQLite, subprocess, network, ContainerAudit, migration-evidence
+  or default-host capability. Do not create a real migration evidence package or
+  activate any real runtime, database, artifact or Project Container.
 
 ## Option C 多模态离线门
 

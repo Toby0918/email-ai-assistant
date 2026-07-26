@@ -435,6 +435,36 @@ class ManageLocalServiceTests(unittest.TestCase):
 
         self.assertEqual(killed, [])
 
+    def test_stop_retains_pid_when_shutdown_cannot_be_proven(self) -> None:
+        killed: list[int] = []
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            pid_file = Path(tmpdir) / "service.pid"
+            pid_file.write_text("12345", encoding="utf-8")
+            config = self._config(pid_file)
+
+            with patch.object(
+                manager.time,
+                "monotonic",
+                side_effect=(0.0, 0.0, 1.0),
+            ):
+                result = manager.stop_service(
+                    config,
+                    health_checker=lambda host, port, timeout: True,
+                    killer=lambda pid: killed.append(pid),
+                    sleeper=lambda seconds: None,
+                )
+
+            self.assertEqual(result.exit_code, 4)
+            self.assertEqual(result.status, "unknown")
+            self.assertEqual(result.message, "service stop not confirmed")
+            self.assertEqual(
+                pid_file.read_text(encoding="utf-8"),
+                "12345",
+            )
+
+        self.assertEqual(killed, [12345])
+
     def test_restart_public_contract_exposes_only_lower_level_launch_dependencies(self) -> None:
         parameters = inspect.signature(manager.restart_service).parameters
 

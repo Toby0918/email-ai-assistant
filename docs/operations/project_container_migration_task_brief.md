@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-25
+last_update: 2026-07-26
 status: draft
 owner: "@tobyWang"
 review_cycle: monthly
@@ -443,7 +443,47 @@ Issue #36 implements only a self-contained temporary synthetic rehearsal:
 
 It creates no real evidence package or Container, accepts no real Repository
 Root, and performs no real worktree/branch/directory/ACL/runtime/database
-mutation. Real cutover composition and Issues #37 through #40 remain separate.
+mutation. Real cutover composition and Issues #38 through #40 remain separate.
+
+### 8.17 Issue #37 synthetic runtime and LocalData activation checkpoint
+
+Issue #37 implements only a caller-owned temporary synthetic rehearsal:
+
+- one pathless public seam accepting exactly five injected runtime, filesystem,
+  database, lifecycle and probe adapters, with no default host adapter；
+- exact Python 3.12.13, SQLite 3.50.4 and dependency-lock identity/digest
+  evidence, plus a create-only fixed runtime and
+  `Runtimes\venv\Scripts\python.exe` rebuilt without network or legacy reuse；
+- lifecycle-manager stop output and an independent `pre_publication` proof
+  before any source SQLite observation or publication；
+- create-only LocalData publication with distinct object identity, source and
+  destination SHA-256/size/count equality, integrity/schema validation, and no
+  WAL/SHM/journal sidecar；
+- one fresh activation nonce bound to the initial gate and echoed by start,
+  health, analysis and the
+  `post_activation` stopped proof；the final proof binds the same service,
+  rejects stale replay and uses a fresh stop token；
+- an exact source re-observation after publication and after the activated
+  synthetic service stops；
+- exact RuntimeTemp attachment, Logs log/PID, Config non-secret settings and
+  Artifacts browser-extension roles derived from the actual synthetic topology；
+- a pre-frozen reviewed browser-extension identity/hash, create-only
+  publication, two independent destination observations, and no
+  signing-material capability；
+- both providers disabled, no provider key/private knowledge/client, literal
+  `127.0.0.1` health, exactly one user-confirmed persisted `rule_fallback`
+  analysis, and one-row destination count increase；
+- fixed failure for runtime/database/artifact race, reparse, existing target,
+  dependency, integrity and health faults without target overwrite or source
+  cleanup；
+- exact package/import/consumer guards and fixed aggregate-only public results。
+
+The integration fixture owns an `issue37-synthetic-*` parent and performs
+exclusive local writes only beneath it. Caller teardown occurs after independent
+source, legacy, competitor, Managed-role, database and signing-canary assertions.
+No real runtime, `.venv`, SQLite, extension artifact, migration evidence package,
+Project Container, provider, mailbox, vault, private store or credential was
+opened or activated. Issues #38 through #40 remain separate.
 
 ## 9. 数据结构或接口变化
 
@@ -457,7 +497,9 @@ mutation. Real cutover composition and Issues #37 through #40 remain separate.
 interfaces、provider-disabled Managed launcher adapter、Issue #35 的
 `prepare_migration_evidence_review`、`create_migration_evidence_package` 和
 `verify_migration_evidence_package` manual seams，以及 Issue #36 的
-`rehearse_repository_reparenting` synthetic-only seam；无 HTTP API 变化。
+`rehearse_repository_reparenting` 和 Issue #37 的
+`rehearse_managed_runtime_activation(*, adapters=...)` synthetic-only seams；
+无 HTTP API 变化。
 
 ### AI 输出 JSON 变化
 

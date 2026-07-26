@@ -288,7 +288,6 @@ class GenerateProjectStatusTests(unittest.TestCase):
             "exact reviewed local refs",
             "external-target, create-only and fail-closed",
             "No real evidence package was created",
-            "Issues #37 through #40 remain separate",
             "`backend/migration_evidence/package.py`",
             "`backend/migration_evidence/verification.py`",
             "`docs/operations/issue35_migration_evidence_package_task_brief.md`",
@@ -318,6 +317,31 @@ class GenerateProjectStatusTests(unittest.TestCase):
             "`backend/reparenting_rehearsal/rehearsal.py`",
             "`docs/operations/issue36_reparenting_rehearsal_task_brief.md`",
             "`tests/test_reparenting_rehearsal_rollback.py`",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, report)
+
+    def test_runtime_activation_rehearsal_is_reported_as_synthetic_only(
+        self,
+    ) -> None:
+        module = load_script_module(
+            SCRIPT,
+            "generate_project_status_runtime_activation_rehearsal",
+        )
+        report = module.build_project_status()
+
+        for marker in (
+            "Issue #37 managed runtime and LocalData activation rehearsal is offline implemented",
+            "exact five injected adapters",
+            "provider-disabled start",
+            "`post_activation` fresh-stop proof",
+            "Stale evidence and equality spoofing fail closed",
+            "source database remains unchanged",
+            "No real runtime, SQLite database, browser-extension artifact or migration evidence package was activated",
+            "Issues #38 through #40 remain separate",
+            "`backend/runtime_activation_rehearsal/rehearsal.py`",
+            "`docs/operations/issue37_managed_runtime_localdata_rehearsal_task_brief.md`",
+            "`tests/test_runtime_activation_rehearsal_integration.py`",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, report)

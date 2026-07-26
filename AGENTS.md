@@ -250,13 +250,39 @@ It performs no real workspace migration, ACL, runtime, database, mailbox,
 provider, vault, private-store or credential action, and it is not authorization
 for real cutover.
 
+Issue #37 adds `backend.runtime_activation_rehearsal` as a pathless,
+synthetic-only activation proof. Its sole public operation accepts exactly five
+injected runtime, filesystem, database, lifecycle, and probe adapters. It fixes
+Python 3.12.13, SQLite 3.50.4, the exact dependency lock, Managed writable
+roles, both disabled provider routes, literal loopback health, and one persisted
+rule-fallback analysis in code. Public results contain only fixed status and
+aggregate counts.
+
+The rehearsal package owns no real/default host adapter, path, environment,
+filesystem, SQLite, process, network, provider, mailbox, vault, credential,
+signing-material, migration-evidence, cleanup, or deletion capability. Tests may
+operate only on caller-owned temporary synthetic sources and destinations.
+Runtime, database, and reviewed extension publication must be create-only;
+service-stop evidence and an independent stopped probe must echo the fixed
+`pre_publication` phase before SQLite copy. Start, health, analysis, and the
+`post_activation` final stopped proof bind one fresh activation nonce to the
+validated initial gate；the
+final proof uses a fresh stop token for the same service and rejects stale
+evidence replay.
+Source identity, SHA-256, integrity, sidecars, counts, dependency-lock identity,
+artifact review, Managed resource roles, provider-disabled state, final stop,
+and source preservation are independently rechecked. Normal runtime, scripts,
+frontend, wrappers, cleanup, leakage scanning, and workflows must not consume
+the package. No real runtime, SQLite, extension artifact, or migration evidence
+package was activated.
+
 The pure project-layout seam performs no directory creation, move, deletion,
 migration, mailbox or
 provider operation, secret read, vault/private-store access, ACL change, or host
 security change. Managed placement requires the exact canonical
 `email_ai_assistant\main` relationship. Standalone Verification Mode requires an
 explicit synthetic or temporary state root. The flat-layout adapter is temporary
-compatibility only and is not a third final placement mode. Issues #37 through
+compatibility only and is not a third final placement mode. Issues #38 through
 #40 remain separately authorized work.
 
 ## 技术栈基线

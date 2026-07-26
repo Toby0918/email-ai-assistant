@@ -295,7 +295,12 @@ def stop_service(
 
     process_killer = killer or _kill_process
     process_killer(pid)
-    _wait_until_stopped(config, health_checker, sleeper)
+    if not _wait_until_stopped(config, health_checker, sleeper):
+        return CommandResult(
+            4,
+            "service stop not confirmed",
+            "unknown",
+        )
     _remove_pid(config.pid_file)
     return CommandResult(0, f"stopped pid={pid}", "stopped")
 
@@ -464,12 +469,13 @@ def _wait_until_stopped(
     config: ServiceConfig,
     health_checker: HealthChecker,
     sleeper: Sleeper,
-) -> None:
+) -> bool:
     deadline = time.monotonic() + config.startup_timeout
     while time.monotonic() <= deadline:
         if not health_checker(config.host, config.port, 1.0):
-            return
+            return True
         sleeper(config.poll_interval)
+    return False
 
 
 def _stop_without_pid(config: ServiceConfig, health_checker: HealthChecker) -> CommandResult:
