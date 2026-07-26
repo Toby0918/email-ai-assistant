@@ -12,11 +12,12 @@ source_type: decision_record
 
 Accepted as a design on 2026-07-23. The Issue #30 compatibility seam, Issue #31
 Standalone Verification route, Issue #32 Managed launcher, Issue #33 protected
-private-store policy, and Issue #34 pure manual audit contract are implemented,
-and Issue #35 offline migration-evidence package implementation is complete.
-No real evidence package, audit, Project Container directory migration, or
-operational cutover has occurred. While this ADR remains draft, the current flat paths and
-the active security contracts in ADR 0006 through ADR 0008 remain authoritative.
+private-store policy, Issue #34 pure manual audit contract, Issue #35 offline
+migration-evidence package, and Issue #36 temporary synthetic reparenting
+rehearsal are implemented. No real evidence package, audit, Project Container
+directory migration, or operational cutover has occurred. While this ADR
+remains draft, the current flat paths and the active security contracts in ADR
+0006 through ADR 0008 remain authoritative.
 
 ### Issue #30 compatibility seam
 
@@ -141,7 +142,49 @@ prove independent refs/objects, dirty index/worktree state, and linked-worktree
 branch/HEAD recovery. No real checkout package was created. A future real
 capture must first expose the exact external target, content-free
 inclusion/exclusion manifest, reviewed refs, and worktree selection, then stop
-for fresh operator confirmation. Issues #36 through #40 remain separate.
+for fresh operator confirmation. Issues #37 through #40 remain separate.
+
+### Issue #36 synthetic reparenting rehearsal
+
+`backend.reparenting_rehearsal` exposes one content-free Python seam with no
+filesystem path input. It creates a unique marker-bound temporary sandbox and a
+non-trivial synthetic repository topology, then captures branch, HEAD, all local
+refs, local-only remote fingerprint, ahead/behind, index/status, approved file
+hashes, linked-worktree state and Git common-directory identity.
+The marker's filesystem identity is captured and rechecked before publication;
+same-content replacement, alias/reparse drift, and non-local remote state fail
+closed.
+
+Before rename, the rehearsal uses the exact Issue #35 public contract to create
+and independently verify one synthetic evidence package outside every worktree.
+It renames the complete synthetic source to a sibling legacy source, publishes
+the clean nine-zone Container at the canonical replacement name, and moves the
+existing `.git`, tracked source and reviewed untracked source to `main` by
+checked no-clobber rename. Ignored credential, signing, runtime, output,
+IDE/cache, SQLite, log and private canaries remain in the legacy source and are
+never source-reader inputs.
+
+Each of two fixed linked worktrees receives one injected reviewed `repair` or
+`recreate` choice. Repair preserves the moved directory identity and repairs
+both Git pointers. Recreate preserves the old physical worktree and
+administrative record before adding a clean worktree from the same common
+directory; neither route clones, prunes, deletes or overwrites. Post-verification
+requires the original Git/source baseline, exact Managed relationship, clean
+linked status, common identity and an actual pass through the synthetic
+ContainerAudit. Main/worktree/audit failure injections move the complete
+Container by no-clobber rename to the one sibling rollback path, repair only the
+reviewed relocated linked paths, and repeat independent evidence and topology
+checks. The public operation leaves all synthetic topology intact; only the
+test's caller-owned parent is removed after assertions.
+
+Failure injection follows the six fixed publication boundaries: verified
+evidence, legacy rename, Container publication, main publication, worktree
+publication and ContainerAudit. Every injected failure proves either the
+original source or legacy/container/main plus the independently verified
+evidence package before the test-owned temporary directory is disposed. The
+module has no CLI, default/real adapter, normal-runtime/browser/script/workflow
+consumer, ACL/runtime/database action, mailbox/provider/vault/private-store
+access or authority for real cutover.
 
 ## Context
 

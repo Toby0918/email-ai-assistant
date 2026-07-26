@@ -315,6 +315,12 @@ the manual ContainerAudit contract.
 [ ] Dirty snapshot preserves separate regular stage-zero index/worktree layers and mechanically vetoes credentials, signing material, SQLite, logs/PID, environments, IDE/private/cache/output data before reads.
 [ ] Package publication is single-file, create-only, reparse/race/partial-write/drift fail-closed, and the canonical SHA-256 manifest binds all Git/host/selection/snapshot evidence and payloads.
 [ ] Automated migration-evidence verification uses only synthetic repositories and temporary destinations; a real target/manifest/refs/worktree selection is displayed and execution stops for separate confirmation.
+[ ] A reparenting rehearsal public seam accepts no path/repository/target/host capability and creates its own marker-bound OS-temporary sandbox.
+[ ] Rehearsal Git commands are fixed, local, bounded and contain no clone/fetch/pull/push/prune/remove/clean/reset/restore or destructive filesystem operation.
+[ ] Existing `.git`, tracked source and reviewed untracked source move by checked no-clobber rename; excluded credentials/signing/runtime/output/IDE/cache/SQLite/private canaries remain metadata-only in legacy source.
+[ ] Each linked worktree has one exact injected repair/recreate choice and retains reviewed branch, HEAD, common identity and clean status.
+[ ] Every fixed publication boundary injects failure and proves original-source or independently verified rollback preservation before temporary cleanup.
+[ ] Only exact synthetic audit/evidence/layout bridges are allowlisted; normal runtime, scripts, frontend, cleanup, leakage and workflows cannot consume the rehearsal.
 [ ] Tests are synthetic/offline and perform no real migration or Managed Container creation.
 ```
 

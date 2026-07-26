@@ -153,9 +153,55 @@ source_type: operation_guide
   package verification above the per-source-file size limit. Never overwrite
   or roll back a final target by pathname.
 - Run architecture/static/mechanical/leakage guards and assert there is no CLI,
-  normal-runtime/browser/workflow consumer, real package, service stop,
+  normal-runtime/browser/workflow consumer, real package, service stop, real
   repository/worktree move, ACL mutation, provider/mailbox/vault/private-store
-  access, or Issues #36–#40 implementation.
+  access, or Issues #37–#40 implementation.
+
+## Synthetic repository reparenting rehearsal
+
+- Run
+  `python -B -m unittest discover -s tests -p "test_reparenting_rehearsal_*.py"`
+  with the pinned interpreter. The public seam must accept no path; every run
+  creates its own marker-bound `issue36-synthetic-*` temporary directory and
+  must leave it intact on return. Tests own a parent temporary directory and
+  tear it down only after observing the preserved topology.
+- Verify the baseline is non-trivial: three local branch refs, one local-only
+  remote fingerprint, `ahead=1`, `behind=0`, exact tracked/index/worktree state,
+  reviewed untracked source hashes, two linked branch/HEAD values, and one
+  unchanged Git common-directory identity.
+- Patch the Issue #35 checked reader and prove only exact reviewed dirty source
+  is opened. Credentials, signing material, runtime, outputs, IDE/cache,
+  SQLite, logs and private canaries must remain in the legacy source with
+  unchanged metadata.
+- Exercise both injected `repair` and `recreate` choices. Repair must move the
+  same worktree object and repair both pointers. Recreate must preserve the old
+  physical worktree and administrative metadata before adding a clean active
+  worktree from the existing common directory; never clone, prune or delete.
+- Compare post-state branch, HEAD, refs, remote, ahead/behind, index/status,
+  file hashes, branch attachment, clean linked status and common identity.
+  Validate exact `email_ai_assistant/main`, sibling legacy-source separation,
+  and a real pass through the injected synthetic ContainerAudit composition.
+- Inject failure at evidence package, legacy rename, Container publication,
+  main publication, worktree publication, and ContainerAudit. Each result must
+  be fixed `rollback_verified` and prove an original source or independently
+  verified preserved rollback topology. Main/worktree/audit failures must put
+  the complete Container at the single sibling rollback path, repair reviewed
+  relocated worktrees, and pass independent package/Git/filesystem assertions.
+- Replace the marker with identical text and reject its changed filesystem
+  identity before publication. Also reject reparse scope components, a
+  non-local remote both directly and after builder return, and any
+  non-canonical temporary scope. Inject remote drift inside review capture and
+  require the captured fingerprint to mismatch the fixed local bare remote.
+- Pre-create one recreate target and require fail-closed before any other
+  worktree directory or administrative record moves; an empty existing target
+  is still a no-clobber violation.
+- Replace the direct `Worktrees` directory with a Windows junction to an
+  outside-sandbox directory. Both preflight and the final recreate gate must
+  reject it before Git writes through the reparse path.
+- Run the exact package/import/consumer guards. Assert no public `Path`, CLI,
+  normal-runtime/script/frontend/cleanup/leakage/workflow consumer, real host
+  adapter, destructive filesystem call, network Git verb, real evidence
+  package or real workspace mutation.
 
 ## Option C 多模态离线门
 

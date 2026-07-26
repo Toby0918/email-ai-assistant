@@ -73,3 +73,10 @@ identity, and content-free host baselines with one canonical SHA-256 manifest.
 It is prepared and verified offline before cutover; it is not a repository
 backup, runtime artifact, private-data container, or authorization to migrate.
 _Avoid_: Build artifact, cleanup archive, live cutover package
+
+**Reparenting Rehearsal**:
+A self-contained temporary synthetic proof of the approved legacy-source
+rename, existing Git common-directory move, reviewed linked-worktree recovery,
+ContainerAudit, and rollback sequence. It accepts no repository path and grants
+no authority to operate on a real workspace.
+_Avoid_: Dry run on the real repository, migration command, cutover

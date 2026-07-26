@@ -413,6 +413,37 @@ operator confirmation. It performs no service stop, repository move, ACL
 change, mailbox/provider/vault/private-store/credential access, or Issue #36
 through #40 work.
 
+### 8.16 Issue #36 synthetic reparenting rehearsal checkpoint
+
+Issue #36 implements only a self-contained temporary synthetic rehearsal:
+
+- one public seam with exact content-free worktree choices and fixed failure
+  boundary, but no path/repository/target/host input；
+- a local synthetic repository with three branch refs, local-only remote,
+  non-zero ahead count, dirty main and two clean linked worktrees；
+- an exact synthetic Issue #35 evidence package created and independently
+  verified before rename；
+- complete legacy-source rename followed by checked no-clobber movement of the
+  existing `.git`, tracked source and reviewed untracked source into `main`；
+- metadata-only preservation of excluded credential/signing/runtime/output/
+  IDE/cache/SQLite/log/private canaries in the sibling legacy source；
+- injected per-worktree repair/recreate choices preserving branch, HEAD, common
+  identity and clean active status without clone, prune, deletion or overwrite；
+- post-state baseline equality, exact Managed relationship and a passed
+  synthetic ContainerAudit；
+- verified rollback at evidence, legacy, Container, main, worktree and audit
+  publication boundaries；post-main failures move the whole Container to the
+  one no-clobber sibling rollback path and repair the reviewed relocated
+  worktrees；
+- marker filesystem identity binding plus pre-publication drift/reparse and
+  non-local-remote rejection；
+- no automatic public-operation teardown; caller-owned test cleanup occurs only
+  after independent filesystem/Git/evidence assertions。
+
+It creates no real evidence package or Container, accepts no real Repository
+Root, and performs no real worktree/branch/directory/ACL/runtime/database
+mutation. Real cutover composition and Issues #37 through #40 remain separate.
+
 ## 9. 数据结构或接口变化
 
 ### 数据库变化
@@ -422,9 +453,10 @@ through #40 work.
 ### API 变化
 
 新增内部 Python `RepositoryPlacement`/`OperationalLayout` compatibility
-interfaces、provider-disabled Managed launcher adapter，以及 Issue #35 的
+interfaces、provider-disabled Managed launcher adapter、Issue #35 的
 `prepare_migration_evidence_review`、`create_migration_evidence_package` 和
-`verify_migration_evidence_package` manual seams；无 HTTP API 变化。
+`verify_migration_evidence_package` manual seams，以及 Issue #36 的
+`rehearse_repository_reparenting` synthetic-only seam；无 HTTP API 变化。
 
 ### AI 输出 JSON 变化
 
@@ -605,7 +637,7 @@ Not applicable. Manual sync and current-click evidence contracts are unchanged.
 
 ```text
 实际修改文件:
-- Planning documents plus the bounded Issue #30/#31/#32/#33/#34/#35 checkpoints.
+- Planning documents plus the bounded Issue #30/#31/#32/#33/#34/#35/#36 checkpoints.
 
 测试结果:
 - Each implemented checkpoint records focused and full verification in its
@@ -613,7 +645,7 @@ Not applicable. Manual sync and current-click evidence contracts are unchanged.
 
 未完成事项:
 - Real audit composition, real evidence-package generation, migration and
-  Issues #36 through #40.
+  Issues #37 through #40.
 
 后续建议:
 - Continue only with the next separately approved dependency-ordered Issue.

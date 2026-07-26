@@ -142,11 +142,43 @@ and every payload. Package publication is a single external create-only commit;
 no target inside any selected worktree is valid.
 
 No backend service, browser/frontend, root wrapper, script, maintenance scan, or
-workflow may import or invoke this layer. The leakage scanner recognizes only
-the reserved package suffix so an accidental repository package fails; it is
-not a package creator or reader. Tests use synthetic Git repositories and
-temporary destinations only. Any real capture remains a manual two-step
-review/confirmation operation outside normal runtime.
+workflow may import or invoke this layer. The sole reviewed backend consumer is
+Issue #36's `backend.reparenting_rehearsal.evidence_bridge`, which is reachable
+only inside a self-created temporary synthetic scenario. The leakage scanner
+recognizes only the reserved package suffix so an accidental repository package
+fails; it is not a package creator or reader. Any real capture remains a manual
+two-step review/confirmation operation outside normal runtime.
+
+The `Reparenting Rehearsal layer` in `backend.reparenting_rehearsal` is a
+synthetic-only deep module. Its single public operation accepts only the complete
+fixed linked-worktree choice set and a fixed failure-boundary enum. It accepts
+no path, source, target, repository, environment, reader, host adapter or
+callback, and it creates its own OS-temporary sandbox. The marker's filesystem
+identity is captured at creation and revalidated before publication; same-text
+replacement or alias/reparse drift fails closed. The complete synthetic project,
+including the exact local-only remote, is revalidated immediately before
+and after review/baseline capture; the captured remote hash must equal the fixed
+local bare remote rather than merely becoming a new baseline.
+
+Inside that sandbox only, the module may initialize local synthetic Git state,
+create and verify one Issue #35 evidence package, perform checked no-clobber
+renames, repair or recreate linked worktrees from reviewed choices, compare the
+captured Git/source baseline, and compose synthetic metadata for Issue #34
+ContainerAudit. The only cross-layer imports are
+`evidence_bridge -> backend.migration_evidence`,
+`audit_bridge -> backend.container_audit`, and
+`layout -> backend.project_layout`. It has no normal-runtime, browser, script,
+workflow, cleanup or leakage consumer and no mailbox/provider/vault/private
+store/credential/ACL/runtime/database capability.
+After any main/worktree/audit publication injection, the complete Container is
+renamed without clobbering to the single sibling rollback path, reviewed linked
+metadata is repaired there, and baseline/evidence verification is repeated.
+The public operation never deletes or cleans up the preserved synthetic
+topology; caller-owned test teardown occurs only after independent observation.
+All fixed linked-worktree targets must be absent before the first worktree or
+administrative move. Their direct `Worktrees` parent must retain resolved
+containment and be a non-reparse directory; Git may not populate a pre-existing
+empty directory or follow a junction outside the Container.
 
 ## 2. 允许依赖方向
 
@@ -168,8 +200,9 @@ normal runtime -> backend.current_evidence append-only contract
 future launcher -> backend.project_layout validated path values
 Managed launcher -> backend.email_agent.managed_runtime -> backend.project_layout/config
 reviewed private location policies -> backend.project_layout protected path value
-manual external composition (future Issue only) -> backend.container_audit injected values
+manual real external composition (future Issue only) -> backend.container_audit injected values
 manual offline operator -> backend.migration_evidence review/create/verify
+backend.reparenting_rehearsal -> exact synthetic audit/evidence/layout bridges
 ```
 
 禁止反向依赖：
@@ -198,6 +231,8 @@ public request/config/frontend/CLI -> protected roots or Project Container overr
 normal runtime/cleanup/leakage/browser/workflow -> backend.container_audit
 backend.container_audit -> filesystem/Git/SQLite/ACL/volume/host/private-content capability
 normal runtime/browser/scripts/workflows -> backend.migration_evidence
+normal runtime/browser/scripts/workflows/cleanup/leakage -> backend.reparenting_rehearsal
+backend.reparenting_rehearsal public seam -> Path/repository/target/host capability
 backend.migration_evidence -> mailbox/provider/SQLite/vault/private-store/lifecycle capability
 ```
 

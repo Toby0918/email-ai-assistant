@@ -417,11 +417,11 @@ default adapters, CLI modules, and composition roots.
 The audit package must remain a distinct module from repository leakage and
 maintenance scanning. A recursive consumer guard scans all other backend
 modules, `scripts/` (including cleanup and leakage tooling), root Python
-wrappers, frontend/browser files, and workflows for
-`container_audit`, `ContainerAudit`, or `run_container_audit` references.
-No repository consumer is allowlisted in Issue #34. The exact seven injected
-adapter fields and keyword-only no-default entrypoint are pinned by contract
-tests.
+wrappers, frontend/browser files, and workflows. Only Issue #36's exact
+`backend/reparenting_rehearsal/audit_bridge.py` may import the package and call
+`run_container_audit`; every other consumer remains forbidden. The exact seven
+injected adapter fields and keyword-only no-default entrypoint are pinned by
+contract tests.
 
 Behavior tests use only frozen repr-redacted synthetic evidence. They cover the
 exact nine-entry direct-child allowlist; alias/reparse/unreadable/incomplete and
@@ -441,12 +441,13 @@ global/system config, fsmonitor, terminal prompting, and optional locks
 disabled. Literal Git mutation/network verbs are forbidden.
 
 A recursive consumer guard rejects migration-evidence imports or invocations
-from every other backend module, scripts, frontend/browser files, and workflows.
-The only repository-tooling integration is the leakage scanner's fixed
+from every other backend module, scripts, frontend/browser files, and workflows
+except Issue #36's exact
+`backend/reparenting_rehearsal/evidence_bridge.py`. The only additional
+repository-tooling integration is the leakage scanner's fixed
 `.migration-evidence.zip` suffix check; it classifies by name before file reads
-and never imports or verifies the package. `.gitignore` reserves the same
-suffix, and static linter tests fail if such an artifact appears inside the
-repository.
+and never imports or verifies the package. `.gitignore` reserves the same suffix,
+and static linter tests fail if such an artifact appears inside the repository.
 
 Behavior guards require exact local `refs/heads/*`, root worktree selection,
 regular stage-zero index entries, separate index/worktree bytes, full
@@ -456,6 +457,40 @@ They reject ignored or explicitly approved forbidden categories before content
 reads, special index flags, unsupported Git states, target/source reparse,
 source drift, existing targets, partial writes, and commit races. Tests use only
 `TemporaryDirectory` synthetic repositories and destinations.
+
+### Synthetic reparenting rehearsal mechanical guards
+
+`backend/reparenting_rehearsal/` has an exact module-file/import-root allowlist.
+Only `git_runner.py` may import `subprocess`; only `audit_bridge.py`,
+`evidence_bridge.py`, and `layout.py` may cross into ContainerAudit,
+migration-evidence, and project-layout respectively. All other external backend
+imports are rejected. No script, normal runtime, frontend, cleanup, leakage or
+workflow consumer is allowlisted. The recursive consumer candidate set includes
+all other backend modules, scripts, root Python and shell wrappers,
+frontend/browser text files, and workflows; Python imports/calls and non-Python
+text invocations are rejected.
+
+AST checks pin the public seam to exactly two keyword-only no-default inputs and
+reject a `Path` or ambient repository surface. Literal clone/fetch/pull/push/
+prune/remove/clean/reset/restore/rm/checkout/merge/rebase/stash verbs,
+`shell=True`, destructive filesystem calls, unreviewed subprocess imports, and
+mutation calls outside the exact synthetic builder/publication/worktree files
+fail the architecture suite.
+Behavior guards also replace the marker with identical bytes and require
+publication to fail on identity drift, reject reparse scope components and a
+non-local remote both directly and at the orchestration/baseline boundary,
+bind the captured remote fingerprint to the fixed local bare remote, pre-create
+a recreate target and junction parent and require failure before any worktree
+mutation, preserve the public sandbox after return, and independently observe
+each failure topology rather than trusting its status value.
+
+Behavior tests pin the non-trivial branch/ref/remote/ahead-behind baseline,
+separate tracked/index/worktree and reviewed-untracked hashes, excluded-path
+metadata-only handling, both reviewed linked-worktree strategies, exact common
+directory identity, clean linked status, Managed relationship, actual
+ContainerAudit pass, existing-target no-clobber, and a verified rollback at all
+six fixed publication boundaries. They create no real evidence package or
+Project Container and never accept the current Repository Root as input.
 
 ### Private evaluation mechanical guards
 
