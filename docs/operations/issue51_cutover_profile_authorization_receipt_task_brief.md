@@ -350,7 +350,12 @@ Not applicable。Mailbox sync and current-click evidence remain unchanged。
   bypasses. Exact-type-before-comparison parsing, fixed per-contract errors,
   bounded integrity failure, recursive package closure, forbidden-load checks,
   package-wide issuer checks and dynamic-consumer checks now have RED/GREEN
-  regressions. Closing re-review is pending the repair commit.
+  regressions.
+- The first Standards closing review found one remaining P2 equivalence group:
+  `breakpoint`/`delattr`/`setattr` aliases and imported or rebound dynamic-import
+  call aliases. Eight failing subcases recorded RED before the bounded guard and
+  documentation fix. Final Standards and Spec closing reviews at `e215ef1`
+  report zero P1/P2; Spec confirms all eleven Issue #51 acceptance criteria.
 - Recorded P3 only: receipt status/count/detail semantic relationships are left
   to future real consumers; internal authorization/receipt schema registries
   remain mutable; authorization/receipt/architecture test files exceed the
