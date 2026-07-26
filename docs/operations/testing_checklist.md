@@ -288,8 +288,10 @@ source_type: operation_guide
   process, SQLite, ACL, Git/worktree, runtime, browser, mailbox, provider, vault,
   private-store, logging, scheduler or dynamic-import capability. Exercise
   nested/non-source package files, parent-relative, dotted-standard-library,
-  stdin/builtin aliases, package-wide issuer helpers, and equivalent
-  static/dynamic production consumer import variants against the AST guard.
+  stdin/builtin aliases including `breakpoint`/`delattr`/`setattr`,
+  package-wide issuer helpers, and equivalent static/dynamic production
+  consumer import variants, including rebound dynamic-import call aliases,
+  against the AST guard.
 - Do not run a real host adapter, preflight, evidence publication, migration,
   cutover, resume, rollback or cleanup. Issues #52 through #59 remain separate
   implementation slices.

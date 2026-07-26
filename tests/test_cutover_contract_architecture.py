@@ -70,19 +70,21 @@ ALLOWED_IMPORT_FROM = {
 }
 FORBIDDEN_CALL_NAMES = {
     "__import__",
+    "breakpoint",
     "compile",
+    "delattr",
     "eval",
     "exec",
-    "input",
-    "open",
-}
-FORBIDDEN_LOAD_NAMES = FORBIDDEN_CALL_NAMES | {
-    "__builtins__",
     "getattr",
     "globals",
+    "input",
     "locals",
+    "open",
+    "print",
+    "setattr",
     "vars",
 }
+FORBIDDEN_LOAD_NAMES = FORBIDDEN_CALL_NAMES | {"__builtins__"}
 FORBIDDEN_CALL_ATTRIBUTES = {
     "connect",
     "getenv",
@@ -155,22 +157,42 @@ def _package_python_paths() -> tuple[Path, ...]:
     )
 
 
-def _literal_string(node: ast.AST) -> str | None:
-    if isinstance(node, ast.Constant) and type(node.value) is str:
-        return node.value
-    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
-        left = _literal_string(node.left)
-        right = _literal_string(node.right)
-        if left is not None and right is not None:
-            return left + right
-    return None
+def _dynamic_import_aliases(tree: ast.AST) -> set[str]:
+    aliases = {"__import__", "import_module"}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module == "importlib":
+            aliases.update(
+                alias.asname or alias.name
+                for alias in node.names
+                if alias.name == "import_module"
+            )
+    changed = True
+    while changed:
+        changed = False
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.Assign, ast.AnnAssign, ast.NamedExpr)):
+                continue
+            value = node.value
+            is_dynamic = (
+                isinstance(value, ast.Name) and value.id in aliases
+            ) or (
+                isinstance(value, ast.Attribute)
+                and value.attr == "import_module"
+            )
+            if not is_dynamic:
+                continue
+            targets = node.targets if isinstance(node, ast.Assign) else (node.target,)
+            for target in targets:
+                if isinstance(target, ast.Name) and target.id not in aliases:
+                    aliases.add(target.id)
+                    changed = True
+    return aliases
 
 
 def _imports_cutover_contracts(source: str) -> bool:
     if "backend.cutover_contracts" in source:
         return True
     tree = ast.parse(source)
-    dynamic_import = False
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
             if any(
@@ -190,21 +212,18 @@ def _imports_cutover_contracts(source: str) -> bool:
                 or any(alias.name == "cutover_contracts" for alias in node.names)
             ):
                 return True
-        elif isinstance(node, ast.Call):
-            dynamic_import = dynamic_import or (
-                isinstance(node.func, ast.Name)
-                and node.func.id in {"__import__", "import_module"}
-            ) or (
-                isinstance(node.func, ast.Attribute)
-                and node.func.attr == "import_module"
-            )
-    if dynamic_import:
-        return any(
-            (_literal_string(node) or "").startswith(
-                "backend.cutover_contracts"
-            )
-            for node in ast.walk(tree)
+    dynamic_aliases = _dynamic_import_aliases(tree)
+    if any(
+        isinstance(node, ast.Call)
+        and (
+            isinstance(node.func, ast.Name)
+            and node.func.id in dynamic_aliases
+            or isinstance(node.func, ast.Attribute)
+            and node.func.attr == "import_module"
         )
+        for node in ast.walk(tree)
+    ):
+        return True
     return False
 
 
@@ -294,6 +313,9 @@ class CutoverContractArchitectureTests(unittest.TestCase):
         cases = (
             ("input()", True),
             ("open('synthetic')", True),
+            ("breakpoint()", True),
+            ("delattr(object(), 'synthetic')", True),
+            ("setattr(object(), 'synthetic', None)", True),
             ("json.dumps({})", False),
         )
         for source, expected in cases:
@@ -309,6 +331,9 @@ class CutoverContractArchitectureTests(unittest.TestCase):
         cases = (
             ("reader = open", True),
             ("loader = __import__", True),
+            ("debugger = breakpoint", True),
+            ("deleter = delattr", True),
+            ("writer = setattr", True),
             ("lookup = getattr", True),
             ("scope = globals", True),
             ("serializer = json.dumps", False),
@@ -333,6 +358,17 @@ class CutoverContractArchitectureTests(unittest.TestCase):
             (
                 "import importlib\n"
                 "importlib.import_module('backend.' + 'cutover_contracts')",
+                True,
+            ),
+            (
+                "from importlib import import_module as loader\n"
+                "loader('backend.' + 'cutover_contracts')",
+                True,
+            ),
+            (
+                "loader = __import__\n"
+                "module_name = 'backend.' + 'cutover_contracts'\n"
+                "loader(module_name)",
                 True,
             ),
         )

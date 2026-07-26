@@ -530,7 +530,8 @@ standard-library modules and exact imported symbols; relative imports are
 limited to exact sibling package modules. Parent-relative, unknown,
 dotted-module, filesystem, process, SQLite, network, environment,
 dynamic-import, logging, clock, random, stdin, host, forbidden builtin loads or
-aliases, and ambient-authority imports or calls fail AST checks.
+aliases, including `breakpoint`, `delattr`, and `setattr`, and ambient-authority
+imports or calls fail AST checks.
 
 The authorization module must remain parse-only for externally supplied
 canonical values. Function-name and call guards reject real-authorization
@@ -544,9 +545,11 @@ mapping, receipt, duck-typed, subclassed, and
 A recursive consumer guard scans every other Python/JavaScript file under
 `backend/`, `scripts/`, and `frontend/`. Python imports are parsed as AST so
 direct, `from backend import ...`, and relative forms all reject
-`cutover_contracts`; literal dynamic-import expressions are folded and
-rejected, while JavaScript retains fixed-token rejection. The package has no
-current runtime, operator, script, or frontend consumer.
+`cutover_contracts`; direct, attribute, imported, rebound, or chained aliases
+of `__import__` and `importlib.import_module` are rejected at the call seam even
+when their module target is dynamically bound. JavaScript retains fixed-token
+rejection. The package has no current runtime, operator, script, or frontend
+consumer.
 `default_operator_entry()` is mechanically pinned to zero arguments and the
 fixed `BLOCKED_NO_APPROVED_COMMAND`, `blocked=1`, `executed=0` result.
 

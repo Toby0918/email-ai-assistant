@@ -238,7 +238,9 @@ modules. It cannot import or expose path/filesystem, process, SQLite, network,
 environment, Git, ACL, browser, mailbox, provider, vault, private-store,
 credential, authority-store, adapter, logging, scheduler, dynamic-import, or
 host-mutation capability. No other backend package, script, frontend file, or
-normal runtime currently consumes it. Real preflight, evidence publication,
+normal runtime currently consumes it; consumer guards also reject dynamic-import
+call aliases instead of depending on a literal module target. Real preflight,
+evidence publication,
 cutover, rollback, incident recovery, and all host composition remain in
 separately approved Issues #52 through #59.
 

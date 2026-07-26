@@ -120,11 +120,13 @@ Issue; Issue #51 does not implement Issues #52 through #59.
 - absence of filesystem, process, SQLite, network, environment, dynamic-import,
   clock, random, host, and ambient-authority calls;
 - recursive rejection of nested/non-source package payloads, forbidden builtin
-  loads/aliases, dotted modules, and parent-relative imports;
+  loads/aliases including `breakpoint`/`delattr`/`setattr`, dotted modules, and
+  parent-relative imports;
 - package-wide absence of real-authorization issuer or mint functions;
 - zero consumers in every other Python/JavaScript file under `backend/`,
   `scripts/`, and `frontend/`, using AST checks for equivalent Python import
-  forms, literal dynamic imports, and fixed token checks for JavaScript;
+  forms, direct/attribute/imported/rebound dynamic-import call aliases, and
+  fixed token checks for JavaScript;
 - the zero-argument, always-blocked default operator entry;
 - the existing 300-line file and 50-line function bounds.
 

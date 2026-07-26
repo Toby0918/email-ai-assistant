@@ -373,10 +373,12 @@ layers:
 4. `tests/test_cutover_contract_architecture.py` pins the exact package files
    and public exports, recursive package-file closure, exact pure
    standard-library imports, forbidden host I/O loads/aliases and
-   ambient-authority calls, exact sibling-only relative imports, package-wide
-   absence of authorization issuer/mint/clock helpers, static/dynamic
-   zero-consumer checks across other `backend/`/`scripts/`/`frontend/` files,
-   bounded files/functions, and the zero-argument always-blocked operator entry.
+   ambient-authority calls including `breakpoint`/`delattr`/`setattr`, exact
+   sibling-only relative imports, package-wide absence of authorization
+   issuer/mint/clock helpers, static/dynamic zero-consumer checks including
+   dynamic-import call aliases across other
+   `backend/`/`scripts/`/`frontend/` files, bounded files/functions, and the
+   zero-argument always-blocked operator entry.
 
 These checks create no authority and execute no preflight, migration, cutover,
 resume, rollback, recovery, or cleanup. The package contains no path, adapter,
