@@ -249,6 +249,48 @@ source_type: operation_guide
   or default-host capability. Do not create a real migration evidence package or
   activate any real runtime, database, artifact or Project Container.
 
+## Locked Cutover Profile, authorization, and receipt contracts
+
+- Run
+  `python -B -m unittest tests.test_cutover_profile_contract tests.test_cutover_authorization_contract tests.test_cutover_receipt_contract tests.test_cutover_contract_architecture`
+  with the pinned interpreter. Fixtures must use only fixed opaque fingerprints,
+  bounded integers and closed enum values; do not read or probe a real host.
+- Verify `CutoverProfileV1` accepts only the closed Issue #51 mapping, produces
+  deterministic canonical UTF-8 JSON and SHA-256 identity, and rejects duplicate
+  keys, unknown fields, booleans-as-integers, non-canonical bytes and every
+  path/drive/directory/SID/SDDL/Git-ref/command/free-text surface.
+- Exercise the four exact real-host authorization value types independently:
+  preflight, evidence publication, cutover execution and recovery. Assert exact
+  type, operation, phase, profile, master, operator, validity and external
+  authorization-fingerprint bindings.
+- Prove the package has no `create`, `issue` or `mint` route for real-host
+  authorization. `TestSandboxAuthorizationV1`, mappings, duck-typed values and
+  every receipt type must fail the real-host authorization validator. Mutated
+  exact-type Profile or authorization instances must be fully reparsed and
+  return `BLOCKED_AUTHORIZATION_INVALID`.
+- Verify every authorization mismatch returns only its allowlisted fixed code
+  and aggregate accepted/rejected counts, without paths, identifiers, native
+  exceptions, arbitrary text or input echo.
+- Verify every `ReceiptEnvelopeV1` type/status/count/detail combination against
+  its closed matrix. Canonical parsing must reject duplicate/unknown keys,
+  unknown enums, non-string/unhashable receipt types, incompatible families,
+  invalid integers, binding drift and fingerprint mismatch.
+- Cover all required preflight, evidence, ACL, repository, worktree, runtime,
+  database, artifact, Config, activation, rollback and incident-stop receipt
+  families. Receipt parsing and validation never grant authority.
+- Assert `default_operator_entry()` accepts no path, adapter, callback, command
+  or authorization and always returns `BLOCKED_NO_APPROVED_COMMAND` with one
+  content-free blocked aggregate.
+- Run architecture/static/mechanical/transport/leakage guards and assert
+  `backend/cutover_contracts/` imports no filesystem, environment, network,
+  process, SQLite, ACL, Git/worktree, runtime, browser, mailbox, provider, vault,
+  private-store, logging, scheduler or dynamic-import capability. Exercise
+  parent-relative, dotted-standard-library, stdin, and equivalent production
+  consumer import variants against the AST guard.
+- Do not run a real host adapter, preflight, evidence publication, migration,
+  cutover, resume, rollback or cleanup. Issues #52 through #59 remain separate
+  implementation slices.
+
 ## Option C 多模态离线门
 
 - all providers disabled by default；自动化只使用 synthetic DOM/media fixtures、fake provider 和 injected clock，不读取邮箱、不访问网络、不读取 `.env` 或 key。

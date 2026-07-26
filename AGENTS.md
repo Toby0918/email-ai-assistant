@@ -276,6 +276,42 @@ frontend, wrappers, cleanup, leakage scanning, and workflows must not consume
 the package. No real runtime, SQLite, extension artifact, or migration evidence
 package was activated.
 
+Issue #51 adds the pure `backend.cutover_contracts` layer.
+`CutoverProfileV1` is one immutable, pathless, closed-schema value that binds the
+governing master commit; operator, fixed-role, evidence-role and reviewed-Git
+fingerprints; the exact eleven-worktree roster with eight embedded and three
+external roles; pinned Runtime inputs; create-only SQLite and CRX inputs;
+deterministic non-secret provider-disabled Config; fixed-role ACL policy;
+maintenance/no-cleanup rules; and complete rollback roles. It accepts no host
+path, drive, directory, SID, SDDL, Git name/ref, command, exception, database
+content or free-form message.
+
+`RealPreflightAuthorizationV1`,
+`EvidencePublicationAuthorizationV1`,
+`CutoverExecutionAuthorizationV1`, and `RecoveryAuthorizationV1` are distinct
+externally supplied, non-secret canonical values with fixed operation, phase,
+profile, master, operator and bounded-validity bindings. The package can parse
+and validate these nominal values but cannot create, issue or mint real-host
+authority. Missing, invalid, not-yet-valid, expired or mismatched authorization
+returns a fixed allowlisted status; `TestSandboxAuthorizationV1`, receipts,
+mappings and duck-typed objects cannot pass the exact real-host type gate.
+
+`ReceiptEnvelopeV1` uses deterministic canonical JSON and a verified SHA-256
+receipt fingerprint. Its twelve closed receipt-type families bind type/status,
+operation, profile, master, authorization, producer, subject role, input and
+observation fingerprints, allowlisted counts, validity and closed details.
+Duplicate, unknown or non-canonical input fails closed, and receipts may not
+contain raw paths, SID/SDDL, Git names, commands, exceptions, database content
+or free-form messages. A receipt is evidence only and is never authorization.
+
+`default_operator_entry()` accepts no path, adapter, callback, command or
+authorization and always returns `BLOCKED_NO_APPROVED_COMMAND` with one blocked
+count and zero executed count. The package has no real/default host adapter,
+composition root or production consumer and performs no preflight, evidence
+publication, ACL/repository/worktree/Runtime/database/artifact/Config action,
+activation, rollback or incident recovery. Issues #52 through #59 remain
+unstarted; Issues #38 and #39 are unchanged.
+
 The pure project-layout seam performs no directory creation, move, deletion,
 migration, mailbox or
 provider operation, secret read, vault/private-store access, ACL change, or host

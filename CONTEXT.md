@@ -89,3 +89,35 @@ roles, provider-disabled loopback health, one persisted rule-fallback analysis,
 final service stop, and unchanged sources. It grants no real-host activation or
 cutover authority.
 _Avoid_: Runtime installer, migration command, real LocalData activation
+
+**Cutover Profile**:
+The immutable, pathless `CutoverProfileV1` contract that binds one governing
+master commit to fixed role, evidence, reviewed Git, eleven-worktree, Runtime,
+SQLite, CRX, Config, ACL, maintenance, and rollback selections using only
+closed content-free values. It cannot be redirected with a command-time host
+path or selection.
+_Avoid_: Path configuration, command manifest, mutable runbook
+
+**Cutover Authorization**:
+One externally supplied nominal value of exactly
+`RealPreflightAuthorizationV1`, `EvidencePublicationAuthorizationV1`,
+`CutoverExecutionAuthorizationV1`, or `RecoveryAuthorizationV1`, bound to one
+operation, phase, profile, master, operator, and bounded validity interval. The
+pure contract layer validates but cannot issue or execute it; synthetic
+authorization and receipts are never real-host authority.
+_Avoid_: Receipt, test permission, build authorization
+
+**Canonical Cutover Receipt**:
+The deterministic, content-free `ReceiptEnvelopeV1` evidence envelope. Its
+closed type/status schema and SHA-256 identity bind an observation to the
+operation, profile, master, authorization, producer, subject, inputs, counts,
+validity, and type-specific details without raw paths, identities, commands,
+exceptions, database content, or free-form messages. It never authorizes a
+later operation.
+_Avoid_: Execution token, host log, command transcript
+
+**Default-Locked Operator Entry**:
+The pre-Issue-#39 no-argument seam that always returns
+`BLOCKED_NO_APPROVED_COMMAND` with zero executions. It has no adapter,
+composition root, command, or real-host capability.
+_Avoid_: Cutover command, preflight launcher, migration CLI

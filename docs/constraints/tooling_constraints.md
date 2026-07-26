@@ -336,6 +336,37 @@ Managed resources, both providers disabled, literal loopback health and one
 persisted rules analysis. No real migration package, runtime, database, artifact,
 provider, mailbox, vault, private store or credential may be opened.
 
+### Locked Cutover contract tooling boundary
+
+Issue #51 adds only `backend.cutover_contracts`, a pathless and content-free
+standard-library value package. It may use package-relative modules plus
+`dataclasses`, `enum`, `hashlib`, `json`, and typing support; it adds no
+dependency, executable, CLI, HTTP route, workflow, environment option, default
+adapter, composition root, or host probe.
+
+`CutoverProfileV1` performs only closed mapping/JSON validation, immutable
+normalization, canonical serialization, and SHA-256 identity. The four distinct
+real-host authorization types parse externally supplied canonical values only.
+The package owns no real-authorization create/issue/mint/generate/sign function,
+clock, random source, secret, or issuer. Exact-type validation prevents a
+mapping, receipt, duck-typed object, or `TestSandboxAuthorizationV1` from
+becoming real-host authority.
+
+`ReceiptEnvelopeV1` performs only closed receipt-matrix validation, canonical
+serialization, parsing, and fingerprint verification. A receipt is
+content-free evidence metadata and is never authorization. The zero-argument
+`default_operator_entry()` is fixed to
+`BLOCKED_NO_APPROVED_COMMAND` with one blocked and zero executed operations.
+
+`tests/test_cutover_contract_architecture.py` pins the exact package files,
+public exports, standard-library import roots, forbidden imports/calls, absence
+of issuer/clock helpers, zero consumers in other `backend/`, `scripts/`, and
+`frontend/` files, and the always-blocked default entry. A future real adapter,
+authority issuer, consumer, preflight, migration, cutover, or recovery command
+requires its own approved Issue and a deliberate update to these exact guards.
+Issue #51 does not access a real Runtime, SQLite database, ACL, repository,
+worktree, mailbox, provider, vault, private store, credential, or private data.
+
 本地邮件分析 HTTP 服务沿用 Python 标准库 `ThreadingHTTPServer`，不得为 Host/Content-Type 门禁新增 HTTP 框架。服务 bind 只支持 `localhost` 或字面 IPv4 `127.0.0.0/8`；分析 POST 必须在读 body 前校验单一 loopback Host 和单一 JSON media type。
 
 ## 4. 依赖管理规则

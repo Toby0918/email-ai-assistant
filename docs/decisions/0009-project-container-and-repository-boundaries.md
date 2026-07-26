@@ -13,11 +13,13 @@ source_type: decision_record
 Accepted as a design on 2026-07-23. The Issue #30 compatibility seam, Issue #31
 Standalone Verification route, Issue #32 Managed launcher, Issue #33 protected
 private-store policy, Issue #34 pure manual audit contract, Issue #35 offline
-migration-evidence package, and Issue #36 temporary synthetic reparenting
-rehearsal are implemented. No real evidence package, audit, Project Container
-directory migration, or operational cutover has occurred. While this ADR
-remains draft, the current flat paths and the active security contracts in ADR
-0006 through ADR 0008 remain authoritative.
+migration-evidence package, Issue #36 temporary synthetic reparenting
+rehearsal, Issue #37 synthetic Managed runtime activation rehearsal, and Issue
+#51 locked Cutover Profile/authorization/receipt contracts are implemented. No
+real evidence package, audit, host adapter, Project Container directory
+migration, or operational cutover has occurred. While this ADR remains draft,
+the current flat paths and the active security contracts in ADR 0006 through
+ADR 0008 remain authoritative.
 
 ### Issue #30 compatibility seam
 
@@ -223,6 +225,47 @@ production package imports no filesystem, SQLite, subprocess, network, mailbox,
 provider, vault, private-store, credential, ContainerAudit or migration-evidence
 capability and has no host consumer. No real runtime, database, extension
 artifact, evidence package or Project Container activation occurred.
+
+### Issue #51 locked cutover contracts
+
+`backend.cutover_contracts` is a pure, cross-platform, content-free contract
+layer. `CutoverProfileV1` is immutable and closed-schema. It binds the governing
+master commit; operator, fixed-role, evidence-role and reviewed-Git
+fingerprints; exactly eleven worktree roles with eight embedded and three
+external placements; pinned Runtime inputs; create-only SQLite and reviewed CRX
+inputs; deterministic non-secret provider-disabled Config; fixed-role ACL
+policy; two-observation/fresh-gate/no-cleanup maintenance rules; and complete
+rollback roles. It accepts no arbitrary host path, drive, directory, SID, SDDL,
+Git name/ref, command, exception, database content or free-form message.
+
+Real-host authorization contracts are physically distinct nominal types:
+`RealPreflightAuthorizationV1`,
+`EvidencePublicationAuthorizationV1`,
+`CutoverExecutionAuthorizationV1`, and `RecoveryAuthorizationV1`. Each external
+canonical value is bound to one fixed operation, an allowlisted phase, the
+profile, governing master, operator, operation fingerprint and bounded validity.
+The package contains no issue or mint seam, secret, signing, time or random
+source for real authorization. Exact-type validation returns fixed allowlisted
+statuses for missing, invalid, not-yet-valid, expired and binding mismatches;
+receipts, mappings, duck types and in-memory `TestSandboxAuthorizationV1` values
+cannot pass as real-host authorization.
+
+`ReceiptEnvelopeV1` is deterministic canonical JSON with a verified SHA-256
+fingerprint. Twelve closed receipt types cover preflight, evidence, ACL,
+repository, worktree, Runtime, database, artifact, Config, activation, rollback
+and incident stop. The envelope binds type/status, operation, profile, master,
+authorization, producer, subject role, input and observation fingerprints,
+allowlisted counts, validity and closed per-type details. Duplicate keys,
+unknown fields or values, non-canonical bytes, raw paths, SID/SDDL, Git names,
+commands, exceptions, database content and free-form messages fail closed.
+Receipts remain evidence only and cannot authorize execution.
+
+`default_operator_entry()` accepts no argument and always returns
+`BLOCKED_NO_APPROVED_COMMAND` with one blocked and zero executed operations.
+This slice adds no host adapter, composition root, CLI, production consumer or
+authority to execute preflight, evidence publication, ACL, repository/worktree,
+Runtime, SQLite, CRX, Config, activation, rollback or incident operations.
+Issues #52 through #59 remain unstarted. Issues #38 and #39 are unchanged.
 
 ## Context
 

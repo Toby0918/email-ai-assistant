@@ -347,3 +347,39 @@ them. The production deep module owns no filesystem, SQLite, process, network,
 provider, mailbox, vault, private-store, credential, signing, audit, migration
 evidence, destructive or cleanup capability. No real activation or migration
 evidence package is produced, and Issues #38–#40 remain separate.
+
+## 15. Locked Cutover Profile, authorization, and receipt rule
+
+Issue #51 translates the contract-only cutover boundary into four executable
+layers:
+
+1. `tests/test_cutover_profile_contract.py` pins the exact closed
+   `CutoverProfileV1` mapping, eleven ordered worktree roles, Runtime/SQLite/CRX/
+   Config/ACL/maintenance/rollback bindings, immutable canonical round-trip,
+   deterministic SHA-256 identity, hostile parsing rejection, and absence of
+   paths or open text.
+2. `tests/test_cutover_authorization_contract.py` pins four distinct,
+   phase-specific externally supplied real-host authorization types, exact
+   operation/profile/master/operator/validity bindings, fixed aggregate
+   allow/block results, and exact-type rejection of missing, test, receipt,
+   mapping, subclassed, and duck-typed inputs. It also proves that canonical
+   Profile and authorization integrity is revalidated before `AUTHORIZED`.
+3. `tests/test_cutover_receipt_contract.py` pins the twelve closed receipt
+   families, exact type/status/operation/producer/subject/input/count/detail
+   compatibility matrix, strict canonical JSON, deterministic receipt
+   fingerprint, hostile parsing rejection, content-free values, and the rule
+   that no receipt is authorization.
+4. `tests/test_cutover_contract_architecture.py` pins the exact package files
+   and public exports, pure standard-library import roots, forbidden host I/O
+   and ambient-authority calls, exact sibling-only relative imports, absence of
+   authorization issuer/mint/clock helpers, AST-complete zero-consumer checks
+   across other `backend/`/`scripts/`/`frontend/` files, bounded files/functions,
+   and the zero-argument always-blocked operator entry.
+
+These checks create no authority and execute no preflight, migration, cutover,
+resume, rollback, recovery, or cleanup. The package contains no path, adapter,
+composition root, CLI, host reader, filesystem, SQLite, process, network, Git,
+ACL, mailbox, provider, vault, private-store, credential, signing, random,
+secret, clock, or mutation capability. A SHA-256 profile, authorization, or
+receipt fingerprint is only a canonical integrity identity; it is not a
+signature, issuer, or permission to act on a real host.

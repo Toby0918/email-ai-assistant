@@ -216,6 +216,32 @@ parent only after source, legacy, competitor and no-forbidden-access assertions.
 Race, reparse, existing-target, dependency, integrity and health failures all
 return the same aggregate-only failure and never authorize source cleanup.
 
+The `Cutover Contract layer` in `backend.cutover_contracts` is an internal,
+pathless, content-free value boundary for Issue #51. It owns one immutable
+`CutoverProfileV1`, four exact externally supplied real-host authorization
+types, one exact-type authorization validator, one canonical
+`ReceiptEnvelopeV1`, one synthetic test authorization type, and the fixed
+blocked `default_operator_entry()`. Profile and receipt creation or parsing
+perform only closed validation, canonical JSON serialization, and SHA-256
+identity checks.
+
+The real-host authorization classes have no public or internal issuer, create,
+mint, generate, sign, random, secret, or clock capability. Their canonical
+fingerprints are integrity identities, not signatures or grants of host
+authority. Exact-type validation rejects mappings, receipts, test
+authorization, subclasses, and duck-typed objects. Receipt creation or parsing
+never authorizes an operation, and the default operator seam accepts no
+capability and always returns `BLOCKED_NO_APPROVED_COMMAND`.
+
+The package imports only pure standard-library value helpers and its own
+modules. It cannot import or expose path/filesystem, process, SQLite, network,
+environment, Git, ACL, browser, mailbox, provider, vault, private-store,
+credential, authority-store, adapter, logging, scheduler, dynamic-import, or
+host-mutation capability. No other backend package, script, frontend file, or
+normal runtime currently consumes it. Real preflight, evidence publication,
+cutover, rollback, incident recovery, and all host composition remain in
+separately approved Issues #52 through #59.
+
 ## 2. 允许依赖方向
 
 允许的核心依赖方向：
@@ -240,6 +266,7 @@ manual real external composition (future Issue only) -> backend.container_audit 
 manual offline operator -> backend.migration_evidence review/create/verify
 backend.reparenting_rehearsal -> exact synthetic audit/evidence/layout bridges
 tests only -> backend.runtime_activation_rehearsal exact injected adapters
+tests only -> backend.cutover_contracts pure value seams
 ```
 
 禁止反向依赖：
@@ -273,7 +300,16 @@ backend.reparenting_rehearsal public seam -> Path/repository/target/host capabil
 backend.migration_evidence -> mailbox/provider/SQLite/vault/private-store/lifecycle capability
 normal runtime/browser/scripts/wrappers/workflows/cleanup/leakage -> backend.runtime_activation_rehearsal
 backend.runtime_activation_rehearsal -> filesystem/SQLite/process/network/provider/mailbox/vault/private-store/credential/audit/evidence capability
+other backend packages/scripts/frontend -> backend.cutover_contracts
+backend.cutover_contracts -> filesystem/SQLite/process/network/Git/ACL/provider/mailbox/vault/private-store/authority issuer
 ```
+
+`tests/test_cutover_contract_architecture.py` enforces the Cutover Contract
+layer's exact package files and public surface, pure standard-library import
+roots, forbidden host/ambient-authority calls, absence of authorization minting
+or clocks, zero current production consumers, and the zero-argument blocked
+operator entry. These guards must be updated only by a separately approved
+Issue that introduces the corresponding composition boundary.
 
 `backend/project_layout/` may import only its own modules plus the reviewed
 standard-library path/value modules. Placement validates identity twice and fails
