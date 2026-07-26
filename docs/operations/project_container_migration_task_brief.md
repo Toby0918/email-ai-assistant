@@ -36,10 +36,14 @@ maintenance evidence. Issue #30 separately authorizes only the
 RepositoryPlacement/OperationalLayout compatibility seam from the stable
 `origin/master@772a34d` checkpoint.
 
-Issues #31 through #35 subsequently implemented the bounded Standalone,
-Managed, protected-root, pure manual audit, and offline migration-evidence
-contracts in their own task briefs. No real Project Container audit, evidence
-package, directory migration, ACL operation, or cutover has occurred.
+Issues #31 through #37 subsequently implemented the bounded Standalone,
+Managed, protected-root, pure manual audit, offline migration-evidence, and
+temporary synthetic reparenting/runtime-activation contracts in their own task
+briefs. Issue #51 adds only a locked, pathless Cutover Profile, distinct
+phase-specific authorization contracts, canonical content-free receipts, and a
+default-blocked operator seam. No real Project Container audit, evidence
+package, host adapter, directory migration, ACL operation, authorization
+issuance, or cutover has occurred.
 
 ## 4. 任务目标
 
@@ -485,6 +489,49 @@ No real runtime, `.venv`, SQLite, extension artifact, migration evidence package
 Project Container, provider, mailbox, vault, private store or credential was
 opened or activated. Issues #38 through #40 remain separate.
 
+### 8.18 Issue #51 locked Cutover Profile, authorization, and receipt checkpoint
+
+Issue #51 implements only the pure `backend.cutover_contracts` package:
+
+- immutable, strict-canonical `CutoverProfileV1` binding the governing master,
+  operator and every fixed role/evidence/review selection, the exact
+  eleven-worktree roster with eight embedded and three external roles, pinned
+  Runtime inputs, create-only SQLite and CRX, deterministic non-secret
+  provider-disabled Config, fixed-role ACL, maintenance/no-cleanup rules and
+  complete rollback roles；
+- no profile field for a host path, drive, directory, SID, SDDL, Git name/ref,
+  command, exception, database content or free-form message；
+- distinct externally supplied `RealPreflightAuthorizationV1`,
+  `EvidencePublicationAuthorizationV1`,
+  `CutoverExecutionAuthorizationV1`, and `RecoveryAuthorizationV1` values with
+  exact operation, phase, profile, master, operator, fingerprint and bounded
+  validity checks；
+- fixed authorization-validation statuses for missing, wrong type, not-yet
+  valid, expired, wrong profile/master/operation/operator/phase and invalid
+  context；
+- no issuer or minting seam, secret, signer, clock or random source capable of
+  creating real-host authorization, and exact-type rejection of
+  `TestSandboxAuthorizationV1`, receipts, mappings and duck types；
+- deterministic canonical `ReceiptEnvelopeV1` with twelve closed receipt
+  families, exact status/type/detail/count schemas, complete operation/profile/
+  master/authorization/producer/subject/input/observation/validity binding and
+  verified SHA-256 identity；
+- duplicate, unknown, non-canonical or content-bearing receipt input rejected
+  without exposing raw paths, SID/SDDL, Git names, commands, exceptions,
+  database content or free-form messages；
+- one no-argument `default_operator_entry()` returning only
+  `BLOCKED_NO_APPROVED_COMMAND`, one blocked count and zero executions；
+- a pure standard-library value/JSON/hash layer with no host adapter,
+  composition root, CLI, normal-runtime consumer, filesystem, process, SQLite,
+  ACL, Git, network, browser, mailbox, provider, vault, private-store,
+  environment, scheduler, logging or dynamic-import capability。
+
+This checkpoint parses and validates contracts only. It does not execute real
+preflight, evidence publication, migration, cutover, resume, rollback, incident
+recovery or cleanup and does not access real Runtime, SQLite, ACL, repository,
+worktree, mailbox, provider, vault or private data. Issues #52 through #59
+remain unstarted；Issues #38 and #39 are unchanged.
+
 ## 9. 数据结构或接口变化
 
 ### 数据库变化
@@ -498,7 +545,11 @@ interfaces、provider-disabled Managed launcher adapter、Issue #35 的
 `prepare_migration_evidence_review`、`create_migration_evidence_package` 和
 `verify_migration_evidence_package` manual seams，以及 Issue #36 的
 `rehearse_repository_reparenting` 和 Issue #37 的
-`rehearse_managed_runtime_activation(*, adapters=...)` synthetic-only seams；
+`rehearse_managed_runtime_activation(*, adapters=...)` synthetic-only seams。
+Issue #51 additionally exposes internal-only `CutoverProfileV1`, four distinct
+real-authorization value parsers, `validate_real_host_authorization(...)`,
+canonical `ReceiptEnvelopeV1`, and the default-blocked
+`default_operator_entry()`；
 无 HTTP API 变化。
 
 ### AI 输出 JSON 变化
@@ -546,6 +597,12 @@ interfaces、provider-disabled Managed launcher adapter、Issue #35 的
 11. Evidence publication rejects existing target, reparse, race, partial write
     and identity drift, and semantic verification rejects manifest/evidence/
     snapshot tampering。
+12. Issue #51 profile, authorization and receipt contracts remain immutable,
+    closed-schema, pathless, content-free and canonical, with no real-host
+    adapter or authorization issuer。
+13. Issue #51 default operator entry remains
+    `BLOCKED_NO_APPROVED_COMMAND`; receipts and synthetic authorization cannot
+    become execution authority。
 
 后续 migration cutover acceptance 至少包括:
 
@@ -654,6 +711,7 @@ BitLocker private content 或 ignored SQLite text。
 - [x] 已确认当前用户修改不属于本规划文档 scope。
 - [x] Issue #30 compatibility-seam implementation 已批准。
 - [x] Issue #30 baseline 是 reviewed `origin/master@772a34d` checkpoint。
+- [x] Issue #51 pure contracts only are implemented and default blocked。
 - [ ] Full cutover implementation Issues 已批准。
 - [ ] 维护窗口已确认。
 - [ ] Baseline and rollback artifacts 已生成并验证。

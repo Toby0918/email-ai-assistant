@@ -289,7 +289,7 @@ current-click evidence seam.
 
 Complete this section whenever a task changes Repository Root, Project
 Container, ordinary operational locations, the flat-layout transition seam, or
-the manual ContainerAudit contract.
+the manual ContainerAudit or locked cutover contract.
 
 ```text
 [ ] `RepositoryPlacement` has exactly Managed and explicit Standalone modes; no implicit third placement mode is added.
@@ -331,6 +331,16 @@ the manual ContainerAudit contract.
 [ ] Synthetic activation binds the rebuilt venv executable, keeps all providers disabled, uses literal loopback health, persists exactly one rule-fallback analysis and proves final stop.
 [ ] Race, reparse, existing-target, dependency, integrity and health failures preserve source/legacy/competitor state without overwrite, rollback-by-deletion or source cleanup.
 [ ] No real runtime, SQLite, extension artifact, migration evidence package, provider, mailbox, vault, private store or credential is opened or activated.
+[ ] `CutoverProfileV1` is immutable, closed, canonical and content-free; it accepts no path, drive, directory, SID, SDDL, Git ref/name, command, exception, database row, message or free text.
+[ ] The four real-host authorization types remain exact and phase-specific; only externally supplied canonical values may be validated.
+[ ] No package, prerequisite, task, test or helper can create, issue, mint, sign or otherwise manufacture real-host authorization.
+[ ] `TestSandboxAuthorizationV1`, receipts, mappings and duck-typed values cannot pass the exact real-host authorization validator.
+[ ] `ReceiptEnvelopeV1` uses strict canonical UTF-8 JSON, closed type/status/count/detail schemas and a verified SHA-256 fingerprint.
+[ ] Duplicate keys, unknown fields/enums, non-canonical bytes, wrong bindings, booleans-as-integers and receipt-as-authorization all fail closed with fixed content-free results.
+[ ] `default_operator_entry()` accepts no capability and remains fixed at `BLOCKED_NO_APPROVED_COMMAND` until a separately approved Issue #39 implementation.
+[ ] The cutover-contract package has no path, host adapter, filesystem, environment, network, process, SQLite, ACL, Git/worktree, runtime, browser, mailbox, provider, vault, private-store, logging, scheduler or dynamic-import capability.
+[ ] Tests and documentation do not run a real preflight, evidence publication, migration, cutover, resume, rollback, incident recovery or cleanup.
+[ ] Issues #52 through #59 remain separate and require their own approval; this task does not modify or close Issues #38/#39 or parent Spec #50.
 ```
 
 ## 22. 执行后记录

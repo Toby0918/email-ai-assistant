@@ -346,6 +346,36 @@ class GenerateProjectStatusTests(unittest.TestCase):
             with self.subTest(marker=marker):
                 self.assertIn(marker, report)
 
+    def test_cutover_contracts_are_reported_as_pure_and_default_blocked(
+        self,
+    ) -> None:
+        module = load_script_module(
+            SCRIPT,
+            "generate_project_status_cutover_contracts",
+        )
+        report = module.build_project_status()
+
+        for marker in (
+            "Issue #51 locked Cutover Profile, authorization, and receipt contracts are offline implemented",
+            "pure content-free Python contract layer",
+            "`CutoverProfileV1`",
+            "four distinct real-host authorization value types",
+            "cannot create, issue, or mint",
+            "strict canonical `ReceiptEnvelopeV1`",
+            "`BLOCKED_NO_APPROVED_COMMAND`",
+            "No real host adapter, preflight, migration, or cutover was invoked",
+            "Issues #52 through #59 remain separate",
+            "`backend/cutover_contracts/profile.py`",
+            "`backend/cutover_contracts/authorization.py`",
+            "`backend/cutover_contracts/receipt.py`",
+            "`backend/cutover_contracts/operator_entry.py`",
+            "`docs/security/project_container_cutover_contracts.md`",
+            "`docs/operations/issue51_cutover_profile_authorization_receipt_task_brief.md`",
+            "`tests/test_cutover_contract_architecture.py`",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, report)
+
     def test_browser_extension_files_are_reported_as_key_files(self) -> None:
         module = load_script_module(SCRIPT, "generate_project_status")
         report = module.build_project_status()

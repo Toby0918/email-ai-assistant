@@ -270,8 +270,7 @@ content-free metadata adapters; there is no CLI, default host adapter, runtime
 consumer, or real audit in this checkpoint. The function validates two stable
 snapshots and returns only fixed pass/fail status and accepted/rejected counts.
 These checkpoints do not perform the real Project Container migration or access
-mailbox/vault/credential/private-store state. Issue #35 is the next bounded
-offline checkpoint described below.
+mailbox/vault/credential/private-store state.
 
 Issue #35 adds `backend/migration_evidence/` as an offline manual Python
 interface with no CLI or default target. It discovers exact local branch refs
@@ -287,8 +286,31 @@ All Issue #35 automated verification uses temporary synthetic repositories and
 destinations. This implementation did not create a package from the real
 checkout. A real capture requires a separately reviewed exact target,
 content-free inclusion/exclusion manifest, local-ref and worktree selection,
-followed by fresh operator confirmation. Issues #36 through #40 remain
-separately authorized.
+followed by fresh operator confirmation. Issue #36 and Issue #37 add only
+caller-owned temporary synthetic reparenting and Managed runtime activation
+rehearsals; neither accepts or operates on a real Repository Root, Runtime,
+SQLite database, extension artifact, Project Container, mailbox, provider,
+vault, private store, credential, ACL, or worktree.
+
+Issue #51 adds `backend/cutover_contracts/`, a pure, cross-platform,
+content-free contract layer. Immutable `CutoverProfileV1` binds the governing
+master, fixed roles and evidence, reviewed Git selections, the exact
+eleven-worktree roster, pinned Runtime/SQLite/CRX/Config/ACL rules,
+maintenance/no-cleanup policy, and rollback roles without accepting a host
+path. Four nominal real-host authorization types are operation-, phase-,
+profile-, master-, operator-, and validity-bound; the package can only parse
+and validate externally supplied canonical values and cannot create or mint
+real-host authority.
+
+Canonical `ReceiptEnvelopeV1` values use deterministic JSON, closed receipt
+type/status/detail/count schemas, and SHA-256 binding while rejecting unknown,
+duplicate, non-canonical, path-bearing, raw-identity-bearing, command,
+exception, database-content, or free-form inputs. Receipts and synthetic test
+authorizations cannot become execution authority. The no-argument default
+operator entry remains fixed at `BLOCKED_NO_APPROVED_COMMAND`; no real host
+adapter, preflight, evidence publication, migration, cutover, rollback or
+incident operation exists in this slice. Issues #52 through #59 are not
+started, and Issues #38 and #39 remain unchanged.
 
 ## 后台清理扫描
 

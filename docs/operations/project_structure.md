@@ -43,6 +43,20 @@ email-ai-assistant/
       filesystem_checks.py
       policy.py
       system_checks.py
+    cutover_contracts/
+      __init__.py
+      _canonical.py
+      authorization.py
+      authorization_schema.py
+      authorization_validation.py
+      errors.py
+      operator_entry.py
+      profile.py
+      profile_schema.py
+      receipt.py
+      receipt_matrix.py
+      receipt_schema.py
+      receipt_types.py
     email_agent/
       __init__.py
       config.py
@@ -120,6 +134,7 @@ email-ai-assistant/
 
     operations/
       *_task_brief.md
+      issue51_cutover_profile_authorization_receipt_task_brief.md
       setup_checklist.md
       testing_checklist.md
       deployment_notes.md
@@ -152,6 +167,7 @@ email-ai-assistant/
       api_key_rules.md
       prompt_injection_rules.md
       email_data_handling.md
+      project_container_cutover_contracts.md
 
     templates/
       agent_task_brief_template.md
@@ -179,6 +195,11 @@ email-ai-assistant/
     test_static_linter_constraints.py
     test_mechanical_rule_constraints.py
     test_maintenance_scan.py
+    cutover_contract_fixtures.py
+    test_cutover_authorization_contract.py
+    test_cutover_contract_architecture.py
+    test_cutover_profile_contract.py
+    test_cutover_receipt_contract.py
 
   scripts/
     repo_utils.py
@@ -256,6 +277,7 @@ email-ai-assistant/
 - `backend/migration_evidence/`: Issue #35 的 offline manual review/create/verify 深模块；只从 exact local refs 与 approved source/tests/docs 创建一个 external create-only package，并独立验证 Git bundle、selection/snapshot/host evidence 和 SHA-256 manifest。它没有 CLI、default target、normal-runtime consumer、mailbox/provider/private-store 或 migration/cutover capability。
 - `backend/reparenting_rehearsal/`: Issue #36 的 temporary synthetic-only rehearsal 深模块；公开 seam 不接受 path，自建 marker-bound sandbox，复用 exact evidence/audit/layout bridges 演练 existing `.git` reparenting、reviewed worktree repair/recreate、post-state equality 和六个 rollback boundaries。它没有 real workspace、CLI、runtime、browser、workflow、mailbox/provider/vault/private-store/credential/ACL capability。
 - `backend/runtime_activation_rehearsal/`: Issue #37 的 pathless synthetic-only activation 深模块；只接受 exact five injected adapters，验证 pinned runtime、从 lock 重建的 Windows venv、`pre_publication` stopped-service create-only SQLite、reviewed-hash extension artifact、Managed writable roles、同一 activation token 绑定的 provider-disabled start/loopback health/一次持久化规则分析/`post_activation` fresh-stop proof 和最终 source preservation。它没有 path、default host adapter、真实 filesystem/SQLite/process/network/provider/mailbox/vault/credential/signing/evidence/cleanup capability，也没有 normal-runtime consumer。
+- `backend/cutover_contracts/`: Issue #51 的 pure content-free Cutover Profile、phase-specific authorization 和 canonical receipt 合同层。它只解析、验证和规范化 immutable values；四种 real-host authorization 只能验证外部提供的 canonical values，不能 create、issue 或 mint。`default_operator_entry()` 固定返回 `BLOCKED_NO_APPROVED_COMMAND`。该 package 没有 path、host adapter、filesystem、SQLite、ACL、Git/worktree、runtime、mailbox/provider/vault/private-data、preflight、migration 或 cutover capability，也没有 production consumer。
 - `backend/email_agent/managed_runtime.py`: Issue #32 的 Managed launcher adapter；从 exact `main` placement 派生普通 zone，读取 bounded non-secret Config，并返回 provider-disabled resolved config。它不执行真实迁移、container audit、runtime/data/artifact/worktree activation 或 private capability。
 - `backend/email_agent/managed_runtime_errors.py` 与 `backend/email_agent/managed_runtime_validation.py`: Managed mode 的固定失败映射、稳定身份检查、可写预检和 bounded settings reader；拆分后仍不向 request handlers 暴露 placement reader。
 - `frontend/local_debug_page/`：第一阶段本地辅助窗口调试页面，只在用户点击 `Analyze` 后调用本地后端 API，不接入真实邮箱账号。

@@ -521,6 +521,47 @@ dependency, integrity and health failure and independently assert
 source/legacy/competitor preservation plus zero forbidden access before
 caller-owned teardown.
 
+### Locked Cutover contract mechanical guards
+
+`backend/cutover_contracts/` has an exact module-file and public-export
+allowlist. Recursive file enumeration rejects nested or non-source payloads
+outside generated `__pycache__`. Absolute imports are limited to exact pure
+standard-library modules and exact imported symbols; relative imports are
+limited to exact sibling package modules. Parent-relative, unknown,
+dotted-module, filesystem, process, SQLite, network, environment,
+dynamic-import, logging, clock, random, stdin, host, forbidden builtin loads or
+aliases, including `breakpoint`, `delattr`, and `setattr`, and ambient-authority
+imports or calls fail AST checks.
+
+The authorization module must remain parse-only for externally supplied
+canonical values. Function-name and call guards reject real-authorization
+`create`, `issue`, `mint`, `generate`, `sign`, `uuid4`, `now`, `utcnow`,
+`time`, or token-generation surfaces across the whole package, except the
+exact Profile, Receipt, and synthetic-test `create` methods. Exact-type
+behavior tests require
+mapping, receipt, duck-typed, subclassed, and
+`TestSandboxAuthorizationV1` values to fail real-host validation.
+
+A recursive consumer guard scans every other Python/JavaScript file under
+`backend/`, `scripts/`, and `frontend/`. Python imports are parsed as AST so
+direct, `from backend import ...`, and relative forms all reject
+`cutover_contracts`; direct, attribute, imported, rebound, or chained aliases
+of `__import__` and `importlib.import_module` are rejected at the call seam even
+when their module target is dynamically bound. JavaScript retains fixed-token
+rejection. The package has no current runtime, operator, script, or frontend
+consumer.
+`default_operator_entry()` is mechanically pinned to zero arguments and the
+fixed `BLOCKED_NO_APPROVED_COMMAND`, `blocked=1`, `executed=0` result.
+
+`tests/test_cutover_contract_architecture.py` owns the exact package/import/
+consumer/mint/default-block checks. The profile, authorization, and receipt
+test modules separately pin closed schemas, strict canonical JSON, deterministic
+fingerprints, immutable/repr-redacted values, fixed status/count output, and
+receipt-not-authorization behavior. All fixtures are synthetic and
+content-free; no test may call a real host adapter or inspect Runtime, SQLite,
+ACL, repository, worktree, mailbox, provider, vault, credential, or private
+data.
+
 ### Private evaluation mechanical guards
 
 Executable checks must enforce that `backend/private_evaluation/` cannot import
