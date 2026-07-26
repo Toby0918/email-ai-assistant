@@ -64,6 +64,8 @@ docs/ 下 Markdown 缺少 YAML front matter
 维护扫描脚本发现高风险项目卫生问题
 migration evidence package 出现在 Repository Root、覆盖目标、缺失必备 evidence、
 或无法在 synthetic temporary repository 中独立恢复
+reparenting rehearsal 接受外部 path、出现非 reviewed bridge/consumer、使用
+clone/prune/delete/overwrite，或任一 synthetic publication boundary 无法验证 rollback
 ```
 
 ## 5. 失败处理原则

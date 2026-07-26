@@ -207,11 +207,12 @@ snapshots; it may not import `os`, `pathlib`, `subprocess`, `sqlite3`, `ctypes`,
 or any content reader or mutator. Adapter exceptions and malformed evidence are
 discarded without formatting and map to the same fixed failure result.
 
-No repository module currently composes the callbacks. Normal runtime,
-cleanup, leakage scanning, browser/frontend, root wrappers, and workflows must
-not reference the package. All automated evidence is synthetic and offline;
-running a real Project Container or host-security audit requires a later,
-separately approved composition Issue.
+Only Issue #36's exact `backend.reparenting_rehearsal.audit_bridge` composes
+callbacks, and only from metadata inside a self-created temporary synthetic
+sandbox. Normal runtime, cleanup, leakage scanning, browser/frontend, root
+wrappers, scripts, and workflows must not reference the package. Running a real
+Project Container or host-security audit still requires a later, separately
+approved composition Issue.
 
 ### No-clobber migration evidence tooling boundary
 
@@ -250,13 +251,60 @@ the final commit point, and never overwrites an existing target. Package output
 is ignored by Git and the leakage scanner rejects its reserved suffix without
 opening it.
 
-Automated tests may call these seams only with temporary synthetic Git
-repositories and temporary external destinations. They must never use the real
-Repository Root as a create source, choose a real destination, stop a service,
-move a repository/worktree, mutate ACLs, or access mailbox/provider/vault/
-private-store/credential data. A real preparation may produce the exact
-content-free review value only; create must stop until separate operator
-confirmation.
+Automated tests and Issue #36's exact `evidence_bridge` may call these seams only
+with temporary synthetic Git repositories and temporary external destinations.
+They must never use the real Repository Root as a create source, choose a real
+destination, stop a service, move a real repository/worktree, mutate ACLs, or
+access mailbox/provider/vault/private-store/credential data. A real preparation
+may produce the exact content-free review value only; create must stop until
+separate operator confirmation.
+
+### Synthetic reparenting rehearsal tooling boundary
+
+Issue #36 adds only standard-library `backend.reparenting_rehearsal` and no
+dependency, CLI, scheduled task, workflow, default root, environment option or
+host adapter. The public seam exposes no path or filesystem capability and
+creates one unique `issue36-synthetic-*` `TemporaryDirectory` with an exact
+marker before any Git or filesystem mutation. It binds the marker filesystem
+identity to a fixed sibling hard-link anchor and revalidates both before
+publication; identical-content replacement, attempted inode reuse, and any
+scope alias/reparse drift fail closed. The complete project and exact
+local-only remote are revalidated before and after review/baseline capture, and
+the review's remote fingerprint must equal the fixed local bare remote.
+
+The internal Git runner accepts only a fixed command-verb allowlist, confines
+every cwd to that sandbox, disables global/system config, hooks and terminal
+prompting, uses `shell=False`, and applies fixed time/output bounds. Migration
+code contains no clone, fetch, pull, push, prune, remove, clean, reset, restore,
+unlink, replace, rmtree or overwrite operation. Checked rename requires an
+existing non-reparse source and absent target. Temporary-directory disposal
+is disabled in the public operation, so no source, legacy source, worktree,
+target, or rollback path is deleted on return. Tests place that preserved scope
+under a caller-owned parent and dispose of the parent only after independent
+success/rollback assertions.
+All fixed worktree targets are checked absent before any worktree directory or
+administrative metadata is moved; recreate never relies on Git accepting an
+existing empty directory. The direct `Worktrees` parent is checked for
+non-reparse resolved containment both during preflight and immediately before
+`git worktree add`.
+
+The fixed scenario uses a local bare remote, non-trivial ahead baseline, three
+local branch refs, one dirty main worktree, and two clean linked worktrees.
+Synthetic excluded credentials, signing material, runtimes, outputs, IDE/cache,
+SQLite, log and private canaries are written only by the fixture builder and
+thereafter observed by metadata; only tracked and reviewed untracked source may
+be hashed or enter the Issue #35 package.
+Post-main failure injection moves the whole published Container to exactly one
+sibling rollback path, repairs all reviewed active linked paths in one bounded
+`git worktree repair` call, and repeats refs/remote/ahead/index/hash/worktree and
+evidence verification there.
+
+`repair` moves the same synthetic directory and invokes bounded `git worktree
+repair`. `recreate` preserves the old physical worktree and no-clobber moves its
+administrative directory to a sibling holding namespace before `git worktree
+add --force`; it performs no clone, prune or deletion. Each fixed publication
+boundary can return only completed, rollback-verified or failed aggregate
+results. No result contains a path, ref, OID, exception or file content.
 
 本地邮件分析 HTTP 服务沿用 Python 标准库 `ThreadingHTTPServer`，不得为 Host/Content-Type 门禁新增 HTTP 框架。服务 bind 只支持 `localhost` 或字面 IPv4 `127.0.0.0/8`；分析 POST 必须在读 body 前校验单一 loopback Host 和单一 JSON media type。
 

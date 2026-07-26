@@ -1,0 +1,196 @@
+"""Fixed names and marker-bound temporary scope for Issue #36."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+import os
+from pathlib import Path
+import stat
+import tempfile
+
+from .contract import SyntheticWorktree
+from .errors import RehearsalError
+
+
+MarkerIdentity = tuple[int, int, int, int, int, int]
+MARKER_NAME = ".issue36-synthetic-scope"
+MARKER_GUARD_NAME = ".issue36-synthetic-scope.identity-anchor"
+MARKER_VALUE = "issue36-reparenting-rehearsal-v1\n"
+SOURCE_NAME = "email_ai_assistant"
+LEGACY_NAME = "email_ai_assistant-legacy-source"
+TOP_LEVEL_NAMES = (
+    "main",
+    "Runtimes",
+    "LocalData",
+    "RuntimeTemp",
+    "Logs",
+    "Artifacts",
+    "Worktrees",
+    "Config",
+    "OperatorPrivate",
+)
+REVIEWED_UNTRACKED = "docs/reviewed_note.md"
+REVIEWED_DIRTY = ("backend/service.py", REVIEWED_UNTRACKED)
+EXCLUDED_PATHS = (
+    ".env",
+    "signing.pem",
+    ".venv/runtime.bin",
+    "outputs/build.bin",
+    ".idea/workspace.xml",
+    ".cache/cache.bin",
+    "data/email_analysis.sqlite",
+    "runtime/request.tmp",
+    "logs/service.log",
+    "private/excluded.bin",
+)
+
+
+@dataclass(frozen=True, slots=True, repr=False)
+class SyntheticProject:
+    scope: Path
+    marker_identity: MarkerIdentity
+    source: Path
+    legacy: Path
+    staging_container: Path
+    evidence_target: Path
+    remote: Path
+    old_worktrees: tuple[tuple[SyntheticWorktree, Path], ...]
+    rollback_container: Path
+
+    def old_worktree(self, worktree: SyntheticWorktree) -> Path:
+        matches = tuple(
+            path for item, path in self.old_worktrees if item is worktree
+        )
+        if len(matches) != 1:
+            raise RehearsalError()
+        return matches[0]
+
+
+def prepare_synthetic_scope(scope: Path) -> Path:
+    root = _require_scope_path(scope)
+    if any(root.iterdir()) or not root.name.startswith("issue36-synthetic-"):
+        raise RehearsalError()
+    marker = root / MARKER_NAME
+    with marker.open("x", encoding="utf-8", newline="\n") as handle:
+        handle.write(MARKER_VALUE)
+    try:
+        os.link(
+            marker,
+            root / MARKER_GUARD_NAME,
+            follow_symlinks=False,
+        )
+    except Exception:
+        raise RehearsalError() from None
+    return require_synthetic_scope(root)
+
+
+def require_synthetic_scope(
+    scope: Path,
+    *,
+    marker_identity: MarkerIdentity | None = None,
+) -> Path:
+    root = _require_scope_path(scope)
+    if not root.name.startswith("issue36-synthetic-"):
+        raise RehearsalError()
+    current_identity = _require_marker_pair(root)
+    if marker_identity is not None and current_identity != marker_identity:
+        raise RehearsalError()
+    return root
+
+
+def capture_marker_identity(scope: Path) -> MarkerIdentity:
+    root = require_synthetic_scope(scope)
+    return _marker_identity(root / MARKER_NAME)
+
+
+def _require_scope_path(scope: Path) -> Path:
+    configured = Path(scope).absolute()
+    if not configured.is_dir():
+        raise RehearsalError()
+    for component in _path_components(configured):
+        if _is_reparse(component):
+            raise RehearsalError()
+    try:
+        root = configured.resolve(strict=True)
+        temporary_root = Path(tempfile.gettempdir()).resolve(strict=True)
+    except Exception:
+        raise RehearsalError() from None
+    if (
+        root != configured
+        or temporary_root not in root.parents
+        or not root.name.startswith("issue36-synthetic-")
+    ):
+        raise RehearsalError()
+    return root
+
+
+def _path_components(path: Path) -> tuple[Path, ...]:
+    current = Path(path.anchor)
+    components: list[Path] = []
+    for part in path.parts[1:]:
+        current = current / part
+        components.append(current)
+    return tuple(components)
+
+
+def _marker_identity(marker: Path) -> MarkerIdentity:
+    try:
+        metadata = marker.lstat()
+    except Exception:
+        raise RehearsalError() from None
+    if (
+        not stat.S_ISREG(metadata.st_mode)
+        or stat.S_ISLNK(metadata.st_mode)
+        or _is_reparse(marker)
+    ):
+        raise RehearsalError()
+    return (
+        metadata.st_dev,
+        metadata.st_ino,
+        metadata.st_ctime_ns,
+        metadata.st_mtime_ns,
+        metadata.st_size,
+        metadata.st_nlink,
+    )
+
+
+def _require_marker_pair(root: Path) -> MarkerIdentity:
+    marker = root / MARKER_NAME
+    anchor = root / MARKER_GUARD_NAME
+    marker_before = _marker_identity(marker)
+    anchor_before = _marker_identity(anchor)
+    try:
+        same_before = marker.samefile(anchor)
+        marker_value = marker.read_text(encoding="utf-8")
+        anchor_value = anchor.read_text(encoding="utf-8")
+        same_after = marker.samefile(anchor)
+    except Exception:
+        raise RehearsalError() from None
+    marker_after = _marker_identity(marker)
+    anchor_after = _marker_identity(anchor)
+    if (
+        marker_before != anchor_before
+        or marker_before != marker_after
+        or anchor_before != anchor_after
+        or marker_before[-1] != 2
+        or not same_before
+        or not same_after
+        or marker_value != MARKER_VALUE
+        or anchor_value != MARKER_VALUE
+    ):
+        raise RehearsalError()
+    return marker_after
+
+
+def _is_reparse(path: Path) -> bool:
+    metadata = path.lstat()
+    mask = int(getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400))
+    return (
+        stat.S_ISLNK(metadata.st_mode)
+        or bool(int(getattr(metadata, "st_file_attributes", 0)) & mask)
+        or (
+            path.is_junction()
+            if hasattr(path, "is_junction")
+            else False
+        )
+    )

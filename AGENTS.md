@@ -187,10 +187,11 @@ vault/recovery, two stable reads, and fixed pass/fail counts in code.
 The package has no path, host probe, filesystem reader, ACL client, Git command,
 SQLite client, default adapter, CLI, launcher, scheduler, repair, logging, or
 private-content capability. Normal runtime, cleanup, leakage scanning, browser,
-root wrappers, and workflows must not import or invoke it. Automated tests use
-only frozen repr-redacted synthetic evidence; Issue #34 performs no real
-Container audit or host-security probe. Future real composition and all
-migration work remain separately authorized.
+root wrappers, and workflows must not import or invoke it. The only reviewed
+repository consumer is Issue #36's synthetic-only `audit_bridge.py`; it composes
+metadata adapters for an internally created temporary scenario and has no real
+host adapter or path input. Automated tests use only synthetic evidence; no real
+Container audit or host-security probe has occurred.
 
 Issue #35 adds the offline-only `backend.migration_evidence` deep module. Its
 three keyword-only seams prepare an exact repr-redacted review value, create one
@@ -207,12 +208,47 @@ non-reparse, and create-only. A canonical SHA-256 manifest binds the review
 fingerprint, Git bundle, baseline evidence, selection, snapshot index, and every
 payload. Public create/verify results contain only fixed status and aggregate
 counts. There is no CLI, default target, normal-runtime/browser/workflow
-consumer, service stop, repository move, ACL mutation, mailbox/provider/vault/
-private-store access, or cleanup action. Automated tests use only synthetic Git
-repositories and temporary destinations. No real package was created; any real
-capture must first publish the exact target, content-free inclusion/exclusion
-manifest, reviewed refs, and worktree selection, then stop for separate
-operator confirmation.
+consumer, service stop, real repository move, ACL mutation, mailbox/provider/
+vault/private-store access, or cleanup action. The only reviewed repository
+consumer is Issue #36's synthetic-only `evidence_bridge.py`; it creates and
+verifies a package only for its internally created temporary Git scenario. No
+real package was created; any real capture must first publish the exact target,
+content-free inclusion/exclusion manifest, reviewed refs, and worktree
+selection, then stop for separate operator confirmation.
+
+Issue #36 adds `backend.reparenting_rehearsal` as a self-contained temporary
+synthetic rehearsal only. Its sole public seam accepts exactly two content-free
+reviewed linked-worktree choices plus an optional fixed failure boundary; it
+accepts no `Path`, repository, target, environment, reader, adapter or callback.
+The module initializes a local synthetic repository and bare remote, captures a
+non-trivial baseline, creates and independently verifies one Issue #35 evidence
+package, renames the complete synthetic source, moves the existing `.git`,
+tracked files and reviewed untracked source into `main`, and applies injected
+`repair` or `recreate` choices without clone, prune, deletion or overwrite.
+The marker filesystem identity is bound at fixture creation with a fixed sibling
+hard-link identity anchor and revalidated before every publication; this prevents
+same-text replacement from passing even if a filesystem would otherwise reuse an
+inode. The exact local-only remote is revalidated immediately
+before/after review and baseline capture, and the captured remote fingerprint
+must equal the fixed local bare remote. Every linked-worktree target is
+preflighted absent and its direct `Worktrees` parent must be non-reparse
+before any worktree move or administrative mutation. Post-main injected failures
+move the whole published
+Container by checked no-clobber rename to the single rollback path and repair
+only the reviewed relocated linked-worktree pointers.
+
+Excluded synthetic credentials, signing material, runtime, outputs, IDE state,
+caches, SQLite and private canaries remain in the legacy source and are checked
+only by metadata. Every publication boundary has a fixed failure injection and
+verified rollback outcome. The public operation does not clean up its synthetic
+source, legacy source, worktrees, target, or rollback path; test teardown is
+caller-owned and occurs only after independent assertions. The exact
+`audit_bridge.py`, `evidence_bridge.py`,
+and `layout.py` imports are mechanically allowlisted; normal runtime, scripts,
+frontend, cleanup, leakage scanning and workflows cannot consume the rehearsal.
+It performs no real workspace migration, ACL, runtime, database, mailbox,
+provider, vault, private-store or credential action, and it is not authorization
+for real cutover.
 
 The pure project-layout seam performs no directory creation, move, deletion,
 migration, mailbox or
@@ -220,7 +256,7 @@ provider operation, secret read, vault/private-store access, ACL change, or host
 security change. Managed placement requires the exact canonical
 `email_ai_assistant\main` relationship. Standalone Verification Mode requires an
 explicit synthetic or temporary state root. The flat-layout adapter is temporary
-compatibility only and is not a third final placement mode. Issues #36 through
+compatibility only and is not a third final placement mode. Issues #37 through
 #40 remain separately authorized work.
 
 ## 技术栈基线

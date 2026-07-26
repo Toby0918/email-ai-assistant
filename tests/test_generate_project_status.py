@@ -287,12 +287,37 @@ class GenerateProjectStatusTests(unittest.TestCase):
             "Issue #35 no-clobber migration evidence package is offline implemented",
             "exact reviewed local refs",
             "external-target, create-only and fail-closed",
-            "No real evidence package or migration action was performed",
-            "Issues #36 through #40 remain separate",
+            "No real evidence package was created",
+            "Issues #37 through #40 remain separate",
             "`backend/migration_evidence/package.py`",
             "`backend/migration_evidence/verification.py`",
             "`docs/operations/issue35_migration_evidence_package_task_brief.md`",
             "`tests/test_migration_evidence_restore.py`",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, report)
+
+    def test_reparenting_rehearsal_is_reported_as_synthetic_only(
+        self,
+    ) -> None:
+        module = load_script_module(
+            SCRIPT,
+            "generate_project_status_reparenting_rehearsal",
+        )
+        report = module.build_project_status()
+
+        for marker in (
+            "Issue #36 repository/worktree reparenting rehearsal is offline implemented",
+            "pathless synthetic-only Python seam",
+            "non-trivial Git baseline",
+            "marker filesystem identity",
+            "single sibling rollback path",
+            "public operation leaves the synthetic topology intact",
+            "All six publication-boundary failures verify rollback preservation",
+            "No real workspace, worktree, branch, directory, ACL, runtime, database or private data was touched",
+            "`backend/reparenting_rehearsal/rehearsal.py`",
+            "`docs/operations/issue36_reparenting_rehearsal_task_brief.md`",
+            "`tests/test_reparenting_rehearsal_rollback.py`",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, report)

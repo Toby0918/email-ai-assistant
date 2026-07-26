@@ -266,13 +266,52 @@ Issue #35 translates evidence preservation into four executable layers:
 4. `test_migration_evidence_verification.py`, architecture guards, static
    linter, and repository leakage tests require all Git/host/selection/snapshot
    evidence, canonical manifest and file hashes, independent bundle verify,
-   fixed code/count receipts, no runtime/workflow consumer, a reserved ignored
-   suffix, and name-only leakage rejection.
+   fixed code/count receipts, only the exact Issue #36 synthetic evidence bridge
+   and no runtime/workflow consumer, a reserved ignored suffix, and name-only
+   leakage rejection.
 
 Every backend file remains at most 300 lines and every function at most 50
 lines. The module adds no CLI, default target, provider/mailbox/private-store
-adapter, service action, directory migration, ACL mutation, or Issues #36–#40
-implementation. Real review values and package generation are not automated;
+adapter, service action, real directory migration, ACL mutation, or Issues
+#37–#40 implementation. Real review values and package generation are not
+automated;
 after presenting the exact target, content-free inclusion/exclusion manifest,
 reviewed refs, and worktree selection, execution must stop for separate
 confirmation.
+
+## 13. Synthetic repository reparenting rehearsal rule
+
+Issue #36 translates the approved temporary rehearsal into four executable
+layers:
+
+1. `test_reparenting_rehearsal_contract.py` pins the closed enum/request/result
+   contract, complete reviewed choice set, keyword-only no-default public seam,
+   and fixed aggregate-only failure before sandbox creation.
+2. `test_reparenting_rehearsal_success.py` and
+   `test_reparenting_rehearsal_safety.py` build only a marker-bound OS-temporary
+   scenario. They prove a non-trivial local branch/ref/remote/ahead baseline,
+   approved source hashes, metadata-only excluded canaries, exact Issue #35
+   package reads, no-clobber target handling, existing `.git` identity,
+   marker plus the sole synthetic scope-control hard-link identity anchor,
+   simulated inode-reuse/marker-anchor reparse/non-local-remote rejection,
+   repair/recreate preservation, clean linked worktrees, Managed placement,
+   preserved public topology and an actual synthetic ContainerAudit pass. The
+   anchor is not source content and does not authorize content hard links.
+3. `test_reparenting_rehearsal_rollback.py` injects one failure after each of
+   the six fixed publication boundaries. Every case must preserve either the
+   original source identity or a complete Container moved to the one sibling
+   rollback path plus an independently verified Issue #35 package. Tests inspect
+   the filesystem and Git state before caller-owned teardown rather than trusting
+   the aggregate result; the algorithm has no deletion or overwrite operation.
+4. Architecture/static guards pin the exact package files and import roots,
+   exact audit/evidence/layout bridges, sole subprocess owner, fixed Git verb
+   allowlist, the sole direct `os.link` marker-anchor call while rejecting
+   aliases and `Path.hardlink_to`/`Path.link_to`, absence of
+   clone/fetch/pull/push/prune/destructive verbs, and zero normal-runtime/script/
+   frontend/cleanup/leakage/workflow consumers.
+
+The public seam cannot accept or discover the real Repository Root and does not
+clean up any synthetic source, legacy source, worktree, target, or rollback
+path. Test-only caller-owned teardown happens after independent assertions.
+This rule creates no real evidence package, audit, Container, ACL, runtime,
+database or worktree mutation and does not implement Issues #37–#40.

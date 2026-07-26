@@ -221,6 +221,52 @@ _MIGRATION_EVIDENCE_FORBIDDEN_GIT_VERBS = {
     "restore",
     "stash",
 }
+_REPARENTING_REHEARSAL_FILES = {
+    "__init__.py",
+    "audit_bridge.py",
+    "audit_metadata.py",
+    "baseline.py",
+    "contract.py",
+    "errors.py",
+    "evidence_bridge.py",
+    "git_runner.py",
+    "layout.py",
+    "publication.py",
+    "rehearsal.py",
+    "synthetic_project.py",
+    "synthetic_scope.py",
+    "verification.py",
+    "worktrees.py",
+}
+_REPARENTING_REHEARSAL_ALLOWED_IMPORT_ROOTS = {
+    "__future__",
+    "backend",
+    "dataclasses",
+    "enum",
+    "hashlib",
+    "os",
+    "pathlib",
+    "stat",
+    "subprocess",
+    "tempfile",
+}
+_REPARENTING_REHEARSAL_FORBIDDEN_GIT_VERBS = {
+    "checkout",
+    "clean",
+    "clone",
+    "fetch",
+    "merge",
+    "move",
+    "prune",
+    "pull",
+    "push",
+    "rebase",
+    "remove",
+    "reset",
+    "restore",
+    "rm",
+    "stash",
+}
 _CONTAINER_AUDIT_FORBIDDEN_ATTRIBUTES = (
     _CONTAINER_AUDIT_FORBIDDEN_CALLS
     | {
@@ -324,6 +370,88 @@ def parse_call_targets(path: Path) -> set[str]:
         for node in ast.walk(tree)
         if isinstance(node, ast.Call)
     }
+
+
+def parse_hard_link_references(
+    path: Path,
+) -> tuple[tuple[str, int, bool], ...]:
+    if not path.exists():
+        return ()
+    tree = ast.parse(read_text(path))
+    link_names, references = _hard_link_import_bindings(tree)
+    direct_calls = {
+        id(node.func)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+    }
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Attribute):
+            target = _expression_target(node)
+            if node.attr in {"link", "hardlink_to", "link_to"}:
+                references.append(
+                    (target, node.lineno, id(node) in direct_calls)
+                )
+        elif (
+            isinstance(node, ast.Name)
+            and isinstance(node.ctx, ast.Load)
+            and node.id in link_names
+        ):
+            references.append(
+                (
+                    f"{node.id}(os.link)",
+                    node.lineno,
+                    id(node) in direct_calls,
+                )
+            )
+        elif isinstance(node, ast.Call) and _call_target(node.func) == "getattr":
+            dynamic = _dynamic_hard_link_target(node)
+            if dynamic is not None:
+                references.append(
+                    (dynamic, node.lineno, id(node) in direct_calls)
+                )
+    return tuple(sorted(references, key=lambda item: item[1]))
+
+
+def _hard_link_import_bindings(
+    tree: ast.AST,
+) -> tuple[set[str], list[tuple[str, int, bool]]]:
+    link_names: set[str] = set()
+    references: list[tuple[str, int, bool]] = []
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.ImportFrom)
+            and node.level == 0
+            and node.module == "os"
+        ):
+            for alias in node.names:
+                if alias.name != "link":
+                    continue
+                bound = alias.asname or alias.name
+                link_names.add(bound)
+                suffix = f" as {bound}" if alias.asname else ""
+                references.append(
+                    (f"from os import link{suffix}", node.lineno, False)
+                )
+    return link_names, references
+
+
+def _dynamic_hard_link_target(
+    node: ast.Call,
+) -> str | None:
+    if len(node.args) < 2:
+        return None
+    attribute = node.args[1]
+    if not isinstance(attribute, ast.Constant) or not isinstance(
+        attribute.value,
+        str,
+    ):
+        return f"getattr({_expression_target(node.args[0])}, <dynamic>)"
+    if attribute.value not in {"link", "hardlink_to", "link_to"}:
+        return None
+    return (
+        f"getattr({_expression_target(node.args[0])}, "
+        f"{attribute.value})"
+    )
 
 
 def _call_target(value: ast.expr) -> str:
@@ -595,6 +723,38 @@ _PRIVATE_EVALUATION_ALLOWED_IMPORTS = frozenset({
 
 def _private_evaluation_imports_are_allowed(imports: set[str]) -> bool:
     return imports.issubset(_PRIVATE_EVALUATION_ALLOWED_IMPORTS)
+
+
+def reparenting_consumer_candidates(
+    root: Path,
+    package: Path,
+) -> tuple[Path, ...]:
+    candidates = [
+        path
+        for path in (root / "backend").rglob("*.py")
+        if not path.resolve().is_relative_to(package.resolve())
+    ]
+    candidates.extend((root / "scripts").rglob("*.py"))
+    candidates.extend(root.glob("*.py"))
+    candidates.extend(
+        path
+        for pattern in ("*.cmd", "*.bat", "*.ps1", "*.sh")
+        for path in root.glob(pattern)
+        if path.is_file()
+    )
+    candidates.extend(
+        path
+        for path in (root / "frontend").rglob("*")
+        if path.is_file() and is_text_file(path)
+    )
+    workflows = root / ".github" / "workflows"
+    if workflows.exists():
+        candidates.extend(
+            path
+            for path in workflows.rglob("*")
+            if path.is_file() and is_text_file(path)
+        )
+    return tuple(sorted(set(candidates)))
 
 
 class ArchitectureConstraintTests(unittest.TestCase):
@@ -1810,10 +1970,16 @@ class ArchitectureConstraintTests(unittest.TestCase):
             with self.subTest(path=path.name, boundary="shell"):
                 self.assertNotIn("shell=True", read_text(path))
 
-    def test_migration_evidence_has_no_runtime_or_workflow_consumer(
+    def test_migration_evidence_has_only_reviewed_rehearsal_bridge(
         self,
     ) -> None:
         package = (ROOT / "backend" / "migration_evidence").resolve()
+        allowed_bridge = (
+            ROOT
+            / "backend"
+            / "reparenting_rehearsal"
+            / "evidence_bridge.py"
+        ).resolve()
         candidates = [
             path
             for path in (ROOT / "backend").rglob("*.py")
@@ -1864,15 +2030,287 @@ class ArchitectureConstraintTests(unittest.TestCase):
                     ):
                         migration_imports.add("backend.migration_evidence")
                     called_seams = parse_called_names(path) & public_calls
-                    self.assertFalse(
-                        migration_imports | called_seams,
-                        f"{path} must not consume migration evidence",
-                    )
+                    if path.resolve() == allowed_bridge:
+                        self.assertEqual(
+                            migration_imports,
+                            {"backend.migration_evidence"},
+                        )
+                        self.assertEqual(called_seams, public_calls)
+                    else:
+                        self.assertFalse(
+                            migration_imports | called_seams,
+                            f"{path} must not consume migration evidence",
+                        )
                 else:
                     self.assertIsNone(
                         text_reference.search(read_text(path)),
                         f"{path} must not consume migration evidence",
                     )
+
+    def test_reparenting_rehearsal_has_exact_files_and_imports(
+        self,
+    ) -> None:
+        package = ROOT / "backend" / "reparenting_rehearsal"
+        paths = tuple(sorted(package.glob("*.py")))
+        self.assertEqual(
+            {path.name for path in paths},
+            _REPARENTING_REHEARSAL_FILES,
+        )
+        bridge_imports = {
+            "audit_bridge.py": {"backend.container_audit"},
+            "evidence_bridge.py": {"backend.migration_evidence"},
+            "layout.py": {"backend.project_layout"},
+        }
+        for path in paths:
+            imports = parse_import_modules(path)
+            roots = {module.split(".", 1)[0] for module in imports}
+            external_backend = {
+                module
+                for module in imports
+                if module.startswith("backend.")
+                and not module.startswith(
+                    "backend.reparenting_rehearsal"
+                )
+            }
+            with self.subTest(path=path.name):
+                self.assertLessEqual(
+                    roots,
+                    _REPARENTING_REHEARSAL_ALLOWED_IMPORT_ROOTS,
+                )
+                self.assertEqual(
+                    external_backend,
+                    bridge_imports.get(path.name, set()),
+                )
+                self.assertEqual(
+                    "subprocess" in roots,
+                    path.name == "git_runner.py",
+                )
+
+    def test_reparenting_rehearsal_mutations_are_no_clobber(
+        self,
+    ) -> None:
+        package = ROOT / "backend" / "reparenting_rehearsal"
+        mutation_files = {
+            "publication.py",
+            "synthetic_project.py",
+            "synthetic_scope.py",
+            "worktrees.py",
+        }
+        for path in sorted(package.glob("*.py")):
+            mutating_calls = parse_called_names(path) & {
+                "mkdir",
+                "open",
+                "rename",
+                "write_bytes",
+                "write_text",
+            }
+            destructive_calls = parse_called_names(path) & {
+                "remove",
+                "replace",
+                "rmdir",
+                "rmtree",
+                "unlink",
+            }
+            tree = ast.parse(read_text(path))
+            strings = {
+                node.value
+                for node in ast.walk(tree)
+                if isinstance(node, ast.Constant)
+                and isinstance(node.value, str)
+            }
+            with self.subTest(path=path.name):
+                self.assertFalse(destructive_calls)
+                if mutating_calls:
+                    self.assertIn(path.name, mutation_files)
+                self.assertTrue(
+                    strings.isdisjoint(
+                        _REPARENTING_REHEARSAL_FORBIDDEN_GIT_VERBS
+                    )
+                )
+                self.assertNotIn("shell=True", read_text(path))
+
+    def test_reparenting_hard_link_reference_parser_is_complete(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "candidate.py"
+            path.write_text(
+                "import os\n"
+                "import os as filesystem\n"
+                "from os import link as make_link\n"
+                "from pathlib import Path\n"
+                "os.link('source', 'target')\n"
+                "alias = os.link\n"
+                "filesystem.link('source', 'target')\n"
+                "make_link('source', 'target')\n"
+                "getattr(os, 'link')('source', 'target')\n"
+                "assigned_os = os\n"
+                "assigned_os.link('source', 'target')\n"
+                "getattr(assigned_os, dynamic_name)('source', 'target')\n"
+                "Path('target').hardlink_to('source')\n"
+                "Path('target').link_to('source')\n",
+                encoding="utf-8",
+            )
+
+            self.assertEqual(
+                parse_hard_link_references(path),
+                (
+                    ("from os import link as make_link", 3, False),
+                    ("os.link", 5, True),
+                    ("os.link", 6, False),
+                    ("filesystem.link", 7, True),
+                    ("make_link(os.link)", 8, True),
+                    ("getattr(os, link)", 9, True),
+                    ("assigned_os.link", 11, True),
+                    ("getattr(assigned_os, <dynamic>)", 12, True),
+                    ("Path().hardlink_to", 13, True),
+                    ("Path().link_to", 14, True),
+                ),
+            )
+
+    def test_reparenting_hard_link_capability_is_anchor_only(
+        self,
+    ) -> None:
+        package = ROOT / "backend" / "reparenting_rehearsal"
+        references = tuple(
+            (path.name, *reference)
+            for path in sorted(package.glob("*.py"))
+            for reference in parse_hard_link_references(path)
+        )
+        self.assertEqual(
+            references,
+            (("synthetic_scope.py", "os.link", 77, True),),
+        )
+        scope = package / "synthetic_scope.py"
+        bindings = parse_name_bindings(scope)
+        os_bindings = tuple(
+            (name, kind)
+            for name, kinds in sorted(bindings.items())
+            for kind in kinds
+            if kind.startswith(("import:os:", "from:0:os:"))
+        )
+        self.assertEqual(os_bindings, (("os", "import:os:"),))
+        tree = ast.parse(read_text(scope))
+        calls = tuple(
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and _call_target(node.func) == "os.link"
+        )
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(len(calls[0].args), 2)
+        self.assertEqual(
+            tuple(keyword.arg for keyword in calls[0].keywords),
+            ("follow_symlinks",),
+        )
+        self.assertIs(calls[0].keywords[0].value.value, False)
+
+    def test_reparenting_rehearsal_public_seam_is_fixed(
+        self,
+    ) -> None:
+        package = ROOT / "backend" / "reparenting_rehearsal"
+        public_tree = ast.parse(read_text(package / "rehearsal.py"))
+        public = tuple(
+            node
+            for node in public_tree.body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and node.name == "rehearse_repository_reparenting"
+        )
+        self.assertEqual(len(public), 1)
+        self.assertEqual(public[0].args.args, [])
+        self.assertEqual(
+            [item.arg for item in public[0].args.kwonlyargs],
+            ["worktree_choices", "fail_at"],
+        )
+        self.assertEqual(public[0].args.kw_defaults, [None, None])
+
+    def test_reparenting_rehearsal_has_no_host_consumers(
+        self,
+    ) -> None:
+        package = (ROOT / "backend" / "reparenting_rehearsal").resolve()
+        candidates = reparenting_consumer_candidates(ROOT, package)
+        expected_wrappers = {
+            (ROOT / name).resolve()
+            for name in (
+                "start_local_service.cmd",
+                "status_local_service.cmd",
+                "restart_local_service.cmd",
+                "stop_local_service.cmd",
+            )
+        }
+        self.assertLessEqual(
+            expected_wrappers,
+            {path.resolve() for path in candidates},
+        )
+        reference = re.compile(
+            r"\b(?:backend[./])?reparenting[_-]?rehearsal\b"
+            r"|\brehearse_repository_reparenting\b",
+            re.IGNORECASE,
+        )
+        for path in candidates:
+            with self.subTest(path=path.relative_to(ROOT)):
+                if path.suffix == ".py":
+                    imports = parse_import_modules(path)
+                    tree = ast.parse(read_text(path))
+                    from_backend = any(
+                        isinstance(node, ast.ImportFrom)
+                        and node.module == "backend"
+                        and any(
+                            alias.name == "reparenting_rehearsal"
+                            for alias in node.names
+                        )
+                        for node in ast.walk(tree)
+                    )
+                    called = (
+                        "rehearse_repository_reparenting"
+                        in parse_called_names(path)
+                    )
+                    imported = any(
+                        module == "backend.reparenting_rehearsal"
+                        or module.startswith(
+                            "backend.reparenting_rehearsal."
+                        )
+                        for module in imports
+                    )
+                    self.assertFalse(imported or from_backend or called)
+                else:
+                    self.assertIsNone(
+                        reference.search(read_text(path)),
+                        f"{path} must not consume the synthetic rehearsal",
+                    )
+
+    def test_reparenting_consumer_candidates_cover_every_host_surface(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            package = root / "backend" / "reparenting_rehearsal"
+            paths = (
+                package / "__init__.py",
+                root / "backend" / "service.py",
+                root / "scripts" / "tool.py",
+                root / "root_wrapper.py",
+                root / "start.cmd",
+                root / "frontend" / "extension.js",
+                root / ".github" / "workflows" / "guard.yml",
+            )
+            for path in paths:
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("", encoding="utf-8")
+
+            candidates = reparenting_consumer_candidates(root, package)
+
+        self.assertEqual(
+            {path.relative_to(root).as_posix() for path in candidates},
+            {
+                ".github/workflows/guard.yml",
+                "backend/service.py",
+                "frontend/extension.js",
+                "root_wrapper.py",
+                "scripts/tool.py",
+                "start.cmd",
+            },
+        )
 
     def test_container_audit_guard_rejects_nested_dynamic_capability(
         self,
@@ -1905,10 +2343,16 @@ class ArchitectureConstraintTests(unittest.TestCase):
             references,
         )
 
-    def test_container_audit_has_no_runtime_or_workflow_consumer(
+    def test_container_audit_has_only_reviewed_rehearsal_bridge(
         self,
     ) -> None:
         package = (ROOT / "backend" / "container_audit").resolve()
+        allowed_bridge = (
+            ROOT
+            / "backend"
+            / "reparenting_rehearsal"
+            / "audit_bridge.py"
+        ).resolve()
         candidates = [
             path
             for path in (ROOT / "backend").rglob("*.py")
@@ -1955,10 +2399,36 @@ class ArchitectureConstraintTests(unittest.TestCase):
         )
         for path in candidates:
             with self.subTest(path=path.relative_to(ROOT)):
-                self.assertIsNone(
-                    reference.search(read_text(path)),
-                    f"{path} must not invoke the manual ContainerAudit",
-                )
+                if path.suffix == ".py":
+                    imports = parse_import_modules(path)
+                    audit_imports = {
+                        module
+                        for module in imports
+                        if module == "backend.container_audit"
+                        or module.startswith("backend.container_audit.")
+                    }
+                    called = parse_called_names(path) & {
+                        "run_container_audit"
+                    }
+                    if path.resolve() == allowed_bridge:
+                        self.assertEqual(
+                            audit_imports,
+                            {"backend.container_audit"},
+                        )
+                        self.assertEqual(
+                            called,
+                            {"run_container_audit"},
+                        )
+                    else:
+                        self.assertFalse(
+                            audit_imports | called,
+                            f"{path} must not invoke the manual ContainerAudit",
+                        )
+                else:
+                    self.assertIsNone(
+                        reference.search(read_text(path)),
+                        f"{path} must not invoke the manual ContainerAudit",
+                    )
 
     def test_protected_location_policy_has_only_reviewed_internal_consumers(
         self,
@@ -1972,6 +2442,7 @@ class ArchitectureConstraintTests(unittest.TestCase):
             "backend/private_evaluation/repository_path.py",
             "backend/private_knowledge/snapshot_path.py",
             "backend/private_knowledge/storage_policy.py",
+            "backend/reparenting_rehearsal/layout.py",
         }
         protected_policy_consumers = {
             "backend/mailbox_ingest/protected_storage_path.py",
