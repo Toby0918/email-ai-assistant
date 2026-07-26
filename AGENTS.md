@@ -225,8 +225,10 @@ non-trivial baseline, creates and independently verifies one Issue #35 evidence
 package, renames the complete synthetic source, moves the existing `.git`,
 tracked files and reviewed untracked source into `main`, and applies injected
 `repair` or `recreate` choices without clone, prune, deletion or overwrite.
-The marker filesystem identity is bound at fixture creation and revalidated
-before every publication; the exact local-only remote is revalidated immediately
+The marker filesystem identity is bound at fixture creation with a fixed sibling
+hard-link identity anchor and revalidated before every publication; this prevents
+same-text replacement from passing even if a filesystem would otherwise reuse an
+inode. The exact local-only remote is revalidated immediately
 before/after review and baseline capture, and the captured remote fingerprint
 must equal the fixed local bare remote. Every linked-worktree target is
 preflighted absent and its direct `Worktrees` parent must be non-reparse

@@ -292,9 +292,11 @@ layers:
    scenario. They prove a non-trivial local branch/ref/remote/ahead baseline,
    approved source hashes, metadata-only excluded canaries, exact Issue #35
    package reads, no-clobber target handling, existing `.git` identity,
-   marker-identity/reparse/non-local-remote rejection, repair/recreate
-   preservation, clean linked worktrees, Managed placement, preserved public
-   topology and an actual synthetic ContainerAudit pass.
+   marker plus the sole synthetic scope-control hard-link identity anchor,
+   simulated inode-reuse/marker-anchor reparse/non-local-remote rejection,
+   repair/recreate preservation, clean linked worktrees, Managed placement,
+   preserved public topology and an actual synthetic ContainerAudit pass. The
+   anchor is not source content and does not authorize content hard links.
 3. `test_reparenting_rehearsal_rollback.py` injects one failure after each of
    the six fixed publication boundaries. Every case must preserve either the
    original source identity or a complete Container moved to the one sibling
@@ -303,8 +305,10 @@ layers:
    the aggregate result; the algorithm has no deletion or overwrite operation.
 4. Architecture/static guards pin the exact package files and import roots,
    exact audit/evidence/layout bridges, sole subprocess owner, fixed Git verb
-   allowlist, absence of clone/fetch/pull/push/prune/destructive verbs, and zero
-   normal-runtime/script/frontend/cleanup/leakage/workflow consumers.
+   allowlist, the sole direct `os.link` marker-anchor call while rejecting
+   aliases and `Path.hardlink_to`/`Path.link_to`, absence of
+   clone/fetch/pull/push/prune/destructive verbs, and zero normal-runtime/script/
+   frontend/cleanup/leakage/workflow consumers.
 
 The public seam cannot accept or discover the real Repository Root and does not
 clean up any synthetic source, legacy source, worktree, target, or rollback

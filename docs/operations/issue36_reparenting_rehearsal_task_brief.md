@@ -128,7 +128,8 @@ Source 必须位于 OS temporary root 下的 dedicated scope，scope 中必须�
 legacy source 为同级 `email_ai_assistant-legacy-source`；staging Container 为同级
 唯一路径。任一 scope/path/identity/marker drift、reparse component、existing target
 或非 synthetic local-only remote 都 fail closed。Builder 绑定 marker filesystem
-identity；每次 publication 前重验，same-text replacement 也必须失败。
+identity 和 fixed sibling hard-link identity anchor；每次 publication 前重验，
+即使 identity reader 模拟 inode reuse，same-text replacement 也必须失败。
 完整 synthetic project 与 exact local-only remote 还必须在 baseline capture
 前后再次验证；captured remote fingerprint 必须精确等于 fixed local bare
 remote，不能把 capture-window drift 当作新 baseline。
@@ -313,21 +314,27 @@ scope、injected choices、failure boundaries 与禁止事项。
 - `backend/reparenting_rehearsal/`
 - `tests/test_reparenting_rehearsal_*.py`
 - exact architecture/status-generator guards
+- exact sole-marker-anchor hard-link capability guard
 - AGENTS/CONTEXT/ADR/constraints/operations/template/status documentation
 
 测试结果：
-- Focused Issue #36: 17 tests, `OK`.
+- Focused Issue #36: 19 tests, `OK`.
 - Issue #35 regression: 32 tests, `OK (skipped=1)`.
 - ContainerAudit regression: 38 tests, `OK`.
-- Architecture/static/status/transport after the final record update: 115 tests, `OK`.
-- Full unittest after generated status update: 1853 tests, `OK (skipped=3)`.
+- Architecture/static/status/transport after the final fix: 117 tests, `OK`.
+- Full unittest after generated status update: 1857 tests, `OK (skipped=3)`.
 - `compileall` and `git diff --check`: exit 0.
 - Inclusive repository leakage scan: `total=0`.
 - Maintenance scan: `No cleanup findings detected.`
+- Initial GitHub/Linux CI exposed same-text marker replacement passing after
+  inode reuse. The scoped correction adds the sole synthetic marker hard-link
+  anchor, deterministic identity-reuse/reparse tests and an alias-aware exact
+  hard-link capability guard.
 - Standards/Spec dual-axis review: no P1/P2 findings.
-- Non-blocking P3: `test_reparenting_rehearsal_has_no_host_consumers` is
-  54 lines versus the 50-line recommendation; no behavior or safety boundary
-  is affected.
+- Non-blocking P3 items: `test_reparenting_rehearsal_has_no_host_consumers`
+  is 54 lines versus the 50-line recommendation, and
+  `test_reparenting_rehearsal_safety.py` is 343 lines versus the 300-line
+  recommendation. Neither affects behavior or a safety boundary.
 
 未完成事项：
 - Real evidence package, audit, migration/cutover and Issues #37 through #40.

@@ -151,9 +151,10 @@ filesystem path input. It creates a unique marker-bound temporary sandbox and a
 non-trivial synthetic repository topology, then captures branch, HEAD, all local
 refs, local-only remote fingerprint, ahead/behind, index/status, approved file
 hashes, linked-worktree state and Git common-directory identity.
-The marker's filesystem identity is captured and rechecked before publication;
-same-content replacement, alias/reparse drift, and non-local remote state fail
-closed.
+The marker's filesystem identity is captured with a fixed sibling hard-link
+identity anchor and both paths are rechecked before publication. Holding the
+original inode through the anchor means same-content replacement cannot pass by
+inode reuse; alias/reparse drift and non-local remote state also fail closed.
 
 Before rename, the rehearsal uses the exact Issue #35 public contract to create
 and independently verify one synthetic evidence package outside every worktree.

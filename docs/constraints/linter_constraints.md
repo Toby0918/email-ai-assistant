@@ -477,8 +477,9 @@ prune/remove/clean/reset/restore/rm/checkout/merge/rebase/stash verbs,
 mutation calls outside the exact synthetic builder/publication/worktree files
 fail the architecture suite.
 Behavior guards also replace the marker with identical bytes and require
-publication to fail on identity drift, reject reparse scope components and a
-non-local remote both directly and at the orchestration/baseline boundary,
+publication to fail on identity drift even when the identity reader is forced to
+simulate inode reuse. They reject marker/anchor reparse state, reparse scope
+components and a non-local remote both directly and at the orchestration/baseline boundary,
 bind the captured remote fingerprint to the fixed local bare remote, pre-create
 a recreate target and junction parent and require failure before any worktree
 mutation, preserve the public sandbox after return, and independently observe

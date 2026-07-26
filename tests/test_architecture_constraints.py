@@ -372,6 +372,88 @@ def parse_call_targets(path: Path) -> set[str]:
     }
 
 
+def parse_hard_link_references(
+    path: Path,
+) -> tuple[tuple[str, int, bool], ...]:
+    if not path.exists():
+        return ()
+    tree = ast.parse(read_text(path))
+    link_names, references = _hard_link_import_bindings(tree)
+    direct_calls = {
+        id(node.func)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+    }
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Attribute):
+            target = _expression_target(node)
+            if node.attr in {"link", "hardlink_to", "link_to"}:
+                references.append(
+                    (target, node.lineno, id(node) in direct_calls)
+                )
+        elif (
+            isinstance(node, ast.Name)
+            and isinstance(node.ctx, ast.Load)
+            and node.id in link_names
+        ):
+            references.append(
+                (
+                    f"{node.id}(os.link)",
+                    node.lineno,
+                    id(node) in direct_calls,
+                )
+            )
+        elif isinstance(node, ast.Call) and _call_target(node.func) == "getattr":
+            dynamic = _dynamic_hard_link_target(node)
+            if dynamic is not None:
+                references.append(
+                    (dynamic, node.lineno, id(node) in direct_calls)
+                )
+    return tuple(sorted(references, key=lambda item: item[1]))
+
+
+def _hard_link_import_bindings(
+    tree: ast.AST,
+) -> tuple[set[str], list[tuple[str, int, bool]]]:
+    link_names: set[str] = set()
+    references: list[tuple[str, int, bool]] = []
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.ImportFrom)
+            and node.level == 0
+            and node.module == "os"
+        ):
+            for alias in node.names:
+                if alias.name != "link":
+                    continue
+                bound = alias.asname or alias.name
+                link_names.add(bound)
+                suffix = f" as {bound}" if alias.asname else ""
+                references.append(
+                    (f"from os import link{suffix}", node.lineno, False)
+                )
+    return link_names, references
+
+
+def _dynamic_hard_link_target(
+    node: ast.Call,
+) -> str | None:
+    if len(node.args) < 2:
+        return None
+    attribute = node.args[1]
+    if not isinstance(attribute, ast.Constant) or not isinstance(
+        attribute.value,
+        str,
+    ):
+        return f"getattr({_expression_target(node.args[0])}, <dynamic>)"
+    if attribute.value not in {"link", "hardlink_to", "link_to"}:
+        return None
+    return (
+        f"getattr({_expression_target(node.args[0])}, "
+        f"{attribute.value})"
+    )
+
+
 def _call_target(value: ast.expr) -> str:
     if isinstance(value, ast.Name):
         return value.id
@@ -2046,6 +2128,82 @@ class ArchitectureConstraintTests(unittest.TestCase):
                     )
                 )
                 self.assertNotIn("shell=True", read_text(path))
+
+    def test_reparenting_hard_link_reference_parser_is_complete(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "candidate.py"
+            path.write_text(
+                "import os\n"
+                "import os as filesystem\n"
+                "from os import link as make_link\n"
+                "from pathlib import Path\n"
+                "os.link('source', 'target')\n"
+                "alias = os.link\n"
+                "filesystem.link('source', 'target')\n"
+                "make_link('source', 'target')\n"
+                "getattr(os, 'link')('source', 'target')\n"
+                "assigned_os = os\n"
+                "assigned_os.link('source', 'target')\n"
+                "getattr(assigned_os, dynamic_name)('source', 'target')\n"
+                "Path('target').hardlink_to('source')\n"
+                "Path('target').link_to('source')\n",
+                encoding="utf-8",
+            )
+
+            self.assertEqual(
+                parse_hard_link_references(path),
+                (
+                    ("from os import link as make_link", 3, False),
+                    ("os.link", 5, True),
+                    ("os.link", 6, False),
+                    ("filesystem.link", 7, True),
+                    ("make_link(os.link)", 8, True),
+                    ("getattr(os, link)", 9, True),
+                    ("assigned_os.link", 11, True),
+                    ("getattr(assigned_os, <dynamic>)", 12, True),
+                    ("Path().hardlink_to", 13, True),
+                    ("Path().link_to", 14, True),
+                ),
+            )
+
+    def test_reparenting_hard_link_capability_is_anchor_only(
+        self,
+    ) -> None:
+        package = ROOT / "backend" / "reparenting_rehearsal"
+        references = tuple(
+            (path.name, *reference)
+            for path in sorted(package.glob("*.py"))
+            for reference in parse_hard_link_references(path)
+        )
+        self.assertEqual(
+            references,
+            (("synthetic_scope.py", "os.link", 77, True),),
+        )
+        scope = package / "synthetic_scope.py"
+        bindings = parse_name_bindings(scope)
+        os_bindings = tuple(
+            (name, kind)
+            for name, kinds in sorted(bindings.items())
+            for kind in kinds
+            if kind.startswith(("import:os:", "from:0:os:"))
+        )
+        self.assertEqual(os_bindings, (("os", "import:os:"),))
+        tree = ast.parse(read_text(scope))
+        calls = tuple(
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and _call_target(node.func) == "os.link"
+        )
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(len(calls[0].args), 2)
+        self.assertEqual(
+            tuple(keyword.arg for keyword in calls[0].keywords),
+            ("follow_symlinks",),
+        )
+        self.assertIs(calls[0].keywords[0].value.value, False)
 
     def test_reparenting_rehearsal_public_seam_is_fixed(
         self,

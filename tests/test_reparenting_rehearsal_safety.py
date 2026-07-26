@@ -38,6 +38,7 @@ from backend.reparenting_rehearsal.rehearsal import _run_rehearsal
 from backend.reparenting_rehearsal.worktrees import publish_worktrees
 from backend.reparenting_rehearsal.git_runner import git_output
 from backend.reparenting_rehearsal.synthetic_scope import (
+    MARKER_GUARD_NAME,
     MARKER_NAME,
     MARKER_VALUE,
     prepare_synthetic_scope,
@@ -142,6 +143,36 @@ class ReparentingRehearsalSafetyTests(unittest.TestCase):
             )
             self.assertFalse(project.legacy.exists())
 
+    def test_marker_anchor_blocks_simulated_identity_reuse(self) -> None:
+        with tempfile.TemporaryDirectory(
+            prefix="issue36-synthetic-"
+        ) as temporary:
+            project = build_synthetic_project(
+                Path(temporary).resolve()
+            )
+            marker = project.scope / MARKER_NAME
+            anchor = project.scope / MARKER_GUARD_NAME
+            self.assertTrue(marker.samefile(anchor))
+            marker.unlink()
+            marker.write_text(
+                MARKER_VALUE,
+                encoding="utf-8",
+                newline="\n",
+            )
+            identity_reader = (
+                "backend.reparenting_rehearsal.synthetic_scope."
+                "_marker_identity"
+            )
+
+            with mock.patch(
+                identity_reader,
+                return_value=project.marker_identity,
+            ):
+                with self.assertRaises(RehearsalError):
+                    publish_legacy_source(project)
+
+            self.assertFalse(project.legacy.exists())
+
     def test_marker_reparse_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory(
             prefix="issue36-synthetic-"
@@ -154,6 +185,25 @@ class ReparentingRehearsalSafetyTests(unittest.TestCase):
             )
 
             with mock.patch(original, return_value=True):
+                with self.assertRaises(RehearsalError):
+                    require_synthetic_scope(project.scope)
+
+    def test_marker_anchor_reparse_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory(
+            prefix="issue36-synthetic-"
+        ) as temporary:
+            project = build_synthetic_project(
+                Path(temporary).resolve()
+            )
+            anchor = project.scope / MARKER_GUARD_NAME
+            reparse_probe = (
+                "backend.reparenting_rehearsal.synthetic_scope._is_reparse"
+            )
+
+            with mock.patch(
+                reparse_probe,
+                side_effect=lambda path: path == anchor,
+            ):
                 with self.assertRaises(RehearsalError):
                     require_synthetic_scope(project.scope)
 

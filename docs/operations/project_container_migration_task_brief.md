@@ -435,7 +435,8 @@ Issue #36 implements only a self-contained temporary synthetic rehearsal:
   publication boundaries；post-main failures move the whole Container to the
   one no-clobber sibling rollback path and repair the reviewed relocated
   worktrees；
-- marker filesystem identity binding plus pre-publication drift/reparse and
+- marker filesystem identity plus fixed sibling hard-link anchor binding,
+  including pre-publication same-text/inode-reuse drift, reparse and
   non-local-remote rejection；
 - no automatic public-operation teardown; caller-owned test cleanup occurs only
   after independent filesystem/Git/evidence assertions。

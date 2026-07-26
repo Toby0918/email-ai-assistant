@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import os
 from pathlib import Path
 import stat
 import tempfile
@@ -11,8 +12,9 @@ from .contract import SyntheticWorktree
 from .errors import RehearsalError
 
 
-MarkerIdentity = tuple[int, int]
+MarkerIdentity = tuple[int, int, int, int, int, int]
 MARKER_NAME = ".issue36-synthetic-scope"
+MARKER_GUARD_NAME = ".issue36-synthetic-scope.identity-anchor"
 MARKER_VALUE = "issue36-reparenting-rehearsal-v1\n"
 SOURCE_NAME = "email_ai_assistant"
 LEGACY_NAME = "email_ai_assistant-legacy-source"
@@ -71,6 +73,14 @@ def prepare_synthetic_scope(scope: Path) -> Path:
     marker = root / MARKER_NAME
     with marker.open("x", encoding="utf-8", newline="\n") as handle:
         handle.write(MARKER_VALUE)
+    try:
+        os.link(
+            marker,
+            root / MARKER_GUARD_NAME,
+            follow_symlinks=False,
+        )
+    except Exception:
+        raise RehearsalError() from None
     return require_synthetic_scope(root)
 
 
@@ -80,19 +90,10 @@ def require_synthetic_scope(
     marker_identity: MarkerIdentity | None = None,
 ) -> Path:
     root = _require_scope_path(scope)
-    marker = root / MARKER_NAME
-    current_identity = _marker_identity(marker)
-    if (
-        not root.name.startswith("issue36-synthetic-")
-        or not marker.is_file()
-        or marker.is_symlink()
-        or marker.read_text(encoding="utf-8") != MARKER_VALUE
-        or _marker_identity(marker) != current_identity
-        or (
-            marker_identity is not None
-            and current_identity != marker_identity
-        )
-    ):
+    if not root.name.startswith("issue36-synthetic-"):
+        raise RehearsalError()
+    current_identity = _require_marker_pair(root)
+    if marker_identity is not None and current_identity != marker_identity:
         raise RehearsalError()
     return root
 
@@ -143,7 +144,42 @@ def _marker_identity(marker: Path) -> MarkerIdentity:
         or _is_reparse(marker)
     ):
         raise RehearsalError()
-    return metadata.st_dev, metadata.st_ino
+    return (
+        metadata.st_dev,
+        metadata.st_ino,
+        metadata.st_ctime_ns,
+        metadata.st_mtime_ns,
+        metadata.st_size,
+        metadata.st_nlink,
+    )
+
+
+def _require_marker_pair(root: Path) -> MarkerIdentity:
+    marker = root / MARKER_NAME
+    anchor = root / MARKER_GUARD_NAME
+    marker_before = _marker_identity(marker)
+    anchor_before = _marker_identity(anchor)
+    try:
+        same_before = marker.samefile(anchor)
+        marker_value = marker.read_text(encoding="utf-8")
+        anchor_value = anchor.read_text(encoding="utf-8")
+        same_after = marker.samefile(anchor)
+    except Exception:
+        raise RehearsalError() from None
+    marker_after = _marker_identity(marker)
+    anchor_after = _marker_identity(anchor)
+    if (
+        marker_before != anchor_before
+        or marker_before != marker_after
+        or anchor_before != anchor_after
+        or marker_before[-1] != 2
+        or not same_before
+        or not same_after
+        or marker_value != MARKER_VALUE
+        or anchor_value != MARKER_VALUE
+    ):
+        raise RehearsalError()
+    return marker_after
 
 
 def _is_reparse(path: Path) -> bool:

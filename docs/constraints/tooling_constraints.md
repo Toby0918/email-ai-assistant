@@ -266,8 +266,9 @@ dependency, CLI, scheduled task, workflow, default root, environment option or
 host adapter. The public seam exposes no path or filesystem capability and
 creates one unique `issue36-synthetic-*` `TemporaryDirectory` with an exact
 marker before any Git or filesystem mutation. It binds the marker filesystem
-identity and revalidates it before publication; identical-content replacement
-and any scope alias/reparse drift fail closed. The complete project and exact
+identity to a fixed sibling hard-link anchor and revalidates both before
+publication; identical-content replacement, attempted inode reuse, and any
+scope alias/reparse drift fail closed. The complete project and exact
 local-only remote are revalidated before and after review/baseline capture, and
 the review's remote fingerprint must equal the fixed local bare remote.
 

@@ -188,7 +188,9 @@ source_type: operation_guide
   the complete Container at the single sibling rollback path, repair reviewed
   relocated worktrees, and pass independent package/Git/filesystem assertions.
 - Replace the marker with identical text and reject its changed filesystem
-  identity before publication. Also reject reparse scope components, a
+  identity before publication. Force the identity reader to simulate inode reuse
+  and still require the fixed sibling hard-link anchor to reject publication.
+  Also reject marker/anchor reparse state, reparse scope components, a
   non-local remote both directly and after builder return, and any
   non-canonical temporary scope. Inject remote drift inside review capture and
   require the captured fingerprint to mismatch the fixed local bare remote.
