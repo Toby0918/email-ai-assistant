@@ -1970,16 +1970,28 @@ class ArchitectureConstraintTests(unittest.TestCase):
             with self.subTest(path=path.name, boundary="shell"):
                 self.assertNotIn("shell=True", read_text(path))
 
-    def test_migration_evidence_has_only_reviewed_rehearsal_bridge(
+    def test_migration_evidence_has_only_reviewed_exact_bridges(
         self,
     ) -> None:
         package = (ROOT / "backend" / "migration_evidence").resolve()
-        allowed_bridge = (
-            ROOT
-            / "backend"
-            / "reparenting_rehearsal"
-            / "evidence_bridge.py"
-        ).resolve()
+        allowed_bridges = {
+            (
+                ROOT
+                / "backend"
+                / "reparenting_rehearsal"
+                / "evidence_bridge.py"
+            ).resolve(): {
+                "prepare_migration_evidence_review",
+                "create_migration_evidence_package",
+                "verify_migration_evidence_package",
+            },
+            (
+                ROOT
+                / "backend"
+                / "real_host_preflight"
+                / "baseline_bridge.py"
+            ).resolve(): set(),
+        }
         candidates = [
             path
             for path in (ROOT / "backend").rglob("*.py")
@@ -2030,12 +2042,31 @@ class ArchitectureConstraintTests(unittest.TestCase):
                     ):
                         migration_imports.add("backend.migration_evidence")
                     called_seams = parse_called_names(path) & public_calls
-                    if path.resolve() == allowed_bridge:
+                    if path.resolve() in allowed_bridges:
                         self.assertEqual(
                             migration_imports,
                             {"backend.migration_evidence"},
                         )
-                        self.assertEqual(called_seams, public_calls)
+                        self.assertEqual(
+                            called_seams,
+                            allowed_bridges[path.resolve()],
+                        )
+                        if path.name == "baseline_bridge.py":
+                            imports_from = [
+                                node
+                                for node in ast.walk(tree)
+                                if isinstance(node, ast.ImportFrom)
+                                and node.module
+                                == "backend.migration_evidence"
+                            ]
+                            self.assertEqual(len(imports_from), 1)
+                            self.assertEqual(
+                                {
+                                    alias.name
+                                    for alias in imports_from[0].names
+                                },
+                                {"HostBaseline"},
+                            )
                     else:
                         self.assertFalse(
                             migration_imports | called_seams,
@@ -2343,16 +2374,27 @@ class ArchitectureConstraintTests(unittest.TestCase):
             references,
         )
 
-    def test_container_audit_has_only_reviewed_rehearsal_bridge(
+    def test_container_audit_has_only_reviewed_exact_bridges(
         self,
     ) -> None:
         package = (ROOT / "backend" / "container_audit").resolve()
-        allowed_bridge = (
-            ROOT
-            / "backend"
-            / "reparenting_rehearsal"
-            / "audit_bridge.py"
-        ).resolve()
+        allowed_bridges = {
+            (
+                ROOT
+                / "backend"
+                / "reparenting_rehearsal"
+                / "audit_bridge.py"
+            ).resolve(): {"backend.container_audit"},
+            (
+                ROOT
+                / "backend"
+                / "real_host_preflight"
+                / "audit_bridge.py"
+            ).resolve(): {
+                "backend.container_audit",
+                "backend.container_audit.policy",
+            },
+        }
         candidates = [
             path
             for path in (ROOT / "backend").rglob("*.py")
@@ -2410,15 +2452,42 @@ class ArchitectureConstraintTests(unittest.TestCase):
                     called = parse_called_names(path) & {
                         "run_container_audit"
                     }
-                    if path.resolve() == allowed_bridge:
+                    if path.resolve() in allowed_bridges:
                         self.assertEqual(
                             audit_imports,
-                            {"backend.container_audit"},
+                            allowed_bridges[path.resolve()],
                         )
                         self.assertEqual(
                             called,
                             {"run_container_audit"},
                         )
+                        if path.name == "audit_bridge.py" and (
+                            "real_host_preflight" in path.parts
+                        ):
+                            imports_from = {
+                                node.module: {
+                                    alias.name for alias in node.names
+                                }
+                                for node in ast.walk(
+                                    ast.parse(read_text(path))
+                                )
+                                if isinstance(node, ast.ImportFrom)
+                                and node.level == 0
+                            }
+                            self.assertEqual(
+                                imports_from,
+                                {
+                                    "backend.container_audit": {
+                                        "ContainerAuditAdapters",
+                                        "ContainerAuditResult",
+                                        "TrustedAuditPolicy",
+                                        "run_container_audit",
+                                    },
+                                    "backend.container_audit.policy": {
+                                        "is_valid_policy",
+                                    },
+                                },
+                            )
                     else:
                         self.assertFalse(
                             audit_imports | called,

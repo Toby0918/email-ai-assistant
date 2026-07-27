@@ -342,7 +342,16 @@ the manual ContainerAudit or locked cutover contract.
 [ ] Tests and documentation do not run a real preflight, evidence publication, migration, cutover, resume, rollback, incident recovery or cleanup.
 [ ] If Issue #52 is in scope, journal/effect state is exact synthetic-only; INTENT/observed/COMMITTED, pending non-authority, stable-head continuation, atomic single-winner permit use, read-only restart inspection, fresh resume/recovery validation, no blind retry, and journal-derived LIFO reverse are tested.
 [ ] Issue #52 adds no real filesystem/service/ACL/Git/worktree/Runtime/SQLite/provider/mailbox/vault/private-data adapter or operation.
-[ ] Issues #53 through #59 remain separate and require their own approval; this task does not modify or close Issues #38/#39 or parent Spec #50.
+[ ] If Issue #53 is in scope, Windows native observation runs only beneath an exact TestSandboxAuthorization-bound caller-owned temporary sandbox; Linux tests validate portable contracts only and claim no NTFS, Windows file-ID, Windows ACL, or real-host evidence.
+[ ] Issue #53 observations bind opened-handle volume identity, 128-bit file ID, exact object type, parent identity, normalized-name fingerprint and reparse metadata; alias, escape, unreadable, unexpected-volume/filesystem and identity drift fail closed.
+[ ] Issue #53 current topology requires two complete identical observations; its pre-mutation gate is fresh UUIDv4-nonce-bound, exact-operation-bound, short-lived, single-use and repeats source/target-parent/target-absence/reparse/Git/ACL/volume checks.
+[ ] Issue #53 keeps source-root, projects-parent, finance-project, volume, operator-SID and role ACL evidence separate and content-free before canonical projection into the existing HostBaseline.
+[ ] Issue #53 only adds exact `audit_bridge.py`, `baseline_bridge.py` and `contracts_bridge.py` consumers; the existing final nine-zone ContainerAudit policy and #35/#51 core schemas remain unchanged.
+[ ] Final-audit composition readiness does not invoke the current pre-cutover audit, return an audit pass, or claim that a future final layout exists or passed.
+[ ] The Issue #53 operator entry remains zero-capability, rejects test authorization and returns only `BLOCKED_NO_APPROVED_COMMAND`, `blocked=1`, and `executed=0`.
+[ ] Issue #53 receipts/results/repr/stdout/stderr/logs contain no raw path, SID, SDDL, account, Git name/ref, file ID, command, content, callback exception or native error text.
+[ ] Issue #53 adds no service-control, ACL-apply, rename, repository/worktree mutation, Runtime-build, database-copy, artifact, Config, provider, mailbox, vault, private-data, evidence-publication, cutover, recovery or cleanup capability.
+[ ] Issues #54 through #59 remain separate and require their own approval; this task does not modify or close Issues #38/#39 or parent Spec #50.
 ```
 
 ## 22. 执行后记录

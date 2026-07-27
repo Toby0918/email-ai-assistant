@@ -43,6 +43,7 @@ tests/test_migration_evidence_*.py
 tests/test_runtime_activation_rehearsal_*.py
 tests/test_cutover_contract_*.py
 tests/test_cutover_journal_*.py
+tests/test_real_host_preflight_*.py
 python -m unittest discover -s tests
 python scripts/maintenance_scan.py
 ```
@@ -83,6 +84,48 @@ authority 未 fresh revalidate，reverse 非 journal-derived LIFO，public resul
 observation/path/command/exception，或任一 forward/reverse/durability crash boundary
 未被分类
 ```
+
+### Issue #53 Windows real-host preflight gate
+
+CI must reject any Issue #53 change when:
+
+- Windows observation runs outside a test-owned `TemporaryDirectory`, accepts
+  an absolute or parent-relative escape, follows an alias/reparse component, or
+  accepts unexpected volume/filesystem, unreadable, incomplete, or drifting
+  identity evidence;
+- `CurrentTopologyPreflight` does not perform two complete identical passes, or
+  `PreMutationGate` is not bound to a fresh UUIDv4 nonce, exact operation,
+  prior topology, short validity, single use, and repeated source,
+  target-parent, target-absence, reparse, Git, ACL, and volume checks;
+- `RealHostBaselineCollector` merges or substitutes source, parent, finance,
+  volume, operator-SID, or ACL evidence, exposes a raw value, or produces a
+  non-canonical/incomplete/content-observed `HostBaseline`;
+- final-audit readiness invokes the current pre-cutover `ContainerAudit`,
+  claims a final-layout pass, changes the final nine-zone policy, or binds
+  anything other than the exact seven read-only callbacks;
+- the operator entry accepts test authorization, path, callback, command, or
+  executable capability, or returns anything other than
+  `BLOCKED_NO_APPROVED_COMMAND`, `blocked=1`, and `executed=0`;
+- the package gains service-control, ACL-apply, rename, repository/worktree
+  mutation, Runtime-build, database-copy, artifact, Config, provider, mailbox,
+  vault, private-store/private-data, evidence-publication, cutover, recovery,
+  or cleanup capability; or
+- a receipt, result, `repr`, stdout, stderr, or log contains a raw path, SID,
+  SDDL, account, Git name/ref, file ID, command, callback exception, or native
+  error text.
+
+Windows jobs may execute native observation only beneath the caller-owned
+sandbox created by the test fixture and bound to an exact in-memory
+`TestSandboxAuthorizationV1`. Linux jobs run the portable contract, topology,
+gate, baseline, composition, architecture, and leakage tests only; a Linux pass
+does not claim NTFS, Windows file-ID, Windows ACL, or real-host evidence.
+
+Both platforms run the focused Issue #53 suite, affected ContainerAudit,
+migration-evidence and cutover-contract suites, architecture/static/mechanical/
+documentation/leakage checks, the full unit suite, and the read-only
+maintenance scan. Green CI proves only the locked read-only composition and
+test-sandbox behavior. It does not authorize or execute Issues #54 through #59,
+Issue #39, a final ContainerAudit, migration, cutover, recovery, or cleanup.
 
 ## 5. 失败处理原则
 

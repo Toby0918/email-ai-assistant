@@ -418,10 +418,13 @@ The audit package must remain a distinct module from repository leakage and
 maintenance scanning. A recursive consumer guard scans all other backend
 modules, `scripts/` (including cleanup and leakage tooling), root Python
 wrappers, frontend/browser files, and workflows. Only Issue #36's exact
-`backend/reparenting_rehearsal/audit_bridge.py` may import the package and call
-`run_container_audit`; every other consumer remains forbidden. The exact seven
-injected adapter fields and keyword-only no-default entrypoint are pinned by
-contract tests.
+`backend/reparenting_rehearsal/audit_bridge.py` and Issue #53's exact
+`backend/real_host_preflight/audit_bridge.py` may import the package and call
+`run_container_audit`; every other consumer remains forbidden. The #53 bridge
+may only bind the existing exact seven read-only callbacks and must not change
+the final nine-zone policy or add a host import to the audit core. The exact
+seven injected adapter fields and keyword-only no-default entrypoint are pinned
+by contract tests.
 
 Behavior tests use only frozen repr-redacted synthetic evidence. They cover the
 exact nine-entry direct-child allowlist; alias/reparse/unreadable/incomplete and
@@ -443,8 +446,12 @@ disabled. Literal Git mutation/network verbs are forbidden.
 A recursive consumer guard rejects migration-evidence imports or invocations
 from every other backend module, scripts, frontend/browser files, and workflows
 except Issue #36's exact
-`backend/reparenting_rehearsal/evidence_bridge.py`. The only additional
-repository-tooling integration is the leakage scanner's fixed
+`backend/reparenting_rehearsal/evidence_bridge.py` and Issue #53's exact
+`backend/real_host_preflight/baseline_bridge.py`. The #53 bridge may import only
+the existing repr-redacted `HostBaseline` value for canonical projection; it
+cannot review, create, publish, verify, read, or delete a migration-evidence
+package. The only additional repository-tooling integration is the leakage
+scanner's fixed
 `.migration-evidence.zip` suffix check; it classifies by name before file reads
 and never imports or verifies the package. `.gitignore` reserves the same suffix,
 and static linter tests fail if such an artifact appears inside the repository.
@@ -548,10 +555,13 @@ direct, `from backend import ...`, and relative forms all reject
 `cutover_contracts`; direct, attribute, imported, rebound, or chained aliases
 of `__import__` and `importlib.import_module` are rejected at the call seam even
 when their module target is dynamically bound. JavaScript retains fixed-token
-rejection. The only allowlisted consumer is
-`backend/cutover_journal/contracts_bridge.py`, and its imported symbol set is
-exact. The package has no current runtime, operator, script, or frontend
-consumer.
+rejection. The only allowlisted consumers are
+`backend/cutover_journal/contracts_bridge.py` and Issue #53's exact
+`backend/real_host_preflight/contracts_bridge.py`; each imported symbol set is
+exact. The #53 bridge may only validate the exact Profile/authorization values,
+construct the closed preflight receipt family, and reuse fixed operator-entry
+values. It cannot issue authorization or widen the receipt schemas. The package
+has no normal runtime, script, or frontend consumer.
 `default_operator_entry()` is mechanically pinned to zero arguments and the
 fixed `BLOCKED_NO_APPROVED_COMMAND`, `blocked=1`, `executed=0` result.
 
@@ -594,6 +604,58 @@ direction-aware pending recovery, exact Profile/identity/transition mapping,
 no blind expected-post retry, inspection immutability, fixed public result
 fields, and every transaction/durability crash boundary. All fixtures are
 opaque in-memory values and may not access a real host or private capability.
+
+### Windows real-host preflight mechanical guards
+
+`backend/real_host_preflight/` is the Issue #53 read-only composition root. It
+has an exact module-file/public-export/import allowlist. Only its Windows-native
+observation modules may import `ctypes` or `pathlib`; only
+`audit_bridge.py`, `baseline_bridge.py`, and `contracts_bridge.py` may cross
+into ContainerAudit, migration-evidence, and cutover-contract packages. No
+other package file may import a host core, and no normal runtime, script,
+frontend, cleanup, leakage scanner, root wrapper, or workflow may consume this
+package.
+
+AST checks permit only reviewed read-only Windows handle, object-identity,
+volume, reparse, and security-observation APIs. They reject service control,
+ACL apply/setter APIs, rename/move/replace/delete, arbitrary process or command
+execution, Git/worktree mutation, Runtime build, SQLite or database copy,
+artifact or Config publication, environment/credential access, provider,
+mailbox, vault, private-store/private-data, cleanup, scheduler, network, HTTP,
+dynamic-import, and content-reader capabilities. Exceptions and native error
+text may only collapse to fixed codes; production code may not print or format
+paths, SIDs, SDDL, accounts, Git names, file IDs, commands, or callback/native
+exceptions into public values or logs.
+
+Portable contract tests pin frozen, slotted, repr-redacted handle observations
+with volume identity, 128-bit file ID, exact object type, parent identity,
+normalized-name fingerprint, attributes, and reparse metadata. Windows
+integration is permitted only beneath a caller-owned `TemporaryDirectory`
+validated by an exact in-memory `TestSandboxAuthorizationV1`; absolute or
+parent-relative escape, alias, reparse, unexpected volume/filesystem,
+unreadable state, and identity drift fail closed. Linux runs only portable
+contract/composition tests and must not claim NTFS, Windows file-ID, Windows
+ACL, or real-host evidence.
+
+Behavior guards require `CurrentTopologyPreflight` to complete two full,
+identical observations; `PreMutationGate` to repeat source, target-parent,
+target-absence, reparse, Git, ACL, and volume checks with fresh UUIDv4 nonce,
+short validity, one operation, and single-use state; and
+`RealHostBaselineCollector` to preserve distinct source, parent, finance,
+volume, operator-SID, and ACL evidence before projecting only a canonical
+aggregate `HostBaseline`. The final-audit readiness path may prove only that the
+unchanged nine-zone policy and exact seven callbacks are composable. It must not
+invoke the pre-cutover audit or claim a final-layout pass.
+
+Windows sandbox tests cover stable file IDs, source/parent replacement, target
+appearance, reparse insertion, expected-volume mismatch, complete-pass drift,
+scope escape, and hostile-output leakage. Architecture tests require the real
+operator entry to remain zero-capability and fixed at
+`BLOCKED_NO_APPROVED_COMMAND`, with `blocked=1` and `executed=0`; an exact test
+authorization cannot enter that seam. Issue #53 performs no real project,
+service, ACL, repository/worktree, Runtime, database, artifact, Config,
+provider, mailbox, vault, private-data, migration, cutover, or recovery
+operation. Issues #54 through #59 remain separate.
 
 ### Private evaluation mechanical guards
 

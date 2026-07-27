@@ -363,7 +363,7 @@ class GenerateProjectStatusTests(unittest.TestCase):
             "cannot create, issue, or mint",
             "strict canonical `ReceiptEnvelopeV1`",
             "`BLOCKED_NO_APPROVED_COMMAND`",
-            "sole approved consumer is the exact Issue #52 contracts bridge",
+            "approved consumers are the exact Issue #52 journal bridge and exact Issue #53 preflight contract bridges",
             "`backend/cutover_contracts/profile.py`",
             "`backend/cutover_contracts/authorization.py`",
             "`backend/cutover_contracts/receipt.py`",
@@ -399,11 +399,41 @@ class GenerateProjectStatusTests(unittest.TestCase):
             "`INCIDENT_STOP`",
             "`CUTOVER_SUCCEEDED`",
             "No real filesystem target",
-            "Issues #53 through #59 remain separate",
+            "Issues #54 through #59 remain separate",
             "`backend/cutover_journal/journal_store.py`",
             "`backend/cutover_journal/recovery_classifier.py`",
             "`docs/operations/issue52_crash_safe_journal_recovery_task_brief.md`",
             "`tests/test_cutover_journal_crash_matrix.py`",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, report)
+
+    def test_real_host_preflight_is_reported_as_sandbox_only_and_locked(
+        self,
+    ) -> None:
+        module = load_script_module(
+            SCRIPT,
+            "generate_project_status_real_host_preflight",
+        )
+        report = module.build_project_status()
+
+        for marker in (
+            "Issue #53 content-free Windows real-host preflight composition is offline implemented",
+            "`backend.real_host_preflight`",
+            "128-bit file identity",
+            "test-owned temporary scopes",
+            "`CurrentTopologyPreflight`",
+            "`PreMutationGate`",
+            "`RealHostBaselineCollector`",
+            "unchanged nine-zone `ContainerAudit`",
+            "final-audit readiness",
+            "`BLOCKED_NO_APPROVED_COMMAND`",
+            "no service-control",
+            "Issues #54 through #59",
+            "`backend/real_host_preflight/windows_observation.py`",
+            "`backend/real_host_preflight/composition.py`",
+            "`docs/operations/issue53_windows_real_host_preflight_task_brief.md`",
+            "`tests/test_real_host_preflight_windows_composition.py`",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, report)

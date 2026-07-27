@@ -145,3 +145,29 @@ and exact observation. `SAFE_ABORT`, `ROLLBACK_REQUIRED`, `INCIDENT_STOP`, and
 `CUTOVER_SUCCEEDED` are distinct; `RESUME_ALLOWED` only identifies a separately
 authorized explicit resume seam and is not itself a capability.
 _Avoid_: Automatic recovery, guessed retry, host status probe
+
+**Content-Free Windows Object Observation**:
+The Issue #53 opened-handle identity value. It binds volume identity, 128-bit
+file ID, object type, parent identity, normalized-name fingerprint, and reparse
+metadata without exposing a raw path, SID, SDDL, Git name, or native exception.
+The concrete Windows reader is confined to a test-owned temporary sandbox.
+_Avoid_: Path-only identity, production host mutation
+
+**Current Topology Preflight**:
+The read-only Issue #53 proof that two complete observations of the current
+source, target parent, absent target, Git, ACL, reparse, and volume state are
+identical. Its content-free receipt records the observation; it does not approve
+a mutation or claim that the final layout exists.
+_Avoid_: One-pass probe, topology migration
+
+**Pre-Mutation Gate**:
+The short-lived, nonce-bound, one-operation, single-use Issue #53 recheck of the
+exact preflight state immediately before a future separately authorized action.
+Freshness or equality failure stops without granting any mutation capability.
+_Avoid_: Reusable token, mutation authorization
+
+**Final Audit Composition Readiness**:
+The proof that the unchanged nine-zone `ContainerAudit` policy can receive all
+seven exact caller-bound read-only callbacks. It proves composition availability
+only and is never a pre-cutover final-audit pass or cutover approval.
+_Avoid_: Final layout pass, executable cutover command

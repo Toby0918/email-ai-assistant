@@ -334,11 +334,36 @@ expected-post effect. Durable observed facts remain authoritative across fresh
 `RESUME_BOUND` renewal; verified pending direction, Profile/master/operator,
 identity mapping, and synthetic transition mapping all fail closed. Rollback
 uses only the exact pre-bound recovery authorization and journal-derived LIFO
-reverse steps. Public results expose only
-fixed status, phase, receipt fingerprint, and allowlisted counts. No real
-filesystem target, service, ACL, Git repository/worktree, Runtime, SQLite,
-provider, mailbox, vault, or private data is accessed. Issues #53 through #59
-remain separate; Issues #38/#39 and parent Spec #50 remain unchanged.
+reverse steps. Public results expose only fixed status, phase, receipt
+fingerprint, and allowlisted counts. No real filesystem target, service, ACL,
+Git repository/worktree, Runtime, SQLite, provider, mailbox, vault, or private
+data is accessed.
+
+Issue #53 adds `backend/real_host_preflight/`, an internal read-only Windows
+composition boundary. Opened-handle observations bind volume identity, 128-bit
+file ID, object type, parent identity, normalized-name fingerprint, and reparse
+metadata; every controlled component is opened without following reparse points.
+Aliases, unexpected volume/filesystem state, unreadable objects, replacement,
+or identity drift fail closed.
+
+`CurrentTopologyPreflight` requires two complete identical observations.
+`PreMutationGate` is short-lived, nonce-bound, one-operation, single-use, and
+repeats exact source, target-parent, target-absence, reparse, Git, ACL, and
+volume checks. `RealHostBaselineCollector` preserves separate source-root,
+parent, finance, volume, operator-SID, and ACL evidence while projecting only a
+content-free `HostBaseline`.
+
+The exact #53 bridge composes seven caller-bound read-only callbacks into the
+unchanged nine-zone `ContainerAudit`.
+`FinalAuditCompositionReadyReceiptV1` proves composition readiness only and
+never claims that a pre-cutover final layout passed. Windows integration runs
+only in test-owned temporary sandboxes; Linux covers portable contracts only.
+The zero-argument operator entry remains `BLOCKED_NO_APPROVED_COMMAND`, rejects
+test authorization, and has no service-control, ACL-apply, rename, worktree,
+Runtime-build, database-copy, artifact, Config, provider, mailbox, vault, or
+private-data capability. No real host target was accessed or changed. Issues
+#54 through #59 remain separate; Issues #38/#39 and parent Spec #50 remain
+unchanged.
 
 ## 后台清理扫描
 
