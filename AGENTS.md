@@ -187,10 +187,13 @@ vault/recovery, two stable reads, and fixed pass/fail counts in code.
 The package has no path, host probe, filesystem reader, ACL client, Git command,
 SQLite client, default adapter, CLI, launcher, scheduler, repair, logging, or
 private-content capability. Normal runtime, cleanup, leakage scanning, browser,
-root wrappers, and workflows must not import or invoke it. The only reviewed
-repository consumer is Issue #36's synthetic-only `audit_bridge.py`; it composes
-metadata adapters for an internally created temporary scenario and has no real
-host adapter or path input. Automated tests use only synthetic evidence; no real
+root wrappers, and workflows must not import or invoke it. The reviewed
+repository consumers are Issue #36's synthetic-only `audit_bridge.py` and Issue
+#53's exact `backend.real_host_preflight.audit_bridge`. The former composes
+metadata adapters only for an internally created temporary scenario; the latter
+binds exactly seven caller-owned read-only callbacks while leaving the existing
+nine-zone policy, validation order, and pass/fail semantics unchanged. Automated
+tests use only synthetic or test-owned temporary-sandbox evidence; no real
 Container audit or host-security probe has occurred.
 
 Issue #35 adds the offline-only `backend.migration_evidence` deep module. Its
@@ -209,12 +212,14 @@ fingerprint, Git bundle, baseline evidence, selection, snapshot index, and every
 payload. Public create/verify results contain only fixed status and aggregate
 counts. There is no CLI, default target, normal-runtime/browser/workflow
 consumer, service stop, real repository move, ACL mutation, mailbox/provider/
-vault/private-store access, or cleanup action. The only reviewed repository
-consumer is Issue #36's synthetic-only `evidence_bridge.py`; it creates and
-verifies a package only for its internally created temporary Git scenario. No
-real package was created; any real capture must first publish the exact target,
-content-free inclusion/exclusion manifest, reviewed refs, and worktree
-selection, then stop for separate operator confirmation.
+vault/private-store access, or cleanup action. Issue #36's synthetic-only
+`evidence_bridge.py` may create and verify a package only for its internally
+created temporary Git scenario. Issue #53's exact
+`backend.real_host_preflight.baseline_bridge` may import only the content-free
+`HostBaseline` value and cannot call review, create, or verify. No real package
+was created; any real capture must first publish the exact target, content-free
+inclusion/exclusion manifest, reviewed refs, and worktree selection, then stop
+for separate operator confirmation.
 
 Issue #36 adds `backend.reparenting_rehearsal` as a self-contained temporary
 synthetic rehearsal only. Its sole public seam accepts exactly two content-free
@@ -306,9 +311,10 @@ or free-form messages. A receipt is evidence only and is never authorization.
 
 `default_operator_entry()` accepts no path, adapter, callback, command or
 authorization and always returns `BLOCKED_NO_APPROVED_COMMAND` with one blocked
-count and zero executed count. The sole approved contract consumer is the exact
-`backend.cutover_journal.contracts_bridge`; normal runtime, scripts, frontend and
-operator entry points remain non-consumers.
+count and zero executed count. The approved contract consumers are the exact
+`backend.cutover_journal.contracts_bridge` and
+`backend.real_host_preflight.contracts_bridge`; normal runtime, scripts,
+frontend and executable operator entry points remain non-consumers.
 
 Issue #52 adds only the pathless `backend.cutover_journal` synthetic proof. Its
 canonical create-only hash chain requires durable `INTENT` before a synthetic
@@ -343,8 +349,48 @@ phase, receipt fingerprint and allowlisted counts. `SAFE_ABORT`,
 The package accepts no path, callback, duck-typed adapter, CLI, HTTP route,
 filesystem, service, ACL, Git/worktree, Runtime, SQLite, provider, mailbox,
 vault, private data or production consumer. No real preflight, migration,
-cutover, resume or rollback was run. Issues #53 through #59 remain unstarted;
-Issues #38 and #39 and parent Spec #50 are unchanged.
+cutover, resume or rollback was run.
+
+Issue #53 adds the internal `backend.real_host_preflight` read-only composition
+boundary. Windows object observations use opened handles and bind volume
+identity, 128-bit file ID, object type, parent identity, normalized-name
+fingerprint, and reparse metadata. Every controlled component is opened without
+following reparse points. Windows tests require a package-private root/marker
+identity-bound single-use permit, and controlled files require exactly one
+link. Every observer operation reopens and validates the exact root and marker,
+then holds both handle chains until the target observation finishes; aliases,
+missing or replaced markers, unexpected volume/filesystem state, unreadable
+objects, replacement, and identity drift fail closed.
+
+`CurrentTopologyPreflight` requires two complete identical observations.
+`PreMutationGate` is short-lived, nonce-bound, one-operation, single-use, and
+repeats exact source, target-parent, target-absence, reparse, Git, ACL, and
+volume checks. `RealHostBaselineCollector` keeps source-root, parent, finance,
+volume, operator-SID, and ACL evidence separate while projecting only a
+content-free `HostBaseline`. Before any host callback, each operation creates
+an independent canonical Profile snapshot; every callback value is
+factory-reconstructed, and source/parent/finance/target names bind to that
+snapshot's exact role selections. Nominal receipt/gate claims use module-owned
+atomic state, require an exact receipt-class-to-observation-kind binding, and
+cannot be minted from a public envelope or reset through caller attributes.
+
+The exact #53 audit bridge composes seven caller-bound callbacks into the
+unchanged nine-zone `ContainerAudit`.
+`FinalAuditCompositionReadyReceiptV1` proves only composition readiness and
+never claims that the pre-cutover final layout passed. Prepare captures a
+detached canonical audit-policy snapshot; each audit run snapshots that policy
+again and rebuilds adapters from the seven captured readers before any callback,
+so callback-time mutation cannot relax the unchanged policy or retarget stored
+adapters. Windows integration is exercised only beneath test-owned temporary
+sandboxes; Linux tests cover portable contracts only and make no Windows, NTFS,
+or ACL-evidence claim.
+
+The zero-argument operator entry remains
+`BLOCKED_NO_APPROVED_COMMAND`, rejects test authorization, and exposes no
+service-control, ACL-apply, rename, worktree-mutation, Runtime-build,
+database-copy, artifact, Config, provider, mailbox, vault, or private-data
+capability. No real host target was accessed or changed. Issues #54 through #59
+remain separate; Issues #38 and #39 and parent Spec #50 are unchanged.
 
 The pure project-layout seam performs no directory creation, move, deletion,
 migration, mailbox or

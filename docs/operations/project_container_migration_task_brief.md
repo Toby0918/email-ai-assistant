@@ -41,9 +41,13 @@ Managed, protected-root, pure manual audit, offline migration-evidence, and
 temporary synthetic reparenting/runtime-activation contracts in their own task
 briefs. Issue #51 adds only a locked, pathless Cutover Profile, distinct
 phase-specific authorization contracts, canonical content-free receipts, and a
-default-blocked operator seam. No real Project Container audit, evidence
-package, host adapter, directory migration, ACL operation, authorization
-issuance, or cutover has occurred.
+default-blocked operator seam. Issue #52 adds only a pathless synthetic
+crash-safe journal/state proof. Issue #53 adds only the default-locked Windows
+read-only observation, current-topology/freshness, content-free HostBaseline,
+and final-audit composition-readiness boundary. Windows behavior was exercised
+only in caller-owned temporary sandboxes; no real Project Container audit,
+operator preflight, evidence package, directory migration, ACL operation,
+authorization issuance, or cutover has occurred.
 
 ## 4. 任务目标
 
@@ -569,8 +573,64 @@ service, ACL, Git repository/worktree, Runtime, SQLite, artifact, Config,
 provider, mailbox, vault, private store, credential or private data. The
 Windows/Linux trace is contract evidence only, not real filesystem durability
 evidence. No real preflight, migration, cutover, resume, rollback or recovery was
-executed. Issues #53 through #59 remain unstarted；Issues #38/#39 and parent Spec
+executed. Issues #54 through #59 remain unstarted；Issues #38/#39 and parent Spec
 #50 are unchanged.
+
+### 8.20 Issue #53 content-free Windows real-host preflight checkpoint
+
+Issue #53 implements the physically separate, default-locked
+`backend.real_host_preflight` read-only composition:
+
+- opened-handle Windows observations bind volume identity, 128-bit file ID,
+  object type, parent identity, normalized-name fingerprint, attributes, and
+  reparse metadata without relying on path strings alone；
+- every controlled component is opened no-follow-reparse and alias, scope
+  escape, unexpected volume/filesystem, unreadable/incomplete evidence,
+  replacement, target appearance, normalized-name change, or identity drift
+  fails closed with fixed content-free output；
+- Windows native behavior is reachable only from exact
+  `TestSandboxAuthorizationV1`-bound, caller-owned temporary sandboxes through
+  a package-private root/marker identity-bound atomically single-use permit;
+  controlled files require exactly one opened-handle link and the observer/
+  scope are not package exports; Linux
+  runs portable contracts and injected composition only and makes no NTFS,
+  Windows file-ID, Windows ACL, or real-host evidence claim；
+- `CurrentTopologyPreflight` accepts only two complete, identical observations
+  of source, target parent, target absence, controlled reparse state, Git, ACL,
+  and volume evidence; every value is factory-reconstructed and all four names
+  must match their exact Profile role selections；
+- `PreMutationGate` repeats those checks and binds an accepted topology, exact
+  operation, fresh UUIDv4 nonce, short half-open validity, and one consumed
+  attempt; each topology receipt is atomically single-claim and module-owned
+  receipt/gate state cannot be minted or reset by a public envelope, caller
+  attribute, copy, or serialization; stale, replayed, retargeted, or drifting
+  state fails closed；
+- `RealHostBaselineCollector` preserves distinct source-root, projects-parent,
+  finance-project, volume, operator-SID, and role-specific ACL evidence, then
+  projects only a deterministic aggregate into the existing `HostBaseline`；
+- the exact `audit_bridge.py` composes the unchanged final nine-zone
+  `ContainerAudit` through its existing seven read-only callbacks, while
+  `FinalAuditCompositionReadyReceiptV1` proves only composition readiness and
+  revalidates every binding/reader identity without invoking the current
+  pre-cutover audit or claiming a final-layout pass；
+- exact `contracts_bridge.py` and `baseline_bridge.py` consumers validate
+  existing contracts and project the existing baseline without widening #51
+  receipt/authorization schemas or #35 evidence-package operations；
+- receipts, results, repr, stdout, stderr, and logs expose no raw path, SID,
+  SDDL, account, Git name/ref, file ID, command, callback exception, native
+  error text, or content；
+- the operator entry remains zero-capability and fixed at
+  `BLOCKED_NO_APPROVED_COMMAND`, one blocked count, and zero executions; it
+  cannot accept test authorization or mint real authorization.
+
+The package has no service-control, ACL-apply, rename, repository/worktree
+mutation, Runtime-build, database-copy, artifact, Config, provider, mailbox,
+vault, private-store/private-data, evidence-publication, migration, cutover,
+resume, rollback, recovery, cleanup, or scheduler capability. No Issue #53 test
+accessed the real Repository Root, finance project, service, ACL, worktree,
+Runtime, production database, credential, mailbox, provider, vault, or private
+data. Issues #54 through #59 remain separately authorized; Issues #38/#39 and
+parent Spec #50 remain unchanged.
 
 ## 9. 数据结构或接口变化
 
@@ -589,7 +649,11 @@ interfaces、provider-disabled Managed launcher adapter、Issue #35 的
 Issue #51 additionally exposes internal-only `CutoverProfileV1`, four distinct
 real-authorization value parsers, `validate_real_host_authorization(...)`,
 canonical `ReceiptEnvelopeV1`, and the default-blocked
-`default_operator_entry()`；
+`default_operator_entry()`。Issue #53 additionally exposes internal-only
+portable observation values, Windows test-sandbox observation,
+`CurrentTopologyPreflight`, `PreMutationGate`, `RealHostBaselineCollector`, and
+final-audit composition readiness through exact narrow bridges; its operator
+entry remains blocked and no HTTP/CLI command is added；
 无 HTTP API 变化。
 
 ### AI 输出 JSON 变化
@@ -643,6 +707,20 @@ canonical `ReceiptEnvelopeV1`, and the default-blocked
 13. Issue #51 default operator entry remains
     `BLOCKED_NO_APPROVED_COMMAND`; receipts and synthetic authorization cannot
     become execution authority。
+14. Issue #53 Windows behavior is limited to caller-owned temporary sandboxes
+    bound to exact test authorization; Linux validates portable contracts only
+    and makes no NTFS/Windows ACL/real-host evidence claim。
+15. Current topology requires two complete identical observations, while the
+    pre-mutation gate is fresh UUIDv4-nonce-bound, exact-operation-bound,
+    short-lived and single-use with repeated source/parent/absence/reparse/Git/
+    ACL/volume checks。
+16. RealHostBaseline keeps source, parent, finance, volume, operator-SID and ACL
+    evidence separate and content-free before canonical projection。
+17. Final-audit readiness composes the unchanged final nine-zone policy and
+    exact seven callbacks without invoking the audit or claiming a final pass。
+18. The #53 operator remains fixed blocked, no real authorization is issued,
+    public output remains content-free, and no mutation/runtime/data/provider/
+    mailbox/vault/private-data capability is introduced。
 
 后续 migration cutover acceptance 至少包括:
 
@@ -673,6 +751,12 @@ canonical `ReceiptEnvelopeV1`, and the default-blocked
 - focused path, config, service, worktree and audit tests
 - focused synthetic migration-evidence review, restore, exclusion, no-clobber
   and semantic-verification tests
+- focused portable, topology, pre-mutation gate, HostBaseline, composition,
+  architecture and leakage tests for Issue #53
+- Windows native observation tests only beneath test-owned temporary sandboxes;
+  Linux portable-contract tests do not claim NTFS or Windows ACL evidence
+- affected ContainerAudit, migration-evidence and cutover-contract regression
+  suites, including exact bridge-consumer guards and unchanged-policy review
 - `python -m unittest discover -s tests`
 - `python -m compileall backend scripts tests`
 - architecture, linter and mechanical guards
@@ -752,6 +836,11 @@ BitLocker private content 或 ignored SQLite text。
 - [x] Issue #30 compatibility-seam implementation 已批准。
 - [x] Issue #30 baseline 是 reviewed `origin/master@772a34d` checkpoint。
 - [x] Issue #51 pure contracts only are implemented and default blocked。
+- [x] Issue #52 synthetic journal/state proof is implemented without host
+  capability。
+- [x] Issue #53 read-only preflight composition is implemented, Windows-tested
+  only in caller-owned temporary sandboxes, and operator-blocked。
+- [ ] Issues #54 through #59 remain separately approved and unimplemented here。
 - [ ] Full cutover implementation Issues 已批准。
 - [ ] 维护窗口已确认。
 - [ ] Baseline and rollback artifacts 已生成并验证。

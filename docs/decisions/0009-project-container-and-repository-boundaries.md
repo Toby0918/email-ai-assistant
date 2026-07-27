@@ -106,8 +106,11 @@ formatted. Public results contain only `container_audit_passed` or
 This checkpoint adds no CLI, default or real adapter, composition root, runtime
 consumer, cleanup/leakage integration, browser route, workflow, scheduler,
 repair, mutation, mailbox/provider/vault/private-store access, or host probe.
-Automated verification is wholly synthetic. A real preflight or post-cutover
-audit remains owned by later separately approved migration composition.
+Its reviewed consumers are Issue #36's synthetic audit bridge and Issue #53's
+exact read-only audit bridge. The latter binds seven caller-owned callbacks
+without changing the nine-zone policy, validation order, or pass/fail semantics.
+Automated verification remains synthetic or confined to a test-owned temporary
+sandbox; no real preflight or post-cutover audit was executed.
 
 ### Issue #35 no-clobber migration evidence package
 
@@ -138,6 +141,11 @@ contain fixed status and aggregate counts only. The module has no CLI, default
 target, runtime/browser/workflow consumer, network/mailbox/provider/vault/
 private-store capability, service lifecycle action, repository relocation, ACL
 mutation, or cleanup behavior.
+
+Issue #36's exact evidence bridge may call the review/create/verify seams only
+inside its self-created temporary repository. Issue #53's exact baseline bridge
+may import only the content-free `HostBaseline` value and cannot call those
+seams.
 
 Issue #35 tests use only temporary synthetic repositories and destinations and
 prove independent refs/objects, dirty index/worktree state, and linked-worktree
@@ -265,7 +273,8 @@ Receipts remain evidence only and cannot authorize execution.
 This slice adds no host adapter, composition root, CLI, production consumer or
 authority to execute preflight, evidence publication, ACL, repository/worktree,
 Runtime, SQLite, CRX, Config, activation, rollback or incident operations.
-Its sole approved consumer is the exact Issue #52 contracts bridge.
+Its approved consumers are the exact Issue #52 journal contracts bridge and
+Issue #53 real-host-preflight contracts bridge.
 
 ### Issue #52 crash-safe journal and recovery classification
 
@@ -315,8 +324,46 @@ and allowlisted counts. `SAFE_ABORT`, `ROLLBACK_REQUIRED`, `INCIDENT_STOP`, and
 `CUTOVER_SUCCEEDED` are distinct. The package has no path, callback, default
 adapter, CLI, HTTP route, real filesystem/service/ACL/Git/worktree/Runtime/
 SQLite/provider/mailbox/vault/private-data capability, or production consumer.
-No real operation was executed. Issues #53 through #59 remain unstarted; Issues
-#38/#39 and parent Spec #50 are unchanged.
+No real operation was executed.
+
+### Issue #53 content-free Windows real-host preflight
+
+`backend.real_host_preflight` is an internal read-only composition boundary.
+Windows object observations use opened handles and bind volume identity,
+128-bit file ID, object type, parent identity, normalized-name fingerprint, and
+reparse metadata. Every controlled component is opened without following
+reparse points. The Windows test seam is package-private, requires a
+root/marker identity-bound atomically single-use permit, and rejects controlled
+files unless opened-handle metadata reports exactly one link. Aliases,
+unexpected volume/filesystem state, unreadable objects, replacement, and
+identity drift fail closed.
+
+`CurrentTopologyPreflight` accepts only two complete identical observations.
+`PreMutationGate` is short-lived, nonce-bound, one-operation, single-use, and
+repeats exact source, target-parent, target-absence, reparse, Git, ACL, and
+volume checks. `RealHostBaselineCollector` keeps source-root, parent, finance,
+volume, operator-SID, and ACL evidence separate while projecting only the
+canonical content-free `HostBaseline` value. Every callback value is rebuilt
+through its exact factory, and source/parent/finance/target normalized-name
+fingerprints must match the corresponding immutable Profile role selections.
+Nominal topology receipts are atomically single-claim; receipt and gate trusted
+state is module-owned rather than caller-resettable.
+
+The exact audit bridge binds seven caller-owned read-only callbacks to the
+unchanged nine-zone `ContainerAudit`.
+`FinalAuditCompositionReadyReceiptV1` proves only that this composition is
+available; it revalidates the seven binding/reader identities and never claims
+that a pre-cutover final layout passed. The native
+Windows observer is exercised only beneath a test-owned temporary sandbox, and
+Linux tests validate portable contracts without claiming NTFS, Windows file-ID,
+or Windows ACL evidence.
+
+The zero-argument operator entry remains
+`BLOCKED_NO_APPROVED_COMMAND` and rejects test authorization. The package owns no
+service-control, ACL-apply, rename, worktree-mutation, Runtime-build,
+database-copy, artifact, Config, provider, mailbox, vault, or private-data
+capability. No real host target was accessed or changed. Issues #54 through #59
+remain separate; Issues #38/#39 and parent Spec #50 are unchanged.
 
 ## Context
 

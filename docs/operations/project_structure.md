@@ -57,6 +57,37 @@ email-ai-assistant/
       receipt_matrix.py
       receipt_schema.py
       receipt_types.py
+    real_host_preflight/
+      __init__.py
+      audit_bridge.py
+      audit_types.py
+      authorization_gate.py
+      baseline.py
+      baseline_bridge.py
+      baseline_evidence.py
+      callbacks.py
+      canonical.py
+      collection.py
+      composition.py
+      contracts.py
+      contracts_bridge.py
+      errors.py
+      evidence.py
+      integrity.py
+      mutation_gate.py
+      operator_entry.py
+      profile_snapshot.py
+      receipts.py
+      sandbox_lease.py
+      sandbox_state.py
+      sandbox_validation.py
+      topology.py
+      topology_evidence.py
+      windows_api.py
+      windows_chain.py
+      windows_observation.py
+      windows_paths.py
+      windows_projection.py
     email_agent/
       __init__.py
       config.py
@@ -135,6 +166,7 @@ email-ai-assistant/
     operations/
       *_task_brief.md
       issue51_cutover_profile_authorization_receipt_task_brief.md
+      issue53_windows_real_host_preflight_task_brief.md
       setup_checklist.md
       testing_checklist.md
       deployment_notes.md
@@ -200,6 +232,16 @@ email-ai-assistant/
     test_cutover_contract_architecture.py
     test_cutover_profile_contract.py
     test_cutover_receipt_contract.py
+    real_host_preflight_fixtures.py
+    test_real_host_preflight_architecture.py
+    test_real_host_preflight_baseline.py
+    test_real_host_preflight_composition.py
+    test_real_host_preflight_gate.py
+    test_real_host_preflight_leakage.py
+    test_real_host_preflight_portable.py
+    test_real_host_preflight_topology.py
+    test_real_host_preflight_windows.py
+    test_real_host_preflight_windows_composition.py
 
   scripts/
     repo_utils.py
@@ -279,6 +321,29 @@ email-ai-assistant/
 - `backend/runtime_activation_rehearsal/`: Issue #37 的 pathless synthetic-only activation 深模块；只接受 exact five injected adapters，验证 pinned runtime、从 lock 重建的 Windows venv、`pre_publication` stopped-service create-only SQLite、reviewed-hash extension artifact、Managed writable roles、同一 activation token 绑定的 provider-disabled start/loopback health/一次持久化规则分析/`post_activation` fresh-stop proof 和最终 source preservation。它没有 path、default host adapter、真实 filesystem/SQLite/process/network/provider/mailbox/vault/credential/signing/evidence/cleanup capability，也没有 normal-runtime consumer。
 - `backend/cutover_contracts/`: Issue #51 的 pure content-free Cutover Profile、phase-specific authorization 和 canonical receipt 合同层。它只解析、验证和规范化 immutable values；四种 real-host authorization 只能验证外部提供的 canonical values，不能 create、issue 或 mint。`default_operator_entry()` 固定返回 `BLOCKED_NO_APPROVED_COMMAND`。该 package 没有 path、host adapter、filesystem、SQLite、ACL、Git/worktree、runtime、mailbox/provider/vault/private-data、preflight、migration 或 cutover capability，也没有 production consumer。
 - `backend/cutover_journal/`: Issue #52 的 pathless synthetic crash-safe journal/state proof。它用 strict canonical hash chain、exact in-memory Windows/Linux barrier traces、per-claim synthetic owner lease、medium operation gate、绑定 exact durable/stable head 且共享 single-use atomic token issuance 的 opaque effect permit、fixed forward/reverse triads、authoritative observed facts、read-only restart inspection 和 explicit authorization-aware resume/rollback 证明状态约束；任何 namespace-published head 在新 append/permit 前必须补齐 stable reread，pending/unbarriered record 不授权 effect，pending direction 必须验证，reverse 只从 committed/applied history LIFO 派生。唯一外部依赖是 exact `contracts_bridge.py`；没有 path/callback/default adapter/CLI/HTTP/host/filesystem/service/ACL/Git/worktree/Runtime/SQLite/provider/mailbox/vault/private-data capability 或 production consumer。
+- `backend/real_host_preflight/`: Issue #53 的 physically separate、
+  default-locked Windows read-only composition。Portable contracts bind
+  opened-handle volume identity, 128-bit file ID, exact object type, parent
+  identity, normalized-name fingerprint and reparse metadata；
+  `CurrentTopologyPreflight` requires two complete identical observations；
+  `PreMutationGate` is fresh UUIDv4-nonce-bound, short-lived,
+  operation-bound and single-use；all callback evidence is factory-reconstructed
+  and source/parent/finance/target names bind to exact Profile roles；
+  `RealHostBaselineCollector` keeps source,
+  parent, finance, volume, operator-SID and ACL evidence separate before
+  canonical projection。Only `audit_bridge.py`, `baseline_bridge.py`, and
+  `contracts_bridge.py` may consume the unchanged ContainerAudit,
+  `HostBaseline`, and locked cutover contracts. Final-audit readiness proves
+  composability of the unchanged nine-zone policy and exact seven callbacks
+  without running an audit or claiming a pass。Windows behavior runs only in
+  caller-owned temporary sandboxes through a package-private root/marker
+  identity-bound single-use permit; controlled files require exactly one link。
+  Receipt, gate, scope and observer trusted state is module-owned; Linux runs
+  portable contracts only。The
+  operator entry remains `BLOCKED_NO_APPROVED_COMMAND` and the package has no
+  service-control、ACL-apply、rename、worktree mutation、Runtime build、
+  database copy、artifact、Config、provider、mailbox、vault、private-data or
+  production consumer capability。
 - `backend/email_agent/managed_runtime.py`: Issue #32 的 Managed launcher adapter；从 exact `main` placement 派生普通 zone，读取 bounded non-secret Config，并返回 provider-disabled resolved config。它不执行真实迁移、container audit、runtime/data/artifact/worktree activation 或 private capability。
 - `backend/email_agent/managed_runtime_errors.py` 与 `backend/email_agent/managed_runtime_validation.py`: Managed mode 的固定失败映射、稳定身份检查、可写预检和 bounded settings reader；拆分后仍不向 request handlers 暴露 placement reader。
 - `frontend/local_debug_page/`：第一阶段本地辅助窗口调试页面，只在用户点击 `Analyze` 后调用本地后端 API，不接入真实邮箱账号。

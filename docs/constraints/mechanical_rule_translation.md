@@ -231,12 +231,17 @@ Issue #34 translates the manual audit boundary into three executable layers:
 3. `test_container_audit_has_no_runtime_or_workflow_consumer` recursively
    rejects audit references from every other backend module, all scripts
    including maintenance/leakage tooling, root wrappers, frontend/browser
-   files, and workflows.
+   files, and workflows, except the exact Issue #36 synthetic bridge and the
+   exact Issue #53 read-only `backend/real_host_preflight/audit_bridge.py`.
+   The #53 bridge only binds the existing seven callbacks; it cannot change
+   the nine-zone policy or add host imports to the audit core.
 
 These checks deliberately do not expand repository leakage scanning above the
 Repository Root and do not make maintenance scanning traverse the Project
-Container. Real preflight/post-cutover composition remains a separately
-approved later Issue.
+Container. Executable real preflight and post-cutover audit remain separately
+approved boundaries. Issue #53 may compose its locked read-only bridge and
+readiness proof, but it may not run a pre-cutover final audit or claim that the
+future final layout passed.
 
 ## 12. No-clobber migration evidence package rule
 
@@ -267,8 +272,10 @@ Issue #35 translates evidence preservation into four executable layers:
    linter, and repository leakage tests require all Git/host/selection/snapshot
    evidence, canonical manifest and file hashes, independent bundle verify,
    fixed code/count receipts, only the exact Issue #36 synthetic evidence bridge
-   and no runtime/workflow consumer, a reserved ignored suffix, and name-only
-   leakage rejection.
+   plus Issue #53's exact `backend/real_host_preflight/baseline_bridge.py`, and
+   no runtime/workflow consumer, a reserved ignored suffix, and name-only
+   leakage rejection. The #53 bridge may import only `HostBaseline`; it cannot
+   invoke review, creation, publication, verification, or package I/O.
 
 Every backend file remains at most 300 lines and every function at most 50
 lines. The module adds no CLI, default target, provider/mailbox/private-store
@@ -422,10 +429,71 @@ Issue #52 translates the journal/state boundary into six executable layers:
    imports/signatures/consumer absence, forbidden capabilities, and the 300/50
    bounds.
 
-The sole Issue #51 consumer allowlist is
-`backend/cutover_journal/contracts_bridge.py` with five exact imported symbols.
+The Issue #51 consumer allowlist is limited to
+`backend/cutover_journal/contracts_bridge.py` and
+`backend/real_host_preflight/contracts_bridge.py`, each with its exact imported
+symbol set. The #53 bridge may only validate the locked Profile/authorization
+values, construct closed preflight receipts, and reuse fixed operator-entry
+values; it cannot issue authority or change the #51 schemas.
 No test or implementation opens a real filesystem target, service, ACL,
 repository/worktree, Runtime, SQLite, provider, mailbox, vault, private store,
 or private data. `SAFE_ABORT`, `ROLLBACK_REQUIRED`, `INCIDENT_STOP`, and
 `CUTOVER_SUCCEEDED` are distinct classifications; a result or fingerprint is
-not host authority. Issues #53 through #59 remain separate.
+not host authority. Issues #54 through #59 remain separate.
+
+## 17. Content-free Windows real-host preflight composition rule
+
+Issue #53 translates the locked read-only host-preflight boundary into seven
+executable layers:
+
+1. `tests/test_real_host_preflight_portable.py` pins exact frozen/slotted/
+   repr-redacted observation values, canonical fingerprints, 128-bit file-ID
+   validation, exact object/parent/name/volume/reparse fields, hostile-type
+   rejection, and non-Windows import behavior without claiming NTFS, Windows
+   ACL, or real-host evidence.
+2. `tests/test_real_host_preflight_windows.py` and
+   `tests/test_real_host_preflight_windows_composition.py` use only an exact
+   in-memory `TestSandboxAuthorizationV1` and caller-owned Windows
+   `TemporaryDirectory`. A package-private root/marker identity permit is
+   consumed once. Opened-handle observations and no-follow controlled
+   components must fail closed on missing/replaced markers, permit replay,
+   hard-link alias/reparse, unreadable or unexpected volume/filesystem state,
+   parent replacement, target appearance, file-ID drift, normalized-name
+   drift, and scope escape.
+3. `tests/test_real_host_preflight_topology.py` requires two complete,
+   identical current-topology passes before an accepted content-free receipt.
+   Source, target parent, target absence, reparse, Git, ACL, and volume
+   evidence must all be reconstructed and repeated; no partial second pass is
+   sufficient. Source/parent/finance/target names must match the exact Profile
+   role-selection projections, so a decoy absence cannot substitute.
+4. `tests/test_real_host_preflight_gate.py` pins a fresh UUIDv4 nonce, exact
+   operation and prior-topology binding, short half-open validity, repeat
+   source/parent/absence/reparse/Git/ACL/volume checks, and one consumed gate
+   attempt. The prior topology receipt is atomically single-claim; nominal
+   receipt/gate state is module-owned and cannot be minted from a public
+   envelope or reset through caller state. Stale, replayed, retargeted, or
+   drifting evidence fails closed.
+5. `tests/test_real_host_preflight_baseline.py` keeps source root, projects
+   parent, finance project, volume, operator-SID, and each ACL observation
+   separate, then independently verifies their deterministic content-free
+   aggregate projection into the existing `HostBaseline`.
+6. `tests/test_real_host_preflight_composition.py` binds only the exact seven
+   callbacks through the #53 audit bridge. One synthetic assertion runs the
+   unchanged audit core; the separate readiness proof invokes no callback or
+   audit and never reports a final-layout pass. The existing final nine-zone
+   policy remains unchanged. Bound callbacks and their identical adapter
+   readers are revalidated before readiness.
+7. `tests/test_real_host_preflight_architecture.py` and leakage tests pin exact
+   files/exports/imports/bridges, read-only Windows API allowlists, zero normal
+   consumers, forbidden capabilities, fixed error/result surfaces, and absence
+   of raw path, SID, SDDL, account, Git name/ref, file ID, command, callback
+   exception, and native error text in receipts, stdout, stderr, repr, or logs.
+
+The real operator entry remains zero-capability and returns only
+`BLOCKED_NO_APPROVED_COMMAND`, `blocked=1`, and `executed=0`; it cannot accept
+test authorization. Issue #53 does not mint real authorization and does not
+run against the real Repository Root or any real host target. It has no
+service-control, ACL-apply, rename, worktree mutation, Runtime build, database
+copy, artifact, Config, provider, mailbox, vault, private-store/private-data,
+evidence publication, migration, cutover, resume, rollback, recovery, or
+cleanup capability. Issues #54 through #59 remain separately authorized.

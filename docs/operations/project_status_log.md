@@ -17,7 +17,7 @@ source_type: operation_guide
 |---|---|
 | Generated on | 2026-07-26 |
 | Current stage | multimodal_current_email_offline_ready_live_pending |
-| Git branch | codex/issue-52-crash-safe-journal |
+| Git branch | codex/issue-53-real-host-preflight |
 | Git HEAD reference | Run `git rev-parse --short HEAD` in this workspace |
 | Working tree status | Run `git status --short --ignored` in this workspace |
 
@@ -47,9 +47,11 @@ Issue #36 repository/worktree reparenting rehearsal is offline implemented as on
 
 Issue #37 managed runtime and LocalData activation rehearsal is offline implemented behind exact five injected adapters and one pathless synthetic-only seam. Temporary synthetic sources prove a create-only pinned runtime, a Windows venv rebuilt from the exact dependency lock, `pre_publication` stopped-service create-only SQLite publication with identity/SHA-256/integrity/sidecar/count checks, reviewed-hash browser-extension publication, exact Managed writable roles, and one strict activation token across provider-disabled start, literal-loopback health, one persisted rule-fallback analysis and the same-service `post_activation` fresh-stop proof. Stale evidence and equality spoofing fail closed. The source database remains unchanged after success and every simulated race, reparse, existing-target, dependency, integrity or health failure. No real runtime, SQLite database, browser-extension artifact or migration evidence package was activated; Issues #38 through #40 remain separate.
 
-Issue #51 locked Cutover Profile, authorization, and receipt contracts are offline implemented as a pure content-free Python contract layer. Immutable `CutoverProfileV1` values bind the reviewed cutover inputs without paths or host readers. The four distinct real-host authorization value types validate externally supplied canonical values and cannot create, issue, or mint authority. The strict canonical `ReceiptEnvelopeV1` values are duplicate/unknown rejecting, fingerprint-bound, and never accepted as authorization. `default_operator_entry()` remains fixed at `BLOCKED_NO_APPROVED_COMMAND`. Its sole approved consumer is the exact Issue #52 contracts bridge.
+Issue #51 locked Cutover Profile, authorization, and receipt contracts are offline implemented as a pure content-free Python contract layer. Immutable `CutoverProfileV1` values bind the reviewed cutover inputs without paths or host readers. The four distinct real-host authorization value types validate externally supplied canonical values and cannot create, issue, or mint authority. The strict canonical `ReceiptEnvelopeV1` values are duplicate/unknown rejecting, fingerprint-bound, and never accepted as authorization. `default_operator_entry()` remains fixed at `BLOCKED_NO_APPROVED_COMMAND`. Its approved consumers are the exact Issue #52 journal bridge and exact Issue #53 preflight contract bridges.
 
-Issue #52 crash-safe journal and recovery classification are offline implemented in the pathless synthetic-only `backend.cutover_journal` package. Strict canonical create-only records bind sequence, previous/record hashes, fixed synthetic step/event/direction, operation/profile/authorization/owner fingerprints, and opaque observations. Every forward and reverse action uses durable `INTENT`, exact observed effect, and `COMMITTED`; each owner claim gets a distinct lease and each effect consumes a non-copyable, non-serializable single-use store permit bound to the exact active durable intent and durable journal head. The shared store-private issuance is atomically claimed; one synthetic medium operation gate serializes append, restart, permit mint/claim, and effect mutation; every namespace-published current head completes stable reread and full snapshot reverification before a successor append or permit. Stable-reread evidence is hash-bound, and head advance, pending state, or an observed fact invalidates stale permits. Pending or unbarriered records never authorize an effect; verified pending direction/event/outcome controls event-aware exact pending publication without effect replay or an extra action; durable observed facts are authoritative across fresh `RESUME_BOUND` renewal. Reverse steps are derived LIFO only from verified `COMMITTED/APPLIED` history. Exact Profile/master/operator, identity mapping, synthetic transition mapping, and post-effect observation all fail closed. Exact in-memory Windows/Linux traces prove file/namespace/stable-reread ordering without claiming real filesystem durability. Restart inspection is read-only, exact expected-post is never blindly repeated, and explicit resume/rollback fresh-validate phase-specific authorization including the pre-bound recovery fingerprint. Public results expose only fixed status, phase, receipt fingerprint, and allowlisted counts distinguishing `SAFE_ABORT`, `ROLLBACK_REQUIRED`, `INCIDENT_STOP`, and `CUTOVER_SUCCEEDED`. No real filesystem target, service, ACL, Git repository/worktree, Runtime, SQLite, provider, mailbox, vault, private data, preflight, migration, cutover, resume, or rollback was accessed or run; Issues #53 through #59 remain separate.
+Issue #52 crash-safe journal and recovery classification are offline implemented in the pathless synthetic-only `backend.cutover_journal` package. Strict canonical create-only records bind sequence, previous/record hashes, fixed synthetic step/event/direction, operation/profile/authorization/owner fingerprints, and opaque observations. Every forward and reverse action uses durable `INTENT`, exact observed effect, and `COMMITTED`; each owner claim gets a distinct lease and each effect consumes a non-copyable, non-serializable single-use store permit bound to the exact active durable intent and durable journal head. The shared store-private issuance is atomically claimed; one synthetic medium operation gate serializes append, restart, permit mint/claim, and effect mutation; every namespace-published current head completes stable reread and full snapshot reverification before a successor append or permit. Stable-reread evidence is hash-bound, and head advance, pending state, or an observed fact invalidates stale permits. Pending or unbarriered records never authorize an effect; verified pending direction/event/outcome controls event-aware exact pending publication without effect replay or an extra action; durable observed facts are authoritative across fresh `RESUME_BOUND` renewal. Reverse steps are derived LIFO only from verified `COMMITTED/APPLIED` history. Exact Profile/master/operator, identity mapping, synthetic transition mapping, and post-effect observation all fail closed. Exact in-memory Windows/Linux traces prove file/namespace/stable-reread ordering without claiming real filesystem durability. Restart inspection is read-only, exact expected-post is never blindly repeated, and explicit resume/rollback fresh-validate phase-specific authorization including the pre-bound recovery fingerprint. Public results expose only fixed status, phase, receipt fingerprint, and allowlisted counts distinguishing `SAFE_ABORT`, `ROLLBACK_REQUIRED`, `INCIDENT_STOP`, and `CUTOVER_SUCCEEDED`. No real filesystem target, service, ACL, Git repository/worktree, Runtime, SQLite, provider, mailbox, vault, private data, preflight, migration, cutover, resume, or rollback was accessed or run; Issues #54 through #59 remain separate.
+
+Issue #53 content-free Windows real-host preflight composition is offline implemented in `backend.real_host_preflight`. The package-private Windows observer opens every controlled path component without following reparse points and binds fixed-volume identity, 128-bit file identity, object type, parent identity, normalized-name fingerprint, attributes, reparse metadata, and exactly-one-link file alias evidence. Only exact, unexpired `TestSandboxAuthorizationV1` values plus a root/marker identity-bound atomically single-use permit can create test-owned temporary scopes; every observer operation reopens and validates the exact root and marker and holds both handle chains through the target observation, and no real project path was observed. `CurrentTopologyPreflight` captures an independent canonical Profile snapshot before any host callback, factory-reconstructs every callback value, binds source/parent/finance/target names to exact snapshot role selections, and requires two complete identical seven-reader observations. `PreMutationGate` is short-lived, UUIDv4 nonce-bound, single-operation and single-use; each topology receipt can be atomically claimed by at most one gate, and trusted receipt/gate state is module-owned with an exact nominal-class-to-observation-kind binding. `RealHostBaselineCollector` keeps source, parent, finance, volume, operator-SID, and three ACL roles separate while projecting the existing canonical `HostBaseline`. The unchanged nine-zone `ContainerAudit` receives exactly seven revalidated callbacks through a narrow bridge; final-audit readiness validates the identical bound readers without running or claiming a final-layout audit, and each execution uses a detached canonical policy plus freshly rebuilt adapters so callback-time mutation cannot relax policy or retarget readers. The zero-argument operator entry remains fixed at `BLOCKED_NO_APPROVED_COMMAND` and cannot accept test authorization. Production code has no service-control, ACL-apply, rename, worktree mutation, Runtime build, database copy, artifact, Config, provider, mailbox, vault, private-data, or content-reading capability. Windows behavior was exercised only in test-owned temporary sandboxes, and portable tests make no NTFS or Windows ACL claim. Issues #54 through #59, Issues #38/#39, and parent Spec #50 remain separate and unchanged.
 
 The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器扩展, with current-message collection only after an explicit user click.
 
@@ -75,6 +77,7 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 | `Synthetic Managed runtime activation rehearsal: docs/operations/issue37_managed_runtime_localdata_rehearsal_task_brief.md` | yes |
 | `Locked cutover contracts: docs/operations/issue51_cutover_profile_authorization_receipt_task_brief.md` | yes |
 | `Synthetic crash-safe journal and recovery classification: docs/operations/issue52_crash_safe_journal_recovery_task_brief.md` | yes |
+| `Content-free Windows real-host preflight composition: docs/operations/issue53_windows_real_host_preflight_task_brief.md` | yes |
 | `Project Container cutover contract security boundary: docs/security/project_container_cutover_contracts.md` | yes |
 
 ## Key File Status
@@ -130,6 +133,36 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 | `backend/cutover_journal/rollback_actions.py` | yes |
 | `backend/cutover_journal/store_support.py` | yes |
 | `backend/cutover_journal/transaction.py` | yes |
+| `backend/real_host_preflight/__init__.py` | yes |
+| `backend/real_host_preflight/audit_bridge.py` | yes |
+| `backend/real_host_preflight/audit_types.py` | yes |
+| `backend/real_host_preflight/authorization_gate.py` | yes |
+| `backend/real_host_preflight/baseline.py` | yes |
+| `backend/real_host_preflight/baseline_bridge.py` | yes |
+| `backend/real_host_preflight/baseline_evidence.py` | yes |
+| `backend/real_host_preflight/callbacks.py` | yes |
+| `backend/real_host_preflight/canonical.py` | yes |
+| `backend/real_host_preflight/collection.py` | yes |
+| `backend/real_host_preflight/composition.py` | yes |
+| `backend/real_host_preflight/contracts.py` | yes |
+| `backend/real_host_preflight/contracts_bridge.py` | yes |
+| `backend/real_host_preflight/errors.py` | yes |
+| `backend/real_host_preflight/evidence.py` | yes |
+| `backend/real_host_preflight/integrity.py` | yes |
+| `backend/real_host_preflight/mutation_gate.py` | yes |
+| `backend/real_host_preflight/operator_entry.py` | yes |
+| `backend/real_host_preflight/profile_snapshot.py` | yes |
+| `backend/real_host_preflight/receipts.py` | yes |
+| `backend/real_host_preflight/sandbox_lease.py` | yes |
+| `backend/real_host_preflight/sandbox_state.py` | yes |
+| `backend/real_host_preflight/sandbox_validation.py` | yes |
+| `backend/real_host_preflight/topology.py` | yes |
+| `backend/real_host_preflight/topology_evidence.py` | yes |
+| `backend/real_host_preflight/windows_api.py` | yes |
+| `backend/real_host_preflight/windows_chain.py` | yes |
+| `backend/real_host_preflight/windows_observation.py` | yes |
+| `backend/real_host_preflight/windows_paths.py` | yes |
+| `backend/real_host_preflight/windows_projection.py` | yes |
 | `backend/migration_evidence/__init__.py` | yes |
 | `backend/migration_evidence/package.py` | yes |
 | `backend/migration_evidence/review.py` | yes |
@@ -225,6 +258,7 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 | `docs/operations/issue37_managed_runtime_localdata_rehearsal_task_brief.md` | yes |
 | `docs/operations/issue51_cutover_profile_authorization_receipt_task_brief.md` | yes |
 | `docs/operations/issue52_crash_safe_journal_recovery_task_brief.md` | yes |
+| `docs/operations/issue53_windows_real_host_preflight_task_brief.md` | yes |
 | `docs/operations/project_status_log.md` | yes |
 | `docs/operations/project_status_log_guide.md` | yes |
 | `docs/operations/agents_project_status_snippet.md` | yes |
@@ -283,6 +317,16 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 | `tests/test_cutover_journal_durability.py` | yes |
 | `tests/test_cutover_journal_record_contract.py` | yes |
 | `tests/test_cutover_journal_recovery.py` | yes |
+| `tests/real_host_preflight_fixtures.py` | yes |
+| `tests/test_real_host_preflight_architecture.py` | yes |
+| `tests/test_real_host_preflight_baseline.py` | yes |
+| `tests/test_real_host_preflight_composition.py` | yes |
+| `tests/test_real_host_preflight_gate.py` | yes |
+| `tests/test_real_host_preflight_leakage.py` | yes |
+| `tests/test_real_host_preflight_portable.py` | yes |
+| `tests/test_real_host_preflight_topology.py` | yes |
+| `tests/test_real_host_preflight_windows.py` | yes |
+| `tests/test_real_host_preflight_windows_composition.py` | yes |
 | `tests/support.py` | yes |
 | `tests/test_architecture_constraints.py` | yes |
 | `tests/test_current_evidence_handoff.py` | yes |
@@ -332,7 +376,7 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 
 | Status | Count |
 |---|---:|
-| active | 95 |
+| active | 96 |
 | draft | 25 |
 | deprecated | 4 |
 | missing_front_matter | 0 |
@@ -362,6 +406,7 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 - Issue #37 只证明 injected-adapter temporary synthetic activation rehearsal；不得把它当作真实 runtime、SQLite、artifact activation 或 cutover 授权。
 - Issue #51 只建立 pure content-free contracts；四种 real-host authorization 只能验证外部 canonical values，不能 create、issue 或 mint，且默认 operator entry 保持 BLOCKED。
 - Issue #52 只建立 pathless synthetic journal/recovery proof；pending/unbarriered record 不授权 effect，每次 owner claim 与 durable-intent permit 都是 exact synthetic capability，observed/pending/profile/identity/mapping fail closed，restart inspection 只读，且不得触碰真实 host 或 private capability。
+- Issue #53 只建立 test-sandbox-owned Windows read-only observation 与窄 callback composition；真实 operator entry 继续 BLOCKED，不得把 receipt、test authorization 或 readiness 当作 mutation/cutover authority。
 
 ## Notes for Agent
 

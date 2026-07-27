@@ -121,8 +121,10 @@ Issue #34 supplies no path input, real/default adapter, host probe, CLI,
 composition root, service hook, scheduler, mutation, or diagnostic output.
 The package may import only its own modules plus `dataclasses`, `enum`, and
 typing support. Normal runtime, cleanup, leakage scanning, browser/frontend,
-root wrappers, and workflows must not reference or invoke it. Real preflight or
-post-cutover adapter composition belongs to a separately approved later Issue.
+root wrappers, and workflows must not reference or invoke it. Issue #53 adds one
+exact external read-only composition bridge without changing this layer's
+policy or imports; a real final-layout pass remains separately authorized later
+work.
 
 The `Migration Evidence layer` is a separate offline manual boundary in
 `backend.migration_evidence`. Its only public operations prepare an exact review
@@ -142,12 +144,14 @@ and every payload. Package publication is a single external create-only commit;
 no target inside any selected worktree is valid.
 
 No backend service, browser/frontend, root wrapper, script, maintenance scan, or
-workflow may import or invoke this layer. The sole reviewed backend consumer is
-Issue #36's `backend.reparenting_rehearsal.evidence_bridge`, which is reachable
-only inside a self-created temporary synthetic scenario. The leakage scanner
-recognizes only the reserved package suffix so an accidental repository package
-fails; it is not a package creator or reader. Any real capture remains a manual
-two-step review/confirmation operation outside normal runtime.
+workflow may import or invoke this layer. Issue #36's
+`backend.reparenting_rehearsal.evidence_bridge` is reachable only inside a
+self-created temporary synthetic scenario and may call the reviewed package
+seams. Issue #53's exact `backend.real_host_preflight.baseline_bridge` may import
+only `HostBaseline`; it cannot call review, create, or verify. The leakage
+scanner recognizes only the reserved package suffix so an accidental repository
+package fails; it is not a package creator or reader. Any real capture remains a
+manual two-step review/confirmation operation outside normal runtime.
 
 The `Reparenting Rehearsal layer` in `backend.reparenting_rehearsal` is a
 synthetic-only deep module. Its single public operation accepts only the complete
@@ -237,10 +241,11 @@ The package imports only pure standard-library value helpers and its own
 modules. It cannot import or expose path/filesystem, process, SQLite, network,
 environment, Git, ACL, browser, mailbox, provider, vault, private-store,
 credential, authority-store, adapter, logging, scheduler, dynamic-import, or
-host-mutation capability. Its sole approved consumer is the exact
-`backend/cutover_journal/contracts_bridge.py`; no script, frontend, operator
-surface, or normal runtime consumes it. Consumer guards still reject every
-other static/dynamic import form.
+host-mutation capability. Its approved consumers are the exact
+`backend/cutover_journal/contracts_bridge.py` and
+`backend/real_host_preflight/contracts_bridge.py`; no script, frontend,
+executable operator surface, or normal runtime consumes it. Consumer guards
+still reject every other static/dynamic import form.
 
 The `Synthetic Cutover Journal layer` in `backend.cutover_journal` is the Issue
 #52 state-machine boundary. It owns strict canonical hash-chained records,
@@ -264,10 +269,67 @@ transition mapping are verified again by the action seam. A fresh resume
 authorization may renew `RESUME_BOUND` but cannot replace an observed outcome.
 Reverse intent is derived LIFO from verified `COMMITTED/APPLIED` history and
 uses the pre-bound recovery fingerprint. Unknown observation, identity drift,
-authorization mismatch, or chain corruption produces `INCIDENT_STOP`. Real
-preflight, evidence publication, filesystem durability, migration, cutover,
-resume, rollback, incident recovery, and host composition remain in separately
-approved Issues #53 through #59.
+authorization mismatch, or chain corruption produces `INCIDENT_STOP`. Issue #52
+itself executes no real preflight or host composition. Evidence publication,
+filesystem durability, migration, cutover, resume, rollback, and incident
+recovery remain separately approved later work.
+
+The `Real Host Preflight layer` in `backend.real_host_preflight` is the Issue
+#53 read-only composition boundary. Portable immutable values bind opened-handle
+volume identity, 128-bit file ID, object type, parent identity,
+normalized-name fingerprint, reparse metadata, completeness, and opaque
+content-free observations. The direct Windows reader is package-private and
+exists only behind a root-and-marker identity-bound, atomically single-use
+test-sandbox permit. It rejects paths outside the test-owned temporary root,
+opens every controlled component without following reparse points, requires
+controlled files to have exactly one NTFS link, and reopens and validates the
+exact root and marker for every observer operation while holding both handle
+chains through the target observation. It fails closed on aliases, missing or
+replaced markers, unexpected volume/filesystem state, unreadable objects,
+replacement, or identity drift. Scope and observer bindings live in a
+module-owned weak registry and cannot be reassigned through caller object
+state.
+
+`CurrentTopologyPreflight` requires two complete identical observations.
+`PreMutationGate` binds one fresh nonce, operation, prior observation, short
+validity, and single use while repeating exact source, target-parent,
+target-absence, reparse, Git, ACL, and volume checks.
+`RealHostBaselineCollector` keeps source-root, parent, finance, volume,
+operator-SID, and ACL observations separate before projecting the existing
+content-free `HostBaseline`. Callback evidence is accepted only after exact
+factory reconstruction. The four topology roles and the three baseline object
+roles must match the normalized-name projections stored in an independent
+canonical Profile snapshot created before any host callback. Nominal receipts
+have package-private producers, enforce an exact class-to-observation-kind
+binding, and atomically claim their module-owned state; a public
+`ReceiptEnvelopeV1` alone is not a receipt capability. Gate bindings and
+consumed state are likewise module-owned and cannot be reset by caller
+attribute mutation.
+
+Three exact bridges are the only prior-layer crossings:
+`audit_bridge -> backend.container_audit`,
+`baseline_bridge -> backend.migration_evidence.HostBaseline`, and
+`contracts_bridge -> backend.cutover_contracts`. The audit bridge supplies
+exactly seven caller-bound callbacks to the unchanged nine-zone policy.
+`FinalAuditCompositionReadyReceiptV1` proves only that the composition exists;
+it does not execute or claim a pre-cutover final-layout pass. Prepare and
+readiness revalidate every bound callback and require each composed adapter to
+remain the identical reader captured by the binding. Prepare stores a detached
+canonical audit-policy snapshot. Each audit run captures that policy, bindings,
+seven reader references, and both fingerprints once; it validates and consumes
+that same local capture while rebuilding fresh adapters before invoking any
+callback. Readiness uses the same capture rule and a canonical Profile snapshot.
+Caller or callback mutation cannot relax the policy or retarget the adapters
+supplied to an in-progress audit.
+
+No normal runtime, script, frontend, wrapper, cleanup, leakage scanner, or
+workflow consumes this layer. The zero-argument operator entry remains
+`BLOCKED_NO_APPROVED_COMMAND` and rejects test authorization. The layer has no
+service-control, ACL-apply, rename, worktree-mutation, Runtime-build,
+database-copy, artifact, Config, provider, mailbox, vault, private-data, or
+arbitrary command capability. Windows integration runs only in test-owned
+temporary sandboxes; Linux tests cover portable contracts only. Issues #54
+through #59 remain separate; Issues #38/#39 and parent Spec #50 are unchanged.
 
 ## 2. 允许依赖方向
 
@@ -289,11 +351,13 @@ normal runtime -> backend.current_evidence append-only contract
 future launcher -> backend.project_layout validated path values
 Managed launcher -> backend.email_agent.managed_runtime -> backend.project_layout/config
 reviewed private location policies -> backend.project_layout protected path value
-manual real external composition (future Issue only) -> backend.container_audit injected values
+Issue #53 exact read-only composition -> backend.container_audit injected values
 manual offline operator -> backend.migration_evidence review/create/verify
 backend.reparenting_rehearsal -> exact synthetic audit/evidence/layout bridges
 tests only -> backend.runtime_activation_rehearsal exact injected adapters
-tests only -> backend.cutover_contracts pure value seams
+tests plus exact #52/#53 bridges -> backend.cutover_contracts pure value seams
+tests -> backend.real_host_preflight test-owned Windows sandbox and portable seams
+backend.real_host_preflight -> exact audit/baseline/contracts bridges
 ```
 
 禁止反向依赖：
@@ -327,17 +391,20 @@ backend.reparenting_rehearsal public seam -> Path/repository/target/host capabil
 backend.migration_evidence -> mailbox/provider/SQLite/vault/private-store/lifecycle capability
 normal runtime/browser/scripts/wrappers/workflows/cleanup/leakage -> backend.runtime_activation_rehearsal
 backend.runtime_activation_rehearsal -> filesystem/SQLite/process/network/provider/mailbox/vault/private-store/credential/audit/evidence capability
-other backend packages/scripts/frontend -> backend.cutover_contracts
+all backend packages except exact #52/#53 bridges, plus scripts/frontend -> backend.cutover_contracts
 backend.cutover_contracts -> filesystem/SQLite/process/network/Git/ACL/provider/mailbox/vault/private-store/authority issuer
+normal runtime/browser/scripts/wrappers/workflows/cleanup/leakage -> backend.real_host_preflight
+backend.real_host_preflight -> service-control/ACL-apply/rename/Git-worktree mutation/Runtime-build/SQLite-copy/artifact/Config/provider/mailbox/vault/private-data capability
 ```
 
 `tests/test_cutover_contract_architecture.py` enforces the Cutover Contract
 layer's recursively exact package files and public surface, exact pure
 standard-library imports, sibling-only relative imports, forbidden
 host/ambient-authority loads and calls, package-wide absence of authorization
-minting or clocks, static/dynamic zero-consumer checks, and the zero-argument
-blocked operator entry. These guards must be updated only by a separately
-approved Issue that introduces the corresponding composition boundary.
+minting or clocks, the exact #52/#53 bridge consumers with every other
+static/dynamic consumer rejected, and the zero-argument blocked operator entry.
+Any further consumer or executable composition requires a separately approved
+Issue and a deliberate update to these exact guards.
 
 `backend/project_layout/` may import only its own modules plus the reviewed
 standard-library path/value modules. Placement validates identity twice and fails

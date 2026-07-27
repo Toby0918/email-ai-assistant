@@ -207,12 +207,14 @@ snapshots; it may not import `os`, `pathlib`, `subprocess`, `sqlite3`, `ctypes`,
 or any content reader or mutator. Adapter exceptions and malformed evidence are
 discarded without formatting and map to the same fixed failure result.
 
-Only Issue #36's exact `backend.reparenting_rehearsal.audit_bridge` composes
-callbacks, and only from metadata inside a self-created temporary synthetic
-sandbox. Normal runtime, cleanup, leakage scanning, browser/frontend, root
-wrappers, scripts, and workflows must not reference the package. Running a real
-Project Container or host-security audit still requires a later, separately
-approved composition Issue.
+The reviewed callback compositions are Issue #36's exact
+`backend.reparenting_rehearsal.audit_bridge`, using metadata inside a
+self-created temporary synthetic sandbox, and Issue #53's exact
+`backend.real_host_preflight.audit_bridge`, binding exactly seven caller-owned
+read-only callbacks. Issue #53 does not change the nine-zone policy, validation
+order, or pass/fail semantics. Normal runtime, cleanup, leakage scanning,
+browser/frontend, root wrappers, scripts, and workflows must not reference the
+package. No real Project Container or host-security audit has run.
 
 ### No-clobber migration evidence tooling boundary
 
@@ -253,11 +255,13 @@ opening it.
 
 Automated tests and Issue #36's exact `evidence_bridge` may call these seams only
 with temporary synthetic Git repositories and temporary external destinations.
-They must never use the real Repository Root as a create source, choose a real
-destination, stop a service, move a real repository/worktree, mutate ACLs, or
-access mailbox/provider/vault/private-store/credential data. A real preparation
-may produce the exact content-free review value only; create must stop until
-separate operator confirmation.
+Issue #53's exact `backend.real_host_preflight.baseline_bridge` may import only
+the content-free `HostBaseline` value; it cannot call review, create, or verify.
+These consumers must never use the real Repository Root as a create source,
+choose a real destination, stop a service, move a real repository/worktree,
+mutate ACLs, or access mailbox/provider/vault/private-store/credential data. A
+real preparation may produce the exact content-free review value only; create
+must stop until separate operator confirmation.
 
 ### Synthetic reparenting rehearsal tooling boundary
 
@@ -360,10 +364,11 @@ content-free evidence metadata and is never authorization. The zero-argument
 
 `tests/test_cutover_contract_architecture.py` pins the exact package files,
 public exports, standard-library import roots, forbidden imports/calls, absence
-of issuer/clock helpers, the sole exact
-`backend/cutover_journal/contracts_bridge.py` consumer, and the always-blocked
-default entry. A future real adapter, authority issuer, additional consumer,
-preflight, migration, cutover, or recovery command requires its own approved
+of issuer/clock helpers, the exact
+`backend/cutover_journal/contracts_bridge.py` and
+`backend/real_host_preflight/contracts_bridge.py` consumers, and the
+always-blocked default entry. Any additional adapter, authority issuer,
+consumer, migration, cutover, or recovery command requires its own approved
 Issue and a deliberate update to these exact guards.
 Issue #51 does not access a real Runtime, SQLite database, ACL, repository,
 worktree, mailbox, provider, vault, private store, credential, or private data.
@@ -403,6 +408,51 @@ mapping, transition mapping, and post-effect observation all fail closed.
 Tests and package guards must reject any filesystem, service, ACL,
 Git/worktree, Runtime, SQLite, provider, mailbox, vault, private-data, dynamic
 import, or normal-runtime surface.
+
+### Windows read-only real-host preflight tooling boundary
+
+Issue #53 adds `backend.real_host_preflight` without a new dependency, CLI,
+workflow, environment option, logger, scheduler, authority issuer, or production
+consumer. Its standard-library surface is limited to `contextlib`, `ctypes`,
+`dataclasses`, `enum`, `hashlib`, `json`, `pathlib`, `sys`, typing support, and
+UUID validation, plus `threading` and `weakref` only for module-owned atomic
+single-use receipt, gate, and test-sandbox registries. The direct Windows
+reader is not exported by the package. Tests can reach it only through the
+package-private root-and-marker identity-bound permit and an exact
+`TestSandboxAuthorizationV1`; the permit is consumed once and rejects any
+original or resolved target outside the test-owned temporary root.
+
+The native allowlist is read-only:
+`CreateFileW`, `GetFileInformationByHandleEx`, `GetFileType`,
+`GetFinalPathNameByHandleW`, `GetVolumeInformationByHandleW`, `GetDriveTypeW`,
+and `CloseHandle`. No file-write, move, delete, security-setting, service,
+process, command, or arbitrary native API is available. Controlled components
+are opened without following reparse points and are revalidated through opened
+handles. The existing `GetFileInformationByHandleEx` binding also reads
+`FileStandardInfo.NumberOfLinks`; a controlled file with any link count other
+than exactly one is rejected as an alias.
+
+Portable callbacks collect two complete topology snapshots, a short-lived
+single-use pre-mutation recheck, separate-role `HostBaseline` evidence, and the
+seven exact final-audit callbacks. Every callback value is reconstructed
+through its closed factory before use. Source, projects-parent, finance, and
+target-absence normalized-name fingerprints must match their exact
+`CutoverProfileV1.role_selections`. Nominal receipt and gate capabilities keep
+their trusted envelope, binding, and claim state in module-owned registries;
+public envelope construction cannot mint or reset those capabilities. The exact bridges may import only the
+reviewed Issue #34 audit values/functions, Issue #35 `HostBaseline`, and Issue
+#51 contract values. The existing ContainerAudit policy and migration-evidence
+review/create/verify seams remain unchanged.
+
+Public receipts and results expose only fixed status, opaque SHA-256
+fingerprints, and bounded counts. They contain no path, SID, SDDL, account, Git
+name/ref, command, native exception, or content. The zero-argument operator
+entry remains `BLOCKED_NO_APPROVED_COMMAND` and cannot accept test
+authorization. Windows behavior is exercised only in test-owned temporary
+sandboxes; Linux runs portable-contract tests only. The package owns no
+service-control, ACL-apply, rename, worktree-mutation, Runtime-build,
+database-copy, artifact, Config, provider, mailbox, vault, or private-data
+capability. Issues #54 through #59 remain separate.
 
 本地邮件分析 HTTP 服务沿用 Python 标准库 `ThreadingHTTPServer`，不得为 Host/Content-Type 门禁新增 HTTP 框架。服务 bind 只支持 `localhost` 或字面 IPv4 `127.0.0.0/8`；分析 POST 必须在读 body 前校验单一 loopback Host 和单一 JSON media type。
 

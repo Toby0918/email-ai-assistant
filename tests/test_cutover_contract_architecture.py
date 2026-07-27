@@ -109,13 +109,23 @@ PACKAGE_MODULES = {
     Path(name).stem
     for name in EXPECTED_FILES
 }
-ALLOWED_CONSUMER = "backend/cutover_journal/contracts_bridge.py"
-ALLOWED_CONSUMER_SYMBOLS = {
-    "AuthorizationValidationStatus",
-    "CutoverExecutionAuthorizationV1",
-    "CutoverProfileV1",
-    "RecoveryAuthorizationV1",
-    "validate_real_host_authorization",
+ALLOWED_CONSUMERS = {
+    "backend/cutover_journal/contracts_bridge.py": {
+        "AuthorizationValidationStatus",
+        "CutoverExecutionAuthorizationV1",
+        "CutoverProfileV1",
+        "RecoveryAuthorizationV1",
+        "validate_real_host_authorization",
+    },
+    "backend/real_host_preflight/contracts_bridge.py": {
+        "AuthorizationValidationStatus",
+        "CutoverProfileV1",
+        "RealPreflightAuthorizationV1",
+        "ReceiptEnvelopeV1",
+        "TestSandboxAuthorizationV1",
+        "default_operator_entry",
+        "validate_real_host_authorization",
+    },
 }
 
 
@@ -484,7 +494,7 @@ class CutoverContractArchitectureTests(unittest.TestCase):
                 violations[relative] = findings
         self.assertEqual(violations, {})
 
-    def test_only_exact_journal_bridge_consumes_the_package(self) -> None:
+    def test_only_exact_reviewed_bridges_consume_the_package(self) -> None:
         roots = (
             ROOT / "backend",
             ROOT / "scripts",
@@ -510,22 +520,24 @@ class CutoverContractArchitectureTests(unittest.TestCase):
                 )
                 if imports_contracts:
                     violations.append(path.relative_to(ROOT).as_posix())
-        self.assertEqual(violations, [ALLOWED_CONSUMER])
+        self.assertEqual(sorted(violations), sorted(ALLOWED_CONSUMERS))
 
-        bridge = ROOT / ALLOWED_CONSUMER
-        tree = ast.parse(bridge.read_text(encoding="utf-8"))
-        imports = [
-            node
-            for node in ast.walk(tree)
-            if isinstance(node, ast.ImportFrom)
-            and node.level == 0
-            and node.module == "backend.cutover_contracts"
-        ]
-        self.assertEqual(len(imports), 1)
-        self.assertEqual(
-            {alias.name for alias in imports[0].names},
-            ALLOWED_CONSUMER_SYMBOLS,
-        )
+        for relative, expected_symbols in ALLOWED_CONSUMERS.items():
+            bridge = ROOT / relative
+            tree = ast.parse(bridge.read_text(encoding="utf-8"))
+            imports = [
+                node
+                for node in ast.walk(tree)
+                if isinstance(node, ast.ImportFrom)
+                and node.level == 0
+                and node.module == "backend.cutover_contracts"
+            ]
+            with self.subTest(bridge=relative):
+                self.assertEqual(len(imports), 1)
+                self.assertEqual(
+                    {alias.name for alias in imports[0].names},
+                    expected_symbols,
+                )
 
     def test_backend_files_and_functions_remain_bounded(self) -> None:
         for path in _package_python_paths():

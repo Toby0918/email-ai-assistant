@@ -294,7 +294,8 @@ source_type: operation_guide
   against the AST guard.
 - Do not run a real host adapter, preflight, evidence publication, migration,
   cutover, resume, rollback or cleanup. Issue #52's synthetic-only package is the
-  exact sole contract consumer; Issues #53 through #59 remain separate.
+  first exact contract consumer; Issue #53 adds only its exact locked read-only
+  contracts bridge. Issues #54 through #59 remain separate.
 
 ## Synthetic crash-safe journal and recovery classification
 
@@ -340,12 +341,103 @@ source_type: operation_guide
   identical and return only status, phase, receipt fingerprint and allowlisted
   counts. Corrupt chain, unknown observation, broken identity mapping or unsafe
   ambiguity must be `INCIDENT_STOP`.
-- Architecture guards must pin exact files/exports/imports/signatures, the sole
-  Issue #51 bridge, zero other consumers, absence of paths/callbacks/host
-  capabilities, and 300-line file/50-line function bounds.
+- Architecture guards must pin exact files/exports/imports/signatures, the exact
+  Issue #52 and Issue #53 contract bridges, zero other consumers, absence of
+  paths/callbacks/host capabilities, and 300-line file/50-line function bounds.
 - All fixtures remain content-free and in-memory. Do not access or mutate a real
   filesystem target, service, ACL, Git repository/worktree, Runtime, SQLite,
   provider, mailbox, vault, private store, credential or private data.
+
+## Content-free Windows real-host preflight composition
+
+- Run
+  `python -B -m unittest tests.test_real_host_preflight_portable tests.test_real_host_preflight_topology tests.test_real_host_preflight_gate tests.test_real_host_preflight_baseline tests.test_real_host_preflight_composition tests.test_real_host_preflight_architecture tests.test_real_host_preflight_leakage`
+  on every supported platform. Run
+  `tests.test_real_host_preflight_windows` and
+  `tests.test_real_host_preflight_windows_composition` only on Windows and only
+  against caller-owned temporary sandboxes.
+- Verify portable observations are frozen, slotted and repr-redacted, bind
+  volume identity, exact 128-bit file ID, object type, parent identity,
+  normalized-name fingerprint, attributes and reparse metadata, and reject
+  wrong exact types, incomplete evidence, aliases, and identity drift. Linux
+  must not invoke native Windows observation or claim NTFS, Windows file-ID,
+  Windows ACL, or real-host evidence.
+- Build each Windows fixture beneath a fresh `TemporaryDirectory` and bind its
+  original/resolved root and exact child marker identities to one
+  package-private single-use permit and an exact in-memory
+  `TestSandboxAuthorizationV1`. Reject missing/replaced markers, wrong phases,
+  permit replay, absolute/parent-relative escape, authorization/scope
+  mismatch, hard-link alias/reparse components, unexpected filesystem/volume,
+  unreadable state, and outside-root targets before observation. For every
+  existing-object, absent-object, and volume observation, reopen and validate
+  the exact root and marker and hold both handle chains through the operation;
+  reject deletion or same-name replacement after scope creation. Never pass a
+  real repository, Project Container, finance
+  project, service, ACL, worktree, Runtime, database, artifact, Config,
+  credential, mailbox, provider, vault, or private-data target.
+- Observe the same opened object twice and prove the 128-bit file ID and volume
+  identity are stable. Between complete passes, separately inject source or
+  parent replacement, target appearance, reparse insertion, expected-volume
+  mismatch, Git drift and ACL drift; each case must fail closed and preserve an
+  independently observed outside/sentinel state.
+- Require `CurrentTopologyPreflight` to call every source, target-parent,
+  target-absence, reparse, Git, ACL, and volume reader in each of two complete
+  passes. Only exact equality, completeness, `content_observed=false`, expected
+  relationships and clear reparse state may produce an accepted
+  `CurrentTopologyPreflightReceiptV1`.
+  Reconstruct every callback value and require the exact source, parent,
+  finance, and target-absence normalized-name projections selected by the
+  independent canonical Profile snapshot captured before any host callback;
+  explicitly reject callback mutation of caller-owned Profile roles and an
+  existing approved target hidden by a missing decoy.
+- Require `PreMutationGate` to bind the accepted topology, one exact operation,
+  a fresh UUIDv4 nonce, a short half-open validity interval and one consumed
+  attempt. It must repeat source/parent/absence/reparse/Git/ACL/volume checks
+  and reject stale, replayed, different-nonce, retargeted, target-appearance,
+  replacement, or drifting evidence. A failed attempt is also consumed.
+  Bind a topology receipt to at most one gate under sequential and concurrent
+  attempts. Reject direct allocation, public-envelope wrapping, caller reset,
+  copying, deep copying, serialization, and exact-class retyping of
+  receipt/gate capabilities.
+- Exercise each `RealHostBaselineCollector` callback separately: source root,
+  projects parent, finance project, volume, operator SID, source ACL, parent
+  ACL and finance ACL. Assert exact call counts, role separation, deterministic
+  canonical aggregation, bounded exact ACL counts, complete evidence, and
+  `content_observed=false` before exact projection into the existing
+  repr-redacted `HostBaseline`.
+- Pass the exact seven read-only callbacks through
+  `backend.real_host_preflight.audit_bridge` to the existing
+  `ContainerAuditAdapters`. Diff review must show no change to the final
+  nine-zone policy. `FinalAuditCompositionReadyReceiptV1` must not call any
+  callback or `run_container_audit`, return an audit-pass result, or claim that
+  a final layout exists or passed. Tampered or replaced callback readers and
+  adapter/binding identity mismatches must fail before readiness. Prepare must
+  capture a detached canonical policy; run must snapshot that policy again and
+  rebuild adapters from the seven captured readers before callbacks. A
+  malicious callback that relaxes caller-owned or stored clean-worktree policy
+  must not change the unchanged audit result. Deterministically pause after
+  validation and replace the composition policy or reader tuple; run and
+  readiness must continue using only the single validated local capture.
+- Assert the real operator entry accepts no path, callback, command, adapter, or
+  test authorization and always returns `BLOCKED_NO_APPROVED_COMMAND`,
+  `blocked=1`, and `executed=0`. No helper may create, issue, mint, sign, renew,
+  or store real-host authorization.
+- Inject hostile raw path, SID, SDDL, account, Git name/ref, file ID, command,
+  callback-exception and native-error tokens. Recursively inspect receipt
+  mappings/canonical bytes, fixed results, `repr`, stdout, stderr, and captured
+  logs; none may contain a hostile value or an open diagnostic field.
+- Run exact package/public/import/cross-package consumer guards. Only
+  `audit_bridge.py`, `baseline_bridge.py`, and `contracts_bridge.py` may cross
+  into ContainerAudit, migration-evidence, and cutover-contract packages.
+  Reject service-control, ACL apply, rename/move/delete, repository/worktree
+  mutation, Runtime build, database copy, artifact/Config publication,
+  provider, mailbox, vault, private-store/private-data, evidence-publication,
+  migration, cutover, recovery, cleanup, scheduler, network, arbitrary command,
+  and normal-runtime/script/frontend/workflow capabilities.
+- Run affected ContainerAudit, migration-evidence, cutover-contract,
+  architecture/static/mechanical/documentation/leakage tests, then the full
+  unit suite and read-only maintenance scan. Green tests prove only locked
+  composition and sandbox behavior; Issues #54 through #59 remain separate.
 
 ## Option C 多模态离线门
 
