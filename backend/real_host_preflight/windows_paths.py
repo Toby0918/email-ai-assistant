@@ -8,10 +8,14 @@ _RESERVED_DEVICE_NAMES = frozenset(
         "aux",
         "clock$",
         "con",
+        "conin$",
+        "conout$",
         "nul",
         "prn",
-        *(f"com{index}" for index in range(1, 10)),
-        *(f"lpt{index}" for index in range(1, 10)),
+        *(f"com{index}" for index in range(10)),
+        *(f"lpt{index}" for index in range(10)),
+        *(f"com{index}" for index in ("¹", "²", "³")),
+        *(f"lpt{index}" for index in ("¹", "²", "³")),
     }
 )
 _FORBIDDEN_NAME_CHARACTERS = frozenset('<>:"/\\|?*')

@@ -355,15 +355,20 @@ Issue #53 adds the internal `backend.real_host_preflight` read-only composition
 boundary. Windows object observations use opened handles and bind volume
 identity, 128-bit file ID, object type, parent identity, normalized-name
 fingerprint, and reparse metadata. Every controlled component is opened without
-following reparse points; aliases, unexpected volume/filesystem state,
-unreadable objects, replacement, and identity drift fail closed.
+following reparse points. Windows tests require a package-private root/marker
+identity-bound single-use permit, and controlled files require exactly one
+link; aliases, unexpected volume/filesystem state, unreadable objects,
+replacement, and identity drift fail closed.
 
 `CurrentTopologyPreflight` requires two complete identical observations.
 `PreMutationGate` is short-lived, nonce-bound, one-operation, single-use, and
 repeats exact source, target-parent, target-absence, reparse, Git, ACL, and
 volume checks. `RealHostBaselineCollector` keeps source-root, parent, finance,
 volume, operator-SID, and ACL evidence separate while projecting only a
-content-free `HostBaseline`.
+content-free `HostBaseline`. Every callback value is factory-reconstructed,
+and source/parent/finance/target names bind to exact Profile role selections.
+Nominal receipt/gate claims use module-owned atomic state and cannot be minted
+from a public envelope or reset through caller attributes.
 
 The exact #53 audit bridge composes seven caller-bound callbacks into the
 unchanged nine-zone `ContainerAudit`.

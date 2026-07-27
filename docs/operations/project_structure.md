@@ -73,9 +73,11 @@ email-ai-assistant/
       contracts_bridge.py
       errors.py
       evidence.py
+      integrity.py
       mutation_gate.py
       operator_entry.py
       receipts.py
+      sandbox_state.py
       sandbox_validation.py
       topology.py
       topology_evidence.py
@@ -323,14 +325,19 @@ email-ai-assistant/
   identity, normalized-name fingerprint and reparse metadata；
   `CurrentTopologyPreflight` requires two complete identical observations；
   `PreMutationGate` is fresh UUIDv4-nonce-bound, short-lived,
-  operation-bound and single-use；`RealHostBaselineCollector` keeps source,
+  operation-bound and single-use；all callback evidence is factory-reconstructed
+  and source/parent/finance/target names bind to exact Profile roles；
+  `RealHostBaselineCollector` keeps source,
   parent, finance, volume, operator-SID and ACL evidence separate before
   canonical projection。Only `audit_bridge.py`, `baseline_bridge.py`, and
   `contracts_bridge.py` may consume the unchanged ContainerAudit,
   `HostBaseline`, and locked cutover contracts. Final-audit readiness proves
   composability of the unchanged nine-zone policy and exact seven callbacks
   without running an audit or claiming a pass。Windows behavior runs only in
-  caller-owned temporary sandboxes; Linux runs portable contracts only。The
+  caller-owned temporary sandboxes through a package-private root/marker
+  identity-bound single-use permit; controlled files require exactly one link。
+  Receipt, gate, scope and observer trusted state is module-owned; Linux runs
+  portable contracts only。The
   operator entry remains `BLOCKED_NO_APPROVED_COMMAND` and the package has no
   service-control、ACL-apply、rename、worktree mutation、Runtime build、
   database copy、artifact、Config、provider、mailbox、vault、private-data or

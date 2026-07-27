@@ -332,20 +332,28 @@ No real operation was executed.
 Windows object observations use opened handles and bind volume identity,
 128-bit file ID, object type, parent identity, normalized-name fingerprint, and
 reparse metadata. Every controlled component is opened without following
-reparse points; aliases, unexpected volume/filesystem state, unreadable
-objects, replacement, and identity drift fail closed.
+reparse points. The Windows test seam is package-private, requires a
+root/marker identity-bound atomically single-use permit, and rejects controlled
+files unless opened-handle metadata reports exactly one link. Aliases,
+unexpected volume/filesystem state, unreadable objects, replacement, and
+identity drift fail closed.
 
 `CurrentTopologyPreflight` accepts only two complete identical observations.
 `PreMutationGate` is short-lived, nonce-bound, one-operation, single-use, and
 repeats exact source, target-parent, target-absence, reparse, Git, ACL, and
 volume checks. `RealHostBaselineCollector` keeps source-root, parent, finance,
 volume, operator-SID, and ACL evidence separate while projecting only the
-canonical content-free `HostBaseline` value.
+canonical content-free `HostBaseline` value. Every callback value is rebuilt
+through its exact factory, and source/parent/finance/target normalized-name
+fingerprints must match the corresponding immutable Profile role selections.
+Nominal topology receipts are atomically single-claim; receipt and gate trusted
+state is module-owned rather than caller-resettable.
 
 The exact audit bridge binds seven caller-owned read-only callbacks to the
 unchanged nine-zone `ContainerAudit`.
 `FinalAuditCompositionReadyReceiptV1` proves only that this composition is
-available; it never claims that a pre-cutover final layout passed. The native
+available; it revalidates the seven binding/reader identities and never claims
+that a pre-cutover final layout passed. The native
 Windows observer is exercised only beneath a test-owned temporary sandbox, and
 Linux tests validate portable contracts without claiming NTFS, Windows file-ID,
 or Windows ACL evidence.

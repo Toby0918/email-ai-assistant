@@ -7,7 +7,10 @@ from .callbacks import CurrentTopologyCallbacks
 from .canonical import fingerprint, is_fingerprint
 from .collection import collect_current_topology
 from .contracts_bridge import CutoverProfileV1, ReceiptEnvelopeV1
-from .receipts import CurrentTopologyPreflightReceiptV1
+from .receipts import (
+    CurrentTopologyPreflightReceiptV1,
+    _mint_current_topology_receipt,
+)
 
 
 _RECEIPT_LIFETIME_SECONDS = 60
@@ -38,8 +41,8 @@ def run_current_topology_preflight(
         or not is_fingerprint(policy_fingerprint)
     ):
         raise ValueError("REAL_HOST_TOPOLOGY_REJECTED")
-    first = collect_current_topology(callbacks)
-    second = collect_current_topology(callbacks)
+    first = collect_current_topology(callbacks, profile=profile)
+    second = collect_current_topology(callbacks, profile=profile)
     if second != first:
         raise ValueError("REAL_HOST_TOPOLOGY_REJECTED")
     repeated = fingerprint(
@@ -59,7 +62,7 @@ def run_current_topology_preflight(
         observed_at_epoch=observed_at_epoch,
         expires_at_epoch=expires_at,
     )
-    return CurrentTopologyPreflightReceiptV1.from_envelope(envelope)
+    return _mint_current_topology_receipt(envelope)
 
 
 def _create_receipt(

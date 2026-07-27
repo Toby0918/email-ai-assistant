@@ -377,7 +377,7 @@ Not applicable。Mailbox sync and current-click evidence remain unchanged。
 
 ```text
 实际修改文件:
-- `backend/real_host_preflight/` 的 26 个 exact flat modules。
+- `backend/real_host_preflight/` 的 28 个 exact flat modules。
 - `tests/real_host_preflight_fixtures.py` 和 9 个
   `tests/test_real_host_preflight_*.py` modules。
 - `tests/test_architecture_constraints.py` 与
@@ -395,13 +395,15 @@ Not applicable。Mailbox sync and current-click evidence remain unchanged。
 - TDD 从 portable observations、Windows handle observation、two-pass
   topology、fresh gate、baseline、composition、operator lock、architecture
   和 leakage 逐层记录 RED/GREEN；review hardening 另记录了 canonical ACL
-  count、distinct topology identities 和 non-resettable gate 的 RED/GREEN。
-- Focused Issue #53: 37 tests，`OK`。
-- Affected architecture/static/mechanical/status/transport/leakage/
-  maintenance guards: 153 tests，`OK`。
-- Existing ContainerAudit、migration-evidence and Issue #51 contracts:
-  100 tests，`OK (skipped=1)`。
-- Full `python -B -m unittest discover -s tests`: 2058 tests，
+  count、distinct topology identities、attribute/reparse consistency、
+  exact evidence reconstruction、Profile role binding、receipt single-claim、
+  module-owned gate state、root/marker permit、hard-link alias rejection 和
+  final-audit reader identity 的 RED/GREEN。
+- Focused Issue #53: 52 tests，`OK`。
+- Affected ContainerAudit、migration-evidence、Issue #51 contracts、
+  architecture/static/mechanical/status/transport/leakage/maintenance:
+  253 tests，`OK (skipped=1)`。
+- Full `python -B -m unittest discover -s tests`: 2073 tests，
   `OK (skipped=3)` with Python 3.12.13。
 - `python -B -m compileall -q backend scripts tests`: exit 0。
 - All frontend JavaScript files pass `node --check`; browser-extension
@@ -409,8 +411,18 @@ Not applicable。Mailbox sync and current-click evidence remain unchanged。
 - Repository leakage scan: exit 0。Maintenance scan:
   `No cleanup findings detected.`。
 - `git diff --check`: exit 0，only expected line-ending conversion warnings。
-- Standards/Spec review and ready-for-review PR CI remain pending at this
-  checkpoint。
+- Initial Standards/Spec and adversarial review P1/P2 findings were repaired
+  with regression tests；formal re-review and ready-for-review PR CI remain
+  pending at this checkpoint。
+
+P3 records（本 Issue 不扩围）:
+- Freshness still consumes a caller-supplied epoch；future Issue #39 must bind
+  that input to its separately approved trusted clock seam。
+- The baseline operator-SID fingerprint remains a separate observation from
+  the Profile operator fingerprint；a future ticket must explicitly define a
+  same-source relation before relying on one。
+- The three closed receipt builders/views retain some duplicated schema
+  structure；deduplication is deferred because it is not required by #53。
 
 未完成事项:
 - No local Issue #53 implementation or automated acceptance item remains。

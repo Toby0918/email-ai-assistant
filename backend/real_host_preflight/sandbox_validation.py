@@ -7,6 +7,9 @@ from .errors import RealHostPreflightError
 from .windows_paths import is_absolute_local_path
 
 
+_SANDBOX_PHASE = "current_topology_preflight"
+
+
 def validate_sandbox_authorization(
     authorization: object,
     observed_at_epoch: object,
@@ -25,6 +28,8 @@ def validate_sandbox_authorization(
     except Exception:
         _fail("sandbox_authorization_invalid")
     if rebuilt != authorization:
+        _fail("sandbox_authorization_invalid")
+    if authorization.phase != _SANDBOX_PHASE:
         _fail("sandbox_authorization_invalid")
     if observed_at_epoch >= authorization.expires_at_epoch:
         _fail("sandbox_authorization_expired")

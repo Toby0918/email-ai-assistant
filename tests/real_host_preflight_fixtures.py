@@ -18,6 +18,10 @@ from backend.real_host_preflight import (
     OpaqueHostCheckV1,
     VolumeObservationV1,
 )
+from backend.real_host_preflight.canonical import (
+    is_fingerprint,
+    role_selection_fingerprint,
+)
 from tests.cutover_contract_fixtures import (
     opaque_fingerprint,
     valid_profile_body,
@@ -29,9 +33,53 @@ OBSERVED_AT = 1_800_000_100
 
 
 def valid_profile() -> CutoverProfileV1:
+    return profile_for_role_names(
+        source_root=opaque_fingerprint(322),
+        target_parent=opaque_fingerprint(321),
+        finance_root=opaque_fingerprint(323),
+        target_absence=opaque_fingerprint(404),
+    )
+
+
+def profile_for_role_names(
+    *,
+    source_root: object,
+    target_parent: object,
+    finance_root: object,
+    target_absence: object,
+) -> CutoverProfileV1:
+    names = {
+        "source_root": _normalized_name(source_root),
+        "target_parent": _normalized_name(target_parent),
+        "finance_root": _normalized_name(finance_root),
+        "target_absence": _normalized_name(target_absence),
+    }
     body = valid_profile_body()
     body["governing_master_commit"] = GOVERNING_MASTER
+    role_selections = body["role_selections"]
+    profile_roles = {
+        "source_root": "repository_root",
+        "target_parent": "projects_parent",
+        "finance_root": "finance_project",
+        "target_absence": "project_container",
+    }
+    for role, profile_role in profile_roles.items():
+        role_selections[profile_role] = role_selection_fingerprint(
+            role,
+            names[role],
+        )
     return CutoverProfileV1.create(body)
+
+
+def _normalized_name(value: object) -> str:
+    if is_fingerprint(value):
+        return value
+    if type(value) in (
+        HostObjectObservationV1,
+        MissingHostObjectObservationV1,
+    ) and is_fingerprint(value.normalized_name_fingerprint):
+        return value.normalized_name_fingerprint
+    raise ValueError("synthetic normalized name fingerprint required")
 
 
 def sandbox_authorization(
@@ -107,20 +155,24 @@ def topology_observation() -> CurrentTopologyObservationV1:
     )
 
 
-def topology_callbacks(calls: list[str]) -> CurrentTopologyCallbacks:
-    components = topology_components()
+def topology_callbacks(
+    calls: list[str],
+    *,
+    components: dict[str, object] | None = None,
+) -> CurrentTopologyCallbacks:
+    selected = components or topology_components()
     return CurrentTopologyCallbacks(
         source_root=OrderedReader(
-            "source_root", components["source_root"], calls
+            "source_root", selected["source_root"], calls
         ),
         target_parent=OrderedReader(
-            "target_parent", components["target_parent"], calls
+            "target_parent", selected["target_parent"], calls
         ),
         finance_root=OrderedReader(
-            "finance_root", components["finance_root"], calls
+            "finance_root", selected["finance_root"], calls
         ),
         target_absence=OrderedReader(
-            "target_absence", components["target_absence"], calls
+            "target_absence", selected["target_absence"], calls
         ),
         git=OrderedReader(
             "git",

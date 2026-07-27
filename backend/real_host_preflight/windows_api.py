@@ -27,6 +27,7 @@ _FILE_NAME_NORMALIZED_DOS = 0
 _FILE_NAME_BUFFER_START = 512
 _FILE_NAME_BUFFER_LIMIT = 32_768
 _FILESYSTEM_NAME_BUFFER = 261
+_FILE_STANDARD_INFO_CLASS = 1
 _FILE_ATTRIBUTE_TAG_INFO_CLASS = 9
 _FILE_ID_INFO_CLASS = 0x12
 _INVALID_HANDLE_VALUE = ctypes.c_void_p(-1).value
@@ -50,6 +51,16 @@ class _FileAttributeTagInfo(ctypes.Structure):
     ]
 
 
+class _FileStandardInfo(ctypes.Structure):
+    _fields_ = [
+        ("allocation_size", ctypes.c_int64),
+        ("end_of_file", ctypes.c_int64),
+        ("number_of_links", ctypes.c_uint32),
+        ("delete_pending", ctypes.c_ubyte),
+        ("directory", ctypes.c_ubyte),
+    ]
+
+
 @dataclass(frozen=True, slots=True, repr=False)
 class _NativeObservation:
     volume_serial_number: int
@@ -60,6 +71,7 @@ class _NativeObservation:
     filesystem_name: str
     drive_type: str
     file_type: int
+    number_of_links: int
 
 
 class _WindowsApiFailure(Exception):
@@ -99,6 +111,7 @@ class _WindowsApi:
         file_type = self._file_type(handle)
         attributes = self._attribute_tag(handle)
         identity = self._file_id(handle)
+        standard = self._standard_info(handle)
         normalized_path = self._final_path(handle)
         return _NativeObservation(
             volume_serial_number=identity.volume_serial_number,
@@ -113,6 +126,7 @@ class _WindowsApi:
             filesystem_name=self._filesystem_name(handle),
             drive_type=self._drive_type(normalized_path),
             file_type=file_type,
+            number_of_links=standard.number_of_links,
         )
 
     def close(self, handle: int) -> None:
@@ -144,6 +158,17 @@ class _WindowsApi:
         if not self._kernel.GetFileInformationByHandleEx(
             handle,
             _FILE_ID_INFO_CLASS,
+            ctypes.byref(value),
+            ctypes.sizeof(value),
+        ):
+            _raise_last_error()
+        return value
+
+    def _standard_info(self, handle: int) -> _FileStandardInfo:
+        value = _FileStandardInfo()
+        if not self._kernel.GetFileInformationByHandleEx(
+            handle,
+            _FILE_STANDARD_INFO_CLASS,
             ctypes.byref(value),
             ctypes.sizeof(value),
         ):

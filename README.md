@@ -343,6 +343,8 @@ Issue #53 adds `backend/real_host_preflight/`, an internal read-only Windows
 composition boundary. Opened-handle observations bind volume identity, 128-bit
 file ID, object type, parent identity, normalized-name fingerprint, and reparse
 metadata; every controlled component is opened without following reparse points.
+The package-private Windows test seam also requires a root/marker
+identity-bound single-use permit and exactly one link for each controlled file.
 Aliases, unexpected volume/filesystem state, unreadable objects, replacement,
 or identity drift fail closed.
 
@@ -351,7 +353,10 @@ or identity drift fail closed.
 repeats exact source, target-parent, target-absence, reparse, Git, ACL, and
 volume checks. `RealHostBaselineCollector` preserves separate source-root,
 parent, finance, volume, operator-SID, and ACL evidence while projecting only a
-content-free `HostBaseline`.
+content-free `HostBaseline`. Callback evidence is reconstructed before use,
+and source/parent/finance/target normalized names bind to exact Profile role
+selections. Receipt and gate claims use module-owned atomic state and cannot be
+minted from a public envelope or reset through caller attributes.
 
 The exact #53 bridge composes seven caller-bound read-only callbacks into the
 unchanged nine-zone `ContainerAudit`.

@@ -11,6 +11,8 @@ from backend.real_host_preflight import (
     OperatorSidObservationV1,
     RealHostBaselineCallbacks,
     RealHostBaselineCollector,
+    HostObjectKind,
+    HostObjectObservationV1,
     VolumeObservationV1,
 )
 from tests.cutover_contract_fixtures import opaque_fingerprint
@@ -18,6 +20,7 @@ from tests.real_host_preflight_fixtures import (
     OBSERVED_AT,
     OrderedReader,
     object_observation,
+    profile_for_role_names,
     sandbox_authorization,
     valid_profile,
 )
@@ -173,6 +176,85 @@ class RealHostBaselineCollectorTests(unittest.TestCase):
                 observed_at_epoch=OBSERVED_AT,
             )
 
+    def test_rejects_file_or_reparse_role_observations(self) -> None:
+        profile = valid_profile()
+        operation = opaque_fingerprint(201)
+        parent = object_observation(
+            1,
+            parent_identity_fingerprint=opaque_fingerprint(401),
+        )
+        invalid_sources = (
+            HostObjectObservationV1.create(
+                volume_fingerprint=opaque_fingerprint(301),
+                file_id_128=f"{2:032x}",
+                object_kind=HostObjectKind.FILE,
+                parent_identity_fingerprint=(
+                    parent.object_identity_fingerprint
+                ),
+                normalized_name_fingerprint=opaque_fingerprint(322),
+                filesystem_name="NTFS",
+                file_attributes=0,
+                reparse_tag=0,
+                has_reparse_point=False,
+            ),
+            HostObjectObservationV1.create(
+                volume_fingerprint=opaque_fingerprint(301),
+                file_id_128=f"{2:032x}",
+                object_kind=HostObjectKind.DIRECTORY,
+                parent_identity_fingerprint=(
+                    parent.object_identity_fingerprint
+                ),
+                normalized_name_fingerprint=opaque_fingerprint(322),
+                filesystem_name="NTFS",
+                file_attributes=16 | 1024,
+                reparse_tag=0xA0000003,
+                has_reparse_point=True,
+            ),
+        )
+
+        for source in invalid_sources:
+            with self.subTest(kind=source.object_kind):
+                callbacks = _baseline_callbacks(parent, source)
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "^REAL_HOST_BASELINE_REJECTED$",
+                ):
+                    RealHostBaselineCollector(callbacks).collect(
+                        profile=profile,
+                        authorization=sandbox_authorization(
+                            profile,
+                            phase="host_baseline",
+                            operation_fingerprint=operation,
+                        ),
+                        operation_fingerprint=operation,
+                        observed_at_epoch=OBSERVED_AT,
+                    )
+
+    def test_rejects_profile_role_mismatch_and_tampered_sid(self) -> None:
+        operation = opaque_fingerprint(201)
+        parent = object_observation(
+            1,
+            parent_identity_fingerprint=opaque_fingerprint(401),
+        )
+        source = object_observation(
+            2,
+            parent_identity_fingerprint=parent.object_identity_fingerprint,
+        )
+        callbacks = _baseline_callbacks(parent, source)
+        mismatched = profile_for_role_names(
+            source_root=opaque_fingerprint(999),
+            target_parent=opaque_fingerprint(321),
+            finance_root=opaque_fingerprint(323),
+            target_absence=opaque_fingerprint(404),
+        )
+        _assert_baseline_rejected(self, callbacks, mismatched, operation)
+
+        profile = valid_profile()
+        sid = callbacks.operator_sid()
+        object.__setattr__(sid, "complete", False)
+        object.__setattr__(callbacks, "operator_sid", lambda: sid)
+        _assert_baseline_rejected(self, callbacks, profile, operation)
+
 
 def _acl(
     role: BaselineAclRole,
@@ -189,6 +271,61 @@ def _acl(
         entry_count=count,
         complete=True,
         content_observed=False,
+    )
+
+
+def _assert_baseline_rejected(
+    case: unittest.TestCase,
+    callbacks: RealHostBaselineCallbacks,
+    profile: object,
+    operation: str,
+) -> None:
+    with case.assertRaisesRegex(
+        ValueError,
+        "^REAL_HOST_BASELINE_REJECTED$",
+    ):
+        RealHostBaselineCollector(callbacks).collect(
+            profile=profile,
+            authorization=sandbox_authorization(
+                profile,
+                phase="host_baseline",
+                operation_fingerprint=operation,
+            ),
+            operation_fingerprint=operation,
+            observed_at_epoch=OBSERVED_AT,
+        )
+
+
+def _baseline_callbacks(
+    parent: HostObjectObservationV1,
+    source: HostObjectObservationV1,
+) -> RealHostBaselineCallbacks:
+    finance = object_observation(
+        3,
+        parent_identity_fingerprint=parent.object_identity_fingerprint,
+    )
+    return RealHostBaselineCallbacks(
+        source_root=lambda: source,
+        parent=lambda: parent,
+        finance=lambda: finance,
+        volume=lambda: VolumeObservationV1.create(
+            volume_fingerprint=opaque_fingerprint(301),
+            filesystem_name="NTFS",
+            drive_type="fixed",
+            complete=True,
+        ),
+        operator_sid=lambda: OperatorSidObservationV1.create(
+            sid_fingerprint=opaque_fingerprint(501),
+            complete=True,
+            content_observed=False,
+        ),
+        source_acl=lambda: _acl(
+            BaselineAclRole.SOURCE_ROOT, source, 2, 502
+        ),
+        parent_acl=lambda: _acl(BaselineAclRole.PARENT, parent, 3, 503),
+        finance_acl=lambda: _acl(
+            BaselineAclRole.FINANCE, finance, 4, 504
+        ),
     )
 
 

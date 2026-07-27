@@ -11,6 +11,8 @@ from enum import Enum
 _FINGERPRINT_LENGTH = 64
 _FILE_ID_LENGTH = 32
 _DWORD_MAX = (1 << 32) - 1
+_FILE_ATTRIBUTE_DIRECTORY = 0x10
+_FILE_ATTRIBUTE_REPARSE_POINT = 0x400
 
 
 class HostObjectKind(str, Enum):
@@ -156,6 +158,29 @@ def _validate_object_inputs(
         or type(filesystem) is not str
         or filesystem != "NTFS"
         or type(has_reparse) is not bool
+    ):
+        raise ValueError("REAL_HOST_OBSERVATION_INVALID")
+    _validate_attribute_relationships(
+        kind,
+        attributes,
+        reparse_tag,
+        has_reparse,
+    )
+
+
+def _validate_attribute_relationships(
+    kind: HostObjectKind,
+    attributes: int,
+    reparse_tag: int,
+    has_reparse: bool,
+) -> None:
+    directory_bit = bool(attributes & _FILE_ATTRIBUTE_DIRECTORY)
+    reparse_bit = bool(attributes & _FILE_ATTRIBUTE_REPARSE_POINT)
+    if (
+        directory_bit != (kind is HostObjectKind.DIRECTORY)
+        or reparse_bit != has_reparse
+        or (has_reparse and reparse_tag == 0)
+        or (not has_reparse and reparse_tag != 0)
     ):
         raise ValueError("REAL_HOST_OBSERVATION_INVALID")
 

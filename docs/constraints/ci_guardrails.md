@@ -89,20 +89,27 @@ observation/path/command/exception，或任一 forward/reverse/durability crash 
 
 CI must reject any Issue #53 change when:
 
-- Windows observation runs outside a test-owned `TemporaryDirectory`, accepts
-  an absolute or parent-relative escape, follows an alias/reparse component, or
-  accepts unexpected volume/filesystem, unreadable, incomplete, or drifting
-  identity evidence;
+- Windows observation runs outside a test-owned `TemporaryDirectory`, lacks an
+  exact root/marker identity-bound single-use permit, accepts a wrong
+  authorization phase or permit replay, accepts an absolute or parent-relative
+  escape, follows a hard-link alias/reparse component, or accepts unexpected
+  volume/filesystem, unreadable, incomplete, or drifting identity evidence;
 - `CurrentTopologyPreflight` does not perform two complete identical passes, or
-  `PreMutationGate` is not bound to a fresh UUIDv4 nonce, exact operation,
-  prior topology, short validity, single use, and repeated source,
+  accepts callback evidence that fails exact factory reconstruction or Profile
+  role-selection binding, or `PreMutationGate` is not bound to a fresh UUIDv4
+  nonce, exact operation, atomically single-claimed prior topology, short
+  validity, single use, and repeated source,
   target-parent, target-absence, reparse, Git, ACL, and volume checks;
 - `RealHostBaselineCollector` merges or substitutes source, parent, finance,
   volume, operator-SID, or ACL evidence, exposes a raw value, or produces a
   non-canonical/incomplete/content-observed `HostBaseline`;
 - final-audit readiness invokes the current pre-cutover `ContainerAudit`,
   claims a final-layout pass, changes the final nine-zone policy, or binds
-  anything other than the exact seven read-only callbacks;
+  anything other than the exact seven intact read-only callbacks and their
+  identical composed adapter readers;
+- a public canonical envelope, direct allocation, attribute mutation, copy,
+  serialization, or concurrent replay can mint, replace, or reset a nominal
+  receipt or gate capability;
 - the operator entry accepts test authorization, path, callback, command, or
   executable capability, or returns anything other than
   `BLOCKED_NO_APPROVED_COMMAND`, `blocked=1`, and `executed=0`;

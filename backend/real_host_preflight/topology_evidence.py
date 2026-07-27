@@ -10,6 +10,7 @@ from .contracts import (
     HostObjectObservationV1,
     MissingHostObjectObservationV1,
 )
+from .integrity import valid_host_object, valid_missing_host_object
 
 
 @dataclass(frozen=True, slots=True, init=False, repr=False)
@@ -177,10 +178,10 @@ def _require_relationships(
     volume_fingerprint: object,
 ) -> None:
     if (
-        type(source) is not HostObjectObservationV1
-        or type(finance) is not HostObjectObservationV1
-        or type(parent) is not HostObjectObservationV1
-        or type(absence) is not MissingHostObjectObservationV1
+        not valid_host_object(source)
+        or not valid_host_object(finance)
+        or not valid_host_object(parent)
+        or not valid_missing_host_object(absence)
         or any(
             item.object_kind is not HostObjectKind.DIRECTORY
             or item.has_reparse_point

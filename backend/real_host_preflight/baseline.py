@@ -12,10 +12,16 @@ from .baseline_evidence import (
     OperatorSidObservationV1,
     RealHostBaselineCallbacks,
 )
-from .canonical import fingerprint
-from .contracts import HostObjectObservationV1
+from .canonical import fingerprint, role_selections_match
+from .contracts import HostObjectKind, HostObjectObservationV1
 from .contracts_bridge import CutoverProfileV1
 from .evidence import VolumeObservationV1
+from .integrity import (
+    valid_acl_baseline,
+    valid_host_object,
+    valid_operator_sid,
+    valid_volume,
+)
 
 
 @dataclass(frozen=True, slots=True, repr=False)
@@ -41,7 +47,10 @@ class RealHostBaselineCollector:
                 observed_at_epoch=observed_at_epoch,
             )
             values = self._collect_values()
-            _validate_baseline_relationships(*values)
+            _validate_baseline_relationships(
+                *values,
+                profile.to_mapping(),
+            )
             return _project_baseline(*values)
         except Exception:
             raise ValueError("REAL_HOST_BASELINE_REJECTED") from None
@@ -81,13 +90,19 @@ def _validate_baseline_relationships(
     source_acl: object,
     parent_acl: object,
     finance_acl: object,
+    profile_mapping: object,
 ) -> None:
     if (
-        type(source) is not HostObjectObservationV1
-        or type(parent) is not HostObjectObservationV1
-        or type(finance) is not HostObjectObservationV1
-        or type(volume) is not VolumeObservationV1
-        or type(operator_sid) is not OperatorSidObservationV1
+        not valid_host_object(source)
+        or not valid_host_object(parent)
+        or not valid_host_object(finance)
+        or not valid_volume(volume)
+        or not valid_operator_sid(operator_sid)
+        or any(
+            item.object_kind is not HostObjectKind.DIRECTORY
+            or item.has_reparse_point
+            for item in (source, parent, finance)
+        )
         or not _valid_acl(source_acl, BaselineAclRole.SOURCE_ROOT, source)
         or not _valid_acl(parent_acl, BaselineAclRole.PARENT, parent)
         or not _valid_acl(finance_acl, BaselineAclRole.FINANCE, finance)
@@ -108,8 +123,27 @@ def _validate_baseline_relationships(
             item.volume_fingerprint != volume.volume_fingerprint
             for item in (source, parent, finance)
         )
+        or not _baseline_roles_match(
+            profile_mapping, source, parent, finance
+        )
     ):
         raise ValueError("REAL_HOST_BASELINE_REJECTED")
+
+
+def _baseline_roles_match(
+    profile_mapping: object,
+    source: HostObjectObservationV1,
+    parent: HostObjectObservationV1,
+    finance: HostObjectObservationV1,
+) -> bool:
+    return role_selections_match(
+        profile_mapping,
+        {
+            "source_root": source.normalized_name_fingerprint,
+            "target_parent": parent.normalized_name_fingerprint,
+            "finance_root": finance.normalized_name_fingerprint,
+        },
+    )
 
 
 def _valid_acl(
@@ -118,7 +152,7 @@ def _valid_acl(
     observed_object: HostObjectObservationV1,
 ) -> bool:
     return (
-        type(value) is AclBaselineObservationV1
+        valid_acl_baseline(value)
         and value.role is role
         and value.object_identity_fingerprint
         == observed_object.object_identity_fingerprint

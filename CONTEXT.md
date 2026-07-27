@@ -150,20 +150,26 @@ _Avoid_: Automatic recovery, guessed retry, host status probe
 The Issue #53 opened-handle identity value. It binds volume identity, 128-bit
 file ID, object type, parent identity, normalized-name fingerprint, and reparse
 metadata without exposing a raw path, SID, SDDL, Git name, or native exception.
-The concrete Windows reader is confined to a test-owned temporary sandbox.
+The concrete Windows reader is package-private and confined to a test-owned
+temporary sandbox through a root/marker identity-bound single-use permit;
+controlled files require exactly one link.
 _Avoid_: Path-only identity, production host mutation
 
 **Current Topology Preflight**:
 The read-only Issue #53 proof that two complete observations of the current
 source, target parent, absent target, Git, ACL, reparse, and volume state are
 identical. Its content-free receipt records the observation; it does not approve
-a mutation or claim that the final layout exists.
+a mutation or claim that the final layout exists. Every callback value is
+factory-reconstructed and each source/parent/finance/target normalized name is
+bound to its exact Profile role selection.
 _Avoid_: One-pass probe, topology migration
 
 **Pre-Mutation Gate**:
 The short-lived, nonce-bound, one-operation, single-use Issue #53 recheck of the
 exact preflight state immediately before a future separately authorized action.
 Freshness or equality failure stops without granting any mutation capability.
+The prior topology receipt is atomically claimed by at most one gate, and
+trusted gate/receipt state is not caller-resettable.
 _Avoid_: Reusable token, mutation authorization
 
 **Final Audit Composition Readiness**:

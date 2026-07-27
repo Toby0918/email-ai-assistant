@@ -278,11 +278,14 @@ The `Real Host Preflight layer` in `backend.real_host_preflight` is the Issue
 #53 read-only composition boundary. Portable immutable values bind opened-handle
 volume identity, 128-bit file ID, object type, parent identity,
 normalized-name fingerprint, reparse metadata, completeness, and opaque
-content-free observations. The direct Windows reader exists only behind
-`TestSandboxScopeV1`; it rejects paths outside the test-owned temporary root,
-opens every controlled component without following reparse points, and fails
-closed on aliases, unexpected volume/filesystem state, unreadable objects,
-replacement, or identity drift.
+content-free observations. The direct Windows reader is package-private and
+exists only behind a root-and-marker identity-bound, atomically single-use
+test-sandbox permit. It rejects paths outside the test-owned temporary root,
+opens every controlled component without following reparse points, requires
+controlled files to have exactly one NTFS link, and fails closed on aliases,
+unexpected volume/filesystem state, unreadable objects, replacement, or
+identity drift. Scope and observer bindings live in a module-owned weak
+registry and cannot be reassigned through caller object state.
 
 `CurrentTopologyPreflight` requires two complete identical observations.
 `PreMutationGate` binds one fresh nonce, operation, prior observation, short
@@ -290,7 +293,13 @@ validity, and single use while repeating exact source, target-parent,
 target-absence, reparse, Git, ACL, and volume checks.
 `RealHostBaselineCollector` keeps source-root, parent, finance, volume,
 operator-SID, and ACL observations separate before projecting the existing
-content-free `HostBaseline`.
+content-free `HostBaseline`. Callback evidence is accepted only after exact
+factory reconstruction. The four topology roles and the three baseline object
+roles must match the normalized-name projections stored in the immutable
+Profile. Nominal receipts have package-private producers and atomically claim
+their module-owned state; a public `ReceiptEnvelopeV1` alone is not a receipt
+capability. Gate bindings and consumed state are likewise module-owned and
+cannot be reset by caller attribute mutation.
 
 Three exact bridges are the only prior-layer crossings:
 `audit_bridge -> backend.container_audit`,
@@ -298,7 +307,9 @@ Three exact bridges are the only prior-layer crossings:
 `contracts_bridge -> backend.cutover_contracts`. The audit bridge supplies
 exactly seven caller-bound callbacks to the unchanged nine-zone policy.
 `FinalAuditCompositionReadyReceiptV1` proves only that the composition exists;
-it does not execute or claim a pre-cutover final-layout pass.
+it does not execute or claim a pre-cutover final-layout pass. Prepare and
+readiness revalidate every bound callback and require each composed adapter to
+remain the identical reader captured by the binding.
 
 No normal runtime, script, frontend, wrapper, cleanup, leakage scanner, or
 workflow consumes this layer. The zero-argument operator entry remains

@@ -589,22 +589,30 @@ Issue #53 implements the physically separate, default-locked
   replacement, target appearance, normalized-name change, or identity drift
   fails closed with fixed content-free output；
 - Windows native behavior is reachable only from exact
-  `TestSandboxAuthorizationV1`-bound, caller-owned temporary sandboxes; Linux
+  `TestSandboxAuthorizationV1`-bound, caller-owned temporary sandboxes through
+  a package-private root/marker identity-bound atomically single-use permit;
+  controlled files require exactly one opened-handle link and the observer/
+  scope are not package exports; Linux
   runs portable contracts and injected composition only and makes no NTFS,
   Windows file-ID, Windows ACL, or real-host evidence claim；
 - `CurrentTopologyPreflight` accepts only two complete, identical observations
   of source, target parent, target absence, controlled reparse state, Git, ACL,
-  and volume evidence；
+  and volume evidence; every value is factory-reconstructed and all four names
+  must match their exact Profile role selections；
 - `PreMutationGate` repeats those checks and binds an accepted topology, exact
   operation, fresh UUIDv4 nonce, short half-open validity, and one consumed
-  attempt; stale, replayed, retargeted, or drifting state fails closed；
+  attempt; each topology receipt is atomically single-claim and module-owned
+  receipt/gate state cannot be minted or reset by a public envelope, caller
+  attribute, copy, or serialization; stale, replayed, retargeted, or drifting
+  state fails closed；
 - `RealHostBaselineCollector` preserves distinct source-root, projects-parent,
   finance-project, volume, operator-SID, and role-specific ACL evidence, then
   projects only a deterministic aggregate into the existing `HostBaseline`；
 - the exact `audit_bridge.py` composes the unchanged final nine-zone
   `ContainerAudit` through its existing seven read-only callbacks, while
   `FinalAuditCompositionReadyReceiptV1` proves only composition readiness and
-  does not invoke the current pre-cutover audit or claim a final-layout pass；
+  revalidates every binding/reader identity without invoking the current
+  pre-cutover audit or claiming a final-layout pass；
 - exact `contracts_bridge.py` and `baseline_bridge.py` consumers validate
   existing contracts and project the existing baseline without widening #51
   receipt/authorization schemas or #35 evidence-package operations；

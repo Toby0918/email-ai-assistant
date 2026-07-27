@@ -30,10 +30,6 @@ from .receipts import (
     PreMutationGateReceiptV1,
 )
 from .topology import run_current_topology_preflight
-from .windows_observation import (
-    TestSandboxScopeV1,
-    WindowsReadOnlyObserver,
-)
 
 __all__ = [
     "AclBaselineObservationV1",
@@ -56,9 +52,7 @@ __all__ = [
     "RealHostBaselineCallbacks",
     "RealHostBaselineCollector",
     "RealHostPreflightError",
-    "TestSandboxScopeV1",
     "VolumeObservationV1",
-    "WindowsReadOnlyObserver",
     "prepare_final_audit_composition",
     "prove_final_audit_composition_ready",
     "real_host_preflight_operator_entry",

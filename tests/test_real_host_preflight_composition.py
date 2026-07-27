@@ -125,6 +125,43 @@ class FinalAuditCompositionTests(unittest.TestCase):
         self.assertEqual(result.status.value, "container_audit_passed")
         self.assertEqual((result.counts.accepted, result.counts.rejected), (1, 0))
 
+    def test_tampered_bound_callback_cannot_issue_readiness(self) -> None:
+        profile = valid_profile()
+        operation = opaque_fingerprint(201)
+        policy, adapters = valid_audit_inputs()
+        callback = _bound(1, adapters.filesystem)
+        callbacks = FinalAuditCallbacksV1(
+            filesystem=callback,
+            acl=_bound(2, adapters.acl),
+            volume=_bound(3, adapters.volume),
+            git=_bound(4, adapters.git),
+            worktree=_bound(5, adapters.worktree),
+            runtime=_bound(6, adapters.runtime),
+            sqlite=_bound(7, adapters.sqlite),
+        )
+        composition = prepare_final_audit_composition(
+            policy=policy,
+            callbacks=callbacks,
+        )
+        for replacement in (object(), lambda: object()):
+            with self.subTest(callable=callable(replacement)):
+                object.__setattr__(callback, "reader", replacement)
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "^FINAL_AUDIT_COMPOSITION_REJECTED$",
+                ):
+                    prove_final_audit_composition_ready(
+                        profile=profile,
+                        authorization=sandbox_authorization(
+                            profile,
+                            phase="final_audit_readiness",
+                            operation_fingerprint=operation,
+                        ),
+                        operation_fingerprint=operation,
+                        observed_at_epoch=OBSERVED_AT,
+                        composition=composition,
+                    )
+
 
 def _bound(index: int, reader: object) -> BoundAuditCallbackV1:
     return BoundAuditCallbackV1.create(

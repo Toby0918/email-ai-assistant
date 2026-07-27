@@ -6,6 +6,7 @@ from __future__ import annotations
 SAFE_REAL_HOST_PREFLIGHT_ERROR_CODES = frozenset(
     {
         "host_object_already_present",
+        "host_object_alias_forbidden",
         "host_object_identity_changed",
         "host_object_kind_mismatch",
         "host_object_outside_scope",

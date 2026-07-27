@@ -79,6 +79,11 @@ def _validate_component(
         _fail("host_object_reparse_forbidden")
     if expected_directory and observed.object_kind is not HostObjectKind.DIRECTORY:
         _fail("host_object_kind_mismatch")
+    if (
+        observed.object_kind is HostObjectKind.FILE
+        and native.number_of_links != 1
+    ):
+        _fail("host_object_alias_forbidden")
     if native.normalized_path.casefold() != expected_final_path(path).casefold():
         _fail("host_object_outside_scope")
 

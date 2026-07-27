@@ -8,6 +8,7 @@ from backend.real_host_preflight import (
     CurrentTopologyCallbacks,
     CurrentTopologyPreflightReceiptV1,
     HostCheckKind,
+    MissingHostObjectObservationV1,
     OpaqueHostCheckV1,
     VolumeObservationV1,
     run_current_topology_preflight,
@@ -17,6 +18,7 @@ from tests.real_host_preflight_fixtures import (
     OBSERVED_AT,
     OrderedReader,
     sandbox_authorization,
+    topology_callbacks,
     topology_components,
     valid_profile,
 )
@@ -123,6 +125,113 @@ class CurrentTopologyPreflightTests(unittest.TestCase):
             - mapping["validity"]["issued_at_epoch"],
             60,
         )
+
+    def test_tampered_callback_evidence_is_rejected_before_receipt(self) -> None:
+        profile = valid_profile()
+        operation = opaque_fingerprint(201)
+        mutations = (
+            ("target_absence", "present", True),
+            ("git", "complete", False),
+            ("volume", "drive_type", "remote"),
+            ("source_root", "file_attributes", 16 | 1024),
+        )
+
+        for role, field, value in mutations:
+            with self.subTest(role=role, field=field):
+                callbacks = _callbacks_with_mutation(role, field, value)
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "^REAL_HOST_TOPOLOGY_REJECTED$",
+                ):
+                    run_current_topology_preflight(
+                        profile=profile,
+                        authorization=sandbox_authorization(
+                            profile,
+                            operation_fingerprint=operation,
+                        ),
+                        operation_fingerprint=operation,
+                        policy_fingerprint=opaque_fingerprint(407),
+                        observed_at_epoch=OBSERVED_AT,
+                        callbacks=callbacks,
+                    )
+
+    def test_profile_role_binding_rejects_decoy_target_absence(self) -> None:
+        profile = valid_profile()
+        operation = opaque_fingerprint(201)
+        components = topology_components()
+        parent = components["target_parent"]
+        components["target_absence"] = MissingHostObjectObservationV1.create(
+            parent_identity_fingerprint=(
+                parent.object_identity_fingerprint
+            ),
+            volume_fingerprint=opaque_fingerprint(301),
+            normalized_name_fingerprint=opaque_fingerprint(999),
+            filesystem_name="NTFS",
+        )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "^REAL_HOST_TOPOLOGY_REJECTED$",
+        ):
+            run_current_topology_preflight(
+                profile=profile,
+                authorization=sandbox_authorization(
+                    profile,
+                    operation_fingerprint=operation,
+                ),
+                operation_fingerprint=operation,
+                policy_fingerprint=opaque_fingerprint(407),
+                observed_at_epoch=OBSERVED_AT,
+                callbacks=topology_callbacks([], components=components),
+            )
+
+
+def _callbacks_with_mutation(
+    role: str,
+    field: str,
+    value: object,
+) -> CurrentTopologyCallbacks:
+    components = topology_components()
+    checks = {
+        "git": OpaqueHostCheckV1.create(
+            kind=HostCheckKind.GIT,
+            fingerprint=opaque_fingerprint(405),
+            complete=True,
+            content_observed=False,
+        ),
+        "acl": OpaqueHostCheckV1.create(
+            kind=HostCheckKind.ACL,
+            fingerprint=opaque_fingerprint(406),
+            complete=True,
+            content_observed=False,
+        ),
+        "volume": VolumeObservationV1.create(
+            volume_fingerprint=opaque_fingerprint(301),
+            filesystem_name="NTFS",
+            drive_type="fixed",
+            complete=True,
+        ),
+    }
+    selected = components if role in components else checks
+    object.__setattr__(selected[role], field, value)
+    calls: list[str] = []
+    return CurrentTopologyCallbacks(
+        source_root=OrderedReader(
+            "source_root", components["source_root"], calls
+        ),
+        target_parent=OrderedReader(
+            "target_parent", components["target_parent"], calls
+        ),
+        finance_root=OrderedReader(
+            "finance_root", components["finance_root"], calls
+        ),
+        target_absence=OrderedReader(
+            "target_absence", components["target_absence"], calls
+        ),
+        git=OrderedReader("git", checks["git"], calls),
+        acl=OrderedReader("acl", checks["acl"], calls),
+        volume=OrderedReader("volume", checks["volume"], calls),
+    )
 
 
 if __name__ == "__main__":

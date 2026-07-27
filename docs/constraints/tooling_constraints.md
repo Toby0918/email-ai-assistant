@@ -415,10 +415,12 @@ Issue #53 adds `backend.real_host_preflight` without a new dependency, CLI,
 workflow, environment option, logger, scheduler, authority issuer, or production
 consumer. Its standard-library surface is limited to `contextlib`, `ctypes`,
 `dataclasses`, `enum`, `hashlib`, `json`, `pathlib`, `sys`, typing support, and
-UUID validation. The only direct Windows reader is bound to
-`TestSandboxScopeV1` and an exact
-`TestSandboxAuthorizationV1`; it rejects any original or resolved target outside
-the test-owned temporary root.
+UUID validation, plus `threading` and `weakref` only for module-owned atomic
+single-use receipt, gate, and test-sandbox registries. The direct Windows
+reader is not exported by the package. Tests can reach it only through the
+package-private root-and-marker identity-bound permit and an exact
+`TestSandboxAuthorizationV1`; the permit is consumed once and rejects any
+original or resolved target outside the test-owned temporary root.
 
 The native allowlist is read-only:
 `CreateFileW`, `GetFileInformationByHandleEx`, `GetFileType`,
@@ -426,11 +428,18 @@ The native allowlist is read-only:
 and `CloseHandle`. No file-write, move, delete, security-setting, service,
 process, command, or arbitrary native API is available. Controlled components
 are opened without following reparse points and are revalidated through opened
-handles.
+handles. The existing `GetFileInformationByHandleEx` binding also reads
+`FileStandardInfo.NumberOfLinks`; a controlled file with any link count other
+than exactly one is rejected as an alias.
 
 Portable callbacks collect two complete topology snapshots, a short-lived
 single-use pre-mutation recheck, separate-role `HostBaseline` evidence, and the
-seven exact final-audit callbacks. The exact bridges may import only the
+seven exact final-audit callbacks. Every callback value is reconstructed
+through its closed factory before use. Source, projects-parent, finance, and
+target-absence normalized-name fingerprints must match their exact
+`CutoverProfileV1.role_selections`. Nominal receipt and gate capabilities keep
+their trusted envelope, binding, and claim state in module-owned registries;
+public envelope construction cannot mint or reset those capabilities. The exact bridges may import only the
 reviewed Issue #34 audit values/functions, Issue #35 `HostBaseline`, and Issue
 #51 contract values. The existing ContainerAudit policy and migration-evidence
 review/create/verify seams remain unchanged.

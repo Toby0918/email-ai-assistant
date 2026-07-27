@@ -12,11 +12,18 @@ from .audit_bridge import (
     compose_audit_adapters,
     run_final_container_audit,
 )
-from .audit_types import BoundAuditCallbackV1, FinalAuditCallbacksV1
+from .audit_types import (
+    BoundAuditCallbackV1,
+    FinalAuditCallbacksV1,
+    bound_audit_callback_is_intact,
+)
 from .authorization_gate import require_preflight_authorization
 from .canonical import fingerprint
 from .contracts_bridge import CutoverProfileV1, ReceiptEnvelopeV1
-from .receipts import FinalAuditCompositionReadyReceiptV1
+from .receipts import (
+    FinalAuditCompositionReadyReceiptV1,
+    _mint_final_audit_ready_receipt,
+)
 
 
 _READINESS_LIFETIME_SECONDS = 60
@@ -26,7 +33,8 @@ _READINESS_LIFETIME_SECONDS = 60
 class FinalAuditCompositionV1:
     _policy: TrustedAuditPolicy
     _adapters: ContainerAuditAdapters
-    _callback_bindings: tuple[str, ...]
+    _bindings: tuple[BoundAuditCallbackV1, ...]
+    _readers: tuple[object, ...]
     policy_fingerprint: str
     composition_fingerprint: str
 
@@ -57,11 +65,9 @@ def prepare_final_audit_composition(
     ):
         raise ValueError("FINAL_AUDIT_COMPOSITION_REJECTED")
     bindings = callbacks.ordered()
-    if (
-        any(type(item) is not BoundAuditCallbackV1 for item in bindings)
-        or len({item.binding_fingerprint for item in bindings}) != 7
-    ):
+    if not _bindings_are_valid(bindings):
         raise ValueError("FINAL_AUDIT_COMPOSITION_REJECTED")
+    readers = tuple(item.reader for item in bindings)
     adapters = compose_audit_adapters(
         filesystem=callbacks.filesystem.reader,
         acl=callbacks.acl.reader,
@@ -84,7 +90,8 @@ def prepare_final_audit_composition(
     return _new_composition(
         policy,
         adapters,
-        tuple(item.binding_fingerprint for item in bindings),
+        bindings,
+        readers,
         policy_fingerprint,
         composition_fingerprint,
     )
@@ -124,20 +131,22 @@ def prove_final_audit_composition_ready(
         observed_at_epoch=observed_at_epoch,
         expires_at_epoch=expires_at,
     )
-    return FinalAuditCompositionReadyReceiptV1.from_envelope(envelope)
+    return _mint_final_audit_ready_receipt(envelope)
 
 
 def _new_composition(
     policy: TrustedAuditPolicy,
     adapters: ContainerAuditAdapters,
-    bindings: tuple[str, ...],
+    bindings: tuple[BoundAuditCallbackV1, ...],
+    readers: tuple[object, ...],
     policy_fingerprint: str,
     composition_fingerprint: str,
 ) -> FinalAuditCompositionV1:
     value = object.__new__(FinalAuditCompositionV1)
     object.__setattr__(value, "_policy", policy)
     object.__setattr__(value, "_adapters", adapters)
-    object.__setattr__(value, "_callback_bindings", bindings)
+    object.__setattr__(value, "_bindings", bindings)
+    object.__setattr__(value, "_readers", readers)
     object.__setattr__(value, "policy_fingerprint", policy_fingerprint)
     object.__setattr__(
         value,
@@ -152,15 +161,27 @@ def _composition_is_valid(value: object) -> bool:
         type(value) is not FinalAuditCompositionV1
         or type(value._adapters) is not ContainerAuditAdapters
         or not audit_policy_is_valid(value._policy)
-        or type(value._callback_bindings) is not tuple
-        or len(value._callback_bindings) != 7
+        or not _bindings_are_valid(value._bindings)
+        or type(value._readers) is not tuple
+        or len(value._readers) != 7
+        or any(
+            binding.reader is not reader
+            for binding, reader in zip(
+                value._bindings,
+                value._readers,
+                strict=True,
+            )
+        )
+        or not _adapters_match(value._adapters, value._readers)
     ):
         return False
     policy_fingerprint = _policy_fingerprint(value._policy)
     expected = fingerprint(
         "final-audit-composition-v1",
         {
-            "callback_bindings": list(value._callback_bindings),
+            "callback_bindings": [
+                item.binding_fingerprint for item in value._bindings
+            ],
             "policy_fingerprint": policy_fingerprint,
         },
     )
@@ -170,6 +191,36 @@ def _composition_is_valid(value: object) -> bool:
     )
 
 
+def _bindings_are_valid(bindings: object) -> bool:
+    return (
+        type(bindings) is tuple
+        and len(bindings) == 7
+        and all(bound_audit_callback_is_intact(item) for item in bindings)
+        and len({item.binding_fingerprint for item in bindings}) == 7
+    )
+
+
+def _adapters_match(
+    adapters: ContainerAuditAdapters,
+    readers: tuple[object, ...],
+) -> bool:
+    actual = (
+        adapters.filesystem,
+        adapters.acl,
+        adapters.volume,
+        adapters.git,
+        adapters.worktree,
+        adapters.runtime,
+        adapters.sqlite,
+    )
+    return all(
+        actual_reader is expected_reader
+        for actual_reader, expected_reader in zip(
+            actual,
+            readers,
+            strict=True,
+        )
+    )
 def _policy_fingerprint(policy: TrustedAuditPolicy) -> str:
     return fingerprint(
         "final-container-audit-policy-v1",

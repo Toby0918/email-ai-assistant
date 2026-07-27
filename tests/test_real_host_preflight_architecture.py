@@ -28,9 +28,11 @@ EXPECTED_FILES = {
     "contracts_bridge.py",
     "errors.py",
     "evidence.py",
+    "integrity.py",
     "mutation_gate.py",
     "operator_entry.py",
     "receipts.py",
+    "sandbox_state.py",
     "sandbox_validation.py",
     "topology.py",
     "topology_evidence.py",
@@ -61,9 +63,7 @@ EXPECTED_PUBLIC = {
     "RealHostBaselineCallbacks",
     "RealHostBaselineCollector",
     "RealHostPreflightError",
-    "TestSandboxScopeV1",
     "VolumeObservationV1",
-    "WindowsReadOnlyObserver",
     "prepare_final_audit_composition",
     "prove_final_audit_composition_ready",
     "real_host_preflight_operator_entry",
@@ -74,6 +74,21 @@ ALLOWED_ABSOLUTE_IMPORTS = {
     "backend.container_audit.policy",
     "backend.cutover_contracts",
     "backend.migration_evidence",
+}
+ALLOWED_STDLIB_IMPORT_ROOTS = {
+    "__future__",
+    "contextlib",
+    "ctypes",
+    "dataclasses",
+    "enum",
+    "hashlib",
+    "json",
+    "pathlib",
+    "sys",
+    "threading",
+    "typing",
+    "uuid",
+    "weakref",
 }
 FORBIDDEN_IMPORT_ROOTS = {
     "argparse",
@@ -196,6 +211,8 @@ class RealHostPreflightArchitectureTests(unittest.TestCase):
             tree = ast.parse(path.read_text(encoding="utf-8"))
             imports = _absolute_imports(path)
             roots = {item.split(".", 1)[0] for item in imports}
+            unexpected = roots - ALLOWED_STDLIB_IMPORT_ROOTS - {"backend"}
+            self.assertEqual(unexpected, set(), path)
             self.assertTrue(
                 roots.isdisjoint(FORBIDDEN_IMPORT_ROOTS),
                 (path.name, sorted(roots & FORBIDDEN_IMPORT_ROOTS)),
@@ -260,6 +277,43 @@ class RealHostPreflightArchitectureTests(unittest.TestCase):
             ),
             (),
         )
+
+    def test_test_sandbox_and_receipt_issuers_have_exact_consumers(
+        self,
+    ) -> None:
+        expected = {
+            "_issue_test_sandbox_permit": {
+                "backend/real_host_preflight/windows_observation.py",
+                "tests/test_real_host_preflight_windows.py",
+                "tests/test_real_host_preflight_windows_composition.py",
+            },
+            "_mint_current_topology_receipt": {
+                "backend/real_host_preflight/receipts.py",
+                "backend/real_host_preflight/topology.py",
+                "tests/test_real_host_preflight_gate.py",
+            },
+            "_mint_pre_mutation_gate_receipt": {
+                "backend/real_host_preflight/mutation_gate.py",
+                "backend/real_host_preflight/receipts.py",
+            },
+            "_mint_final_audit_ready_receipt": {
+                "backend/real_host_preflight/composition.py",
+                "backend/real_host_preflight/receipts.py",
+            },
+            "_claim_current_topology_receipt": {
+                "backend/real_host_preflight/mutation_gate.py",
+                "backend/real_host_preflight/receipts.py",
+            },
+        }
+        candidates = tuple(ROOT.rglob("*.py"))
+        for marker, allowed in expected.items():
+            consumers = {
+                path.relative_to(ROOT).as_posix()
+                for path in candidates
+                if path.resolve() != Path(__file__).resolve()
+                if marker in path.read_text(encoding="utf-8")
+            }
+            self.assertEqual(consumers, allowed, marker)
 
 
 def _absolute_imports(path: Path) -> set[str]:

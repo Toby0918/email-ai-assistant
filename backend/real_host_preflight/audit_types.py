@@ -38,6 +38,19 @@ class BoundAuditCallbackV1:
         return value
 
 
+def bound_audit_callback_is_intact(value: object) -> bool:
+    if type(value) is not BoundAuditCallbackV1:
+        return False
+    try:
+        rebuilt = BoundAuditCallbackV1.create(
+            binding_fingerprint=value.binding_fingerprint,
+            reader=value.reader,
+        )
+    except Exception:
+        return False
+    return rebuilt == value
+
+
 @dataclass(frozen=True, slots=True, repr=False)
 class FinalAuditCallbacksV1:
     filesystem: BoundAuditCallbackV1

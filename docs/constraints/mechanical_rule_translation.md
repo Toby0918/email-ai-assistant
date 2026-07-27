@@ -454,18 +454,25 @@ executable layers:
 2. `tests/test_real_host_preflight_windows.py` and
    `tests/test_real_host_preflight_windows_composition.py` use only an exact
    in-memory `TestSandboxAuthorizationV1` and caller-owned Windows
-   `TemporaryDirectory`. Opened-handle observations and no-follow controlled
-   components must fail closed on alias/reparse, unreadable or unexpected
-   volume/filesystem state, parent replacement, target appearance, file-ID
-   drift, normalized-name drift, and scope escape.
+   `TemporaryDirectory`. A package-private root/marker identity permit is
+   consumed once. Opened-handle observations and no-follow controlled
+   components must fail closed on missing/replaced markers, permit replay,
+   hard-link alias/reparse, unreadable or unexpected volume/filesystem state,
+   parent replacement, target appearance, file-ID drift, normalized-name
+   drift, and scope escape.
 3. `tests/test_real_host_preflight_topology.py` requires two complete,
    identical current-topology passes before an accepted content-free receipt.
    Source, target parent, target absence, reparse, Git, ACL, and volume
-   evidence must all be repeated; no partial second pass is sufficient.
+   evidence must all be reconstructed and repeated; no partial second pass is
+   sufficient. Source/parent/finance/target names must match the exact Profile
+   role-selection projections, so a decoy absence cannot substitute.
 4. `tests/test_real_host_preflight_gate.py` pins a fresh UUIDv4 nonce, exact
    operation and prior-topology binding, short half-open validity, repeat
    source/parent/absence/reparse/Git/ACL/volume checks, and one consumed gate
-   attempt. Stale, replayed, retargeted, or drifting evidence fails closed.
+   attempt. The prior topology receipt is atomically single-claim; nominal
+   receipt/gate state is module-owned and cannot be minted from a public
+   envelope or reset through caller state. Stale, replayed, retargeted, or
+   drifting evidence fails closed.
 5. `tests/test_real_host_preflight_baseline.py` keeps source root, projects
    parent, finance project, volume, operator-SID, and each ACL observation
    separate, then independently verifies their deterministic content-free
@@ -474,7 +481,8 @@ executable layers:
    callbacks through the #53 audit bridge. One synthetic assertion runs the
    unchanged audit core; the separate readiness proof invokes no callback or
    audit and never reports a final-layout pass. The existing final nine-zone
-   policy remains unchanged.
+   policy remains unchanged. Bound callbacks and their identical adapter
+   readers are revalidated before readiness.
 7. `tests/test_real_host_preflight_architecture.py` and leakage tests pin exact
    files/exports/imports/bridges, read-only Windows API allowlists, zero normal
    consumers, forbidden capabilities, fixed error/result surfaces, and absence

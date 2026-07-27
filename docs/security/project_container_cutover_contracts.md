@@ -126,12 +126,16 @@ and reparse metadata. Raw paths, file IDs, volume labels, SIDs, SDDL, account
 names, Git names/refs, native error values, and callback exceptions are not
 receipt or log fields.
 
-No production operator scope exists in Issue #53. Native Windows behavior may
-run only below a caller-owned `TemporaryDirectory` whose original and resolved
-scope is bound to an exact in-memory `TestSandboxAuthorizationV1`. Absolute
-paths, parent-relative escape, scope/authorization mismatch, alias or reparse
-components, unexpected volume/filesystem type, unreadable/incomplete evidence,
-normalized-name change, object replacement, and identity drift fail closed.
+No production operator scope exists in Issue #53. The Windows observer and
+scope are not package exports. Native Windows behavior may run only below a
+caller-owned `TemporaryDirectory` whose exact child marker, root identity, and
+marker identity are captured in a package-private, atomically single-use
+permit with an exact in-memory `TestSandboxAuthorizationV1`. Absolute paths,
+parent-relative escape, scope/authorization mismatch, marker replacement,
+permit replay, hard-link alias or reparse components, unexpected
+volume/filesystem type, unreadable/incomplete evidence, normalized-name
+change, object replacement, and identity drift fail closed. Controlled files
+must report exactly one link through read-only opened-handle metadata.
 The test authorization remains invalid at the exact real-host validator and
 cannot enter the operator seam.
 
@@ -148,6 +152,10 @@ target absence, controlled-component reparse state, Git, ACL, and volume
 evidence to be exactly identical to the first complete pass. A partial second
 read, incomplete evidence, content observation, callback exception, or any
 drift produces only a fixed rejected result.
+Each portable callback value is reconstructed through its closed factory.
+Source, projects-parent, finance-project, and target-absence normalized-name
+fingerprints must project to the exact corresponding Profile role selections;
+a missing decoy cannot stand in for the approved target.
 
 `PreMutationGate` re-observes the exact source, target parent, target absence,
 reparse, Git, ACL, and volume evidence. Its receipt binds the accepted topology
@@ -156,6 +164,10 @@ validity interval, and one consumed attempt. Stale, replayed, retargeted,
 different-nonce, target-appearance, replacement, or drift cases fail closed.
 The gate is readiness evidence for a future separately approved operation; it
 does not authorize or perform that operation.
+The topology receipt is atomically claimed by at most one gate. Receipt and
+gate trusted state is module-owned, so caller attribute mutation, copy,
+serialization, direct allocation, or a separately constructed canonical
+envelope cannot mint or reset the capability.
 
 Both named receipts are closed views over the existing preflight receipt
 family. The existing exact `profile`, `authorization`, and `policy` input roles
@@ -180,7 +192,9 @@ audit core gains no Windows, filesystem, ACL, Git, SQLite, or composition
 import. `FinalAuditCompositionReadyReceiptV1` proves only that the exact policy
 and callbacks can be composed. It must not invoke the audit against the current
 pre-cutover layout, return an audit-pass result, or claim that the final layout
-exists or passed.
+exists or passed. Callback bindings are revalidated at prepare and readiness,
+and the seven composed adapters must remain identical to their captured
+readers.
 
 The third bridge, `contracts_bridge.py`, has an exact imported-symbol allowlist
 and may only validate the locked Profile/authorization values, construct the

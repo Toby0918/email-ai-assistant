@@ -13,13 +13,17 @@ from backend.real_host_preflight import (
     HostObjectKind,
     OpaqueHostCheckV1,
     PreMutationGate,
+    run_current_topology_preflight,
+)
+from backend.real_host_preflight.windows_observation import (
     TestSandboxScopeV1,
     WindowsReadOnlyObserver,
-    run_current_topology_preflight,
+    _issue_test_sandbox_permit,
 )
 from tests.cutover_contract_fixtures import opaque_fingerprint
 from tests.real_host_preflight_fixtures import (
     OBSERVED_AT,
+    profile_for_role_names,
     sandbox_authorization,
     valid_profile,
 )
@@ -31,8 +35,8 @@ class WindowsPreflightCompositionTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             layout = _SandboxLayout.create(Path(temporary))
             callbacks = layout.callbacks()
-            topology_receipt = _run_preflight(callbacks)
-            profile = valid_profile()
+            topology_receipt = _run_preflight(callbacks, layout.profile)
+            profile = layout.profile
             operation = opaque_fingerprint(201)
             gate = PreMutationGate.bind(
                 current_topology_receipt=topology_receipt,
@@ -69,7 +73,7 @@ class WindowsPreflightCompositionTests(unittest.TestCase):
                 ValueError,
                 "^REAL_HOST_TOPOLOGY_REJECTED$",
             ):
-                _run_preflight(callbacks)
+                _run_preflight(callbacks, layout.profile)
 
             self.assertTrue(layout.retired_parent.is_dir())
             self.assertTrue(layout.parent.is_dir())
@@ -83,7 +87,24 @@ class WindowsPreflightCompositionTests(unittest.TestCase):
                 ValueError,
                 "^REAL_HOST_TOPOLOGY_REJECTED$",
             ):
-                _run_preflight(callbacks)
+                _run_preflight(callbacks, layout.profile)
+
+    def test_existing_target_cannot_be_hidden_by_decoy_absence(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            layout = _SandboxLayout.create(Path(temporary))
+            layout.target.mkdir()
+            decoy = layout.parent / "decoy-missing"
+            callbacks = layout.callbacks(
+                target_absence_reader=(
+                    lambda: layout.observer.observe_absent(decoy)
+                ),
+            )
+
+            with self.assertRaisesRegex(
+                ValueError,
+                "^REAL_HOST_TOPOLOGY_REJECTED$",
+            ):
+                _run_preflight(callbacks, layout.profile)
 
 
 class _SandboxLayout:
@@ -96,6 +117,7 @@ class _SandboxLayout:
         target: Path,
         observer: WindowsReadOnlyObserver,
         volume_fingerprint: str,
+        profile,
     ) -> None:
         self.root = root
         self.parent = parent
@@ -105,6 +127,7 @@ class _SandboxLayout:
         self.retired_parent = root / "retired-projects"
         self.observer = observer
         self.volume_fingerprint = volume_fingerprint
+        self.profile = profile
 
     @classmethod
     def create(cls, root: Path) -> _SandboxLayout:
@@ -114,16 +137,35 @@ class _SandboxLayout:
         source.mkdir(parents=True)
         finance.mkdir()
         profile = valid_profile()
-        scope = TestSandboxScopeV1.create(
+        marker = root / ".codex-preflight-test-sandbox"
+        marker.touch()
+        permit = _issue_test_sandbox_permit(
             root=root,
+            marker=marker,
             authorization=sandbox_authorization(profile),
             observed_at_epoch=OBSERVED_AT,
         )
+        scope = TestSandboxScopeV1.create(permit=permit)
         observer = WindowsReadOnlyObserver(scope)
-        volume = observer.observe_existing(
+        parent_observation = observer.observe_existing(
             parent,
             expected_kind=HostObjectKind.DIRECTORY,
-        ).volume_fingerprint
+        )
+        source_observation = observer.observe_existing(
+            source,
+            expected_kind=HostObjectKind.DIRECTORY,
+        )
+        finance_observation = observer.observe_existing(
+            finance,
+            expected_kind=HostObjectKind.DIRECTORY,
+        )
+        absence_observation = observer.observe_absent(parent / "container")
+        profile = profile_for_role_names(
+            source_root=source_observation,
+            target_parent=parent_observation,
+            finance_root=finance_observation,
+            target_absence=absence_observation,
+        )
         return cls(
             root,
             parent,
@@ -131,7 +173,8 @@ class _SandboxLayout:
             finance,
             parent / "container",
             observer,
-            volume,
+            parent_observation.volume_fingerprint,
+            profile,
         )
 
     def callbacks(
@@ -139,6 +182,7 @@ class _SandboxLayout:
         *,
         source_reader=None,
         git_reader=None,
+        target_absence_reader=None,
     ) -> CurrentTopologyCallbacks:
         return CurrentTopologyCallbacks(
             source_root=source_reader or (
@@ -146,9 +190,8 @@ class _SandboxLayout:
             ),
             target_parent=lambda: self._directory(self.parent),
             finance_root=lambda: self._directory(self.finance),
-            target_absence=lambda: self.observer.observe_absent(
-                self.target
-            ),
+            target_absence=target_absence_reader
+            or (lambda: self.observer.observe_absent(self.target)),
             git=git_reader or (
                 lambda: _check(HostCheckKind.GIT, 405)
             ),
@@ -198,8 +241,7 @@ def _check(kind: HostCheckKind, index: int) -> OpaqueHostCheckV1:
     )
 
 
-def _run_preflight(callbacks: CurrentTopologyCallbacks) -> object:
-    profile = valid_profile()
+def _run_preflight(callbacks: CurrentTopologyCallbacks, profile) -> object:
     operation = opaque_fingerprint(201)
     return run_current_topology_preflight(
         profile=profile,

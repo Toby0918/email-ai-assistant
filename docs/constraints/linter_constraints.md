@@ -631,9 +631,12 @@ Portable contract tests pin frozen, slotted, repr-redacted handle observations
 with volume identity, 128-bit file ID, exact object type, parent identity,
 normalized-name fingerprint, attributes, and reparse metadata. Windows
 integration is permitted only beneath a caller-owned `TemporaryDirectory`
-validated by an exact in-memory `TestSandboxAuthorizationV1`; absolute or
-parent-relative escape, alias, reparse, unexpected volume/filesystem,
-unreadable state, and identity drift fail closed. Linux runs only portable
+validated by an exact in-memory `TestSandboxAuthorizationV1` and a
+package-private root/marker identity-bound single-use permit; missing or
+replaced markers, wrong phase, permit replay, absolute or parent-relative
+escape, hard-link alias, reparse, unexpected volume/filesystem, unreadable
+state, and identity drift fail closed. Scope/observer trusted bindings are
+module-owned and are not package exports. Linux runs only portable
 contract/composition tests and must not claim NTFS, Windows file-ID, Windows
 ACL, or real-host evidence.
 
@@ -643,13 +646,21 @@ target-absence, reparse, Git, ACL, and volume checks with fresh UUIDv4 nonce,
 short validity, one operation, and single-use state; and
 `RealHostBaselineCollector` to preserve distinct source, parent, finance,
 volume, operator-SID, and ACL evidence before projecting only a canonical
-aggregate `HostBaseline`. The final-audit readiness path may prove only that the
+aggregate `HostBaseline`. Every evidence value must survive exact factory
+reconstruction, topology/baseline names must match exact Profile role
+selections, and a topology receipt may be atomically claimed by only one gate.
+Receipt/gate trusted state is module-owned; public envelopes, caller attribute
+mutation, copy, or serialization cannot mint or reset it. The final-audit readiness path may prove only that the
 unchanged nine-zone policy and exact seven callbacks are composable. It must not
-invoke the pre-cutover audit or claim a final-layout pass.
+invoke the pre-cutover audit or claim a final-layout pass, and must revalidate
+the identical readers captured by all seven bindings.
 
 Windows sandbox tests cover stable file IDs, source/parent replacement, target
 appearance, reparse insertion, expected-volume mismatch, complete-pass drift,
-scope escape, and hostile-output leakage. Architecture tests require the real
+scope escape, marker/permit replay, outside hard-link alias, role-decoy
+substitution, and hostile-output leakage. Architecture tests pin the exact
+standard-library allowlist, including `threading` and `weakref` only for
+module-owned registries, and require the real
 operator entry to remain zero-capability and fixed at
 `BLOCKED_NO_APPROVED_COMMAND`, with `blocked=1` and `executed=0`; an exact test
 authorization cannot enter that seam. Issue #53 performs no real project,

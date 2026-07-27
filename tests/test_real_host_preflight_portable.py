@@ -62,6 +62,48 @@ class RealHostPreflightPortableTests(unittest.TestCase):
                 has_reparse_point=False,
             )
 
+    def test_object_metadata_relationships_fail_closed(self) -> None:
+        base = {
+            "volume_fingerprint": "1" * 64,
+            "file_id_128": "2" * 32,
+            "object_kind": HostObjectKind.DIRECTORY,
+            "parent_identity_fingerprint": "3" * 64,
+            "normalized_name_fingerprint": "4" * 64,
+            "filesystem_name": "NTFS",
+            "file_attributes": 16,
+            "reparse_tag": 0,
+            "has_reparse_point": False,
+        }
+        invalid_overrides = (
+            {"object_kind": HostObjectKind.FILE},
+            {"file_attributes": 0},
+            {
+                "file_attributes": 16 | 1024,
+                "reparse_tag": 0xA0000003,
+                "has_reparse_point": False,
+            },
+            {
+                "file_attributes": 16 | 1024,
+                "reparse_tag": 0,
+                "has_reparse_point": True,
+            },
+            {
+                "file_attributes": 16,
+                "reparse_tag": 0xA0000003,
+                "has_reparse_point": False,
+            },
+        )
+
+        for overrides in invalid_overrides:
+            with self.subTest(overrides=overrides):
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "^REAL_HOST_OBSERVATION_INVALID$",
+                ):
+                    HostObjectObservationV1.create(
+                        **{**base, **overrides},
+                    )
+
     def test_missing_observation_binds_parent_volume_and_normalized_name(
         self,
     ) -> None:
