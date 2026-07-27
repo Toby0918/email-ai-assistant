@@ -419,8 +419,9 @@ Not applicable。Mailbox sync and current-click evidence remain unchanged。
   `No cleanup findings detected.`。
 - `git diff --check`: exit 0，only expected line-ending conversion warnings。
 - Initial Standards/Spec and adversarial review P1/P2 findings were repaired
-  with regression tests；formal re-review and ready-for-review PR CI remain
-  pending at this checkpoint。
+  with regression tests。Independent final Standards and Spec re-review at
+  code fixed point `0944831` both passed with no P1/P2 and no scope creep；
+  ready-for-review PR CI remains pending at this checkpoint。
 
 P3 records（本 Issue 不扩围）:
 - Freshness still consumes a caller-supplied epoch；future Issue #39 must bind
@@ -430,6 +431,10 @@ P3 records（本 Issue 不扩围）:
   same-source relation before relying on one。
 - The three closed receipt builders/views retain some duplicated schema
   structure；deduplication is deferred because it is not required by #53。
+- The final-audit capture is represented by a private five-item tuple；a future
+  refactor may replace it with a named private value without changing #53。
+- The architecture mutation-fixture test and its module are large；a future
+  test-only refactor may make the cases table-driven without changing #53。
 - Test-sandbox provenance depends on the package-private issuer plus exact
   consumer guard；the marker itself cannot prove that a directory was created
   by `TemporaryDirectory`，so this remains a review-only P3 and is not widened
@@ -437,8 +442,7 @@ P3 records（本 Issue 不扩围）:
 
 未完成事项:
 - No local Issue #53 implementation or automated acceptance item remains。
-- Standards/Spec review、publication、GitHub CI and human acceptance remain
-  pending。
+- Publication、GitHub CI and human acceptance remain pending。
 - No real preflight, final-layout audit, mutation or Issue #54–#59 work is
   authorized or performed。
 
