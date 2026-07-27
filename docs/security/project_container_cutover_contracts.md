@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-26
+last_update: 2026-07-27
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -16,6 +16,9 @@ Issue #51 adds the internal Python package `backend.cutover_contracts`. Issue
 `backend.cutover_journal` state proof. Issue #53 adds the physically separate
 `backend.real_host_preflight` read-only composition root and its three exact
 bridges: `contracts_bridge.py`, `baseline_bridge.py`, and `audit_bridge.py`.
+Issue #54 defines profile-bound evidence review, a physically separate
+create-only publication composition, and a separate-process read-only
+verification boundary.
 The #51/#52 packages remain content-free and add no CLI, HTTP route, default
 host adapter, host reader, authorization issuer, or executable real-host
 cutover command. The #53 package adds no executable operator command and may
@@ -113,8 +116,9 @@ receipt-like values are rejected by the real-host authorization validator.
 callback, command, environment value, or authorization and always returns
 `BLOCKED_NO_APPROVED_COMMAND` with `blocked=1` and `executed=0`. Adding any
 executable operator entry or executable real-host operation requires a separate
-approved Issue. Issue #53 composes only the locked read-only boundary; it does not
-provide an approved command and does not implement Issues #54 through #59.
+approved Issue. Issue #53 composes only the locked read-only boundary, and Issue
+#54 keeps its real review, publication, and verification entries locked. Neither
+provides an approved command; Issues #55 through #59 remain separate.
 
 ## Issue #53 Windows read-only observation boundary
 
@@ -218,6 +222,60 @@ fingerprints, bounded validity, and allowlisted aggregate counts. Raw path,
 SID, SDDL, account, Git name/ref, file ID, command, content, and native/callback
 exception values must be rejected or discarded before the public boundary.
 
+## Issue #54 reviewed evidence publication and verification
+
+Review consumes only the exact `CutoverProfileV1` dirty-source, local-ref,
+worktree, package-target, Git, and `RealHostBaseline` selections. It accepts no
+arbitrary replacement path, ref, object, worktree, target, callback, or host
+value. `MigrationEvidenceReviewReceiptV1` binds the operation, Profile,
+governing master, review, selection, Git, host, and allowlisted counts through
+closed content-free fingerprints. The complete `MigrationEvidenceReview`
+remains in memory and must not be serialized or persisted as alternate
+authority.
+
+Create runs only in the physically separate create-only publication
+composition. It requires an exact `EvidencePublicationAuthorizationV1`, the
+same operation, Profile and governing master, the exact review receipt and
+in-memory review, and the exact confirmed review fingerprint. Before
+publication it repeats complete live discovery, including a fresh
+`HostBaseline`. Profile, selection, dirty-source, ref, worktree, Git, host,
+target, review, receipt, authorization, or confirmation drift fails closed.
+`MigrationEvidenceCreatedReceiptV1` binds review, package, manifest, package
+identity, and aggregate-count fingerprints. Publication remains absent-target,
+no-clobber, and create-only.
+
+Verification runs in a separate read-only process. It reads the published
+package once through a bounded descriptor, calls the independent verifier on
+those exact bytes, then requires an identical target reread and independently
+recomputes the package and manifest hashes. The creator may use shared pure
+package-format validation but cannot import, construct, or call the independent verifier
+process or capability. The verifier cannot import publication or create-only
+capabilities and cannot write, replace, rename, remove, unlink, or otherwise
+modify a package.
+
+`MigrationEvidenceReviewReceiptV1`, `MigrationEvidenceCreatedReceiptV1`, and
+the verified receipt must agree on the same operation, Profile, governing
+master, review fingerprint, applicable package and manifest hashes, package
+identity, and allowlisted counts before forming
+`MigrationEvidenceReceiptSetV1`. The receipt set is evidence for a later
+pre-mutation gate. It does not authorize preflight, publication, migration,
+mutation, cutover, rollback, or recovery.
+
+Before Issue #39, all real Issue #54 entries reject missing, wrong-phase, and
+`TestSandboxAuthorizationV1` inputs and remain fixed locked even when a
+structurally valid real authorization is supplied. Package creation and
+verification tests run only below test-owned temporary synthetic sandboxes.
+Receipts, results, `repr`, stdout, stderr, and logs may expose only closed
+statuses, opaque SHA-256 fingerprints, and bounded counts, never paths, ref
+names, object IDs, worktree names, commands, content, native errors, or
+exception text.
+
+No real package, host preflight, service stop, repository/worktree move, ACL
+apply, Runtime build, database copy, provider call, mailbox access, vault
+access, private-store access, or private-data read is authorized by Issue #54.
+A Migration Evidence Package is evidence, not a backup, Runtime artifact,
+private-data container, or authorization to migrate.
+
 ## Synthetic crash-safe journal boundary
 
 `JournalOperationBindingV1` reparses the exact Profile and validates one
@@ -294,6 +352,11 @@ mailbox/vault/private-data capability or production consumer.
   Python import forms,
   direct/attribute/imported/rebound dynamic-import call aliases, and fixed token
   checks for JavaScript;
+- the Issue #54 creator/verifier dependency wall, separate verifier process,
+  create-only versus read-only capabilities, and fixed content-free process
+  response;
+- the Issue #54 locked entries' rejection of missing, wrong-phase, and test
+  authorization;
 - the zero-argument, always-blocked default operator entry;
 - the existing 300-line file and 50-line function bounds.
 
@@ -322,6 +385,16 @@ invoke a real host.
   separate and content-free before canonical `HostBaseline` projection.
 - [ ] Final-audit readiness binds the unchanged nine-zone policy and exact seven
   callbacks without invoking the audit or claiming a final-layout pass.
+- [ ] Evidence review consumes only exact Profile-bound selections and keeps
+  the complete review in memory.
+- [ ] Evidence create requires the exact publication authorization and confirmed
+  review fingerprint, then repeats complete discovery and host collection.
+- [ ] Creator and verifier capabilities remain isolated; verification is a
+  separate read-only process with no publication or mutation capability.
+- [ ] Review, created, and verified receipts agree on exact bindings, hashes,
+  identity, and counts without becoming authorization.
+- [ ] Issue #54 real entries remain locked before Issue #39, and package tests
+  remain temporary, synthetic, and content-free.
 - [ ] No production operator command or real-host operation has been added.
 - [ ] No forbidden mutation, service, runtime/data publication, provider,
   mailbox, vault, private-data, or cleanup capability has been added.

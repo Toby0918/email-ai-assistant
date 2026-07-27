@@ -2,8 +2,11 @@
 
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
+import subprocess
+import sys
 import tempfile
 import unittest
 import zipfile
@@ -22,6 +25,31 @@ from tests.test_migration_evidence_review import (
     create_repository,
     host_baseline,
 )
+
+MIGRATION_EVIDENCE_ROOT = (
+    Path(__file__).resolve().parents[1]
+    / "backend"
+    / "migration_evidence"
+)
+
+
+def relative_imports(path: Path) -> set[str]:
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    return {
+        node.module or ""
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom) and node.level == 1
+    }
+
+
+def called_names(path: Path) -> set[str]:
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    return {
+        node.func.id
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+    }
 
 
 def rewrite_package(
@@ -62,6 +90,59 @@ def rewrite_package(
 
 
 class MigrationEvidenceVerificationTests(unittest.TestCase):
+    def test_creator_and_verifier_have_separate_capabilities(self) -> None:
+        creator = MIGRATION_EVIDENCE_ROOT / "package.py"
+        shared_validator = (
+            MIGRATION_EVIDENCE_ROOT / "archive_validation.py"
+        )
+        verifier = MIGRATION_EVIDENCE_ROOT / "verification.py"
+
+        self.assertNotIn("verification", relative_imports(creator))
+        self.assertNotIn(
+            "_validate_package_payload",
+            called_names(creator),
+        )
+        self.assertTrue(
+            {"package", "publication"}.isdisjoint(
+                relative_imports(verifier)
+            )
+        )
+        self.assertTrue(
+            {
+                "create_migration_evidence_package",
+                "publish_new_package",
+            }.isdisjoint(called_names(verifier))
+        )
+        self.assertNotIn(
+            "git_discovery",
+            relative_imports(shared_validator),
+        )
+        self.assertNotIn("git_output", called_names(shared_validator))
+
+    def test_importing_verifier_does_not_load_creator_or_publication(
+        self,
+    ) -> None:
+        script = (
+            "import backend.migration_evidence.verification\n"
+            "import sys\n"
+            "blocked = {\n"
+            " 'backend.migration_evidence.package',\n"
+            " 'backend.migration_evidence.publication',\n"
+            "} & set(sys.modules)\n"
+            "raise SystemExit(1 if blocked else 0)\n"
+        )
+
+        completed = subprocess.run(
+            (sys.executable, "-B", "-c", script),
+            cwd=MIGRATION_EVIDENCE_ROOT.parents[1],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+
+        self.assertEqual(completed.returncode, 0)
+
     def test_semantic_validation_failure_cannot_cross_commit_point(
         self,
     ) -> None:

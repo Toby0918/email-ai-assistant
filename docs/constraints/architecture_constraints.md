@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-26
+last_update: 2026-07-27
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -148,10 +148,13 @@ workflow may import or invoke this layer. Issue #36's
 `backend.reparenting_rehearsal.evidence_bridge` is reachable only inside a
 self-created temporary synthetic scenario and may call the reviewed package
 seams. Issue #53's exact `backend.real_host_preflight.baseline_bridge` may import
-only `HostBaseline`; it cannot call review, create, or verify. The leakage
-scanner recognizes only the reserved package suffix so an accidental repository
-package fails; it is not a package creator or reader. Any real capture remains a
-manual two-step review/confirmation operation outside normal runtime.
+only `HostBaseline`; it cannot call review, create, or verify. Issue #54 adds
+only the exact publication `review_bridge.py` and `creator_bridge.py`, plus the
+physically separate verifier package's `bridge.py`. Those bridges import only
+their single reviewed prepare, create, or verify capability. The leakage scanner
+recognizes only the reserved package suffix so an accidental repository package
+fails; it is not a package creator or reader. Any real capture remains a manual
+review and separately authorized confirmation operation outside normal runtime.
 
 The `Reparenting Rehearsal layer` in `backend.reparenting_rehearsal` is a
 synthetic-only deep module. Its single public operation accepts only the complete
@@ -243,9 +246,10 @@ environment, Git, ACL, browser, mailbox, provider, vault, private-store,
 credential, authority-store, adapter, logging, scheduler, dynamic-import, or
 host-mutation capability. Its approved consumers are the exact
 `backend/cutover_journal/contracts_bridge.py` and
-`backend/real_host_preflight/contracts_bridge.py`; no script, frontend,
-executable operator surface, or normal runtime consumes it. Consumer guards
-still reject every other static/dynamic import form.
+`backend/real_host_preflight/contracts_bridge.py`, plus Issue #54's exact
+`backend/migration_evidence_publication/contracts_bridge.py`; no script,
+frontend, executable operator surface, or normal runtime consumes it. Consumer
+guards still reject every other static/dynamic import form.
 
 The `Synthetic Cutover Journal layer` in `backend.cutover_journal` is the Issue
 #52 state-machine boundary. It owns strict canonical hash-chained records,
@@ -328,8 +332,47 @@ workflow consumes this layer. The zero-argument operator entry remains
 service-control, ACL-apply, rename, worktree-mutation, Runtime-build,
 database-copy, artifact, Config, provider, mailbox, vault, private-data, or
 arbitrary command capability. Windows integration runs only in test-owned
-temporary sandboxes; Linux tests cover portable contracts only. Issues #54
+temporary sandboxes; Linux tests cover portable contracts only. Issues #55
 through #59 remain separate; Issues #38/#39 and parent Spec #50 are unchanged.
+
+The `Reviewed Migration Evidence Publication layer` in
+`backend.migration_evidence_publication` is the Issue #54 profile-bound
+composition. Review consumes one opaque selection bound to the exact
+`CutoverProfileV1` dirty-source, local-ref, worktree, package-target, Git, and
+`RealHostBaseline` selections. Only its exact bridges may cross into Issue #35
+prepare/create, Issue #53 HostBaseline collection, and Issue #51
+Profile/authorization validation. The complete `MigrationEvidenceReview`
+remains in module-owned memory rather than persisted authority.
+
+Create requires the exact `EvidencePublicationAuthorizationV1`, matching review
+receipt, and exact confirmed review fingerprint. It repeats complete discovery,
+including fresh HostBaseline collection, and rejects Profile, selection,
+dirty-source, ref, worktree, Git, host, target, review, receipt, or
+authorization drift before the create-only no-clobber commit. The creator may
+use shared pure archive validation but cannot import or call the independent
+verifier capability.
+
+The `Migration Evidence Verifier layer` in
+`backend.migration_evidence_verifier` is a separate read-only process boundary.
+Its one core bridge imports only `verify_migration_evidence_payload`. The fixed
+worker reads the published package once through a bounded descriptor, passes
+those exact bytes to that verifier, requires an identical target reread, and
+independently recomputes package/manifest hashes and bounded counts. The verifier package
+cannot import publication or create-only modules and owns no package-target
+write, create, replace, rename, link, unlink, remove, or delete capability.
+
+The three closed review, created, and verified receipts bind one operation,
+Profile, governing master, review/selection/Git/host fingerprints, package and
+manifest hashes, package identity, and applicable counts. Only an exact match
+may produce `MigrationEvidenceReceiptSetV1`, which is later-gate evidence rather
+than authorization. All real entries remain locked before Issue #39 and reject
+missing, wrong-phase, and test authorization. Tests may create and verify only
+inside test-owned temporary synthetic sandboxes; public results, `repr`, stdout,
+stderr, and logs remain content-free. No real package, host preflight, service,
+repository/worktree move, ACL apply, Runtime build, database copy, provider,
+mailbox, vault, private store, or private data is accessed. The package is
+evidence, not backup, Runtime artifact, private-data container, or authority to
+migrate.
 
 ## 2. 允许依赖方向
 
@@ -355,9 +398,12 @@ Issue #53 exact read-only composition -> backend.container_audit injected values
 manual offline operator -> backend.migration_evidence review/create/verify
 backend.reparenting_rehearsal -> exact synthetic audit/evidence/layout bridges
 tests only -> backend.runtime_activation_rehearsal exact injected adapters
-tests plus exact #52/#53 bridges -> backend.cutover_contracts pure value seams
+tests plus exact #52/#53/#54 bridges -> backend.cutover_contracts pure value seams
 tests -> backend.real_host_preflight test-owned Windows sandbox and portable seams
 backend.real_host_preflight -> exact audit/baseline/contracts bridges
+backend.migration_evidence_publication -> exact review/create/HostBaseline/contracts bridges
+backend.migration_evidence_publication verification composition -> backend.migration_evidence_verifier process
+backend.migration_evidence_verifier bridge -> backend.migration_evidence exact-payload verify only
 ```
 
 禁止反向依赖：
@@ -395,6 +441,9 @@ all backend packages except exact #52/#53 bridges, plus scripts/frontend -> back
 backend.cutover_contracts -> filesystem/SQLite/process/network/Git/ACL/provider/mailbox/vault/private-store/authority issuer
 normal runtime/browser/scripts/wrappers/workflows/cleanup/leakage -> backend.real_host_preflight
 backend.real_host_preflight -> service-control/ACL-apply/rename/Git-worktree mutation/Runtime-build/SQLite-copy/artifact/Config/provider/mailbox/vault/private-data capability
+normal runtime/browser/scripts/wrappers/workflows/cleanup/leakage -> backend.migration_evidence_publication or backend.migration_evidence_verifier
+backend.migration_evidence_publication creator -> backend.migration_evidence_verifier or independent verify capability
+backend.migration_evidence_verifier -> backend.migration_evidence_publication or package publication/mutation capability
 ```
 
 `tests/test_cutover_contract_architecture.py` enforces the Cutover Contract

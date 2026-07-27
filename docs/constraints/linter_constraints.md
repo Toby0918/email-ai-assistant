@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-26
+last_update: 2026-07-27
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -450,8 +450,12 @@ except Issue #36's exact
 `backend/real_host_preflight/baseline_bridge.py`. The #53 bridge may import only
 the existing repr-redacted `HostBaseline` value for canonical projection; it
 cannot review, create, publish, verify, read, or delete a migration-evidence
-package. The only additional repository-tooling integration is the leakage
-scanner's fixed
+package. Issue #54 adds only the exact
+`backend/migration_evidence_publication/review_bridge.py`,
+`creator_bridge.py`, and
+`backend/migration_evidence_verifier/bridge.py`; each may import and call only
+its single reviewed prepare, create, or verify seam. The only additional
+repository-tooling integration is the leakage scanner's fixed
 `.migration-evidence.zip` suffix check; it classifies by name before file reads
 and never imports or verifies the package. `.gitignore` reserves the same suffix,
 and static linter tests fail if such an artifact appears inside the repository.
@@ -557,11 +561,14 @@ of `__import__` and `importlib.import_module` are rejected at the call seam even
 when their module target is dynamically bound. JavaScript retains fixed-token
 rejection. The only allowlisted consumers are
 `backend/cutover_journal/contracts_bridge.py` and Issue #53's exact
-`backend/real_host_preflight/contracts_bridge.py`; each imported symbol set is
-exact. The #53 bridge may only validate the exact Profile/authorization values,
-construct the closed preflight receipt family, and reuse fixed operator-entry
-values. It cannot issue authorization or widen the receipt schemas. The package
-has no normal runtime, script, or frontend consumer.
+`backend/real_host_preflight/contracts_bridge.py`, plus Issue #54's exact
+`backend/migration_evidence_publication/contracts_bridge.py`; each imported
+symbol set is exact. The #53 bridge may only validate the exact
+Profile/authorization values, construct the closed preflight receipt family,
+and reuse fixed operator-entry values. The #54 bridge may only validate the
+exact Profile and phase-specific review/publication/verification
+authorizations. Neither can issue authorization or widen receipt schemas. The
+package has no normal runtime, script, or frontend consumer.
 `default_operator_entry()` is mechanically pinned to zero arguments and the
 fixed `BLOCKED_NO_APPROVED_COMMAND`, `blocked=1`, `executed=0` result.
 
@@ -666,7 +673,56 @@ operator entry to remain zero-capability and fixed at
 authorization cannot enter that seam. Issue #53 performs no real project,
 service, ACL, repository/worktree, Runtime, database, artifact, Config,
 provider, mailbox, vault, private-data, migration, cutover, or recovery
-operation. Issues #54 through #59 remain separate.
+operation. Issues #55 through #59 remain separate.
+
+### Reviewed Migration Evidence publication mechanical guards
+
+`backend/migration_evidence_publication/` and
+`backend/migration_evidence_verifier/` each have exact module-file,
+public-export, absolute-import, and relative-import allowlists. Recursive
+consumer guards reject both packages from normal runtime, scripts, frontend,
+root wrappers, cleanup, leakage scanning, and workflows. The only cross-package
+imports are the exact Issue #54 review/create/HostBaseline/contracts bridges,
+the parent verification composition's verifier-process imports, and the
+verifier's single exact-payload core verify bridge.
+
+AST capability guards require `creator_bridge.py` to import only the existing
+create seam and forbid creator modules from importing or calling the
+independent verifier. The verifier bridge may import only
+`verify_migration_evidence_payload`, and the worker must pass it the exact bytes
+from the first bounded descriptor read before requiring an identical target
+reread. Verifier files may not import the publication package,
+creator, or core publication modules. They reject package-target write modes,
+create, mkdir, link, replace, rename, unlink, remove, rmtree, or deletion calls.
+The verifier's only writes are the bounded parent stdin request and child stdout
+response; package reads require `O_RDONLY` and a read-only ZIP.
+
+Process guards pin one fixed `sys.executable -B -m
+backend.migration_evidence_verifier.worker` launch with `shell=False`, a
+sanitized allowlisted environment, fixed request/response byte ceilings,
+timeout, stderr discard, strict canonical single response, and whole-process-
+tree cleanup. Windows must assign the suspended child to a kill-on-close Job
+before resume; POSIX must close the process group before parent reap.
+
+Behavior tests pin the opaque profile-bound selection, exact
+`EvidencePublicationAuthorizationV1` plus confirmed review fingerprint,
+complete rediscovery and fresh HostBaseline comparison, absent-target
+create-only publication, independent package/manifest hash recomputation, and
+exact `MigrationEvidenceReviewReceiptV1`/
+`MigrationEvidenceCreatedReceiptV1`/
+`MigrationEvidenceVerifiedReceiptV1` agreement before
+`MigrationEvidenceReceiptSetV1`. The complete review must not serialize or
+persist as authority.
+
+Locked-entry guards reject missing, wrong-phase, malformed, and
+`TestSandboxAuthorizationV1` values before Issue #39. All package creation and
+verification tests use test-owned temporary synthetic sandboxes. Leakage tests
+reject path, ref, object ID, worktree name, command, content, native error, or
+exception text in receipts, results, `repr`, stdout, stderr, and logs. The
+packages expose no real host preflight, service, ACL apply, repository/worktree
+move, Runtime build, database copy, provider, mailbox, vault, private-store, or
+private-data capability; evidence is never treated as backup, Runtime artifact,
+private-data container, or migration authorization.
 
 ### Private evaluation mechanical guards
 

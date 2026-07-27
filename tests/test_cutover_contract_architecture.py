@@ -126,9 +126,15 @@ ALLOWED_CONSUMERS = {
         "default_operator_entry",
         "validate_real_host_authorization",
     },
+    "backend/migration_evidence_publication/contracts_bridge.py": {
+        "AuthorizationValidationStatus",
+        "CutoverProfileV1",
+        "EvidencePublicationAuthorizationV1",
+        "RealPreflightAuthorizationV1",
+        "TestSandboxAuthorizationV1",
+        "validate_real_host_authorization",
+    },
 }
-
-
 def _is_allowed_package_import_from(node: ast.ImportFrom) -> bool:
     if node.level == 0:
         allowed_names = ALLOWED_IMPORT_FROM.get(node.module or "", set())
@@ -231,16 +237,18 @@ def _imports_cutover_contracts(source: str) -> bool:
             ):
                 return True
     dynamic_aliases = _dynamic_import_aliases(tree)
-    if any(
-        isinstance(node, ast.Call)
+    dynamic_calls = [
+        node
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
         and (
             isinstance(node.func, ast.Name)
             and node.func.id in dynamic_aliases
             or isinstance(node.func, ast.Attribute)
             and node.func.attr == "import_module"
         )
-        for node in ast.walk(tree)
-    ):
+    ]
+    if dynamic_calls:
         return True
     return False
 
@@ -510,6 +518,7 @@ class CutoverContractArchitectureTests(unittest.TestCase):
                 ):
                     continue
                 source = path.read_text(encoding="utf-8")
+                relative = path.relative_to(ROOT).as_posix()
                 imports_contracts = (
                     _imports_cutover_contracts(source)
                     if path.suffix == ".py"
@@ -519,7 +528,7 @@ class CutoverContractArchitectureTests(unittest.TestCase):
                     )
                 )
                 if imports_contracts:
-                    violations.append(path.relative_to(ROOT).as_posix())
+                    violations.append(relative)
         self.assertEqual(sorted(violations), sorted(ALLOWED_CONSUMERS))
 
         for relative, expected_symbols in ALLOWED_CONSUMERS.items():

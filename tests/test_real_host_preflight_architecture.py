@@ -793,6 +793,11 @@ class RealHostPreflightArchitectureTests(unittest.TestCase):
     def test_normal_runtime_and_operator_surfaces_do_not_consume_package(
         self,
     ) -> None:
+        allowed_consumers = {
+            "backend/migration_evidence_publication/host_baseline_bridge.py": {
+                "RealHostBaselineCollector",
+            },
+        }
         candidates = [
             path
             for path in (ROOT / "backend").rglob("*.py")
@@ -822,7 +827,21 @@ class RealHostPreflightArchitectureTests(unittest.TestCase):
                 consumed = _text_consumes_preflight(source)
             if consumed:
                 violations.append(path.relative_to(ROOT).as_posix())
-        self.assertEqual(violations, [])
+        self.assertEqual(sorted(violations), sorted(allowed_consumers))
+        for relative, expected_symbols in allowed_consumers.items():
+            tree = ast.parse((ROOT / relative).read_text(encoding="utf-8"))
+            imports = [
+                node
+                for node in ast.walk(tree)
+                if isinstance(node, ast.ImportFrom)
+                and node.level == 0
+                and node.module == "backend.real_host_preflight"
+            ]
+            self.assertEqual(len(imports), 1)
+            self.assertEqual(
+                {alias.name for alias in imports[0].names},
+                expected_symbols,
+            )
         self.assertEqual(
             tuple(
                 inspect.signature(

@@ -25,7 +25,7 @@ class _Identity:
     links: int
 
 
-def publish_new_package(target: Path, payload: bytes) -> None:
+def publish_new_package(target: Path, payload: bytes) -> _Identity:
     """Publish bytes exactly once; helper return is the commit point."""
 
     stage: Path | None = None
@@ -66,6 +66,7 @@ def publish_new_package(target: Path, payload: bytes) -> None:
                 pass
         if stage is not None:
             _unlink_stage_best_effort(stage)
+    return stage_identity
 
 
 def _write_stage(

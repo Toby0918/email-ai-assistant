@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-26
+last_update: 2026-07-27
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -289,7 +289,8 @@ current-click evidence seam.
 
 Complete this section whenever a task changes Repository Root, Project
 Container, ordinary operational locations, the flat-layout transition seam, or
-the manual ContainerAudit or locked cutover contract.
+the manual ContainerAudit, locked cutover contract, or reviewed Migration
+Evidence publication composition.
 
 ```text
 [ ] `RepositoryPlacement` has exactly Managed and explicit Standalone modes; no implicit third placement mode is added.
@@ -351,7 +352,14 @@ the manual ContainerAudit or locked cutover contract.
 [ ] The Issue #53 operator entry remains zero-capability, rejects test authorization and returns only `BLOCKED_NO_APPROVED_COMMAND`, `blocked=1`, and `executed=0`.
 [ ] Issue #53 receipts/results/repr/stdout/stderr/logs contain no raw path, SID, SDDL, account, Git name/ref, file ID, command, content, callback exception or native error text.
 [ ] Issue #53 adds no service-control, ACL-apply, rename, repository/worktree mutation, Runtime-build, database-copy, artifact, Config, provider, mailbox, vault, private-data, evidence-publication, cutover, recovery or cleanup capability.
-[ ] Issues #54 through #59 remain separate and require their own approval; this task does not modify or close Issues #38/#39 or parent Spec #50.
+[ ] If Issue #54 is in scope, review consumes only exact Profile-bound dirty-source, local-ref, worktree, package-target, Git and HostBaseline selections; the complete MigrationEvidenceReview stays in memory.
+[ ] Issue #54 create requires exact EvidencePublicationAuthorizationV1, review receipt and confirmed review fingerprint, then repeats complete discovery and fresh HostBaseline collection before create-only publication.
+[ ] Issue #54 creator and verifier capabilities remain isolated: creator cannot call the independent verifier, and the separate read-only verifier cannot import publication/create or modify a package.
+[ ] MigrationEvidenceReviewReceiptV1, MigrationEvidenceCreatedReceiptV1 and MigrationEvidenceVerifiedReceiptV1 bind the same operation/Profile/master/review/hashes/identity/counts before MigrationEvidenceReceiptSetV1 exists; none is authorization.
+[ ] Issue #54 real entries remain locked before Issue #39 and reject missing, wrong-phase, malformed and TestSandboxAuthorizationV1 inputs.
+[ ] Issue #54 tests run only in test-owned temporary synthetic sandboxes and expose no path/ref/object ID/worktree name/command/content/native error/exception through receipts/results/repr/stdout/stderr/logs.
+[ ] A Migration Evidence Package is evidence, not backup, Runtime artifact, private-data container or authorization to migrate; no real package or host/service/repository/ACL/Runtime/database/provider/mailbox/vault/private-data operation occurs.
+[ ] Issues #55 through #59 remain separate and require their own approval; this task does not modify or close Issues #38/#39 or parent Spec #50.
 ```
 
 ## 22. 执行后记录

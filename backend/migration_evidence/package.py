@@ -7,8 +7,11 @@ import os
 import tempfile
 from pathlib import Path
 
+from .archive_validation import (
+    package_fingerprints,
+    validate_package_payload,
+)
 from .contract import (
-    MigrationEvidenceCounts,
     MigrationEvidenceResult,
     MigrationEvidenceReview,
     MigrationEvidenceStatus,
@@ -18,7 +21,17 @@ from .git_discovery import git_output
 from .manifest import build_archive, canonical_json
 from .publication import publish_new_package
 from .review import prepare_migration_evidence_review
-from .snapshot import capture_snapshot, read_checked_file
+from .results import (
+    MigrationEvidenceCreationResult,
+    failure_creation_result,
+    success_creation_result,
+    success_result,
+)
+from .snapshot import (
+    capture_snapshot,
+    read_checked_file,
+    source_snapshot_fingerprint,
+)
 
 
 def create_migration_evidence_package(
@@ -27,34 +40,75 @@ def create_migration_evidence_package(
     confirmed_review_fingerprint: str,
 ) -> MigrationEvidenceResult:
     """Create one complete package after exact separate-plan confirmation."""
+    return create_migration_evidence_package_binding(
+        review=review,
+        confirmed_review_fingerprint=confirmed_review_fingerprint,
+    ).result
 
+
+def create_migration_evidence_package_binding(
+    *,
+    review: MigrationEvidenceReview,
+    confirmed_review_fingerprint: str,
+    expected_source_snapshot_fingerprint: str | None = None,
+) -> MigrationEvidenceCreationResult:
+    """Create and bind the exact archive committed by this creator."""
     try:
-        _validate_confirmation(review, confirmed_review_fingerprint)
-        _require_review_stable(review)
-        with tempfile.TemporaryDirectory(prefix="migration-evidence-") as temporary:
-            temporary_root = Path(temporary).resolve()
-            bundle = _create_and_verify_bundle(review, temporary_root)
-            snapshot_records, snapshot_payloads = capture_snapshot(review)
-            _require_review_stable(review)
-            payloads = _package_payloads(review, bundle, snapshot_payloads, snapshot_records)
-            archive = build_archive(
-                review_fingerprint=review.review_fingerprint,
-                payloads=payloads,
-                snapshot_records=snapshot_records,
-                refs=tuple({"name": item.name, "oid": item.oid} for item in review.reviewed_refs),
-                worktrees=_worktree_mappings(review),
-            )
-            _require_package_valid(archive)
-            result = _success_result(
-                MigrationEvidenceStatus.CREATED,
-                len(payloads),
-                len(review.reviewed_refs),
-                len(review.worktrees),
-            )
-        publish_new_package(review.target, archive)
-        return result
+        archive, result, source_fingerprint = _prepare_creation(
+            review,
+            confirmed_review_fingerprint,
+            expected_source_snapshot_fingerprint,
+        )
+        package_sha256, manifest_sha256 = package_fingerprints(archive)
+        identity = publish_new_package(review.target, archive)
+        return success_creation_result(
+            result=result,
+            review_fingerprint=review.review_fingerprint,
+            source_snapshot_fingerprint=source_fingerprint,
+            package_sha256=package_sha256,
+            manifest_sha256=manifest_sha256,
+            identity=identity,
+        )
     except Exception:
-        return _failure_result()
+        return failure_creation_result()
+
+
+def _prepare_creation(
+    review: MigrationEvidenceReview,
+    confirmed_review_fingerprint: str,
+    expected_source_snapshot_fingerprint: str | None,
+) -> tuple[bytes, MigrationEvidenceResult, str]:
+    _validate_confirmation(review, confirmed_review_fingerprint)
+    _require_review_stable(review)
+    with tempfile.TemporaryDirectory(prefix="migration-evidence-") as temporary:
+        temporary_root = Path(temporary).resolve()
+        bundle = _create_and_verify_bundle(review, temporary_root)
+        records, snapshots = capture_snapshot(review)
+        source_fingerprint = source_snapshot_fingerprint(records)
+        if expected_source_snapshot_fingerprint is not None and (
+            source_fingerprint != expected_source_snapshot_fingerprint
+        ):
+            raise MigrationEvidenceError("migration_evidence_create_failed")
+        _require_review_stable(review)
+        payloads = _package_payloads(review, bundle, snapshots, records)
+        archive = build_archive(
+            review_fingerprint=review.review_fingerprint,
+            payloads=payloads,
+            snapshot_records=records,
+            refs=tuple(
+                {"name": item.name, "oid": item.oid}
+                for item in review.reviewed_refs
+            ),
+            worktrees=_worktree_mappings(review),
+        )
+        _require_package_valid(archive)
+        result = success_result(
+            MigrationEvidenceStatus.CREATED,
+            len(payloads),
+            len(review.reviewed_refs),
+            len(review.worktrees),
+        )
+    return archive, result, source_fingerprint
 
 
 def _validate_confirmation(review, confirmed: str) -> None:
@@ -65,9 +119,7 @@ def _validate_confirmation(review, confirmed: str) -> None:
 
 
 def _require_package_valid(payload: bytes) -> None:
-    from .verification import _validate_package_payload
-
-    _validate_package_payload(payload)
+    validate_package_payload(payload)
 
 
 def _require_review_stable(review: MigrationEvidenceReview) -> None:
@@ -243,31 +295,3 @@ def _snapshot_mapping(item) -> dict[str, object]:
 def _path_hash(path: Path) -> str:
     normalized = os.path.normcase(str(path))
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
-
-
-def _success_result(status, files, refs, worktrees) -> MigrationEvidenceResult:
-    return MigrationEvidenceResult(
-        status=status,
-        counts=MigrationEvidenceCounts(
-            packages=1,
-            verified=1 if status is MigrationEvidenceStatus.VERIFIED else 0,
-            rejected=0,
-            files=files,
-            refs=refs,
-            worktrees=worktrees,
-        ),
-    )
-
-
-def _failure_result() -> MigrationEvidenceResult:
-    return MigrationEvidenceResult(
-        status=MigrationEvidenceStatus.FAILED,
-        counts=MigrationEvidenceCounts(
-            packages=0,
-            verified=0,
-            rejected=1,
-            files=0,
-            refs=0,
-            worktrees=0,
-        ),
-    )

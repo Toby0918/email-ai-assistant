@@ -162,6 +162,7 @@ _CONTAINER_AUDIT_FORBIDDEN_LOAD_NAMES = {
 
 _MIGRATION_EVIDENCE_FILES = {
     "__init__.py",
+    "archive_validation.py",
     "bound_file.py",
     "checked_io.py",
     "contract.py",
@@ -176,6 +177,7 @@ _MIGRATION_EVIDENCE_FILES = {
     "process_tree.py",
     "publication.py",
     "review.py",
+    "results.py",
     "snapshot.py",
     "verification.py",
     "verification_schema.py",
@@ -1974,23 +1976,128 @@ class ArchitectureConstraintTests(unittest.TestCase):
         self,
     ) -> None:
         package = (ROOT / "backend" / "migration_evidence").resolve()
-        allowed_bridges = {
+        allowed_consumers = {
             (
                 ROOT
                 / "backend"
                 / "reparenting_rehearsal"
                 / "evidence_bridge.py"
             ).resolve(): {
-                "prepare_migration_evidence_review",
-                "create_migration_evidence_package",
-                "verify_migration_evidence_package",
+                "imports": {"backend.migration_evidence"},
+                "calls": {
+                    "prepare_migration_evidence_review",
+                    "create_migration_evidence_package",
+                    "verify_migration_evidence_package",
+                },
+                "symbols": {
+                    "backend.migration_evidence": {
+                        "HostBaseline",
+                        "MigrationEvidenceReview",
+                        "MigrationEvidenceStatus",
+                        "RemoteBaseline",
+                        "create_migration_evidence_package",
+                        "prepare_migration_evidence_review",
+                        "verify_migration_evidence_package",
+                    },
+                },
             },
             (
                 ROOT
                 / "backend"
                 / "real_host_preflight"
                 / "baseline_bridge.py"
-            ).resolve(): set(),
+            ).resolve(): {
+                "imports": {"backend.migration_evidence"},
+                "calls": set(),
+                "symbols": {
+                    "backend.migration_evidence": {"HostBaseline"},
+                },
+            },
+            (
+                ROOT
+                / "backend"
+                / "migration_evidence_publication"
+                / "review_bridge.py"
+            ).resolve(): {
+                "imports": {
+                    "backend.migration_evidence",
+                    "backend.migration_evidence.git_runner",
+                    "backend.migration_evidence.path_checks",
+                    "backend.migration_evidence.snapshot",
+                },
+                "calls": set(),
+                "symbols": {
+                    "backend.migration_evidence": {
+                        "MigrationEvidenceReview",
+                        "prepare_migration_evidence_review",
+                    },
+                    "backend.migration_evidence.git_runner": {
+                        "git_output",
+                    },
+                    "backend.migration_evidence.path_checks": {
+                        "require_existing_non_reparse_directory",
+                    },
+                    "backend.migration_evidence.snapshot": {
+                        "capture_snapshot",
+                        "source_snapshot_fingerprint",
+                    },
+                },
+            },
+            (
+                ROOT
+                / "backend"
+                / "migration_evidence_publication"
+                / "creator_bridge.py"
+            ).resolve(): {
+                "imports": {
+                    "backend.migration_evidence",
+                    "backend.migration_evidence.package",
+                    "backend.migration_evidence.results",
+                },
+                "calls": {
+                    "create_migration_evidence_package_binding",
+                },
+                "symbols": {
+                    "backend.migration_evidence": {
+                        "MigrationEvidenceStatus",
+                    },
+                    "backend.migration_evidence.package": {
+                        "create_migration_evidence_package_binding",
+                    },
+                    "backend.migration_evidence.results": {
+                        "MigrationEvidenceCreationResult",
+                    },
+                },
+            },
+            (
+                ROOT
+                / "backend"
+                / "migration_evidence_verifier"
+                / "bridge.py"
+            ).resolve(): {
+                "imports": {
+                    "backend.migration_evidence.verification",
+                },
+                "calls": {"verify_migration_evidence_payload"},
+                "symbols": {
+                    "backend.migration_evidence.verification": {
+                        "verify_migration_evidence_payload",
+                    },
+                },
+            },
+            (
+                ROOT
+                / "backend"
+                / "migration_evidence_publication"
+                / "publication.py"
+            ).resolve(): {
+                "imports": set(),
+                "calls": {
+                    "create_migration_evidence_package",
+                    "prepare_migration_evidence_review",
+                },
+                "symbols": {},
+            },
         }
         candidates = [
             path
@@ -2018,7 +2125,9 @@ class ArchitectureConstraintTests(unittest.TestCase):
         public_calls = {
             "prepare_migration_evidence_review",
             "create_migration_evidence_package",
+            "create_migration_evidence_package_binding",
             "verify_migration_evidence_package",
+            "verify_migration_evidence_payload",
         }
         for path in candidates:
             with self.subTest(path=path.relative_to(ROOT)):
@@ -2042,22 +2151,22 @@ class ArchitectureConstraintTests(unittest.TestCase):
                     ):
                         migration_imports.add("backend.migration_evidence")
                     called_seams = parse_called_names(path) & public_calls
-                    if path.resolve() in allowed_bridges:
+                    if path.resolve() in allowed_consumers:
+                        expected = allowed_consumers[path.resolve()]
                         self.assertEqual(
                             migration_imports,
-                            {"backend.migration_evidence"},
+                            expected["imports"],
                         )
                         self.assertEqual(
                             called_seams,
-                            allowed_bridges[path.resolve()],
+                            expected["calls"],
                         )
-                        if path.name == "baseline_bridge.py":
+                        for module, symbols in expected["symbols"].items():
                             imports_from = [
                                 node
                                 for node in ast.walk(tree)
                                 if isinstance(node, ast.ImportFrom)
-                                and node.module
-                                == "backend.migration_evidence"
+                                and node.module == module
                             ]
                             self.assertEqual(len(imports_from), 1)
                             self.assertEqual(
@@ -2065,7 +2174,7 @@ class ArchitectureConstraintTests(unittest.TestCase):
                                     alias.name
                                     for alias in imports_from[0].names
                                 },
-                                {"HostBaseline"},
+                                symbols,
                             )
                     else:
                         self.assertFalse(
