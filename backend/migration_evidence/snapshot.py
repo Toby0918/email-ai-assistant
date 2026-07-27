@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -32,6 +33,37 @@ class SnapshotPayload:
     worktree_archive_path: str | None
     worktree_size: int
     worktree_sha256: str
+
+
+def source_snapshot_fingerprint(
+    records: tuple[SnapshotPayload, ...],
+) -> str:
+    """Bind the exact index and worktree bytes captured for publication."""
+
+    value = [
+        {
+            "path": item.path,
+            "status": item.status,
+            "tracked": item.tracked,
+            "index_mode": item.index_mode,
+            "index_size": item.index_size,
+            "index_sha256": item.index_sha256,
+            "worktree_size": item.worktree_size,
+            "worktree_sha256": item.worktree_sha256,
+        }
+        for item in records
+    ]
+    payload = json.dumps(
+        {
+            "domain": "migration-evidence-approved-source-snapshot-v1",
+            "value": value,
+        },
+        ensure_ascii=True,
+        sort_keys=True,
+        separators=(",", ":"),
+        allow_nan=False,
+    ).encode("ascii")
+    return hashlib.sha256(payload).hexdigest()
 
 
 def capture_snapshot(

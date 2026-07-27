@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-26
+last_update: 2026-07-27
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -40,6 +40,8 @@ tests/test_mechanical_rule_constraints.py
 tests/test_maintenance_scan.py
 tests/test_generate_project_status.py
 tests/test_migration_evidence_*.py
+tests/test_migration_evidence_publication_*.py
+tests/test_migration_evidence_verifier_*.py
 tests/test_runtime_activation_rehearsal_*.py
 tests/test_cutover_contract_*.py
 tests/test_cutover_journal_*.py
@@ -131,8 +133,52 @@ Both platforms run the focused Issue #53 suite, affected ContainerAudit,
 migration-evidence and cutover-contract suites, architecture/static/mechanical/
 documentation/leakage checks, the full unit suite, and the read-only
 maintenance scan. Green CI proves only the locked read-only composition and
-test-sandbox behavior. It does not authorize or execute Issues #54 through #59,
+test-sandbox behavior. It does not authorize or execute Issues #55 through #59,
 Issue #39, a final ContainerAudit, migration, cutover, recovery, or cleanup.
+
+### Issue #54 reviewed evidence publication and verification gate
+
+CI must reject any Issue #54 change when:
+
+- review accepts a dirty-source, local-ref, worktree, package-target, Git, or
+  HostBaseline replacement that is not bound to the exact `CutoverProfileV1`,
+  persists the complete `MigrationEvidenceReview` as alternate authority, or
+  lets same-path target-parent replacement pass when object identity is
+  recycled instead of requiring the synthetic marker hard-link anchor;
+- create accepts anything other than the exact
+  `EvidencePublicationAuthorizationV1`, exact review receipt, and confirmed
+  review fingerprint, skips complete rediscovery/fresh HostBaseline collection,
+  accepts any reviewed-state drift, or publishes to an existing target;
+- the creator can import, construct, or call the independent verifier, or the
+  verifier imports publication/create capabilities or can write, create,
+  replace, rename, link, unlink, remove, or delete a package;
+- verification is not a separate fixed read-only process, does not verify the
+  exact bytes from its first bounded descriptor read, does not require an
+  identical target reread and independently recompute package/manifest hashes
+  and counts, or accepts timeout, non-zero exit, malformed/duplicate/unknown
+  response, corruption, collision, ABA replacement, or manifest mismatch;
+- the review, created, and verified receipts can form
+  `MigrationEvidenceReceiptSetV1` without exact agreement on operation,
+  Profile, governing master, review/selection/Git/host bindings, package and
+  manifest hashes, package identity, and applicable counts;
+- a real entry accepts missing, wrong-phase, malformed, or
+  `TestSandboxAuthorizationV1` input before Issue #39, or gains an executable
+  host command;
+- a package test escapes its test-owned temporary synthetic sandbox, accesses a
+  real Repository Root or existing worktree, or performs real host preflight,
+  service, repository/worktree move, ACL apply, Runtime build, database copy,
+  provider, mailbox, vault, private-store, or private-data work; or
+- any receipt, result, `repr`, stdout, stderr, or log exposes a path, ref, object
+  ID, worktree name, command, content, native error, or exception text, or
+  describes the package as backup, Runtime artifact, private-data container, or
+  migration authorization.
+
+Windows and Linux jobs run the focused Issue #54 synthetic suite, affected
+Issue #35/#51/#53 suites, exact architecture/static/mechanical/documentation/
+leakage checks, the full unit suite, and read-only maintenance scan. Green CI
+would prove only the synthetic composition and locked-entry boundary. It would
+not create or authorize a real package, migration, mutation, cutover, rollback,
+or cleanup, and it does not replace human Standards/Spec review.
 
 ## 5. 失败处理原则
 

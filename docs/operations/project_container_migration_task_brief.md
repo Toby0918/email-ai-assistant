@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-26
+last_update: 2026-07-27
 status: draft
 owner: "@tobyWang"
 review_cycle: monthly
@@ -573,8 +573,9 @@ service, ACL, Git repository/worktree, Runtime, SQLite, artifact, Config,
 provider, mailbox, vault, private store, credential or private data. The
 Windows/Linux trace is contract evidence only, not real filesystem durability
 evidence. No real preflight, migration, cutover, resume, rollback or recovery was
-executed. Issues #54 through #59 remain unstarted；Issues #38/#39 and parent Spec
-#50 are unchanged.
+executed. Issue #52 did not authorize later work; Issue #54 is bounded
+separately below, Issues #55 through #59 remain unstarted, and Issues #38/#39
+and parent Spec #50 are unchanged.
 
 ### 8.20 Issue #53 content-free Windows real-host preflight checkpoint
 
@@ -629,8 +630,60 @@ vault, private-store/private-data, evidence-publication, migration, cutover,
 resume, rollback, recovery, cleanup, or scheduler capability. No Issue #53 test
 accessed the real Repository Root, finance project, service, ACL, worktree,
 Runtime, production database, credential, mailbox, provider, vault, or private
-data. Issues #54 through #59 remain separately authorized; Issues #38/#39 and
+data. Issue #53 did not authorize #54; the #54 checkpoint follows below.
+Issues #55 through #59 remain separately authorized, and Issues #38/#39 and
 parent Spec #50 remain unchanged.
+
+### 8.21 Issue #54 reviewed Migration Evidence publication checkpoint
+
+Issue #54 defines the profile-bound review, separately authorized create-only
+publication, and separate-process read-only verification boundary:
+
+- review consumes only exact `CutoverProfileV1` dirty-source, local-ref,
+  worktree, package-target, Git, and `RealHostBaseline` selections, with no
+  arbitrary replacement inputs; the test-only synthetic binder requires a
+  marker hard-link in the target parent so identity reuse cannot mask
+  same-path replacement;
+- `MigrationEvidenceReviewReceiptV1` binds operation, Profile, governing
+  master, review, selection, Git, host, and allowlisted counts through
+  content-free fingerprints; the complete `MigrationEvidenceReview` remains
+  in memory and is not persisted as alternate authority;
+- create runs in the physically separate
+  `backend.migration_evidence_publication` composition and requires the exact
+  `EvidencePublicationAuthorizationV1`, review receipt, and confirmed review
+  fingerprint;
+- create repeats complete discovery and fresh HostBaseline collection before
+  the existing no-clobber commit, rejecting Profile, selection, dirty-source,
+  ref, worktree, Git, host, target, review, receipt, or authorization drift;
+- `MigrationEvidenceCreatedReceiptV1` binds review, package, manifest, package
+  identity, authorization, and aggregate-count fingerprints;
+- verification runs through the separate read-only
+  `backend.migration_evidence_verifier` process, reads the published package
+  once through a bounded descriptor, invokes the independent verifier on those
+  exact bytes, requires an identical target reread, and independently
+  recomputes package/manifest hashes and counts;
+- the creator may use shared pure archive-format validation but cannot import
+  or call the independent verifier; the verifier cannot import publication or
+  create-only capability and cannot modify a package;
+- `MigrationEvidenceReviewReceiptV1`,
+  `MigrationEvidenceCreatedReceiptV1`, and
+  `MigrationEvidenceVerifiedReceiptV1` must agree exactly before
+  `MigrationEvidenceReceiptSetV1` can provide later-gate evidence; no receipt or
+  Set is authorization;
+- before Issue #39, real review/publication/verification entries remain locked
+  and reject missing, wrong-phase, malformed, and
+  `TestSandboxAuthorizationV1` inputs;
+- all executable package creation and verification stays in test-owned
+  temporary synthetic sandboxes, and public receipts/results/repr/stdout/
+  stderr/logs expose no path, ref, object ID, worktree name, command, content,
+  native error, or exception text.
+
+Issue #54 authorizes no real package, host preflight, service stop,
+repository/worktree move, ACL apply, Runtime build, database copy, provider
+call, mailbox access, vault/private-store access, or private-data read. A
+Migration Evidence Package is evidence, not backup, Runtime artifact,
+private-data container, or authorization to migrate. Issues #55 through #59
+remain separate; Issues #38/#39 and parent Spec #50 remain unchanged.
 
 ## 9. 数据结构或接口变化
 
@@ -654,6 +707,10 @@ portable observation values, Windows test-sandbox observation,
 `CurrentTopologyPreflight`, `PreMutationGate`, `RealHostBaselineCollector`, and
 final-audit composition readiness through exact narrow bridges; its operator
 entry remains blocked and no HTTP/CLI command is added；
+Issue #54 additionally exposes internal profile-bound review, separately
+authorized create-only publication, separate-process read-only verification,
+and closed content-free review/created/verified receipt consistency seams. Its
+real entries remain locked before Issue #39 and no HTTP/CLI command is added；
 无 HTTP API 变化。
 
 ### AI 输出 JSON 变化
@@ -721,6 +778,19 @@ entry remains blocked and no HTTP/CLI command is added；
 18. The #53 operator remains fixed blocked, no real authorization is issued,
     public output remains content-free, and no mutation/runtime/data/provider/
     mailbox/vault/private-data capability is introduced。
+19. Issue #54 review accepts only exact Profile-bound evidence selections and
+    does not persist the complete review as authority。
+20. Issue #54 create requires exact publication authorization and confirmed
+    review fingerprint, reruns complete discovery and fresh HostBaseline
+    collection, and remains create-only/no-clobber。
+21. Issue #54 verification is a separate read-only process; creator and verifier
+    capabilities remain isolated and package/manifest hashes are recomputed。
+22. Review, created, and verified receipts agree on the same operation, Profile,
+    master, review bindings, hashes, identity, and counts before a content-free
+    `MigrationEvidenceReceiptSetV1` can exist。
+23. Real #54 entries remain locked before Issue #39; tests stay temporary and
+    synthetic, public output stays content-free, and the evidence package is
+    neither backup/runtime/private data nor migration authorization。
 
 后续 migration cutover acceptance 至少包括:
 
@@ -753,6 +823,9 @@ entry remains blocked and no HTTP/CLI command is added；
   and semantic-verification tests
 - focused portable, topology, pre-mutation gate, HostBaseline, composition,
   architecture and leakage tests for Issue #53
+- focused profile-bound review, separately authorized create-only publication,
+  receipt consistency, package observation, separate verifier process,
+  architecture, locked-entry and leakage tests for Issue #54
 - Windows native observation tests only beneath test-owned temporary sandboxes;
   Linux portable-contract tests do not claim NTFS or Windows ACL evidence
 - affected ContainerAudit, migration-evidence and cutover-contract regression
@@ -840,7 +913,10 @@ BitLocker private content 或 ignored SQLite text。
   capability。
 - [x] Issue #53 read-only preflight composition is implemented, Windows-tested
   only in caller-owned temporary sandboxes, and operator-blocked。
-- [ ] Issues #54 through #59 remain separately approved and unimplemented here。
+- [x] Issue #54 profile-bound review/create/verify composition exists only for
+  test-owned temporary synthetic sandboxes; real entries remain locked and no
+  real package was created。
+- [ ] Issues #55 through #59 remain separately approved and unimplemented here。
 - [ ] Full cutover implementation Issues 已批准。
 - [ ] 维护窗口已确认。
 - [ ] Baseline and rollback artifacts 已生成并验证。

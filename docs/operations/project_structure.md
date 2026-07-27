@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-26
+last_update: 2026-07-27
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -43,6 +43,60 @@ email-ai-assistant/
       filesystem_checks.py
       policy.py
       system_checks.py
+    migration_evidence/
+      __init__.py
+      archive_validation.py
+      bound_file.py
+      checked_io.py
+      contract.py
+      errors.py
+      git_discovery.py
+      git_remote.py
+      git_runner.py
+      manifest.py
+      package.py
+      path_checks.py
+      policy.py
+      process_tree.py
+      publication.py
+      results.py
+      review.py
+      snapshot.py
+      verification.py
+      verification_schema.py
+      verification_snapshot.py
+      verification_values.py
+    migration_evidence_publication/
+      __init__.py
+      canonical.py
+      contracts_bridge.py
+      creator_bridge.py
+      errors.py
+      host_baseline_bridge.py
+      operator_entry.py
+      package_observation.py
+      profile_binding.py
+      profile_git_binding.py
+      publication.py
+      publication_receipts.py
+      published_scope.py
+      receipt_set.py
+      receipts.py
+      review.py
+      review_bridge.py
+      selection.py
+      selection_state.py
+      synthetic_scope.py
+      verification_composition.py
+    migration_evidence_verifier/
+      __init__.py
+      bridge.py
+      canonical.py
+      contracts.py
+      package_read.py
+      process.py
+      process_tree.py
+      worker.py
     cutover_contracts/
       __init__.py
       _canonical.py
@@ -167,6 +221,7 @@ email-ai-assistant/
       *_task_brief.md
       issue51_cutover_profile_authorization_receipt_task_brief.md
       issue53_windows_real_host_preflight_task_brief.md
+      issue54_migration_evidence_publication_task_brief.md
       setup_checklist.md
       testing_checklist.md
       deployment_notes.md
@@ -242,6 +297,16 @@ email-ai-assistant/
     test_real_host_preflight_topology.py
     test_real_host_preflight_windows.py
     test_real_host_preflight_windows_composition.py
+    migration_evidence_publication_fixtures.py
+    test_migration_evidence_publication_architecture.py
+    test_migration_evidence_publication_commit_binding.py
+    test_migration_evidence_publication_create_verify.py
+    test_migration_evidence_publication_operator.py
+    test_migration_evidence_publication_package_observation.py
+    test_migration_evidence_publication_receipts.py
+    test_migration_evidence_publication_review.py
+    test_migration_evidence_verifier_architecture.py
+    test_migration_evidence_verifier_process.py
 
   scripts/
     repo_utils.py
@@ -316,7 +381,9 @@ email-ai-assistant/
 - `.github/workflows/`：CI 护栏和可选后台清理报告任务。当前运行架构、静态 linter、机械规则、完整 unittest 和只读 cleanup scan。
 - `backend/`：Python 后端代码。负责 placement/layout contracts、邮件正文清洗、AI 调用封装、结构化结果校验、SQLite 持久化、调试导出、本地 API 和本地调试服务。
 - `backend/container_audit/`: Issue #34 的纯手工 content-free audit contract；只验证独立 trusted policy 与七个 injected metadata adapters，不含 path/host reader、default adapter、CLI、repair、scheduler 或真实 audit composition。
-- `backend/migration_evidence/`: Issue #35 的 offline manual review/create/verify 深模块；只从 exact local refs 与 approved source/tests/docs 创建一个 external create-only package，并独立验证 Git bundle、selection/snapshot/host evidence 和 SHA-256 manifest。它没有 CLI、default target、normal-runtime consumer、mailbox/provider/private-store 或 migration/cutover capability。
+- `backend/migration_evidence/`: Issue #35 的 offline manual review/create/verify 深模块；只从 exact local refs 与 approved source/tests/docs 创建一个 external create-only package，并独立验证 Git bundle、selection/snapshot/host evidence 和 SHA-256 manifest。Issue #54 将共享纯 archive validation 与 content-free result helpers 从 creator/verifier 中立提取，保持 pre-publication semantic validation，同时让 creator 不再导入 independent verifier。该 package 没有 CLI、default target、normal-runtime consumer、mailbox/provider/private-store 或 migration/cutover capability。
+- `backend/migration_evidence_publication/`: Issue #54 的 profile-bound review 与 separately authorized create-only composition。它通过 exact review/create/HostBaseline/contracts bridges 绑定同一 operation、Profile、master、review、selection、Git、host、package/manifest/identity hashes 和 counts，生成 closed review/created/verified receipts，并只在三者完全一致时产生 `MigrationEvidenceReceiptSetV1`。Test-only synthetic binder 把固定 sandbox marker hard-link 到 target parent 并在 claim 时重验同一 regular-file identity，避免 POSIX inode reuse 掩盖 same-path parent replacement；完整 review 仅保留在内存，real entries 在 Issue #39 前保持 locked。
+- `backend/migration_evidence_verifier/`: Issue #54 的 physically separate read-only verifier process。固定 sanitized child 通过 bounded descriptor 首次读取 synthetic package，只把该 exact payload 交给 independent verifier，随后要求 target 重读的 identity/bytes 完全一致，并重新计算 package/manifest hashes and counts；它不导入 publication/create capability，也不能 create、write、replace、rename 或删除 package。
 - `backend/reparenting_rehearsal/`: Issue #36 的 temporary synthetic-only rehearsal 深模块；公开 seam 不接受 path，自建 marker-bound sandbox，复用 exact evidence/audit/layout bridges 演练 existing `.git` reparenting、reviewed worktree repair/recreate、post-state equality 和六个 rollback boundaries。它没有 real workspace、CLI、runtime、browser、workflow、mailbox/provider/vault/private-store/credential/ACL capability。
 - `backend/runtime_activation_rehearsal/`: Issue #37 的 pathless synthetic-only activation 深模块；只接受 exact five injected adapters，验证 pinned runtime、从 lock 重建的 Windows venv、`pre_publication` stopped-service create-only SQLite、reviewed-hash extension artifact、Managed writable roles、同一 activation token 绑定的 provider-disabled start/loopback health/一次持久化规则分析/`post_activation` fresh-stop proof 和最终 source preservation。它没有 path、default host adapter、真实 filesystem/SQLite/process/network/provider/mailbox/vault/credential/signing/evidence/cleanup capability，也没有 normal-runtime consumer。
 - `backend/cutover_contracts/`: Issue #51 的 pure content-free Cutover Profile、phase-specific authorization 和 canonical receipt 合同层。它只解析、验证和规范化 immutable values；四种 real-host authorization 只能验证外部提供的 canonical values，不能 create、issue 或 mint。`default_operator_entry()` 固定返回 `BLOCKED_NO_APPROVED_COMMAND`。该 package 没有 path、host adapter、filesystem、SQLite、ACL、Git/worktree、runtime、mailbox/provider/vault/private-data、preflight、migration 或 cutover capability，也没有 production consumer。

@@ -74,6 +74,32 @@ It is prepared and verified offline before cutover; it is not a repository
 backup, runtime artifact, private-data container, or authorization to migrate.
 _Avoid_: Build artifact, cleanup archive, live cutover package
 
+**Reviewed Migration Evidence Workflow**:
+The Issue #54 profile-bound sequence of content-free review, separately
+authorized create-only publication, and separate-process read-only
+verification. Review accepts only the exact `CutoverProfileV1` dirty-source,
+local-ref, worktree, package-target, Git, and `RealHostBaseline` selections.
+Create requires the exact `EvidencePublicationAuthorizationV1` and confirmed
+review fingerprint, then repeats complete discovery and rejects any Profile,
+selection, Git, host, target, or review drift. Its test-only synthetic binder
+uses an independent marker hard-link in the target parent so inode reuse cannot
+mask same-path replacement. The creator cannot call the
+independent verifier, and the verifier cannot publish or modify the package.
+Before Issue #39, real entries remain locked and reject missing, wrong-phase,
+and test authorization; all executable proof stays in test-owned temporary
+synthetic sandboxes with content-free output.
+_Avoid_: Persisted review authority, combined creator-verifier, real package run
+
+**Migration Evidence Receipt Set**:
+The content-free agreement among `MigrationEvidenceReviewReceiptV1`, the
+create-only `MigrationEvidenceCreatedReceiptV1`, and the separate-process
+verification receipt. All three bind the same operation, Profile, governing
+master, review fingerprint, applicable package and manifest hashes, and
+aggregate counts.
+`MigrationEvidenceReceiptSetV1` is evidence for a later pre-mutation gate; it
+does not authorize host preflight, migration, mutation, or cutover.
+_Avoid_: Authorization token, package transcript, migration approval
+
 **Reparenting Rehearsal**:
 A self-contained temporary synthetic proof of the approved legacy-source
 rename, existing Git common-directory move, reviewed linked-worktree recovery,

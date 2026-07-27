@@ -363,7 +363,7 @@ class GenerateProjectStatusTests(unittest.TestCase):
             "cannot create, issue, or mint",
             "strict canonical `ReceiptEnvelopeV1`",
             "`BLOCKED_NO_APPROVED_COMMAND`",
-            "approved consumers are the exact Issue #52 journal bridge and exact Issue #53 preflight contract bridges",
+            "approved consumers are the exact Issue #52 journal bridge, exact Issue #53 preflight contract bridge, and exact Issue #54 evidence-publication contract bridge",
             "`backend/cutover_contracts/profile.py`",
             "`backend/cutover_contracts/authorization.py`",
             "`backend/cutover_contracts/receipt.py`",
@@ -399,7 +399,7 @@ class GenerateProjectStatusTests(unittest.TestCase):
             "`INCIDENT_STOP`",
             "`CUTOVER_SUCCEEDED`",
             "No real filesystem target",
-            "Issues #54 through #59 remain separate",
+            "Issues #55 through #59 remain separate",
             "`backend/cutover_journal/journal_store.py`",
             "`backend/cutover_journal/recovery_classifier.py`",
             "`docs/operations/issue52_crash_safe_journal_recovery_task_brief.md`",
@@ -429,11 +429,55 @@ class GenerateProjectStatusTests(unittest.TestCase):
             "final-audit readiness",
             "`BLOCKED_NO_APPROVED_COMMAND`",
             "no service-control",
-            "Issues #54 through #59",
+            "Issues #55 through #59",
             "`backend/real_host_preflight/windows_observation.py`",
             "`backend/real_host_preflight/composition.py`",
             "`docs/operations/issue53_windows_real_host_preflight_task_brief.md`",
             "`tests/test_real_host_preflight_windows_composition.py`",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, report)
+
+    def test_reviewed_evidence_publication_is_reported_without_real_run_claim(
+        self,
+    ) -> None:
+        module = load_script_module(
+            SCRIPT,
+            "generate_project_status_evidence_publication",
+        )
+        report = module.build_project_status()
+
+        for marker in (
+            "Issue #54 reviewed Migration Evidence publication and verification",
+            "`backend.migration_evidence_publication`",
+            "`backend.migration_evidence_verifier`",
+            "exact `EvidencePublicationAuthorizationV1` and confirmed review fingerprint",
+            "complete rediscovery and fresh HostBaseline collection",
+            "creator cannot call the independent verifier",
+            "separate read-only process",
+            "`MigrationEvidenceReviewReceiptV1`",
+            "`MigrationEvidenceCreatedReceiptV1`",
+            "`MigrationEvidenceVerifiedReceiptV1`",
+            "`MigrationEvidenceReceiptSetV1`",
+            "real entries remain locked before Issue #39",
+            "No real evidence package was created",
+            "evidence, not a backup",
+            "Focused, affected, constraint, full-suite, maintenance, Standards, and Spec verification passed locally",
+            "`backend/migration_evidence/archive_validation.py`",
+            "`backend/migration_evidence/results.py`",
+            "`backend/migration_evidence_publication/profile_git_binding.py`",
+            "`backend/migration_evidence_publication/publication.py`",
+            "`backend/migration_evidence_publication/receipt_set.py`",
+            "`backend/migration_evidence_publication/selection_state.py`",
+            "`backend/migration_evidence_publication/synthetic_scope.py`",
+            "`backend/migration_evidence_verifier/process.py`",
+            "`backend/migration_evidence_verifier/worker.py`",
+            "`docs/operations/issue54_migration_evidence_publication_task_brief.md`",
+            "`tests/test_migration_evidence_publication_architecture.py`",
+            "`tests/test_migration_evidence_publication_commit_binding.py`",
+            "`tests/test_migration_evidence_publication_create_verify.py`",
+            "`tests/test_migration_evidence_publication_receipts.py`",
+            "`tests/test_migration_evidence_verifier_process.py`",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, report)

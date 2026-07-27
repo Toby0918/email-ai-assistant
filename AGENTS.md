@@ -389,8 +389,50 @@ The zero-argument operator entry remains
 `BLOCKED_NO_APPROVED_COMMAND`, rejects test authorization, and exposes no
 service-control, ACL-apply, rename, worktree-mutation, Runtime-build,
 database-copy, artifact, Config, provider, mailbox, vault, or private-data
-capability. No real host target was accessed or changed. Issues #54 through #59
+capability. No real host target was accessed or changed. Issues #55 through #59
 remain separate; Issues #38 and #39 and parent Spec #50 are unchanged.
+
+Issue #54 defines a profile-bound Migration Evidence review. It consumes only
+the exact `CutoverProfileV1` dirty-source, local-ref, worktree, package-target,
+Git, and `RealHostBaseline` selections and accepts no arbitrary replacement.
+`MigrationEvidenceReviewReceiptV1` binds the operation, Profile, governing
+master, review, selection, Git, host, and allowlisted counts through
+content-free fingerprints. The complete `MigrationEvidenceReview` remains
+in memory and must not be persisted as alternate authority. The test-only
+synthetic binder hard-links the sandbox marker into the package-target parent
+and revalidates that independent anchor, so same-path parent replacement cannot
+pass through POSIX inode reuse.
+
+The physically separate create-only publication composition requires an exact
+`EvidencePublicationAuthorizationV1` and the exact operator-confirmed review
+fingerprint. Before publication it repeats complete discovery, including a
+fresh `HostBaseline`, and rejects Profile, selection, dirty-source, ref,
+worktree, Git, host, target, review, or receipt drift.
+`MigrationEvidenceCreatedReceiptV1` binds the review, package, manifest,
+package identity, and aggregate-count fingerprints. The creator may use shared
+pure package-format validation but must not import, construct, or call the
+independent verifier capability.
+
+Verification runs in a separate read-only process. It reads the published
+package once through a bounded descriptor, passes those exact bytes to the
+independent payload verifier, then rereads the target and requires the same
+identity and bytes while recomputing package and manifest hashes; it cannot
+import publication or create-only capabilities or write, replace, rename, or
+delete the package. Review, created, and verified
+receipts must agree on the same operation, Profile, master, review, hashes, and
+counts before producing `MigrationEvidenceReceiptSetV1`. That set is evidence
+for a later pre-mutation gate, never migration authority.
+
+All real Issue #54 entries remain locked before Issue #39 and reject missing,
+wrong-phase, and `TestSandboxAuthorizationV1` inputs. Review, create, and verify
+tests may run only in test-owned temporary synthetic sandboxes. Receipts,
+results, `repr`, stdout, stderr, and logs remain content-free and expose no
+path, ref, object ID, worktree name, command, content, or exception text. No
+real package, host preflight, service stop, repository move, ACL change,
+Runtime build, database copy, provider, mailbox, vault, private-store, or
+private-data operation is authorized. A Migration Evidence Package is evidence,
+not a backup, Runtime artifact, private-data container, or authorization to
+migrate.
 
 The pure project-layout seam performs no directory creation, move, deletion,
 migration, mailbox or

@@ -295,7 +295,8 @@ source_type: operation_guide
 - Do not run a real host adapter, preflight, evidence publication, migration,
   cutover, resume, rollback or cleanup. Issue #52's synthetic-only package is the
   first exact contract consumer; Issue #53 adds only its exact locked read-only
-  contracts bridge. Issues #54 through #59 remain separate.
+  contracts bridge; Issue #54 adds only its exact locked evidence-composition
+  contracts bridge. Issues #55 through #59 remain separate.
 
 ## Synthetic crash-safe journal and recovery classification
 
@@ -437,7 +438,63 @@ source_type: operation_guide
 - Run affected ContainerAudit, migration-evidence, cutover-contract,
   architecture/static/mechanical/documentation/leakage tests, then the full
   unit suite and read-only maintenance scan. Green tests prove only locked
-  composition and sandbox behavior; Issues #54 through #59 remain separate.
+  composition and sandbox behavior; Issues #55 through #59 remain separate.
+
+## Reviewed Migration Evidence publication and verification
+
+- Run
+  `python -B -m unittest tests.test_migration_evidence_publication_review tests.test_migration_evidence_publication_commit_binding tests.test_migration_evidence_publication_create_verify tests.test_migration_evidence_publication_package_observation tests.test_migration_evidence_publication_receipts tests.test_migration_evidence_publication_operator tests.test_migration_evidence_publication_architecture tests.test_migration_evidence_verifier_process tests.test_migration_evidence_verifier_architecture`
+  with the pinned interpreter. Every repository, worktree, package, and target
+  must be created by the fixture below one test-owned `TemporaryDirectory`.
+  Never pass the real Repository Root, an existing worktree, or a real package
+  target.
+- Review must consume only the exact `CutoverProfileV1` dirty-source, local-ref,
+  worktree, package-target, Git, and `RealHostBaseline` selections. Assert the
+  complete `MigrationEvidenceReview` remains module-owned and in memory while
+  `MigrationEvidenceReviewReceiptV1` exposes only opaque fingerprints and
+  bounded counts. Remove and recreate the same package-target parent while
+  forcing its identity fingerprint to collide; claim must still reject because
+  the fixed synthetic marker hard-link anchor is missing.
+- Create must require exact `EvidencePublicationAuthorizationV1`, exact review
+  receipt, and exact confirmed review fingerprint. Mutate each Profile,
+  selection, dirty-source, ref, worktree, Git, HostBaseline, target, review,
+  receipt, authorization, and confirmation binding independently and require a
+  fixed failure before or without publication.
+- Assert create reruns complete discovery and fresh HostBaseline collection,
+  preserves absent-target create-only/no-clobber semantics, and binds the
+  confirmed source snapshot, creator-owned staged package/manifest/identity,
+  resulting review, authorization, and aggregate counts into
+  `MigrationEvidenceCreatedReceiptV1`. Post-rediscovery byte drift and
+  post-commit same-review replacement must fail closed.
+- Run verification only through the fixed separate read-only process. Require a
+  bounded first read whose exact bytes enter the independent payload verifier,
+  an identical target reread, and independent package/manifest hash and count
+  recomputation. Timeout, non-zero exit, malformed/duplicate/unknown response,
+  corruption, target collision, replacement, ABA substitution, and manifest
+  mismatch must produce only fixed rejection.
+- Architecture tests must prove creator modules cannot import, construct, or
+  call the independent verifier. The verifier may import only the exact-payload
+  core verify bridge, use `O_RDONLY`/read-only ZIP package access, and own no publication,
+  create, write, replace, rename, link, unlink, remove, or delete capability.
+  Pin the fixed worker module, `shell=False`, sanitized environment, bounded
+  request/response/timeout, stderr discard, and whole-process-tree cleanup.
+- Require `MigrationEvidenceReviewReceiptV1`,
+  `MigrationEvidenceCreatedReceiptV1`, and
+  `MigrationEvidenceVerifiedReceiptV1` to match exactly on operation, Profile,
+  master, review/selection/Git/host bindings, package and manifest hashes,
+  package identity, and applicable counts before
+  `MigrationEvidenceReceiptSetV1` exists. Assert every receipt and the Set fail
+  the exact real-host authorization validator.
+- Before Issue #39, real review/publication/verification entries must reject
+  missing, wrong-phase, malformed, and `TestSandboxAuthorizationV1` input and
+  remain fixed locked even for structurally valid real authorization.
+- Capture receipt/result `repr`, stdout, stderr, and logs for hostile synthetic
+  inputs. Reject any path, ref, object ID, worktree name, command, content,
+  native error, or exception text. No test may perform real host preflight,
+  service stop, repository/worktree move, ACL apply, Runtime build, database
+  copy, provider, mailbox, vault, private-store, or private-data access.
+- Review the package description mechanically: it is evidence, not backup,
+  Runtime artifact, private-data container, or migration authorization.
 
 ## Option C 多模态离线门
 

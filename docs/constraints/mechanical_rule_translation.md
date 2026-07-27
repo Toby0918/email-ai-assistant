@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-26
+last_update: 2026-07-27
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -431,15 +431,18 @@ Issue #52 translates the journal/state boundary into six executable layers:
 
 The Issue #51 consumer allowlist is limited to
 `backend/cutover_journal/contracts_bridge.py` and
-`backend/real_host_preflight/contracts_bridge.py`, each with its exact imported
-symbol set. The #53 bridge may only validate the locked Profile/authorization
-values, construct closed preflight receipts, and reuse fixed operator-entry
-values; it cannot issue authority or change the #51 schemas.
+`backend/real_host_preflight/contracts_bridge.py`, plus Issue #54's exact
+`backend/migration_evidence_publication/contracts_bridge.py`, each with its
+exact imported symbol set. The #53 bridge may only validate the locked
+Profile/authorization values, construct closed preflight receipts, and reuse
+fixed operator-entry values. The #54 bridge may only validate exact
+review/publication/verification authorization phases. Neither can issue
+authority or change the #51 schemas.
 No test or implementation opens a real filesystem target, service, ACL,
 repository/worktree, Runtime, SQLite, provider, mailbox, vault, private store,
 or private data. `SAFE_ABORT`, `ROLLBACK_REQUIRED`, `INCIDENT_STOP`, and
 `CUTOVER_SUCCEEDED` are distinct classifications; a result or fingerprint is
-not host authority. Issues #54 through #59 remain separate.
+not host authority. Issues #55 through #59 remain separate.
 
 ## 17. Content-free Windows real-host preflight composition rule
 
@@ -496,4 +499,61 @@ run against the real Repository Root or any real host target. It has no
 service-control, ACL-apply, rename, worktree mutation, Runtime build, database
 copy, artifact, Config, provider, mailbox, vault, private-store/private-data,
 evidence publication, migration, cutover, resume, rollback, recovery, or
-cleanup capability. Issues #54 through #59 remain separately authorized.
+cleanup capability. Issues #55 through #59 remain separately authorized.
+
+## 18. Reviewed Migration Evidence publication and verification rule
+
+Issue #54 translates the profile-bound review/create/verify workflow into five
+executable layers:
+
+1. `tests/test_migration_evidence_publication_review.py` pins one opaque
+   `ProfileBoundEvidenceSelectionV1`, exact `CutoverProfileV1` role/Git/worktree
+   bindings, fresh `RealHostBaselineCollector` composition, complete in-memory
+   review ownership, and a content-free `MigrationEvidenceReviewReceiptV1`.
+   Arbitrary replacement values, mismatched Profile bindings, incomplete host
+   evidence, target-parent identity collision/inode reuse, or review
+   serialization/persistence fail closed. The test-only binder's fixed marker
+   hard-link anchor makes the parent replacement regression deterministic on
+   Windows and POSIX.
+2. `test_migration_evidence_publication_create_verify.py`,
+   `test_migration_evidence_publication_commit_binding.py`, and
+   `test_migration_evidence_publication_package_observation.py` require exact
+   `EvidencePublicationAuthorizationV1`, the confirmed review fingerprint,
+   complete rediscovery, fresh HostBaseline equality, absent-target create-only
+   publication, creator-owned source-snapshot and staged identity bindings,
+   stable package identity, and exact package/manifest hashes and counts.
+   Selection, source bytes, dirty-source, ref, worktree, Git, host, target,
+   review, receipt, authorization, or post-commit replacement drift is rejected.
+3. `test_migration_evidence_verifier_process.py` reads only a test-owned
+   synthetic package through the fixed sanitized child process, verifies the
+   exact first-read bytes through the independent payload verifier, requires an
+   identical target reread, independently recomputes hashes/counts, and rejects
+   transient ABA replacement, timeout, non-zero exit, malformed, duplicate, or
+   unknown output, corruption, collision, or manifest mismatch without
+   returning child exception text.
+4. `test_migration_evidence_publication_receipts.py` requires
+   `MigrationEvidenceReviewReceiptV1`,
+   `MigrationEvidenceCreatedReceiptV1`, and
+   `MigrationEvidenceVerifiedReceiptV1` to agree exactly on operation, Profile,
+   master, review/selection/Git/host bindings, hashes, package identity, and
+   counts before `MigrationEvidenceReceiptSetV1` can exist. The Set remains
+   content-free evidence and never satisfies authorization.
+5. `test_migration_evidence_publication_architecture.py`,
+   `test_migration_evidence_verifier_architecture.py`, operator tests,
+   static/mechanical checks, and leakage tests pin the creator/verifier
+   dependency wall, read-only verifier package, exact bridges, fixed worker
+   launch/environment/process-tree cleanup, locked real entries, zero
+   normal-runtime consumers, the sole direct
+   `os.link(marker, anchor, follow_symlinks=False)` call while rejecting
+   imported/rebound/`getattr`/`Path.hardlink_to`/`Path.link_to` variants, and
+   absence of path/ref/object/worktree/command/content/error leakage.
+
+The creator may use shared pure archive-format validation but cannot import or
+call the independent verifier capability. The verifier cannot import
+publication/create modules or modify a package. Missing, wrong-phase, malformed,
+and test authorization remain rejected before Issue #39. All executable tests
+stay in test-owned temporary synthetic sandboxes; no real package, host
+preflight, service, repository/worktree move, ACL apply, Runtime build, database
+copy, provider, mailbox, vault, private store, or private data is accessed. A
+Migration Evidence Package is evidence, not backup, Runtime artifact,
+private-data container, or authorization to migrate.

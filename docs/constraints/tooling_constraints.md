@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-26
+last_update: 2026-07-27
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -452,7 +452,58 @@ authorization. Windows behavior is exercised only in test-owned temporary
 sandboxes; Linux runs portable-contract tests only. The package owns no
 service-control, ACL-apply, rename, worktree-mutation, Runtime-build,
 database-copy, artifact, Config, provider, mailbox, vault, or private-data
-capability. Issues #54 through #59 remain separate.
+capability. Issues #55 through #59 remain separate.
+
+### Reviewed Migration Evidence publication tooling boundary
+
+Issue #54 adds only the standard-library
+`backend.migration_evidence_publication` composition and the physically
+separate `backend.migration_evidence_verifier` read-only process package. They
+add no dependency, CLI, HTTP route, workflow, scheduler, environment option,
+logger, provider, mailbox, vault, private-store, or normal-runtime consumer.
+All real entries remain locked before Issue #39.
+
+Review accepts one opaque `ProfileBoundEvidenceSelectionV1` whose dirty-source,
+local-ref, worktree, package-target, Git, and `RealHostBaseline` inputs are
+bound to the exact `CutoverProfileV1`. The review bridge may call only the
+existing Issue #35 prepare seam, the HostBaseline bridge may call only the
+Issue #53 collector, and the contracts bridge may import only the exact Issue
+#51 Profile and authorization values. The complete `MigrationEvidenceReview`
+stays in module-owned memory and is not serialized or persisted. The
+test-authorized synthetic binder has one fixed `os.link` capability that links
+the sandbox marker into the package-target parent; claim-time validation
+requires the same regular-file identity so inode reuse cannot conceal parent
+replacement. No real entry can reach this capability.
+
+Create requires the exact `EvidencePublicationAuthorizationV1`, review receipt,
+and confirmed review fingerprint. It reruns the complete review and fresh
+HostBaseline collection before the Issue #35 create-only no-clobber commit.
+The creator bridge may import the existing create seam and shared pure archive
+validation/results, but it may not import, construct, or call the independent
+verifier package or verification process.
+
+Verification uses only the fixed
+`python -B -m backend.migration_evidence_verifier.worker` child with
+`shell=False`, a sanitized allowlisted environment, bounded request/response,
+timeout, and whole-process-tree cleanup. Its sole core bridge imports only
+`verify_migration_evidence_payload`; the worker verifies the exact bytes from
+its first read-only bounded descriptor read before requiring an identical
+target reread.
+The verifier package cannot import publication/create capabilities or write,
+replace, rename, link, unlink, remove, or create the package target.
+
+`MigrationEvidenceReviewReceiptV1`,
+`MigrationEvidenceCreatedReceiptV1`, and
+`MigrationEvidenceVerifiedReceiptV1` expose only closed status, opaque
+SHA-256 fingerprints, and bounded counts. They must agree exactly before
+`MigrationEvidenceReceiptSetV1` is available as later-gate evidence; no receipt
+is authorization. Missing, wrong-phase, and `TestSandboxAuthorizationV1`
+inputs remain rejected by the locked real entries. Automated package creation
+and verification run only in test-owned temporary synthetic sandboxes. No real
+package, host preflight, service stop, repository/worktree move, ACL apply,
+Runtime build, database copy, provider/mailbox/vault/private-data operation is
+permitted. The package is evidence, not a backup, Runtime artifact,
+private-data container, or migration authorization.
 
 本地邮件分析 HTTP 服务沿用 Python 标准库 `ThreadingHTTPServer`，不得为 Host/Content-Type 门禁新增 HTTP 框架。服务 bind 只支持 `localhost` 或字面 IPv4 `127.0.0.0/8`；分析 POST 必须在读 body 前校验单一 loopback Host 和单一 JSON media type。
 
