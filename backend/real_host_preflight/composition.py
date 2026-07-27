@@ -32,7 +32,6 @@ _READINESS_LIFETIME_SECONDS = 60
 @dataclass(frozen=True, slots=True, init=False, repr=False)
 class FinalAuditCompositionV1:
     _policy: TrustedAuditPolicy
-    _adapters: ContainerAuditAdapters
     _bindings: tuple[BoundAuditCallbackV1, ...]
     _readers: tuple[object, ...]
     policy_fingerprint: str
@@ -44,11 +43,16 @@ class FinalAuditCompositionV1:
     def run(self) -> ContainerAuditResult:
         """Run the unchanged read-only audit through its narrow bridge."""
 
-        if not _composition_is_valid(self):
-            raise ValueError("FINAL_AUDIT_COMPOSITION_REJECTED")
+        try:
+            if not _composition_is_valid(self):
+                raise ValueError("FINAL_AUDIT_COMPOSITION_REJECTED")
+            policy = _snapshot_policy(self._policy)
+            adapters = _compose_reader_snapshot(self._readers)
+        except Exception:
+            raise ValueError("FINAL_AUDIT_COMPOSITION_REJECTED") from None
         return run_final_container_audit(
-            policy=self._policy,
-            adapters=self._adapters,
+            policy=policy,
+            adapters=adapters,
         )
 
 
@@ -59,25 +63,14 @@ def prepare_final_audit_composition(
 ) -> FinalAuditCompositionV1:
     """Bind exact policy and seven readers without invoking any reader."""
 
-    if (
-        type(callbacks) is not FinalAuditCallbacksV1
-        or not audit_policy_is_valid(policy)
-    ):
+    if type(callbacks) is not FinalAuditCallbacksV1:
         raise ValueError("FINAL_AUDIT_COMPOSITION_REJECTED")
+    policy_snapshot = _snapshot_policy(policy)
     bindings = callbacks.ordered()
     if not _bindings_are_valid(bindings):
         raise ValueError("FINAL_AUDIT_COMPOSITION_REJECTED")
     readers = tuple(item.reader for item in bindings)
-    adapters = compose_audit_adapters(
-        filesystem=callbacks.filesystem.reader,
-        acl=callbacks.acl.reader,
-        volume=callbacks.volume.reader,
-        git=callbacks.git.reader,
-        worktree=callbacks.worktree.reader,
-        runtime=callbacks.runtime.reader,
-        sqlite=callbacks.sqlite.reader,
-    )
-    policy_fingerprint = _policy_fingerprint(policy)
+    policy_fingerprint = _policy_fingerprint(policy_snapshot)
     composition_fingerprint = fingerprint(
         "final-audit-composition-v1",
         {
@@ -88,8 +81,7 @@ def prepare_final_audit_composition(
         },
     )
     return _new_composition(
-        policy,
-        adapters,
+        policy_snapshot,
         bindings,
         readers,
         policy_fingerprint,
@@ -136,7 +128,6 @@ def prove_final_audit_composition_ready(
 
 def _new_composition(
     policy: TrustedAuditPolicy,
-    adapters: ContainerAuditAdapters,
     bindings: tuple[BoundAuditCallbackV1, ...],
     readers: tuple[object, ...],
     policy_fingerprint: str,
@@ -144,7 +135,6 @@ def _new_composition(
 ) -> FinalAuditCompositionV1:
     value = object.__new__(FinalAuditCompositionV1)
     object.__setattr__(value, "_policy", policy)
-    object.__setattr__(value, "_adapters", adapters)
     object.__setattr__(value, "_bindings", bindings)
     object.__setattr__(value, "_readers", readers)
     object.__setattr__(value, "policy_fingerprint", policy_fingerprint)
@@ -159,7 +149,6 @@ def _new_composition(
 def _composition_is_valid(value: object) -> bool:
     if (
         type(value) is not FinalAuditCompositionV1
-        or type(value._adapters) is not ContainerAuditAdapters
         or not audit_policy_is_valid(value._policy)
         or not _bindings_are_valid(value._bindings)
         or type(value._readers) is not tuple
@@ -172,7 +161,6 @@ def _composition_is_valid(value: object) -> bool:
                 strict=True,
             )
         )
-        or not _adapters_match(value._adapters, value._readers)
     ):
         return False
     policy_fingerprint = _policy_fingerprint(value._policy)
@@ -200,27 +188,46 @@ def _bindings_are_valid(bindings: object) -> bool:
     )
 
 
-def _adapters_match(
-    adapters: ContainerAuditAdapters,
-    readers: tuple[object, ...],
-) -> bool:
-    actual = (
-        adapters.filesystem,
-        adapters.acl,
-        adapters.volume,
-        adapters.git,
-        adapters.worktree,
-        adapters.runtime,
-        adapters.sqlite,
-    )
-    return all(
-        actual_reader is expected_reader
-        for actual_reader, expected_reader in zip(
-            actual,
-            readers,
-            strict=True,
+def _snapshot_policy(policy: object) -> TrustedAuditPolicy:
+    if not audit_policy_is_valid(policy):
+        raise ValueError("FINAL_AUDIT_COMPOSITION_REJECTED")
+    try:
+        snapshot = TrustedAuditPolicy(
+            schema_version=policy.schema_version,
+            container_identity=policy.container_identity,
+            container_acl_fingerprint=policy.container_acl_fingerprint,
+            operator_private_acl_fingerprint=(
+                policy.operator_private_acl_fingerprint
+            ),
+            volume_identity=policy.volume_identity,
+            approved_worktrees=tuple(policy.approved_worktrees),
+            require_clean_worktrees=policy.require_clean_worktrees,
+            sqlite_expectation=policy.sqlite_expectation,
         )
+    except Exception:
+        raise ValueError("FINAL_AUDIT_COMPOSITION_REJECTED") from None
+    if (
+        not audit_policy_is_valid(snapshot)
+        or _policy_fingerprint(snapshot) != _policy_fingerprint(policy)
+    ):
+        raise ValueError("FINAL_AUDIT_COMPOSITION_REJECTED")
+    return snapshot
+
+
+def _compose_reader_snapshot(
+    readers: tuple[object, ...],
+) -> ContainerAuditAdapters:
+    return compose_audit_adapters(
+        filesystem=readers[0],
+        acl=readers[1],
+        volume=readers[2],
+        git=readers[3],
+        worktree=readers[4],
+        runtime=readers[5],
+        sqlite=readers[6],
     )
+
+
 def _policy_fingerprint(policy: TrustedAuditPolicy) -> str:
     return fingerprint(
         "final-container-audit-policy-v1",

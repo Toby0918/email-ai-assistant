@@ -12,6 +12,7 @@ from .contracts import (
 )
 from .errors import RealHostPreflightError
 from .evidence import VolumeObservationV1
+from .sandbox_lease import active_sandbox_lease, capture_sandbox_state
 from .sandbox_state import (
     SandboxStateV1,
     _claim_permit,
@@ -26,7 +27,7 @@ from .sandbox_validation import (
     validate_sandbox_authorization,
 )
 from .windows_api import _WindowsApi, _WindowsApiFailure, _text_fingerprint
-from .windows_chain import OpenedChain, OpenedComponent, opened_chain
+from .windows_chain import OpenedChain, opened_chain
 from .windows_paths import expected_final_path
 
 
@@ -54,7 +55,7 @@ class TestSandboxScopeV1:
             _fail("host_scope_invalid")
         try:
             expected = _claim_permit(permit)
-            observed = _capture_sandbox_state(expected.root, expected.marker)
+            observed = capture_sandbox_state(expected.root, expected.marker)
             if observed != expected:
                 _fail("host_object_identity_changed")
             value = object.__new__(cls)
@@ -94,13 +95,14 @@ class WindowsReadOnlyObserver:
                 _fail("host_object_kind_mismatch")
             _require_expected_volume(state, expected_volume_fingerprint)
             _validate_target(state, path)
-            api = _WindowsApi()
-            with opened_chain(api, path) as chain:
-                _require_scope_binding(state, chain)
-                result = chain.components[-1].observation
-                if result.object_kind is not expected_kind:
-                    _fail("host_object_kind_mismatch")
-                return result
+            with active_sandbox_lease(state):
+                api = _WindowsApi()
+                with opened_chain(api, path) as chain:
+                    _require_scope_binding(state, chain)
+                    result = chain.components[-1].observation
+                    if result.object_kind is not expected_kind:
+                        _fail("host_object_kind_mismatch")
+                    return result
         except RealHostPreflightError:
             raise
         except (_WindowsApiFailure, LookupError):
@@ -112,16 +114,19 @@ class WindowsReadOnlyObserver:
         try:
             state = _observer_state(self)
             _validate_target(state, path)
-            api = _WindowsApi()
-            with opened_chain(api, path) as chain:
-                _require_scope_binding(state, chain)
-                component = chain.components[-1]
-                return VolumeObservationV1.create(
-                    volume_fingerprint=component.observation.volume_fingerprint,
-                    filesystem_name=component.native.filesystem_name,
-                    drive_type=component.native.drive_type,
-                    complete=True,
-                )
+            with active_sandbox_lease(state):
+                api = _WindowsApi()
+                with opened_chain(api, path) as chain:
+                    _require_scope_binding(state, chain)
+                    component = chain.components[-1]
+                    return VolumeObservationV1.create(
+                        volume_fingerprint=(
+                            component.observation.volume_fingerprint
+                        ),
+                        filesystem_name=component.native.filesystem_name,
+                        drive_type=component.native.drive_type,
+                        complete=True,
+                    )
         except RealHostPreflightError:
             raise
         except (_WindowsApiFailure, LookupError):
@@ -141,21 +146,24 @@ class WindowsReadOnlyObserver:
             _validate_target(state, path)
             if path == state.root:
                 _fail("host_object_outside_scope")
-            api = _WindowsApi()
-            with opened_chain(api, path.parent) as chain:
-                _require_scope_binding(state, chain)
-                parent = chain.components[-1].observation
-                if parent.object_kind is not HostObjectKind.DIRECTORY:
-                    _fail("host_object_kind_mismatch")
-                _require_leaf_absent(api, path)
-                return MissingHostObjectObservationV1.create(
-                    parent_identity_fingerprint=parent.object_identity_fingerprint,
-                    volume_fingerprint=parent.volume_fingerprint,
-                    normalized_name_fingerprint=_text_fingerprint(
-                        expected_final_path(path)
-                    ),
-                    filesystem_name=parent.filesystem_name,
-                )
+            with active_sandbox_lease(state):
+                api = _WindowsApi()
+                with opened_chain(api, path.parent) as chain:
+                    _require_scope_binding(state, chain)
+                    parent = chain.components[-1].observation
+                    if parent.object_kind is not HostObjectKind.DIRECTORY:
+                        _fail("host_object_kind_mismatch")
+                    _require_leaf_absent(api, path)
+                    return MissingHostObjectObservationV1.create(
+                        parent_identity_fingerprint=(
+                            parent.object_identity_fingerprint
+                        ),
+                        volume_fingerprint=parent.volume_fingerprint,
+                        normalized_name_fingerprint=_text_fingerprint(
+                            expected_final_path(path)
+                        ),
+                        filesystem_name=parent.filesystem_name,
+                    )
         except RealHostPreflightError:
             raise
         except (_WindowsApiFailure, LookupError):
@@ -177,7 +185,7 @@ def _issue_test_sandbox_permit(
         require_absolute_local_path(marker)
         if marker.parent != root or marker.name != _SANDBOX_MARKER_NAME:
             _fail("host_scope_invalid")
-        state = _capture_sandbox_state(root, marker)
+        state = capture_sandbox_state(root, marker)
         value = object.__new__(_TestSandboxPermitV1)
         _register_permit(value, state)
         return value
@@ -187,53 +195,6 @@ def _issue_test_sandbox_permit(
         _fail("host_scope_invalid")
     except Exception:
         _fail("internal_error")
-
-
-def _capture_sandbox_state(root: Path, marker: Path) -> SandboxStateV1:
-    api = _WindowsApi()
-    with opened_chain(api, root) as root_chain:
-        root_component = root_chain.components[-1]
-        if root_component.observation.object_kind is not HostObjectKind.DIRECTORY:
-            _fail("host_scope_invalid")
-        with opened_chain(api, marker) as marker_chain:
-            marker_component = marker_chain.components[-1]
-            if marker_component.observation.object_kind is not HostObjectKind.FILE:
-                _fail("host_scope_invalid")
-            _require_captured_root(root_component, marker_chain)
-            return _sandbox_state(root, marker, root_component, marker_component)
-
-
-def _sandbox_state(
-    root: Path,
-    marker: Path,
-    root_component: OpenedComponent,
-    marker_component: OpenedComponent,
-) -> SandboxStateV1:
-    root_observation = root_component.observation
-    marker_observation = marker_component.observation
-    return SandboxStateV1(
-        root=root,
-        marker=marker,
-        root_identity=root_observation.object_identity_fingerprint,
-        root_normalized_path=root_component.native.normalized_path,
-        root_volume_fingerprint=root_observation.volume_fingerprint,
-        marker_identity=marker_observation.object_identity_fingerprint,
-        marker_name_fingerprint=marker_observation.normalized_name_fingerprint,
-    )
-
-
-def _require_captured_root(
-    expected: OpenedComponent,
-    chain: OpenedChain,
-) -> None:
-    normalized = expected.native.normalized_path.casefold()
-    for component in chain.components:
-        if component.native.normalized_path.casefold() != normalized:
-            continue
-        if component.observation != expected.observation:
-            _fail("host_object_identity_changed")
-        return
-    _fail("host_object_outside_scope")
 
 
 def _validate_target(state: SandboxStateV1, path: Path) -> None:

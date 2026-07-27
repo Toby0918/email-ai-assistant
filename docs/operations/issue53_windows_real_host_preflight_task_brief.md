@@ -377,7 +377,7 @@ Not applicable。Mailbox sync and current-click evidence remain unchanged。
 
 ```text
 实际修改文件:
-- `backend/real_host_preflight/` 的 28 个 exact flat modules。
+- `backend/real_host_preflight/` 的 30 个 exact flat modules。
 - `tests/real_host_preflight_fixtures.py` 和 9 个
   `tests/test_real_host_preflight_*.py` modules。
 - `tests/test_architecture_constraints.py` 与
@@ -398,12 +398,17 @@ Not applicable。Mailbox sync and current-click evidence remain unchanged。
   count、distinct topology identities、attribute/reparse consistency、
   exact evidence reconstruction、Profile role binding、receipt single-claim、
   module-owned gate state、root/marker permit、hard-link alias rejection 和
-  final-audit reader identity 的 RED/GREEN。
-- Focused Issue #53: 52 tests，`OK`。
+  final-audit reader identity 的 RED/GREEN；对抗复核后又补充了 independent
+  canonical Profile snapshot、per-operation root/marker handle lease 和 exact
+  receipt-class-to-observation-kind binding，以及 detached final-audit policy
+  和 per-run adapter rebuild 的 RED/GREEN；机械复核另补 canonical relative
+  import resolution、30-file exact graph、sensitive/private/wildcard import、
+  Path ambient/content-reader 和 root-wrapper consumer guards。
+- Focused Issue #53: 61 tests，`OK`。
 - Affected ContainerAudit、migration-evidence、Issue #51 contracts、
   architecture/static/mechanical/status/transport/leakage/maintenance:
-  253 tests，`OK (skipped=1)`。
-- Full `python -B -m unittest discover -s tests`: 2073 tests，
+  314 tests，`OK (skipped=1)`。
+- Full `python -B -m unittest discover -s tests`: 2082 tests，
   `OK (skipped=3)` with Python 3.12.13。
 - `python -B -m compileall -q backend scripts tests`: exit 0。
 - All frontend JavaScript files pass `node --check`; browser-extension
@@ -423,6 +428,10 @@ P3 records（本 Issue 不扩围）:
   same-source relation before relying on one。
 - The three closed receipt builders/views retain some duplicated schema
   structure；deduplication is deferred because it is not required by #53。
+- Test-sandbox provenance depends on the package-private issuer plus exact
+  consumer guard；the marker itself cannot prove that a directory was created
+  by `TemporaryDirectory`，so this remains a review-only P3 and is not widened
+  into a production provenance capability in #53。
 
 未完成事项:
 - No local Issue #53 implementation or automated acceptance item remains。

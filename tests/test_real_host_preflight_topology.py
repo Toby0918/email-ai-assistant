@@ -16,7 +16,9 @@ from backend.real_host_preflight import (
 from tests.cutover_contract_fixtures import opaque_fingerprint
 from tests.real_host_preflight_fixtures import (
     OBSERVED_AT,
+    MutatingReader,
     OrderedReader,
+    profile_for_role_names,
     sandbox_authorization,
     topology_callbacks,
     topology_components,
@@ -184,6 +186,83 @@ class CurrentTopologyPreflightTests(unittest.TestCase):
                 observed_at_epoch=OBSERVED_AT,
                 callbacks=topology_callbacks([], components=components),
             )
+
+    def test_profile_snapshot_rejects_callback_role_swap(self) -> None:
+        profile = valid_profile()
+        alternate = profile_for_role_names(
+            source_root=opaque_fingerprint(322),
+            target_parent=opaque_fingerprint(321),
+            finance_root=opaque_fingerprint(323),
+            target_absence=opaque_fingerprint(999),
+        )
+        components = topology_components()
+        parent = components["target_parent"]
+        components["target_absence"] = MissingHostObjectObservationV1.create(
+            parent_identity_fingerprint=parent.object_identity_fingerprint,
+            volume_fingerprint=opaque_fingerprint(301),
+            normalized_name_fingerprint=opaque_fingerprint(999),
+            filesystem_name="NTFS",
+        )
+        callbacks = topology_callbacks([], components=components)
+        object.__setattr__(
+            callbacks,
+            "source_root",
+            MutatingReader(
+                profile,
+                "role_selections",
+                alternate.role_selections,
+                callbacks.source_root,
+            ),
+        )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "^REAL_HOST_TOPOLOGY_REJECTED$",
+        ):
+            run_current_topology_preflight(
+                profile=profile,
+                authorization=sandbox_authorization(profile),
+                operation_fingerprint=opaque_fingerprint(201),
+                policy_fingerprint=opaque_fingerprint(407),
+                observed_at_epoch=OBSERVED_AT,
+                callbacks=callbacks,
+            )
+
+    def test_receipt_uses_profile_snapshot_after_callback_mutation(self) -> None:
+        profile = valid_profile()
+        original_fingerprint = profile.profile_fingerprint
+        alternate = profile_for_role_names(
+            source_root=opaque_fingerprint(322),
+            target_parent=opaque_fingerprint(321),
+            finance_root=opaque_fingerprint(323),
+            target_absence=opaque_fingerprint(999),
+        )
+        authorization = sandbox_authorization(profile)
+        callbacks = topology_callbacks([])
+        object.__setattr__(
+            callbacks,
+            "source_root",
+            MutatingReader(
+                profile,
+                "profile_fingerprint",
+                alternate.profile_fingerprint,
+                callbacks.source_root,
+            ),
+        )
+
+        receipt = run_current_topology_preflight(
+            profile=profile,
+            authorization=authorization,
+            operation_fingerprint=opaque_fingerprint(201),
+            policy_fingerprint=opaque_fingerprint(407),
+            observed_at_epoch=OBSERVED_AT,
+            callbacks=callbacks,
+        )
+
+        self.assertEqual(
+            receipt.to_mapping()["profile_fingerprint"],
+            original_fingerprint,
+        )
 
 
 def _callbacks_with_mutation(

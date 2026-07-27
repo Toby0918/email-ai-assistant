@@ -18,6 +18,7 @@ from backend.real_host_preflight import (
 from tests.cutover_contract_fixtures import opaque_fingerprint
 from tests.real_host_preflight_fixtures import (
     OBSERVED_AT,
+    MutatingReader,
     OrderedReader,
     object_observation,
     profile_for_role_names,
@@ -254,6 +255,48 @@ class RealHostBaselineCollectorTests(unittest.TestCase):
         object.__setattr__(sid, "complete", False)
         object.__setattr__(callbacks, "operator_sid", lambda: sid)
         _assert_baseline_rejected(self, callbacks, profile, operation)
+
+    def test_profile_snapshot_rejects_callback_role_swap(self) -> None:
+        profile = valid_profile()
+        alternate = profile_for_role_names(
+            source_root=opaque_fingerprint(999),
+            target_parent=opaque_fingerprint(321),
+            finance_root=opaque_fingerprint(323),
+            target_absence=opaque_fingerprint(404),
+        )
+        parent = object_observation(
+            1,
+            parent_identity_fingerprint=opaque_fingerprint(401),
+        )
+        source = HostObjectObservationV1.create(
+            volume_fingerprint=opaque_fingerprint(301),
+            file_id_128=f"{2:032x}",
+            object_kind=HostObjectKind.DIRECTORY,
+            parent_identity_fingerprint=parent.object_identity_fingerprint,
+            normalized_name_fingerprint=opaque_fingerprint(999),
+            filesystem_name="NTFS",
+            file_attributes=16,
+            reparse_tag=0,
+            has_reparse_point=False,
+        )
+        callbacks = _baseline_callbacks(parent, source)
+        object.__setattr__(
+            callbacks,
+            "source_root",
+            MutatingReader(
+                profile,
+                "role_selections",
+                alternate.role_selections,
+                callbacks.source_root,
+            ),
+        )
+
+        _assert_baseline_rejected(
+            self,
+            callbacks,
+            profile,
+            opaque_fingerprint(201),
+        )
 
 
 def _acl(

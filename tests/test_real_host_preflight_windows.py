@@ -106,6 +106,63 @@ class RealHostPreflightWindowsTests(unittest.TestCase):
                 "host_object_identity_changed",
             )
 
+    def test_observer_revalidates_marker_lease_on_every_operation(self) -> None:
+        operations = (
+            (
+                "existing",
+                lambda observer, root: observer.observe_existing(
+                    root / "lease-target.txt",
+                    expected_kind=HostObjectKind.FILE,
+                ),
+            ),
+            (
+                "volume",
+                lambda observer, root: observer.observe_volume(root),
+            ),
+            (
+                "absent",
+                lambda observer, root: observer.observe_absent(
+                    root / "future-target.txt"
+                ),
+            ),
+        )
+        for replacement, (operation_name, operation) in (
+            (replacement, operation)
+            for replacement in (False, True)
+            for operation in operations
+        ):
+            with (
+                self.subTest(
+                    replacement=replacement,
+                    operation=operation_name,
+                ),
+                tempfile.TemporaryDirectory() as temporary,
+            ):
+                root = Path(temporary)
+                marker = _create_marker(root)
+                target = root / "lease-target.txt"
+                target.touch()
+                permit = _issue_test_sandbox_permit(
+                    root=root,
+                    marker=marker,
+                    authorization=_authorization(),
+                    observed_at_epoch=100,
+                )
+                observer = WindowsReadOnlyObserver(
+                    TestSandboxScopeV1.create(permit=permit)
+                )
+                marker.rename(root / "retired-marker")
+                if replacement:
+                    marker.touch()
+
+                with self.assertRaises(RealHostPreflightError) as raised:
+                    operation(observer, root)
+
+                self.assertEqual(
+                    raised.exception.code,
+                    "host_object_identity_changed",
+                )
+
     def test_file_identity_is_stable_across_read_only_reopens(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

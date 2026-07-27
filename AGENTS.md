@@ -357,25 +357,33 @@ identity, 128-bit file ID, object type, parent identity, normalized-name
 fingerprint, and reparse metadata. Every controlled component is opened without
 following reparse points. Windows tests require a package-private root/marker
 identity-bound single-use permit, and controlled files require exactly one
-link; aliases, unexpected volume/filesystem state, unreadable objects,
-replacement, and identity drift fail closed.
+link. Every observer operation reopens and validates the exact root and marker,
+then holds both handle chains until the target observation finishes; aliases,
+missing or replaced markers, unexpected volume/filesystem state, unreadable
+objects, replacement, and identity drift fail closed.
 
 `CurrentTopologyPreflight` requires two complete identical observations.
 `PreMutationGate` is short-lived, nonce-bound, one-operation, single-use, and
 repeats exact source, target-parent, target-absence, reparse, Git, ACL, and
 volume checks. `RealHostBaselineCollector` keeps source-root, parent, finance,
 volume, operator-SID, and ACL evidence separate while projecting only a
-content-free `HostBaseline`. Every callback value is factory-reconstructed,
-and source/parent/finance/target names bind to exact Profile role selections.
-Nominal receipt/gate claims use module-owned atomic state and cannot be minted
-from a public envelope or reset through caller attributes.
+content-free `HostBaseline`. Before any host callback, each operation creates
+an independent canonical Profile snapshot; every callback value is
+factory-reconstructed, and source/parent/finance/target names bind to that
+snapshot's exact role selections. Nominal receipt/gate claims use module-owned
+atomic state, require an exact receipt-class-to-observation-kind binding, and
+cannot be minted from a public envelope or reset through caller attributes.
 
 The exact #53 audit bridge composes seven caller-bound callbacks into the
 unchanged nine-zone `ContainerAudit`.
 `FinalAuditCompositionReadyReceiptV1` proves only composition readiness and
-never claims that the pre-cutover final layout passed. Windows integration is
-exercised only beneath test-owned temporary sandboxes; Linux tests cover
-portable contracts only and make no Windows, NTFS, or ACL-evidence claim.
+never claims that the pre-cutover final layout passed. Prepare captures a
+detached canonical audit-policy snapshot; each audit run snapshots that policy
+again and rebuilds adapters from the seven captured readers before any callback,
+so callback-time mutation cannot relax the unchanged policy or retarget stored
+adapters. Windows integration is exercised only beneath test-owned temporary
+sandboxes; Linux tests cover portable contracts only and make no Windows, NTFS,
+or ACL-evidence claim.
 
 The zero-argument operator entry remains
 `BLOCKED_NO_APPROVED_COMMAND`, rejects test authorization, and exposes no

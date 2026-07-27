@@ -152,7 +152,9 @@ file ID, object type, parent identity, normalized-name fingerprint, and reparse
 metadata without exposing a raw path, SID, SDDL, Git name, or native exception.
 The concrete Windows reader is package-private and confined to a test-owned
 temporary sandbox through a root/marker identity-bound single-use permit;
-controlled files require exactly one link.
+controlled files require exactly one link. Every observer operation reopens
+and validates the exact root and marker and holds those handle chains through
+the target observation.
 _Avoid_: Path-only identity, production host mutation
 
 **Current Topology Preflight**:
@@ -160,8 +162,9 @@ The read-only Issue #53 proof that two complete observations of the current
 source, target parent, absent target, Git, ACL, reparse, and volume state are
 identical. Its content-free receipt records the observation; it does not approve
 a mutation or claim that the final layout exists. Every callback value is
-factory-reconstructed and each source/parent/finance/target normalized name is
-bound to its exact Profile role selection.
+factory-reconstructed, and an independent canonical Profile snapshot is
+captured before any host callback. Each source/parent/finance/target normalized
+name is bound to that snapshot's exact role selection.
 _Avoid_: One-pass probe, topology migration
 
 **Pre-Mutation Gate**:
@@ -169,11 +172,14 @@ The short-lived, nonce-bound, one-operation, single-use Issue #53 recheck of the
 exact preflight state immediately before a future separately authorized action.
 Freshness or equality failure stops without granting any mutation capability.
 The prior topology receipt is atomically claimed by at most one gate, and
-trusted gate/receipt state is not caller-resettable.
+trusted gate/receipt state is not caller-resettable. Every nominal receipt
+class is also bound to its exact module-owned observation kind.
 _Avoid_: Reusable token, mutation authorization
 
 **Final Audit Composition Readiness**:
 The proof that the unchanged nine-zone `ContainerAudit` policy can receive all
 seven exact caller-bound read-only callbacks. It proves composition availability
-only and is never a pre-cutover final-audit pass or cutover approval.
+only and is never a pre-cutover final-audit pass or cutover approval. Prepare
+captures a detached canonical policy snapshot; run snapshots it again and
+rebuilds adapters from the seven captured readers before any callback.
 _Avoid_: Final layout pass, executable cutover command

@@ -368,7 +368,10 @@ source_type: operation_guide
   `TestSandboxAuthorizationV1`. Reject missing/replaced markers, wrong phases,
   permit replay, absolute/parent-relative escape, authorization/scope
   mismatch, hard-link alias/reparse components, unexpected filesystem/volume,
-  unreadable state, and outside-root targets before observation. Never pass a
+  unreadable state, and outside-root targets before observation. For every
+  existing-object, absent-object, and volume observation, reopen and validate
+  the exact root and marker and hold both handle chains through the operation;
+  reject deletion or same-name replacement after scope creation. Never pass a
   real repository, Project Container, finance
   project, service, ACL, worktree, Runtime, database, artifact, Config,
   credential, mailbox, provider, vault, or private-data target.
@@ -384,8 +387,9 @@ source_type: operation_guide
   `CurrentTopologyPreflightReceiptV1`.
   Reconstruct every callback value and require the exact source, parent,
   finance, and target-absence normalized-name projections selected by the
-  Profile; explicitly reject an existing approved target hidden by a missing
-  decoy.
+  independent canonical Profile snapshot captured before any host callback;
+  explicitly reject callback mutation of caller-owned Profile roles and an
+  existing approved target hidden by a missing decoy.
 - Require `PreMutationGate` to bind the accepted topology, one exact operation,
   a fresh UUIDv4 nonce, a short half-open validity interval and one consumed
   attempt. It must repeat source/parent/absence/reparse/Git/ACL/volume checks
@@ -393,7 +397,8 @@ source_type: operation_guide
   replacement, or drifting evidence. A failed attempt is also consumed.
   Bind a topology receipt to at most one gate under sequential and concurrent
   attempts. Reject direct allocation, public-envelope wrapping, caller reset,
-  copying, deep copying, and serialization of receipt/gate capabilities.
+  copying, deep copying, serialization, and exact-class retyping of
+  receipt/gate capabilities.
 - Exercise each `RealHostBaselineCollector` callback separately: source root,
   projects parent, finance project, volume, operator SID, source ACL, parent
   ACL and finance ACL. Assert exact call counts, role separation, deterministic
@@ -406,7 +411,11 @@ source_type: operation_guide
   nine-zone policy. `FinalAuditCompositionReadyReceiptV1` must not call any
   callback or `run_container_audit`, return an audit-pass result, or claim that
   a final layout exists or passed. Tampered or replaced callback readers and
-  adapter/binding identity mismatches must fail before readiness.
+  adapter/binding identity mismatches must fail before readiness. Prepare must
+  capture a detached canonical policy; run must snapshot that policy again and
+  rebuild adapters from the seven captured readers before callbacks. A
+  malicious callback that relaxes caller-owned or stored clean-worktree policy
+  must not change the unchanged audit result.
 - Assert the real operator entry accepts no path, callback, command, adapter, or
   test authorization and always returns `BLOCKED_NO_APPROVED_COMMAND`,
   `blocked=1`, and `executed=0`. No helper may create, issue, mint, sign, renew,

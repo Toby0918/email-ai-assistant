@@ -225,4 +225,24 @@ class OrderedReader:
         return self._value
 
 
+class MutatingReader:
+    """A synthetic callback that mutates one caller-owned object first."""
+
+    def __init__(
+        self,
+        target: object,
+        field: str,
+        value: object,
+        reader: Callable[[], object],
+    ) -> None:
+        self._target = target
+        self._field = field
+        self._value = value
+        self._reader = reader
+
+    def __call__(self) -> object:
+        object.__setattr__(self._target, self._field, self._value)
+        return self._reader()
+
+
 ReaderFactory = Callable[[str, object, list[str]], OrderedReader]

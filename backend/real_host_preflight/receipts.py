@@ -89,6 +89,13 @@ class FinalAuditCompositionReadyReceiptV1(_ReceiptView):
     __slots__ = ()
 
 
+_EXPECTED_RECEIPT_KINDS = {
+    CurrentTopologyPreflightReceiptV1: "repeated_current_topology",
+    PreMutationGateReceiptV1: "pre_mutation_gate",
+    FinalAuditCompositionReadyReceiptV1: "final_audit_readiness",
+}
+
+
 def _mint_current_topology_receipt(
     envelope: ReceiptEnvelopeV1,
 ) -> CurrentTopologyPreflightReceiptV1:
@@ -150,15 +157,12 @@ def _mint_receipt(
 
 
 def _receipt_envelope(receipt: object) -> ReceiptEnvelopeV1:
-    if type(receipt) not in (
-        CurrentTopologyPreflightReceiptV1,
-        PreMutationGateReceiptV1,
-        FinalAuditCompositionReadyReceiptV1,
-    ):
+    expected_kind = _EXPECTED_RECEIPT_KINDS.get(type(receipt))
+    if expected_kind is None:
         raise ValueError(_RECEIPT_ERROR)
     with _RECEIPT_STATES_LOCK:
         state = _RECEIPT_STATES.get(receipt)
-    if state is None:
+    if state is None or state.observation_kind != expected_kind:
         raise ValueError(_RECEIPT_ERROR)
     return state.envelope
 

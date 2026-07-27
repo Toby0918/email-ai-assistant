@@ -22,6 +22,7 @@ from .integrity import (
     valid_operator_sid,
     valid_volume,
 )
+from .profile_snapshot import snapshot_cutover_profile
 
 
 @dataclass(frozen=True, slots=True, repr=False)
@@ -39,9 +40,10 @@ class RealHostBaselineCollector:
         observed_at_epoch: int,
     ) -> HostBaseline:
         try:
+            profile_snapshot = snapshot_cutover_profile(profile)
             require_preflight_authorization(
                 authorization,
-                profile=profile,
+                profile=profile_snapshot,
                 operation_fingerprint=operation_fingerprint,
                 phase="host_baseline",
                 observed_at_epoch=observed_at_epoch,
@@ -49,7 +51,7 @@ class RealHostBaselineCollector:
             values = self._collect_values()
             _validate_baseline_relationships(
                 *values,
-                profile.to_mapping(),
+                profile_snapshot.to_mapping(),
             )
             return _project_baseline(*values)
         except Exception:

@@ -21,6 +21,8 @@ from backend.real_host_preflight.receipts import (
 from tests.cutover_contract_fixtures import opaque_fingerprint
 from tests.real_host_preflight_fixtures import (
     OBSERVED_AT,
+    MutatingReader,
+    profile_for_role_names,
     sandbox_authorization,
     topology_callbacks,
     valid_profile,
@@ -290,6 +292,83 @@ class PreMutationGateTests(unittest.TestCase):
         ):
             _mint_current_topology_receipt(envelope)
 
+    def test_nominal_receipts_reject_exact_class_retyping(self) -> None:
+        profile = valid_profile()
+        operation = opaque_fingerprint(201)
+        policy = opaque_fingerprint(407)
+        authorization = sandbox_authorization(
+            profile,
+            operation_fingerprint=operation,
+        )
+        callbacks = topology_callbacks([])
+
+        topology_receipt = run_current_topology_preflight(
+            profile=profile,
+            authorization=authorization,
+            operation_fingerprint=operation,
+            policy_fingerprint=policy,
+            observed_at_epoch=OBSERVED_AT,
+            callbacks=callbacks,
+        )
+        gate_receipt = PreMutationGate.bind(
+            current_topology_receipt=run_current_topology_preflight(
+                profile=profile,
+                authorization=authorization,
+                operation_fingerprint=operation,
+                policy_fingerprint=policy,
+                observed_at_epoch=OBSERVED_AT,
+                callbacks=callbacks,
+            ),
+            callbacks=callbacks,
+            policy_fingerprint=policy,
+        ).evaluate(
+            profile=profile,
+            authorization=authorization,
+            operation_fingerprint=operation,
+            nonce="123e4567-e89b-42d3-a456-426614174000",
+            observed_at_epoch=OBSERVED_AT + 1,
+        )
+        cases = (
+            (
+                topology_receipt,
+                (
+                    PreMutationGateReceiptV1,
+                    FinalAuditCompositionReadyReceiptV1,
+                ),
+            ),
+            (
+                gate_receipt,
+                (
+                    CurrentTopologyPreflightReceiptV1,
+                    FinalAuditCompositionReadyReceiptV1,
+                ),
+            ),
+        )
+        for receipt, target_types in cases:
+            source_type = type(receipt)
+            for target_type in target_types:
+                with self.subTest(
+                    source=source_type.__name__,
+                    target=target_type.__name__,
+                ):
+                    object.__setattr__(
+                        receipt,
+                        "__class__",
+                        target_type,
+                    )
+                    try:
+                        with self.assertRaisesRegex(
+                            ValueError,
+                            "^REAL_HOST_RECEIPT_INVALID$",
+                        ):
+                            receipt.to_mapping()
+                    finally:
+                        object.__setattr__(
+                            receipt,
+                            "__class__",
+                            source_type,
+                        )
+
     def test_gate_cannot_be_copied_into_replayable_state(self) -> None:
         profile = valid_profile()
         operation = opaque_fingerprint(201)
@@ -384,6 +463,62 @@ class PreMutationGateTests(unittest.TestCase):
                 observed_at_epoch=OBSERVED_AT + 2,
             )
         self.assertEqual(tuple(calls), calls_before_replay)
+
+    def test_gate_receipt_uses_profile_snapshot_during_callbacks(self) -> None:
+        profile = valid_profile()
+        original_fingerprint = profile.profile_fingerprint
+        operation = opaque_fingerprint(201)
+        policy = opaque_fingerprint(407)
+        authorization = sandbox_authorization(profile)
+        receipt_callbacks = topology_callbacks([])
+        topology_receipt = run_current_topology_preflight(
+            profile=profile,
+            authorization=authorization,
+            operation_fingerprint=operation,
+            policy_fingerprint=policy,
+            observed_at_epoch=OBSERVED_AT,
+            callbacks=receipt_callbacks,
+        )
+        alternate = profile_for_role_names(
+            source_root=opaque_fingerprint(322),
+            target_parent=opaque_fingerprint(321),
+            finance_root=opaque_fingerprint(323),
+            target_absence=opaque_fingerprint(999),
+        )
+        gate_callbacks = topology_callbacks([])
+        object.__setattr__(
+            gate_callbacks,
+            "source_root",
+            MutatingReader(
+                profile,
+                "role_selections",
+                alternate.role_selections,
+                MutatingReader(
+                    profile,
+                    "profile_fingerprint",
+                    alternate.profile_fingerprint,
+                    gate_callbacks.source_root,
+                ),
+            ),
+        )
+        gate = PreMutationGate.bind(
+            current_topology_receipt=topology_receipt,
+            callbacks=gate_callbacks,
+            policy_fingerprint=policy,
+        )
+
+        receipt = gate.evaluate(
+            profile=profile,
+            authorization=authorization,
+            operation_fingerprint=operation,
+            nonce="123e4567-e89b-42d3-a456-426614174000",
+            observed_at_epoch=OBSERVED_AT + 1,
+        )
+
+        self.assertEqual(
+            receipt.to_mapping()["profile_fingerprint"],
+            original_fingerprint,
+        )
 
 
 if __name__ == "__main__":

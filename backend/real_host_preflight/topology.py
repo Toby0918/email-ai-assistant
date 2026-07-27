@@ -7,6 +7,7 @@ from .callbacks import CurrentTopologyCallbacks
 from .canonical import fingerprint, is_fingerprint
 from .collection import collect_current_topology
 from .contracts_bridge import CutoverProfileV1, ReceiptEnvelopeV1
+from .profile_snapshot import snapshot_cutover_profile
 from .receipts import (
     CurrentTopologyPreflightReceiptV1,
     _mint_current_topology_receipt,
@@ -27,10 +28,11 @@ def run_current_topology_preflight(
 ) -> CurrentTopologyPreflightReceiptV1:
     """Require two complete identical seven-reader observations."""
 
+    profile_snapshot = _snapshot_profile(profile)
     authorization_fingerprint, authorization_expiry = (
         require_preflight_authorization(
             authorization,
-            profile=profile,
+            profile=profile_snapshot,
             operation_fingerprint=operation_fingerprint,
             phase="current_topology_preflight",
             observed_at_epoch=observed_at_epoch,
@@ -41,8 +43,8 @@ def run_current_topology_preflight(
         or not is_fingerprint(policy_fingerprint)
     ):
         raise ValueError("REAL_HOST_TOPOLOGY_REJECTED")
-    first = collect_current_topology(callbacks, profile=profile)
-    second = collect_current_topology(callbacks, profile=profile)
+    first = collect_current_topology(callbacks, profile=profile_snapshot)
+    second = collect_current_topology(callbacks, profile=profile_snapshot)
     if second != first:
         raise ValueError("REAL_HOST_TOPOLOGY_REJECTED")
     repeated = fingerprint(
@@ -54,7 +56,7 @@ def run_current_topology_preflight(
         authorization_expiry,
     )
     envelope = _create_receipt(
-        profile=profile,
+        profile=profile_snapshot,
         authorization_fingerprint=authorization_fingerprint,
         operation_fingerprint=operation_fingerprint,
         policy_fingerprint=policy_fingerprint,
@@ -63,6 +65,13 @@ def run_current_topology_preflight(
         expires_at_epoch=expires_at,
     )
     return _mint_current_topology_receipt(envelope)
+
+
+def _snapshot_profile(profile: object) -> CutoverProfileV1:
+    try:
+        return snapshot_cutover_profile(profile)
+    except Exception:
+        raise ValueError("REAL_HOST_TOPOLOGY_REJECTED") from None
 
 
 def _create_receipt(

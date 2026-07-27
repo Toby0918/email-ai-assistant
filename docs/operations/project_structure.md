@@ -76,7 +76,9 @@ email-ai-assistant/
       integrity.py
       mutation_gate.py
       operator_entry.py
+      profile_snapshot.py
       receipts.py
+      sandbox_lease.py
       sandbox_state.py
       sandbox_validation.py
       topology.py

@@ -282,10 +282,13 @@ content-free observations. The direct Windows reader is package-private and
 exists only behind a root-and-marker identity-bound, atomically single-use
 test-sandbox permit. It rejects paths outside the test-owned temporary root,
 opens every controlled component without following reparse points, requires
-controlled files to have exactly one NTFS link, and fails closed on aliases,
-unexpected volume/filesystem state, unreadable objects, replacement, or
-identity drift. Scope and observer bindings live in a module-owned weak
-registry and cannot be reassigned through caller object state.
+controlled files to have exactly one NTFS link, and reopens and validates the
+exact root and marker for every observer operation while holding both handle
+chains through the target observation. It fails closed on aliases, missing or
+replaced markers, unexpected volume/filesystem state, unreadable objects,
+replacement, or identity drift. Scope and observer bindings live in a
+module-owned weak registry and cannot be reassigned through caller object
+state.
 
 `CurrentTopologyPreflight` requires two complete identical observations.
 `PreMutationGate` binds one fresh nonce, operation, prior observation, short
@@ -295,11 +298,13 @@ target-absence, reparse, Git, ACL, and volume checks.
 operator-SID, and ACL observations separate before projecting the existing
 content-free `HostBaseline`. Callback evidence is accepted only after exact
 factory reconstruction. The four topology roles and the three baseline object
-roles must match the normalized-name projections stored in the immutable
-Profile. Nominal receipts have package-private producers and atomically claim
-their module-owned state; a public `ReceiptEnvelopeV1` alone is not a receipt
-capability. Gate bindings and consumed state are likewise module-owned and
-cannot be reset by caller attribute mutation.
+roles must match the normalized-name projections stored in an independent
+canonical Profile snapshot created before any host callback. Nominal receipts
+have package-private producers, enforce an exact class-to-observation-kind
+binding, and atomically claim their module-owned state; a public
+`ReceiptEnvelopeV1` alone is not a receipt capability. Gate bindings and
+consumed state are likewise module-owned and cannot be reset by caller
+attribute mutation.
 
 Three exact bridges are the only prior-layer crossings:
 `audit_bridge -> backend.container_audit`,
@@ -309,7 +314,11 @@ exactly seven caller-bound callbacks to the unchanged nine-zone policy.
 `FinalAuditCompositionReadyReceiptV1` proves only that the composition exists;
 it does not execute or claim a pre-cutover final-layout pass. Prepare and
 readiness revalidate every bound callback and require each composed adapter to
-remain the identical reader captured by the binding.
+remain the identical reader captured by the binding. Prepare stores a detached
+canonical audit-policy snapshot; each audit run snapshots it again and rebuilds
+fresh adapters from the seven captured reader references before invoking any
+callback. Caller or callback mutation cannot relax the policy or retarget the
+adapters supplied to an in-progress audit.
 
 No normal runtime, script, frontend, wrapper, cleanup, leakage scanner, or
 workflow consumes this layer. The zero-argument operator entry remains

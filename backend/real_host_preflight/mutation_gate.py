@@ -12,6 +12,7 @@ from .callbacks import CurrentTopologyCallbacks
 from .canonical import fingerprint, is_fingerprint
 from .collection import collect_current_topology
 from .contracts_bridge import CutoverProfileV1, ReceiptEnvelopeV1
+from .profile_snapshot import snapshot_cutover_profile
 from .receipts import (
     CurrentTopologyPreflightReceiptV1,
     PreMutationGateReceiptV1,
@@ -109,15 +110,16 @@ class PreMutationGate:
         nonce: str,
         observed_at_epoch: int,
     ) -> PreMutationGateReceiptV1:
+        profile_snapshot = snapshot_cutover_profile(profile)
         prior = state.topology_receipt.to_mapping()
         _require_prior_binding(
-            prior, profile, operation_fingerprint, observed_at_epoch
+            prior, profile_snapshot, operation_fingerprint, observed_at_epoch
         )
         _require_uuid4(nonce)
         authorization_fingerprint, authorization_expiry = (
             require_preflight_authorization(
                 authorization,
-                profile=profile,
+                profile=profile_snapshot,
                 operation_fingerprint=operation_fingerprint,
                 phase="current_topology_preflight",
                 observed_at_epoch=observed_at_epoch,
@@ -125,7 +127,7 @@ class PreMutationGate:
         )
         observation = _repeat_gate_observation(
             callbacks=state.callbacks,
-            profile=profile,
+            profile=profile_snapshot,
             prior_observation_fingerprint=prior["observation_fingerprint"],
             prior_receipt_fingerprint=state.topology_receipt.receipt_fingerprint,
             operation_fingerprint=operation_fingerprint,
@@ -137,7 +139,7 @@ class PreMutationGate:
             prior["validity"]["expires_at_epoch"],
         )
         envelope = _create_gate_receipt(
-            profile=profile,
+            profile=profile_snapshot,
             authorization_fingerprint=authorization_fingerprint,
             operation_fingerprint=operation_fingerprint,
             policy_fingerprint=state.policy_fingerprint,
