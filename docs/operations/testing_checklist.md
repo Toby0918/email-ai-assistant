@@ -293,8 +293,59 @@ source_type: operation_guide
   consumer import variants, including rebound dynamic-import call aliases,
   against the AST guard.
 - Do not run a real host adapter, preflight, evidence publication, migration,
-  cutover, resume, rollback or cleanup. Issues #52 through #59 remain separate
-  implementation slices.
+  cutover, resume, rollback or cleanup. Issue #52's synthetic-only package is the
+  exact sole contract consumer; Issues #53 through #59 remain separate.
+
+## Synthetic crash-safe journal and recovery classification
+
+- Run
+  `python -B -m unittest tests.test_cutover_journal_record_contract tests.test_cutover_journal_durability tests.test_cutover_journal_chain tests.test_cutover_journal_recovery tests.test_cutover_journal_crash_matrix tests.test_cutover_journal_architecture`
+  with the pinned interpreter.
+- Verify strict canonical records reject unknown/duplicate/non-canonical input,
+  wrong hashes, missing/duplicate sequence, wrong previous hash, wrong operation/
+  profile/owner binding and invalid transition before any pending write.
+- On both synthetic platform traces, prove pending write, pending-file barrier,
+  no-replace publication, published-file barrier, namespace barrier and stable
+  reread order. Namespace barrier is required before an intent can precede an
+  effect; no test may claim real NTFS/Linux durability.
+- Cover every `TransactionCutPoint` before/after forward and reverse intent,
+  effect, observation and commit. Exact pre-action may be retried only after
+  fresh resume/recovery validation; exact expected-post must not repeat the
+  effect.
+- Prove each recovered owner has a new lease, stale stores cannot append or
+  release it, and an effect requires a non-copyable/non-serializable store
+  permit backed by one shared single-use issuance for the exact current lease,
+  round-trip-validated active durable intent, and durable journal head. Prove
+  copied, serialized, retargeted, replayed, head-stale, pending, and
+  observed-stale permits fail closed. A deterministic two-thread first-mint
+  race must produce at most one permit/effect winner; append, restart, permit
+  claim and effect mutation share the exact synthetic operation gate.
+- Cover every `DurabilityCutPoint` on Windows and Linux traces: empty,
+  truncated pending, exact pending, unbarriered final and namespace-barriered
+  final must each receive a fixed read-only classification with zero blind
+  effects. After namespace publication loses its acknowledgement, separately
+  continue from `INTENT`, `RESUME_BOUND`, `EFFECT_OBSERVED`, and `COMMITTED`;
+  each prior head must appear in the ordered stable-reread prefix before a new
+  record or effect.
+- Prove recovery authority is pre-bound before mutation, replacement authority
+  fails, execute/resume/recovery expiry uses half-open time bounds, rollback
+  still works after execute expiry, and reverse steps are exact journal-derived
+  LIFO with swapped observations.
+- Prove renewed valid resume authority can append a new `RESUME_BOUND`; durable
+  `APPLIED`/`NOT_APPLIED` observations stay authoritative; pending forward and
+  reverse directions classify and recover distinctly; mismatched
+  Profile/master/operator, identity, transition mapping, or post-effect
+  observation cannot append or execute.
+- Snapshot inspection must leave both journal and effect snapshots byte/value
+  identical and return only status, phase, receipt fingerprint and allowlisted
+  counts. Corrupt chain, unknown observation, broken identity mapping or unsafe
+  ambiguity must be `INCIDENT_STOP`.
+- Architecture guards must pin exact files/exports/imports/signatures, the sole
+  Issue #51 bridge, zero other consumers, absence of paths/callbacks/host
+  capabilities, and 300-line file/50-line function bounds.
+- All fixtures remain content-free and in-memory. Do not access or mutate a real
+  filesystem target, service, ACL, Git repository/worktree, Runtime, SQLite,
+  provider, mailbox, vault, private store, credential or private data.
 
 ## Option C 多模态离线门
 

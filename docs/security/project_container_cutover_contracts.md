@@ -10,17 +10,18 @@ source_type: security_policy
 
 ## Scope
 
-Issue #51 adds only the internal Python package
-`backend.cutover_contracts`. It defines immutable, pathless, content-free
-values for a future Project Container cutover. It does not add a CLI, HTTP
-route, composition root, default adapter, host reader, lifecycle action,
-authorization issuer, or executable cutover command.
+Issue #51 adds the internal Python package `backend.cutover_contracts`. Issue
+#52 adds its sole approved consumer, the exact
+`backend.cutover_journal.contracts_bridge`, inside the pathless synthetic-only
+`backend.cutover_journal` state proof. Both packages remain content-free and add
+no CLI, HTTP route, composition root, default host adapter, host reader,
+authorization issuer, or executable real-host cutover command.
 
 This contract layer must not inspect or mutate a real Runtime, SQLite database,
 ACL, repository, worktree, browser profile, artifact, Config directory,
 mailbox, provider, vault, credential, private store, or private data. Real
-preflight, evidence publication, migration, cutover, resume, rollback, incident
-recovery, and cleanup remain outside Issue #51.
+preflight, evidence publication, migration, real cutover, real resume, real
+rollback, incident recovery, and cleanup remain outside Issues #51/#52.
 
 ## Locked Cutover Profile
 
@@ -107,7 +108,63 @@ receipt-like values are rejected by the real-host authorization validator.
 callback, command, environment value, or authorization and always returns
 `BLOCKED_NO_APPROVED_COMMAND` with `blocked=1` and `executed=0`. Adding any
 executable operator entry or real-host composition requires a separate approved
-Issue; Issue #51 does not implement Issues #52 through #59.
+Issue; Issues #51/#52 do not implement Issues #53 through #59.
+
+## Synthetic crash-safe journal boundary
+
+`JournalOperationBindingV1` reparses the exact Profile and validates one
+externally supplied execute authorization plus the exact rollback-phase
+`RecoveryAuthorizationV1` before mutation. It binds master, operation, profile,
+operator, both authorization fingerprints, and one opaque exclusive owner.
+Each ownership claim receives a distinct in-memory lease so a stale store
+cannot act for or release a recovered owner. Neither package creates or renews
+real-host authority.
+
+`JournalRecordV1` is bounded strict canonical UTF-8 JSON. Exact sequence,
+previous-record hash, record hash, fixed synthetic step/direction/event, all
+operation bindings, before/expected/observed fingerprints, and outcome are
+verified before append. Candidate transition validation occurs before pending
+write. Forward and reverse actions use durable `INTENT`, exact
+`EFFECT_OBSERVED`, and `COMMITTED`; reverse steps are derived LIFO only from
+verified `COMMITTED/APPLIED` forward records. The store round-trip-validates the
+record immediately before any write and issues a non-copyable/non-serializable
+permit backed by one shared single-use issuance for the current owner lease,
+exact active durable intent, and exact durable journal head. The synthetic
+effect must consume it through one atomic store-private token claim; the
+synthetic medium operation gate serializes append, restart, permit mint/claim,
+and effect mutation. Before a new record or permit can advance from a
+namespace-published head, the exact current head receives its missing stable
+reread and the full snapshot is reverified. A head advance, pending record, or
+durable observed fact invalidates an older permit.
+
+`SyntheticJournalMediumV1` is an exact in-memory model. Windows and Linux values
+record pending-file, published-file and namespace barrier codes plus stable
+reread, but no filesystem API exists. Pending, truncated, corrupt, or
+unbarriered state returns no action authority. A create-only exact lost-ack retry
+cannot duplicate or replace a record. Lost acknowledgement after namespace
+publication of `INTENT`, `RESUME_BOUND`, `EFFECT_OBSERVED`, or `COMMITTED`
+therefore completes that exact head's stable reread before any continuation.
+
+`inspect_restart(...)` accepts immutable snapshots rather than a medium/store.
+It claims no owner, appends nothing, and never invokes forward/reverse effect.
+An explicit resume independently revalidates an unexpired exact phase-`resume`
+authorization and fresh observation. Exact pre-action may run once; exact
+expected-post may only complete facts. A durable observed fact is authoritative
+and cannot be replayed or have `NOT_APPLIED` changed to `APPLIED`; a newly valid
+resume authority appends a fresh `RESUME_BOUND` without discarding prior facts.
+Pending direction, exact Profile/master/operator binding, identity mapping,
+fixed transition mapping, and post-effect re-observation are checked before
+journal completion. Explicit rollback independently
+revalidates the exact pre-bound recovery authority, reconciles exact partial
+facts, and invokes only derived reverse steps. Unknown state, broken identity,
+corruption, replacement/expired authority, or ambiguity is `INCIDENT_STOP`.
+
+Public inspection exposes only fixed status, phase, receipt fingerprint, and
+allowlisted counts. It never returns record bytes, observation values, path,
+command, exception, host identity, or free text. `SAFE_ABORT`,
+`ROLLBACK_REQUIRED`, `INCIDENT_STOP`, and `CUTOVER_SUCCEEDED` are distinct.
+There is no real filesystem/service/ACL/Git/worktree/Runtime/SQLite/provider/
+mailbox/vault/private-data capability or production consumer.
 
 ## Executable capability guards
 
@@ -123,10 +180,11 @@ Issue; Issue #51 does not implement Issues #52 through #59.
   loads/aliases including `breakpoint`/`delattr`/`setattr`, dotted modules, and
   parent-relative imports;
 - package-wide absence of real-authorization issuer or mint functions;
-- zero consumers in every other Python/JavaScript file under `backend/`,
-  `scripts/`, and `frontend/`, using AST checks for equivalent Python import
-  forms, direct/attribute/imported/rebound dynamic-import call aliases, and
-  fixed token checks for JavaScript;
+- the exact journal bridge as the only Issue #51 consumer, plus zero journal
+  consumers in every other Python/JavaScript file under `backend/`, `scripts/`,
+  and `frontend/`, using AST checks for equivalent Python import forms,
+  direct/attribute/imported/rebound dynamic-import call aliases, and fixed token
+  checks for JavaScript;
 - the zero-argument, always-blocked default operator entry;
 - the existing 300-line file and 50-line function bounds.
 
@@ -145,3 +203,6 @@ invoke a real host.
   capability.
 - [ ] `default_operator_entry()` remains fixed blocked.
 - [ ] No production consumer or real-host operation has been added.
+- [ ] Pending/unbarriered records never authorize a synthetic effect.
+- [ ] Restart inspection is read-only and expected-post is never blindly retried.
+- [ ] Reverse steps are pre-bound-authority, journal-derived, and LIFO.

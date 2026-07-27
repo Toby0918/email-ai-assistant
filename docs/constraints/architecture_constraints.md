@@ -237,12 +237,37 @@ The package imports only pure standard-library value helpers and its own
 modules. It cannot import or expose path/filesystem, process, SQLite, network,
 environment, Git, ACL, browser, mailbox, provider, vault, private-store,
 credential, authority-store, adapter, logging, scheduler, dynamic-import, or
-host-mutation capability. No other backend package, script, frontend file, or
-normal runtime currently consumes it; consumer guards also reject dynamic-import
-call aliases instead of depending on a literal module target. Real preflight,
-evidence publication,
-cutover, rollback, incident recovery, and all host composition remain in
-separately approved Issues #52 through #59.
+host-mutation capability. Its sole approved consumer is the exact
+`backend/cutover_journal/contracts_bridge.py`; no script, frontend, operator
+surface, or normal runtime consumes it. Consumer guards still reject every
+other static/dynamic import form.
+
+The `Synthetic Cutover Journal layer` in `backend.cutover_journal` is the Issue
+#52 state-machine boundary. It owns strict canonical hash-chained records,
+exact in-memory Windows/Linux durability traces, per-claim synthetic ownership
+leases, non-copyable/non-serializable exact-head effect permits backed by shared
+single-use atomic-token issuances, one synthetic medium operation gate, fixed
+forward/reverse transitions, read-only restart
+inspection, and explicit
+authorization-aware synthetic resume/rollback. It accepts no path, callback,
+duck-typed adapter, host reader, service, ACL, Git/worktree, Runtime, SQLite,
+provider, mailbox, vault, private data, CLI, HTTP route, or production consumer.
+
+Only a fully namespace-barriered `INTENT` may precede a synthetic effect;
+pending and unbarriered records never authorize action. Exact expected-post
+inspection may append observation/commit only and cannot repeat the effect.
+Every namespace-published current head must complete stable reread and full
+snapshot reverification before a successor record or head-authorized permit.
+Durable observed facts are authoritative; pending forward/reverse direction,
+Profile/master/operator binding, identity mapping, and the fixed synthetic
+transition mapping are verified again by the action seam. A fresh resume
+authorization may renew `RESUME_BOUND` but cannot replace an observed outcome.
+Reverse intent is derived LIFO from verified `COMMITTED/APPLIED` history and
+uses the pre-bound recovery fingerprint. Unknown observation, identity drift,
+authorization mismatch, or chain corruption produces `INCIDENT_STOP`. Real
+preflight, evidence publication, filesystem durability, migration, cutover,
+resume, rollback, incident recovery, and host composition remain in separately
+approved Issues #53 through #59.
 
 ## 2. 允许依赖方向
 

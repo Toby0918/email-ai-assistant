@@ -47,6 +47,31 @@ KEY_FILES = [
     "backend/cutover_contracts/receipt_matrix.py",
     "backend/cutover_contracts/receipt_schema.py",
     "backend/cutover_contracts/receipt_types.py",
+    "backend/cutover_journal/__init__.py",
+    "backend/cutover_journal/_canonical.py",
+    "backend/cutover_journal/action_common.py",
+    "backend/cutover_journal/chain_reducer.py",
+    "backend/cutover_journal/closed_classifier.py",
+    "backend/cutover_journal/contracts_bridge.py",
+    "backend/cutover_journal/durability.py",
+    "backend/cutover_journal/effect_permit.py",
+    "backend/cutover_journal/effect_guard.py",
+    "backend/cutover_journal/effect_state.py",
+    "backend/cutover_journal/errors.py",
+    "backend/cutover_journal/journal_chain.py",
+    "backend/cutover_journal/journal_record.py",
+    "backend/cutover_journal/journal_store.py",
+    "backend/cutover_journal/journal_types.py",
+    "backend/cutover_journal/operation_binding.py",
+    "backend/cutover_journal/pending_classifier.py",
+    "backend/cutover_journal/record_schema.py",
+    "backend/cutover_journal/recovery.py",
+    "backend/cutover_journal/recovery_classifier.py",
+    "backend/cutover_journal/recovery_types.py",
+    "backend/cutover_journal/resume_actions.py",
+    "backend/cutover_journal/rollback_actions.py",
+    "backend/cutover_journal/store_support.py",
+    "backend/cutover_journal/transaction.py",
     "backend/migration_evidence/__init__.py",
     "backend/migration_evidence/package.py",
     "backend/migration_evidence/review.py",
@@ -141,6 +166,7 @@ KEY_FILES = [
     "docs/operations/issue36_reparenting_rehearsal_task_brief.md",
     "docs/operations/issue37_managed_runtime_localdata_rehearsal_task_brief.md",
     "docs/operations/issue51_cutover_profile_authorization_receipt_task_brief.md",
+    "docs/operations/issue52_crash_safe_journal_recovery_task_brief.md",
     "docs/operations/project_status_log.md",
     "docs/operations/project_status_log_guide.md",
     "docs/operations/agents_project_status_snippet.md",
@@ -192,6 +218,13 @@ KEY_FILES = [
     "tests/test_cutover_contract_architecture.py",
     "tests/test_cutover_profile_contract.py",
     "tests/test_cutover_receipt_contract.py",
+    "tests/cutover_journal_fixtures.py",
+    "tests/test_cutover_journal_architecture.py",
+    "tests/test_cutover_journal_chain.py",
+    "tests/test_cutover_journal_crash_matrix.py",
+    "tests/test_cutover_journal_durability.py",
+    "tests/test_cutover_journal_record_contract.py",
+    "tests/test_cutover_journal_recovery.py",
     "tests/support.py",
     "tests/test_architecture_constraints.py",
     "tests/test_current_evidence_handoff.py",
@@ -276,6 +309,10 @@ GUARDRAILS = [
         "docs/operations/issue51_cutover_profile_authorization_receipt_task_brief.md",
     ),
     (
+        "Synthetic crash-safe journal and recovery classification",
+        "docs/operations/issue52_crash_safe_journal_recovery_task_brief.md",
+    ),
+    (
         "Project Container cutover contract security boundary",
         "docs/security/project_container_cutover_contracts.md",
     ),
@@ -325,6 +362,7 @@ HARD_BOUNDARIES = [
     "Issue #36 只证明 temporary synthetic rehearsal；不得把它当作真实 migration、audit、worktree repair 或 cutover 授权。",
     "Issue #37 只证明 injected-adapter temporary synthetic activation rehearsal；不得把它当作真实 runtime、SQLite、artifact activation 或 cutover 授权。",
     "Issue #51 只建立 pure content-free contracts；四种 real-host authorization 只能验证外部 canonical values，不能 create、issue 或 mint，且默认 operator entry 保持 BLOCKED。",
+    "Issue #52 只建立 pathless synthetic journal/recovery proof；pending/unbarriered record 不授权 effect，每次 owner claim 与 durable-intent permit 都是 exact synthetic capability，observed/pending/profile/identity/mapping fail closed，restart inspection 只读，且不得触碰真实 host 或 private capability。",
 ]
 
 
@@ -550,7 +588,9 @@ Issue #36 repository/worktree reparenting rehearsal is offline implemented as on
 
 Issue #37 managed runtime and LocalData activation rehearsal is offline implemented behind exact five injected adapters and one pathless synthetic-only seam. Temporary synthetic sources prove a create-only pinned runtime, a Windows venv rebuilt from the exact dependency lock, `pre_publication` stopped-service create-only SQLite publication with identity/SHA-256/integrity/sidecar/count checks, reviewed-hash browser-extension publication, exact Managed writable roles, and one strict activation token across provider-disabled start, literal-loopback health, one persisted rule-fallback analysis and the same-service `post_activation` fresh-stop proof. Stale evidence and equality spoofing fail closed. The source database remains unchanged after success and every simulated race, reparse, existing-target, dependency, integrity or health failure. No real runtime, SQLite database, browser-extension artifact or migration evidence package was activated; Issues #38 through #40 remain separate.
 
-Issue #51 locked Cutover Profile, authorization, and receipt contracts are offline implemented as a pure content-free Python contract layer. Immutable `CutoverProfileV1` values bind the reviewed cutover inputs without paths or host readers. The four distinct real-host authorization value types validate externally supplied canonical values and cannot create, issue, or mint authority. The strict canonical `ReceiptEnvelopeV1` values are duplicate/unknown rejecting, fingerprint-bound, and never accepted as authorization. `default_operator_entry()` remains fixed at `BLOCKED_NO_APPROVED_COMMAND`. No real host adapter, preflight, migration, or cutover was invoked; Issues #52 through #59 remain separate.
+Issue #51 locked Cutover Profile, authorization, and receipt contracts are offline implemented as a pure content-free Python contract layer. Immutable `CutoverProfileV1` values bind the reviewed cutover inputs without paths or host readers. The four distinct real-host authorization value types validate externally supplied canonical values and cannot create, issue, or mint authority. The strict canonical `ReceiptEnvelopeV1` values are duplicate/unknown rejecting, fingerprint-bound, and never accepted as authorization. `default_operator_entry()` remains fixed at `BLOCKED_NO_APPROVED_COMMAND`. Its sole approved consumer is the exact Issue #52 contracts bridge.
+
+Issue #52 crash-safe journal and recovery classification are offline implemented in the pathless synthetic-only `backend.cutover_journal` package. Strict canonical create-only records bind sequence, previous/record hashes, fixed synthetic step/event/direction, operation/profile/authorization/owner fingerprints, and opaque observations. Every forward and reverse action uses durable `INTENT`, exact observed effect, and `COMMITTED`; each owner claim gets a distinct lease and each effect consumes a non-copyable, non-serializable single-use store permit bound to the exact active durable intent and durable journal head. The shared store-private issuance is atomically claimed; one synthetic medium operation gate serializes append, restart, permit mint/claim, and effect mutation; every namespace-published current head completes stable reread and full snapshot reverification before a successor append or permit. Stable-reread evidence is hash-bound, and head advance, pending state, or an observed fact invalidates stale permits. Pending or unbarriered records never authorize an effect; verified pending direction/event/outcome controls event-aware exact pending publication without effect replay or an extra action; durable observed facts are authoritative across fresh `RESUME_BOUND` renewal. Reverse steps are derived LIFO only from verified `COMMITTED/APPLIED` history. Exact Profile/master/operator, identity mapping, synthetic transition mapping, and post-effect observation all fail closed. Exact in-memory Windows/Linux traces prove file/namespace/stable-reread ordering without claiming real filesystem durability. Restart inspection is read-only, exact expected-post is never blindly repeated, and explicit resume/rollback fresh-validate phase-specific authorization including the pre-bound recovery fingerprint. Public results expose only fixed status, phase, receipt fingerprint, and allowlisted counts distinguishing `SAFE_ABORT`, `ROLLBACK_REQUIRED`, `INCIDENT_STOP`, and `CUTOVER_SUCCEEDED`. No real filesystem target, service, ACL, Git repository/worktree, Runtime, SQLite, provider, mailbox, vault, private data, preflight, migration, cutover, resume, or rollback was accessed or run; Issues #53 through #59 remain separate.
 
 The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器扩展, with current-message collection only after an explicit user click.
 

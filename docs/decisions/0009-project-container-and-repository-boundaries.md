@@ -265,7 +265,58 @@ Receipts remain evidence only and cannot authorize execution.
 This slice adds no host adapter, composition root, CLI, production consumer or
 authority to execute preflight, evidence publication, ACL, repository/worktree,
 Runtime, SQLite, CRX, Config, activation, rollback or incident operations.
-Issues #52 through #59 remain unstarted. Issues #38 and #39 are unchanged.
+Its sole approved consumer is the exact Issue #52 contracts bridge.
+
+### Issue #52 crash-safe journal and recovery classification
+
+`backend.cutover_journal` is a pathless synthetic-only state proof. One
+`JournalOperationBindingV1` revalidates and pre-binds the exact Issue #51
+Profile, execute authorization, recovery authorization, governing master,
+operation, and exclusive opaque owner before the first record. It does not mint
+or broaden authority.
+
+`JournalRecordV1` is strict canonical UTF-8 JSON with exact sequence,
+previous-record hash, record hash, fixed synthetic step/direction/event,
+operation/profile/authorization/owner bindings, opaque before/expected/observed
+fingerprints, and fixed outcome. Each forward and reverse action follows durable
+`INTENT`, exact `EFFECT_OBSERVED`, and `COMMITTED`. Reverse intent is derived
+only from verified `COMMITTED/APPLIED` forward history in LIFO order and swaps
+the forward before/after observations.
+
+The exact in-memory durability medium records pending-file, no-replace final,
+published-file, namespace, and stable-reread barriers under closed Windows and
+Linux trace codes. Only a fully namespace-barriered intent may precede a
+synthetic effect. Pending, truncated, corrupt, or unbarriered state never grants
+an action permit. Each owner claim uses a new in-memory lease; a synthetic
+effect must consume a non-copyable/non-serializable store permit backed by one
+shared single-use issuance for that lease, the exact round-trip-validated
+active durable intent, and current durable/stable journal head. One synthetic
+medium operation gate serializes append, restart, permit mint/atomic claim, and
+effect mutation. A namespace-published current head missing stable reread is
+exactly re-read and the full snapshot reverified before any successor append or
+permit. Any head advance, pending record, or durable observed fact invalidates
+an older permit. This contract proof is not real NTFS/Linux/power-loss evidence
+and exposes no filesystem adapter.
+
+Restart inspection accepts immutable snapshots and cannot claim ownership,
+append, resume, rollback, start a service, or change even synthetic effect state.
+Explicit resume requires fresh exact phase-`resume` authorization and exact
+pre-action or expected-post observation; expected-post only completes journal
+facts. Durable observed facts remain authoritative across renewed
+`RESUME_BOUND` records. Pending direction, Profile/master/operator binding,
+identity mapping, fixed transition mapping, and the exact post-effect
+observation fail closed. Explicit rollback uses the exact pre-bound, freshly valid
+`RecoveryAuthorizationV1`, reconciles exact partial facts, and invokes only
+journal-derived reverse steps. Unknown observation, identity drift, corrupt
+chain, or unsafe authority becomes `INCIDENT_STOP`.
+
+Public inspection output is limited to fixed status, phase, receipt fingerprint,
+and allowlisted counts. `SAFE_ABORT`, `ROLLBACK_REQUIRED`, `INCIDENT_STOP`, and
+`CUTOVER_SUCCEEDED` are distinct. The package has no path, callback, default
+adapter, CLI, HTTP route, real filesystem/service/ACL/Git/worktree/Runtime/
+SQLite/provider/mailbox/vault/private-data capability, or production consumer.
+No real operation was executed. Issues #53 through #59 remain unstarted; Issues
+#38/#39 and parent Spec #50 are unchanged.
 
 ## Context
 

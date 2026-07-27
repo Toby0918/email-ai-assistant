@@ -387,3 +387,45 @@ ACL, mailbox, provider, vault, private-store, credential, signing, random,
 secret, clock, or mutation capability. A SHA-256 profile, authorization, or
 receipt fingerprint is only a canonical integrity identity; it is not a
 signature, issuer, or permission to act on a real host.
+
+## 16. Synthetic crash-safe journal and recovery classification rule
+
+Issue #52 translates the journal/state boundary into six executable layers:
+
+1. `tests/test_cutover_journal_record_contract.py` pins strict canonical
+   `JournalRecordV1`, closed step/direction/event/outcome values, exact binding
+   fields, duplicate/unknown/non-canonical rejection, and deterministic record
+   hashes.
+2. `tests/test_cutover_journal_durability.py` pins create-only pending/final
+   publication, Windows/Linux file and namespace barrier order, exact lost-ack
+   retry, per-claim owner leases, stale-handle rejection, complete-chain recovery
+   ownership, round-trip record integrity, and transition-before-write
+   rejection.
+3. `tests/test_cutover_journal_chain.py` pins sequence/previous-hash/binding/
+   barrier/transition verification and fixed `JOURNAL_CHAIN_INVALID` behavior
+   for hostile or corrupt snapshots.
+4. `tests/test_cutover_journal_recovery.py` pins pre-bound recovery authority,
+   fresh phase-specific resume/rollback validation, exact pre/post
+   reconciliation, fresh `RESUME_BOUND` renewal, non-copyable/non-serializable
+   exact-head permits backed by shared single-use atomic-token issuances,
+   medium-gated first-mint/consume competition and stable-head continuation,
+   Profile/master/operator binding, direction-aware pending recovery,
+   no blind retry, LIFO reverse derivation, read-only restart inspection, and
+   closed public results.
+5. `tests/test_cutover_journal_crash_matrix.py` covers every before/after
+   forward and reverse intent/effect/observation/commit cut plus every synthetic
+   durability cut on both platform traces. It also pins continuation after
+   namespace lost-ack for `INTENT`, `RESUME_BOUND`, `EFFECT_OBSERVED`, and
+   `COMMITTED`, authoritative observed outcomes, identity/mapping substitution
+   rejection, and post-effect re-observation.
+6. `tests/test_cutover_journal_architecture.py` pins exact package files/exports/
+   imports/signatures/consumer absence, forbidden capabilities, and the 300/50
+   bounds.
+
+The sole Issue #51 consumer allowlist is
+`backend/cutover_journal/contracts_bridge.py` with five exact imported symbols.
+No test or implementation opens a real filesystem target, service, ACL,
+repository/worktree, Runtime, SQLite, provider, mailbox, vault, private store,
+or private data. `SAFE_ABORT`, `ROLLBACK_REQUIRED`, `INCIDENT_STOP`, and
+`CUTOVER_SUCCEEDED` are distinct classifications; a result or fingerprint is
+not host authority. Issues #53 through #59 remain separate.

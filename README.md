@@ -309,8 +309,36 @@ exception, database-content, or free-form inputs. Receipts and synthetic test
 authorizations cannot become execution authority. The no-argument default
 operator entry remains fixed at `BLOCKED_NO_APPROVED_COMMAND`; no real host
 adapter, preflight, evidence publication, migration, cutover, rollback or
-incident operation exists in this slice. Issues #52 through #59 are not
-started, and Issues #38 and #39 remain unchanged.
+incident operation exists in that contract slice.
+
+Issue #52 adds `backend/cutover_journal/`, a standard-library, pathless,
+synthetic-only transaction proof. Create-only canonical records form an exact
+sequence/previous-hash/record-hash chain and require durable `INTENT`, exact
+effect observation, and `COMMITTED` for every forward and reverse action.
+Each owner claim gets a distinct synthetic lease, and the effect consumes a
+non-copyable/non-serializable store permit backed by one shared single-use
+issuance for the exact current lease, active durable `INTENT`, durable journal
+head, and hash-bound stable reread. One store-private atomic token claim selects
+the sole consumer, and one synthetic medium operation gate serializes
+append/restart/mint/claim/effect. A namespace-published current head must
+complete stable reread and full snapshot verification before any successor
+append or permit; a head advance, pending record, or durable observed fact
+invalidates an older permit. Exact in-memory Windows/Linux
+traces model pending-file, published-file, and namespace barriers without
+claiming real filesystem durability.
+
+Restart inspection consumes immutable synthetic snapshots and cannot append,
+resume, roll back, start a service, or touch host state. Explicit resume requires
+a fresh valid phase-`resume` authorization and never repeats an exact
+expected-post effect. Durable observed facts remain authoritative across fresh
+`RESUME_BOUND` renewal; verified pending direction, Profile/master/operator,
+identity mapping, and synthetic transition mapping all fail closed. Rollback
+uses only the exact pre-bound recovery authorization and journal-derived LIFO
+reverse steps. Public results expose only
+fixed status, phase, receipt fingerprint, and allowlisted counts. No real
+filesystem target, service, ACL, Git repository/worktree, Runtime, SQLite,
+provider, mailbox, vault, or private data is accessed. Issues #53 through #59
+remain separate; Issues #38/#39 and parent Spec #50 remain unchanged.
 
 ## 后台清理扫描
 
