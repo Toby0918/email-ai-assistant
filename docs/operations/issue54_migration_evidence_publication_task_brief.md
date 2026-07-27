@@ -234,6 +234,8 @@ name、file content、command、native error and exception text 必须被拒绝�
 - [x] 不引入 provider、mailbox、vault、credential 或 private capability。
 - [x] Package creation only occurs inside test-owned temporary synthetic roots。
 - [x] Complete review remains in memory and is not alternate persisted authority。
+- [x] Test-only target-parent marker hard-link anchor rejects same-path
+  replacement even when object identity is recycled。
 - [x] Creator owns no independent verifier capability；verifier owns no publisher
   or mutation capability。
 - [x] Public outputs expose no path、ref、OID、worktree name or exception text。
@@ -251,7 +253,8 @@ instruction。
 ## 12. 验收标准
 
 1. Review exact profile-bound dirty-source、local-ref、worktree、package-target、
-   Git and RealHostBaseline selections，且没有 arbitrary replacement input。
+   Git and RealHostBaseline selections，且没有 arbitrary replacement input；
+   synthetic target-parent replacement cannot pass through inode reuse。
 2. `MigrationEvidenceReviewReceiptV1` 绑定 operation、Profile、master、review、
    selection、Git、host and counts，且 content-free。
 3. Complete `MigrationEvidenceReview` 不持久化为 alternate authority。
@@ -273,8 +276,9 @@ instruction。
 11. Real entry points remain locked before Issue #39 and reject missing、
     wrong-phase and test authorization。
 12. Synthetic tests cover selection、source bytes、dirty/ref/worktree/
-    HostBaseline drift、post-commit replacement、path ABA、collision、
-    corruption、manifest mismatch、process separation and leakage。
+    HostBaseline drift、target-parent identity recycling、post-commit
+    replacement、path ABA、collision、corruption、manifest mismatch、process
+    separation and leakage。
 13. Docs state package is evidence only，not backup、runtime artifact、private
     container or migration authorization。
 14. No real operational action or access occurs。
@@ -362,6 +366,8 @@ Not applicable。Mailbox sync and current-click evidence remain unchanged。
   independent verification seam。
 - backend/migration_evidence_publication/：新增 profile-bound review、separately
   authorized create-only composition、content-free receipts/Set、locked real entries。
+  Test-only synthetic scope 使用 fixed marker hard-link anchor 阻止 target-parent
+  identity reuse。
 - backend/migration_evidence_verifier/：新增 sanitized separate read-only process，
   bounded first read、exact-payload verify、stable reread and process-tree cleanup。
 - tests/：新增 Issue #54 fixtures、review/create/commit-binding/receipt/operator/
@@ -373,15 +379,19 @@ Not applicable。Mailbox sync and current-click evidence remain unchanged。
 
 测试结果:
 - TDD red/green：post-commit valid replacement、post-rediscovery source-byte drift
-  before commit、verifier path ABA and dynamic-import guard regressions。
-- Focused Issue #54：46 tests，OK。
-- Affected Issue #35/#51/#53：186 tests，OK，1 skipped。
-- Architecture/static/mechanical/status/leakage constraints：157 tests，OK。
-- Full unittest discovery：2132 tests，OK，3 skipped。
-- compileall、7 个 frontend JavaScript syntax checks and extension manifest JSON：
+  before commit、target-parent forced identity recycling、verifier path ABA and
+  dynamic-import guard regressions。
+- Focused Issue #54：47 tests，OK，including the sole-link parser canary and
+  exact publication guard。
+- Affected Issue #35/#51/#53：187 tests，OK，1 skipped。
+- Architecture/static/mechanical/status/leakage constraints：158 tests，OK。
+- Full unittest discovery：2133 tests，OK，3 skipped。
+- compileall、10 个 frontend JavaScript syntax checks and extension manifest JSON：
   OK。
 - Read-only maintenance scan --fail-on-high：No cleanup findings detected。
 - Standards final re-review：P1=0、P2=0；Spec final re-review：P1=0、P2=0、P3=0。
+- First PR CI run exposed Linux target-parent inode reuse；the deterministic
+  identity-collision regression and marker hard-link anchor repair pass locally。
 
 P3 records:
 - Standards P3：verifier response fingerprint currently proves a distinct child
@@ -389,9 +399,9 @@ P3 records:
   fixed child/process isolation satisfies Issue #54，后续 ticket 可收紧 provenance。
 
 未完成事项:
-- Versioned implementation and local review are complete。Explicit allowlist
-  stage、commit、push、ready-for-review PR and remote CI are the remaining
-  publication steps；merge remains unauthorized。
+- Ready-for-review PR #63 already exists。The Linux inode-reuse repair still
+  requires explicit allowlist stage、commit and push，then PR #63 remote CI
+  must rerun against the repair commit；merge remains unauthorized。
 
 后续建议:
 - Do not begin Issues #55 through #59 without separate authorization.

@@ -81,7 +81,9 @@ verification. Review accepts only the exact `CutoverProfileV1` dirty-source,
 local-ref, worktree, package-target, Git, and `RealHostBaseline` selections.
 Create requires the exact `EvidencePublicationAuthorizationV1` and confirmed
 review fingerprint, then repeats complete discovery and rejects any Profile,
-selection, Git, host, target, or review drift. The creator cannot call the
+selection, Git, host, target, or review drift. Its test-only synthetic binder
+uses an independent marker hard-link in the target parent so inode reuse cannot
+mask same-path replacement. The creator cannot call the
 independent verifier, and the verifier cannot publish or modify the package.
 Before Issue #39, real entries remain locked and reject missing, wrong-phase,
 and test authorization; all executable proof stays in test-owned temporary

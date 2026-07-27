@@ -26,7 +26,7 @@ class _SelectionState:
     operation_fingerprint: str
     repository_root: Path
     target: Path
-    target_parent_identity_fingerprint: str
+    target_parent_anchor_fingerprint: str
     approved_dirty_paths: tuple[str, ...]
     reviewed_refs: tuple[str, ...]
     approved_worktrees: tuple[Path, ...]

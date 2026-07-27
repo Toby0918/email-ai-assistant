@@ -398,7 +398,10 @@ Git, and `RealHostBaseline` selections and accepts no arbitrary replacement.
 `MigrationEvidenceReviewReceiptV1` binds the operation, Profile, governing
 master, review, selection, Git, host, and allowlisted counts through
 content-free fingerprints. The complete `MigrationEvidenceReview` remains
-in memory and must not be persisted as alternate authority.
+in memory and must not be persisted as alternate authority. The test-only
+synthetic binder hard-links the sandbox marker into the package-target parent
+and revalidates that independent anchor, so same-path parent replacement cannot
+pass through POSIX inode reuse.
 
 The physically separate create-only publication composition requires an exact
 `EvidencePublicationAuthorizationV1` and the exact operator-confirmed review

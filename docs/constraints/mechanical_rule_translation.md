@@ -511,7 +511,10 @@ executable layers:
    bindings, fresh `RealHostBaselineCollector` composition, complete in-memory
    review ownership, and a content-free `MigrationEvidenceReviewReceiptV1`.
    Arbitrary replacement values, mismatched Profile bindings, incomplete host
-   evidence, or review serialization/persistence fail closed.
+   evidence, target-parent identity collision/inode reuse, or review
+   serialization/persistence fail closed. The test-only binder's fixed marker
+   hard-link anchor makes the parent replacement regression deterministic on
+   Windows and POSIX.
 2. `test_migration_evidence_publication_create_verify.py`,
    `test_migration_evidence_publication_commit_binding.py`, and
    `test_migration_evidence_publication_package_observation.py` require exact
@@ -540,8 +543,10 @@ executable layers:
    static/mechanical checks, and leakage tests pin the creator/verifier
    dependency wall, read-only verifier package, exact bridges, fixed worker
    launch/environment/process-tree cleanup, locked real entries, zero
-   normal-runtime consumers, and absence of path/ref/object/worktree/command/
-   content/error leakage.
+   normal-runtime consumers, the sole direct
+   `os.link(marker, anchor, follow_symlinks=False)` call while rejecting
+   imported/rebound/`getattr`/`Path.hardlink_to`/`Path.link_to` variants, and
+   absence of path/ref/object/worktree/command/content/error leakage.
 
 The creator may use shared pure archive-format validation but cannot import or
 call the independent verifier capability. The verifier cannot import

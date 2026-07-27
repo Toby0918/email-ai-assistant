@@ -142,7 +142,9 @@ CI must reject any Issue #54 change when:
 
 - review accepts a dirty-source, local-ref, worktree, package-target, Git, or
   HostBaseline replacement that is not bound to the exact `CutoverProfileV1`,
-  or persists the complete `MigrationEvidenceReview` as alternate authority;
+  persists the complete `MigrationEvidenceReview` as alternate authority, or
+  lets same-path target-parent replacement pass when object identity is
+  recycled instead of requiring the synthetic marker hard-link anchor;
 - create accepts anything other than the exact
   `EvidencePublicationAuthorizationV1`, exact review receipt, and confirmed
   review fingerprint, skips complete rediscovery/fresh HostBaseline collection,

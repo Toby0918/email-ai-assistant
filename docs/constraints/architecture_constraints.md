@@ -342,7 +342,11 @@ composition. Review consumes one opaque selection bound to the exact
 `RealHostBaseline` selections. Only its exact bridges may cross into Issue #35
 prepare/create, Issue #53 HostBaseline collection, and Issue #51
 Profile/authorization validation. The complete `MigrationEvidenceReview`
-remains in module-owned memory rather than persisted authority.
+remains in module-owned memory rather than persisted authority. The
+`synthetic_scope.py` test binder owns the package's sole parent-anchor hard-link
+capability: it links the fixed sandbox marker into the target parent and
+requires both names to retain one regular-file identity, preventing POSIX inode
+reuse from masking same-path parent replacement.
 
 Create requires the exact `EvidencePublicationAuthorizationV1`, matching review
 receipt, and exact confirmed review fingerprint. It repeats complete discovery,

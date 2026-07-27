@@ -452,7 +452,9 @@ source_type: operation_guide
   worktree, package-target, Git, and `RealHostBaseline` selections. Assert the
   complete `MigrationEvidenceReview` remains module-owned and in memory while
   `MigrationEvidenceReviewReceiptV1` exposes only opaque fingerprints and
-  bounded counts.
+  bounded counts. Remove and recreate the same package-target parent while
+  forcing its identity fingerprint to collide; claim must still reject because
+  the fixed synthetic marker hard-link anchor is missing.
 - Create must require exact `EvidencePublicationAuthorizationV1`, exact review
   receipt, and exact confirmed review fingerprint. Mutate each Profile,
   selection, dirty-source, ref, worktree, Git, HostBaseline, target, review,

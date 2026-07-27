@@ -9,6 +9,11 @@ import sys
 import unittest
 from pathlib import Path
 
+from tests.test_architecture_constraints import (
+    parse_hard_link_references,
+    parse_name_bindings,
+)
+
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "backend" / "migration_evidence_publication"
@@ -272,6 +277,95 @@ class MigrationEvidencePublicationArchitectureTests(unittest.TestCase):
             ),
             "isolated",
         )
+
+    def test_synthetic_scope_owns_exact_parent_anchor_capability(
+        self,
+    ) -> None:
+        scope = PACKAGE / "synthetic_scope.py"
+        all_references = tuple(
+            (path.name, target, line, direct)
+            for path in _paths()
+            for target, line, direct in parse_hard_link_references(
+                path
+            )
+        )
+        benign_dynamic_getters = tuple(
+            (name, target, direct)
+            for name, target, _line, direct in all_references
+            if target == "getattr(state, <dynamic>)" and not direct
+        )
+        self.assertEqual(
+            benign_dynamic_getters,
+            (
+                (
+                    "publication_receipts.py",
+                    "getattr(state, <dynamic>)",
+                    False,
+                ),
+                (
+                    "receipt_set.py",
+                    "getattr(state, <dynamic>)",
+                    False,
+                ),
+            ),
+        )
+        link_calls = [
+            node
+            for node in ast.walk(_tree(scope))
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and isinstance(node.func.value, ast.Name)
+            and node.func.value.id == "os"
+            and node.func.attr == "link"
+        ]
+        self.assertEqual(len(link_calls), 1)
+        actual_link_references = tuple(
+            reference
+            for reference in all_references
+            if not (
+                reference[1] == "getattr(state, <dynamic>)"
+                and not reference[3]
+            )
+        )
+        self.assertEqual(
+            actual_link_references,
+            (
+                (
+                    "synthetic_scope.py",
+                    "os.link",
+                    link_calls[0].lineno,
+                    True,
+                ),
+            ),
+        )
+        bindings = parse_name_bindings(scope)
+        self.assertEqual(
+            tuple(
+                (name, kind)
+                for name, kinds in sorted(bindings.items())
+                for kind in kinds
+                if kind.startswith(("import:os:", "from:0:os:"))
+            ),
+            (("os", "import:os:"),),
+        )
+        self.assertEqual(
+            tuple(ast.unparse(value) for value in link_calls[0].args),
+            ("marker", "anchor"),
+        )
+        self.assertEqual(
+            {
+                keyword.arg: ast.unparse(keyword.value)
+                for keyword in link_calls[0].keywords
+            },
+            {"follow_symlinks": "False"},
+        )
+        source = scope.read_text(encoding="utf-8")
+        self.assertIn(
+            '".issue-54-target-parent-anchor"',
+            source,
+        )
+        self.assertIn("marker_metadata.st_nlink != 2", source)
+        self.assertIn("anchor_metadata.st_nlink != 2", source)
 
     def test_verification_composition_is_read_only_and_creator_free(
         self,

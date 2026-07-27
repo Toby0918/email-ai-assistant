@@ -10,7 +10,6 @@ from .contracts_bridge import (
     TestSandboxAuthorizationV1,
 )
 
-from .canonical import object_identity_fingerprint
 from .host_baseline_bridge import RealHostBaselineCollector
 from .profile_binding import _ProfileBindings
 from .review_bridge import MigrationEvidenceReview
@@ -23,6 +22,7 @@ from .selection_state import (
     _SELECTION_STATES_LOCK,
 )
 from .synthetic_scope import (
+    create_target_parent_anchor,
     inside_absent_target,
     inside_directory,
     require_test_authorization,
@@ -148,8 +148,8 @@ def _new_selection_state(
         operation_fingerprint=operation,
         repository_root=root,
         target=target,
-        target_parent_identity_fingerprint=(
-            object_identity_fingerprint(target.parent)
+        target_parent_anchor_fingerprint=(
+            create_target_parent_anchor(sandbox, target.parent)
         ),
         approved_dirty_paths=dirty_paths,
         reviewed_refs=refs,
@@ -294,7 +294,7 @@ def _revalidate_sandbox(state: _SelectionState) -> None:
         repository_root=state.repository_root,
         worktrees=state.approved_worktrees,
         target=state.target,
-        target_parent_identity=(
-            state.target_parent_identity_fingerprint
+        target_parent_anchor=(
+            state.target_parent_anchor_fingerprint
         ),
     )

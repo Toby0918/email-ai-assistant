@@ -641,7 +641,9 @@ publication, and separate-process read-only verification boundary:
 
 - review consumes only exact `CutoverProfileV1` dirty-source, local-ref,
   worktree, package-target, Git, and `RealHostBaseline` selections, with no
-  arbitrary replacement inputs;
+  arbitrary replacement inputs; the test-only synthetic binder requires a
+  marker hard-link in the target parent so identity reuse cannot mask
+  same-path replacement;
 - `MigrationEvidenceReviewReceiptV1` binds operation, Profile, governing
   master, review, selection, Git, host, and allowlisted counts through
   content-free fingerprints; the complete `MigrationEvidenceReview` remains

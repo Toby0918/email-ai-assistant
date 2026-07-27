@@ -469,7 +469,11 @@ bound to the exact `CutoverProfileV1`. The review bridge may call only the
 existing Issue #35 prepare seam, the HostBaseline bridge may call only the
 Issue #53 collector, and the contracts bridge may import only the exact Issue
 #51 Profile and authorization values. The complete `MigrationEvidenceReview`
-stays in module-owned memory and is not serialized or persisted.
+stays in module-owned memory and is not serialized or persisted. The
+test-authorized synthetic binder has one fixed `os.link` capability that links
+the sandbox marker into the package-target parent; claim-time validation
+requires the same regular-file identity so inode reuse cannot conceal parent
+replacement. No real entry can reach this capability.
 
 Create requires the exact `EvidencePublicationAuthorizationV1`, review receipt,
 and confirmed review fingerprint. It reruns the complete review and fresh

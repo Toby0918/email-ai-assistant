@@ -7,6 +7,7 @@ import inspect
 import json
 import pickle
 import unittest
+from unittest import mock
 
 from backend.cutover_contracts import TestSandboxAuthorizationV1
 from backend.migration_evidence_publication import (
@@ -396,6 +397,7 @@ class MigrationEvidencePublicationReviewTests(unittest.TestCase):
             )
 
     def test_claim_rejects_same_path_target_parent_replacement(self) -> None:
+        import backend.migration_evidence_publication.synthetic_scope as scope
         from backend.migration_evidence_publication.selection import (
             _claim_selection_for_publication,
         )
@@ -410,10 +412,25 @@ class MigrationEvidencePublicationReviewTests(unittest.TestCase):
                 observed_at_epoch=OBSERVED_AT,
                 selection=selection,
             )
+            parent_identity = scope.object_identity_fingerprint(
+                fixture.target.parent
+            )
+            real_identity = scope.object_identity_fingerprint
+            for child in fixture.target.parent.iterdir():
+                child.unlink()
             fixture.target.parent.rmdir()
             fixture.target.parent.mkdir()
 
-            with self.assertRaisesRegex(
+            def recycled_identity(path):
+                if path == fixture.target.parent:
+                    return parent_identity
+                return real_identity(path)
+
+            with mock.patch.object(
+                scope,
+                "object_identity_fingerprint",
+                side_effect=recycled_identity,
+            ), self.assertRaisesRegex(
                 ValueError,
                 "^MIGRATION_EVIDENCE_SELECTION_REJECTED$",
             ):

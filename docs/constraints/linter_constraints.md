@@ -686,6 +686,13 @@ imports are the exact Issue #54 review/create/HostBaseline/contracts bridges,
 the parent verification composition's verifier-process imports, and the
 verifier's single exact-payload core verify bridge.
 
+The only publication-package hard-link call is the exact
+`os.link(marker, anchor, follow_symlinks=False)` in `synthetic_scope.py`.
+It is reachable only from the `TemporaryDirectory`- and test-authorization-bound
+selection binder. AST guards require the fixed target-parent anchor name,
+regular non-reparse identities, exactly two links, and no hard-link call in
+any other publication module.
+
 AST capability guards require `creator_bridge.py` to import only the existing
 create seam and forbid creator modules from importing or calling the
 independent verifier. The verifier bridge may import only

@@ -231,7 +231,10 @@ value. `MigrationEvidenceReviewReceiptV1` binds the operation, Profile,
 governing master, review, selection, Git, host, and allowlisted counts through
 closed content-free fingerprints. The complete `MigrationEvidenceReview`
 remains in memory and must not be serialized or persisted as alternate
-authority.
+authority. The test-only synthetic binder links the fixed sandbox marker into
+the package-target parent and requires the two names to retain one
+regular-file identity. Removing or replacing the parent destroys that anchor,
+so recycled directory identity cannot satisfy the later selection claim.
 
 Create runs only in the physically separate create-only publication
 composition. It requires an exact `EvidencePublicationAuthorizationV1`, the

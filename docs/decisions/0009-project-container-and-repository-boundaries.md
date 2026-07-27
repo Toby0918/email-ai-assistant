@@ -372,7 +372,11 @@ local-ref, worktree, package-target, Git, and `RealHostBaseline` selections.
 `MigrationEvidenceReviewReceiptV1` binds the operation, Profile, governing
 master, review, selection, Git, host, and allowlisted counts through closed
 content-free fingerprints. The complete `MigrationEvidenceReview` remains an
-in-memory working value and must not be persisted as alternate authority.
+in-memory working value and must not be persisted as alternate authority. In
+the test-only synthetic binder, the fixed sandbox marker is hard-linked into
+the package-target parent and both names are revalidated as one regular-file
+identity. This independent anchor prevents same-path parent replacement from
+passing if POSIX immediately reuses the directory inode.
 
 Publication is a physically separate create-only composition. It accepts only
 an exact `EvidencePublicationAuthorizationV1`, the same operation, Profile and
