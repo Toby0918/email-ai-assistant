@@ -412,6 +412,11 @@ Not applicable。Mailbox sync and current-click evidence remain unchanged。
   315 tests，`OK (skipped=1)`。
 - Full `python -B -m unittest discover -s tests`: 2083 tests，
   `OK (skipped=3)` with Python 3.12.13。
+- The initial Linux PR run exposed filesystem-order dependence in the exact
+  bridge-consumer test assertion；the one-line test-only repair sorts the
+  observed list before exact allowlist comparison。Post-repair local results:
+  bridge module 14 tests、focused 62 tests and full 2083 tests all `OK`；
+  final PR CI rerun remains pending。
 - `python -B -m compileall -q backend scripts tests`: exit 0。
 - All frontend JavaScript files pass `node --check`; browser-extension
   manifest JSON parses successfully。
@@ -420,7 +425,7 @@ Not applicable。Mailbox sync and current-click evidence remain unchanged。
 - `git diff --check`: exit 0，only expected line-ending conversion warnings。
 - Initial Standards/Spec and adversarial review P1/P2 findings were repaired
   with regression tests。Independent final Standards and Spec re-review at
-  code fixed point `0944831` both passed with no P1/P2 and no scope creep；
+  code fixed point `44903bc` both passed with no P1/P2 and no scope creep；
   ready-for-review PR CI remains pending at this checkpoint。
 
 P3 records（本 Issue 不扩围）:
