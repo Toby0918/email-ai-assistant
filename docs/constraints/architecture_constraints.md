@@ -315,10 +315,12 @@ exactly seven caller-bound callbacks to the unchanged nine-zone policy.
 it does not execute or claim a pre-cutover final-layout pass. Prepare and
 readiness revalidate every bound callback and require each composed adapter to
 remain the identical reader captured by the binding. Prepare stores a detached
-canonical audit-policy snapshot; each audit run snapshots it again and rebuilds
-fresh adapters from the seven captured reader references before invoking any
-callback. Caller or callback mutation cannot relax the policy or retarget the
-adapters supplied to an in-progress audit.
+canonical audit-policy snapshot. Each audit run captures that policy, bindings,
+seven reader references, and both fingerprints once; it validates and consumes
+that same local capture while rebuilding fresh adapters before invoking any
+callback. Readiness uses the same capture rule and a canonical Profile snapshot.
+Caller or callback mutation cannot relax the policy or retarget the adapters
+supplied to an in-progress audit.
 
 No normal runtime, script, frontend, wrapper, cleanup, leakage scanner, or
 workflow consumes this layer. The zero-argument operator entry remains

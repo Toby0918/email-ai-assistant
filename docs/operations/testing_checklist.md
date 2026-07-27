@@ -415,7 +415,9 @@ source_type: operation_guide
   capture a detached canonical policy; run must snapshot that policy again and
   rebuild adapters from the seven captured readers before callbacks. A
   malicious callback that relaxes caller-owned or stored clean-worktree policy
-  must not change the unchanged audit result.
+  must not change the unchanged audit result. Deterministically pause after
+  validation and replace the composition policy or reader tuple; run and
+  readiness must continue using only the single validated local capture.
 - Assert the real operator entry accepts no path, callback, command, adapter, or
   test authorization and always returns `BLOCKED_NO_APPROVED_COMMAND`,
   `blocked=1`, and `executed=0`. No helper may create, issue, mint, sign, renew,

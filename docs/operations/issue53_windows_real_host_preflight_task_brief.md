@@ -403,12 +403,14 @@ Not applicable。Mailbox sync and current-click evidence remain unchanged。
   receipt-class-to-observation-kind binding，以及 detached final-audit policy
   和 per-run adapter rebuild 的 RED/GREEN；机械复核另补 canonical relative
   import resolution、30-file exact graph、sensitive/private/wildcard import、
-  Path ambient/content-reader 和 root-wrapper consumer guards。
-- Focused Issue #53: 61 tests，`OK`。
+  Path ambient/content-reader、root-wrapper consumer、indirect builtins/dunder
+  和 constant-folded WinDLL capability guards；final-audit 另补 single-capture
+  policy/readers check-use race regression。
+- Focused Issue #53: 62 tests，`OK`。
 - Affected ContainerAudit、migration-evidence、Issue #51 contracts、
   architecture/static/mechanical/status/transport/leakage/maintenance:
-  314 tests，`OK (skipped=1)`。
-- Full `python -B -m unittest discover -s tests`: 2082 tests，
+  315 tests，`OK (skipped=1)`。
+- Full `python -B -m unittest discover -s tests`: 2083 tests，
   `OK (skipped=3)` with Python 3.12.13。
 - `python -B -m compileall -q backend scripts tests`: exit 0。
 - All frontend JavaScript files pass `node --check`; browser-extension

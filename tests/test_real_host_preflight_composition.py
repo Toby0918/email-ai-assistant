@@ -3,9 +3,12 @@
 from __future__ import annotations
 
 import inspect
+import threading
 import unittest
 from dataclasses import replace
+from unittest.mock import patch
 
+import backend.real_host_preflight.composition as composition_module
 from backend.container_audit import (
     AuditObject,
     AuditObjectKind,
@@ -223,6 +226,50 @@ class FinalAuditCompositionTests(unittest.TestCase):
         self.assertFalse(policy.require_clean_worktrees)
         self.assertEqual(result.status.value, "container_audit_failed")
 
+    def test_run_rejects_scheduled_policy_or_reader_swap(self) -> None:
+        policy, adapters = _dirty_worktree_inputs()
+        strict = prepare_final_audit_composition(
+            policy=policy,
+            callbacks=_audit_callbacks(adapters, 31),
+        )
+        relaxed = replace(policy, require_clean_worktrees=False)
+        policy_result = _run_with_validation_gap(
+            strict,
+            lambda: object.__setattr__(strict, "_policy", relaxed),
+        )
+        self.assertEqual(
+            policy_result.status.value,
+            "container_audit_failed",
+        )
+
+        clean_policy, clean_adapters = valid_audit_inputs()
+        failing = _audit_callbacks(clean_adapters, 41)
+        object.__setattr__(
+            failing,
+            "filesystem",
+            _bound(48, lambda: None),
+        )
+        reader_target = prepare_final_audit_composition(
+            policy=clean_policy,
+            callbacks=failing,
+        )
+        clean_readers = tuple(
+            item.reader
+            for item in _audit_callbacks(clean_adapters, 51).ordered()
+        )
+        reader_result = _run_with_validation_gap(
+            reader_target,
+            lambda: object.__setattr__(
+                reader_target,
+                "_readers",
+                clean_readers,
+            ),
+        )
+        self.assertEqual(
+            reader_result.status.value,
+            "container_audit_failed",
+        )
+
     def test_tampered_bound_callback_cannot_issue_readiness(self) -> None:
         profile = valid_profile()
         operation = opaque_fingerprint(201)
@@ -266,6 +313,52 @@ def _bound(index: int, reader: object) -> BoundAuditCallbackV1:
         binding_fingerprint=opaque_fingerprint(600 + index),
         reader=reader,
     )
+
+
+def _audit_callbacks(
+    adapters: ContainerAuditAdapters,
+    start: int,
+) -> FinalAuditCallbacksV1:
+    return FinalAuditCallbacksV1(
+        filesystem=_bound(start, adapters.filesystem),
+        acl=_bound(start + 1, adapters.acl),
+        volume=_bound(start + 2, adapters.volume),
+        git=_bound(start + 3, adapters.git),
+        worktree=_bound(start + 4, adapters.worktree),
+        runtime=_bound(start + 5, adapters.runtime),
+        sqlite=_bound(start + 6, adapters.sqlite),
+    )
+
+
+def _run_with_validation_gap(
+    composition: FinalAuditCompositionV1,
+    mutate: object,
+):
+    entered = threading.Event()
+    release = threading.Event()
+    results: list[object] = []
+    original = composition_module._composition_is_valid
+
+    def paused(value: object) -> bool:
+        result = original(value)
+        entered.set()
+        if not release.wait(5):
+            raise AssertionError("scheduled mutation did not resume")
+        return result
+
+    with patch.object(composition_module, "_composition_is_valid", paused):
+        worker = threading.Thread(
+            target=lambda: results.append(composition.run())
+        )
+        worker.start()
+        if not entered.wait(5):
+            raise AssertionError("validation gap was not reached")
+        mutate()
+        release.set()
+        worker.join(5)
+    if worker.is_alive() or len(results) != 1:
+        raise AssertionError("scheduled composition run did not complete")
+    return results[0]
 
 
 def _dirty_worktree_inputs(

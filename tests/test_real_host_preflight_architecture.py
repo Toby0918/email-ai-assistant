@@ -148,6 +148,7 @@ ALLOWED_IMPORTS_BY_FILE = {
         "authorization_gate",
         "canonical",
         "contracts_bridge",
+        "profile_snapshot",
         "receipts",
     ),
     "contracts.py": {
@@ -347,13 +348,32 @@ FORBIDDEN_IMPORT_ROOTS = {
 }
 FORBIDDEN_CALL_NAMES = {
     "__import__",
+    "dir",
     "eval",
     "exec",
     "getattr",
+    "globals",
     "input",
+    "locals",
     "open",
     "print",
     "setattr",
+    "vars",
+}
+FORBIDDEN_NAME_REFERENCES = FORBIDDEN_CALL_NAMES | {"__builtins__"}
+FORBIDDEN_INDIRECT_DUNDER_ATTRIBUTES = {
+    "__bases__",
+    "__builtins__",
+    "__class__",
+    "__closure__",
+    "__code__",
+    "__dict__",
+    "__getattr__",
+    "__getattribute__",
+    "__getitem__",
+    "__globals__",
+    "__mro__",
+    "__subclasses__",
 }
 FORBIDDEN_CALL_ATTRIBUTES = {
     "Popen",
@@ -634,6 +654,65 @@ class RealHostPreflightArchitectureTests(unittest.TestCase):
             )
         )
 
+        for capability in ("__import__", "open"):
+            with self.subTest(builtins_lookup=capability):
+                violations = _source_policy_violations(
+                    "canonical.py",
+                    (
+                        f"capability = __builtins__['{capability}']\n"
+                        "capability('opaque')\n"
+                    ),
+                )
+                self.assertIn(
+                    ("forbidden-builtins-lookup", capability),
+                    violations,
+                )
+        path_dict = _source_policy_violations(
+            "windows_paths.py",
+            (
+                "from pathlib import Path\n"
+                "reader = Path.__dict__['read' + '_text']\n"
+                "reader(Path('opaque'))\n"
+            ),
+        )
+        self.assertIn(
+            ("forbidden-dunder-attribute", "__dict__"),
+            path_dict,
+        )
+        native_subscript = _source_policy_violations(
+            "windows_api.py",
+            (
+                "import ctypes\n"
+                "kernel = ctypes.WinDLL('kernel32')\n"
+                "setter = kernel['Set' + 'FileInformationByHandle']\n"
+            ),
+        )
+        self.assertIn(
+            (
+                "forbidden-native-subscript",
+                "SetFileInformationByHandle",
+            ),
+            native_subscript,
+        )
+        self.assertIn(
+            ("forbidden-native-marker", "SetFileInformationByHandle"),
+            native_subscript,
+        )
+        direct_native = _source_policy_violations(
+            "windows_api.py",
+            (
+                "setter = WinDLL('kernel32')["
+                "'Set' + 'FileInformationByHandle']\n"
+            ),
+        )
+        self.assertIn(
+            (
+                "forbidden-native-subscript",
+                "SetFileInformationByHandle",
+            ),
+            direct_native,
+        )
+
     def test_package_and_public_surface_are_exact(self) -> None:
         files = {
             path.relative_to(PACKAGE).as_posix()
@@ -887,7 +966,131 @@ def _source_policy_violations(
     )
     violations.update(_import_form_violations(filename, source))
     violations.update(_forbidden_call_violations(source))
+    violations.update(_indirect_capability_violations(filename, source))
     return violations
+
+
+def _indirect_capability_violations(
+    filename: str,
+    source: str,
+) -> set[tuple[str, str]]:
+    tree = ast.parse(source)
+    constants = _constant_bindings(tree)
+    violations = {
+        ("forbidden-name-reference", node.id)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Name)
+        and isinstance(node.ctx, ast.Load)
+        and node.id in FORBIDDEN_NAME_REFERENCES
+    }
+    violations.update(
+        ("forbidden-dunder-attribute", node.attr)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Attribute)
+        and node.attr in FORBIDDEN_INDIRECT_DUNDER_ATTRIBUTES
+    )
+    violations.update(_builtins_lookup_violations(tree, constants))
+    if filename == "windows_api.py":
+        violations.update(_windows_subscript_violations(tree, constants))
+        violations.update(_native_marker_violations(tree, constants))
+    return violations
+
+
+def _builtins_lookup_violations(
+    tree: ast.AST,
+    constants: dict[str, str],
+) -> set[tuple[str, str]]:
+    violations: set[tuple[str, str]] = set()
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Subscript)
+            and isinstance(node.value, ast.Name)
+            and node.value.id == "__builtins__"
+        ):
+            key = _constant_string(node.slice, constants) or "<dynamic>"
+            violations.add(("forbidden-builtins-lookup", key))
+    return violations
+
+
+def _windows_subscript_violations(
+    tree: ast.AST,
+    constants: dict[str, str],
+) -> set[tuple[str, str]]:
+    violations: set[tuple[str, str]] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Subscript) and not _reviewed_path_slice(node):
+            key = _constant_string(node.slice, constants) or "<dynamic>"
+            violations.add(("forbidden-native-subscript", key))
+    return violations
+
+
+def _reviewed_path_slice(node: ast.Subscript) -> bool:
+    value = node.value
+    item = node.slice
+    return (
+        isinstance(value, ast.Name)
+        and value.id == "normalized_path"
+        and isinstance(item, ast.Slice)
+        and isinstance(item.lower, ast.Constant)
+        and type(item.lower.value) is int
+        and item.lower.value in {4, 5}
+        and isinstance(item.upper, ast.Constant)
+        and item.upper.value == 7
+        and item.step is None
+    )
+
+
+def _native_marker_violations(
+    tree: ast.AST,
+    constants: dict[str, str],
+) -> set[tuple[str, str]]:
+    violations: set[tuple[str, str]] = set()
+    for node in ast.walk(tree):
+        value = _constant_string(node, constants)
+        if value is None:
+            continue
+        violations.update(
+            ("forbidden-native-marker", marker)
+            for marker in FORBIDDEN_NATIVE_MARKERS
+            if marker in value
+        )
+    return violations
+
+
+def _constant_bindings(tree: ast.AST) -> dict[str, str]:
+    assignments = [
+        (node.targets[0].id, node.value)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Assign)
+        and len(node.targets) == 1
+        and isinstance(node.targets[0], ast.Name)
+    ]
+    values: dict[str, str] = {}
+    for _iteration in range(len(assignments) + 1):
+        changed = False
+        for name, expression in assignments:
+            value = _constant_string(expression, values)
+            if value is not None and values.get(name) != value:
+                values[name] = value
+                changed = True
+        if not changed:
+            break
+    return values
+
+
+def _constant_string(
+    node: ast.AST,
+    values: dict[str, str],
+) -> str | None:
+    if isinstance(node, ast.Constant) and type(node.value) is str:
+        return node.value
+    if isinstance(node, ast.Name):
+        return values.get(node.id)
+    if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
+        left = _constant_string(node.left, values)
+        right = _constant_string(node.right, values)
+        return None if left is None or right is None else left + right
+    return None
 
 
 def _import_form_violations(

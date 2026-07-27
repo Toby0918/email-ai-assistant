@@ -20,6 +20,7 @@ from .audit_types import (
 from .authorization_gate import require_preflight_authorization
 from .canonical import fingerprint
 from .contracts_bridge import CutoverProfileV1, ReceiptEnvelopeV1
+from .profile_snapshot import snapshot_cutover_profile
 from .receipts import (
     FinalAuditCompositionReadyReceiptV1,
     _mint_final_audit_ready_receipt,
@@ -44,14 +45,14 @@ class FinalAuditCompositionV1:
         """Run the unchanged read-only audit through its narrow bridge."""
 
         try:
-            if not _composition_is_valid(self):
+            captured = _capture_composition(self)
+            if not _composition_is_valid(captured):
                 raise ValueError("FINAL_AUDIT_COMPOSITION_REJECTED")
-            policy = _snapshot_policy(self._policy)
-            adapters = _compose_reader_snapshot(self._readers)
+            adapters = _compose_reader_snapshot(captured[2])
         except Exception:
             raise ValueError("FINAL_AUDIT_COMPOSITION_REJECTED") from None
         return run_final_container_audit(
-            policy=policy,
+            policy=captured[0],
             adapters=adapters,
         )
 
@@ -71,14 +72,8 @@ def prepare_final_audit_composition(
         raise ValueError("FINAL_AUDIT_COMPOSITION_REJECTED")
     readers = tuple(item.reader for item in bindings)
     policy_fingerprint = _policy_fingerprint(policy_snapshot)
-    composition_fingerprint = fingerprint(
-        "final-audit-composition-v1",
-        {
-            "callback_bindings": [
-                item.binding_fingerprint for item in bindings
-            ],
-            "policy_fingerprint": policy_fingerprint,
-        },
+    composition_fingerprint = _composition_fingerprint(
+        bindings, policy_fingerprint
     )
     return _new_composition(
         policy_snapshot,
@@ -99,27 +94,29 @@ def prove_final_audit_composition_ready(
 ) -> FinalAuditCompositionReadyReceiptV1:
     """Issue readiness only; never invoke the composed audit."""
 
+    profile_snapshot = snapshot_cutover_profile(profile)
     authorization_fingerprint, authorization_expiry = (
         require_preflight_authorization(
             authorization,
-            profile=profile,
+            profile=profile_snapshot,
             operation_fingerprint=operation_fingerprint,
             phase="final_audit_readiness",
             observed_at_epoch=observed_at_epoch,
         )
     )
-    if not _composition_is_valid(composition):
+    captured = _capture_composition(composition)
+    if not _composition_is_valid(captured):
         raise ValueError("FINAL_AUDIT_COMPOSITION_REJECTED")
     expires_at = min(
         observed_at_epoch + _READINESS_LIFETIME_SECONDS,
         authorization_expiry,
     )
     envelope = _create_readiness_receipt(
-        profile=profile,
+        profile=profile_snapshot,
         authorization_fingerprint=authorization_fingerprint,
         operation_fingerprint=operation_fingerprint,
-        policy_fingerprint=composition.policy_fingerprint,
-        observation_fingerprint=composition.composition_fingerprint,
+        policy_fingerprint=captured[3],
+        observation_fingerprint=captured[4],
         observed_at_epoch=observed_at_epoch,
         expires_at_epoch=expires_at,
     )
@@ -134,48 +131,46 @@ def _new_composition(
     composition_fingerprint: str,
 ) -> FinalAuditCompositionV1:
     value = object.__new__(FinalAuditCompositionV1)
-    object.__setattr__(value, "_policy", policy)
-    object.__setattr__(value, "_bindings", bindings)
-    object.__setattr__(value, "_readers", readers)
-    object.__setattr__(value, "policy_fingerprint", policy_fingerprint)
-    object.__setattr__(
-        value,
-        "composition_fingerprint",
-        composition_fingerprint,
-    )
+    names = ("_policy", "_bindings", "_readers", "policy_fingerprint",
+             "composition_fingerprint")
+    values = (policy, bindings, readers, policy_fingerprint,
+              composition_fingerprint)
+    for name, item in zip(names, values, strict=True):
+        object.__setattr__(value, name, item)
     return value
 
 
+def _capture_composition(value: object) -> tuple[object, ...]:
+    if type(value) is not FinalAuditCompositionV1:
+        raise ValueError("FINAL_AUDIT_COMPOSITION_REJECTED")
+    return (_snapshot_policy(value._policy), value._bindings, value._readers,
+            value.policy_fingerprint, value.composition_fingerprint)
+
+
 def _composition_is_valid(value: object) -> bool:
+    if type(value) is not tuple or len(value) != 5:
+        return False
+    policy, bindings, readers, policy_binding, composition_binding = value
     if (
-        type(value) is not FinalAuditCompositionV1
-        or not audit_policy_is_valid(value._policy)
-        or not _bindings_are_valid(value._bindings)
-        or type(value._readers) is not tuple
-        or len(value._readers) != 7
+        not audit_policy_is_valid(policy)
+        or not _bindings_are_valid(bindings)
+        or type(readers) is not tuple
+        or len(readers) != 7
         or any(
             binding.reader is not reader
             for binding, reader in zip(
-                value._bindings,
-                value._readers,
+                bindings,
+                readers,
                 strict=True,
             )
         )
     ):
         return False
-    policy_fingerprint = _policy_fingerprint(value._policy)
-    expected = fingerprint(
-        "final-audit-composition-v1",
-        {
-            "callback_bindings": [
-                item.binding_fingerprint for item in value._bindings
-            ],
-            "policy_fingerprint": policy_fingerprint,
-        },
-    )
+    policy_fingerprint = _policy_fingerprint(policy)
+    expected = _composition_fingerprint(bindings, policy_fingerprint)
     return (
-        value.policy_fingerprint == policy_fingerprint
-        and value.composition_fingerprint == expected
+        policy_binding == policy_fingerprint
+        and composition_binding == expected
     )
 
 
@@ -185,6 +180,19 @@ def _bindings_are_valid(bindings: object) -> bool:
         and len(bindings) == 7
         and all(bound_audit_callback_is_intact(item) for item in bindings)
         and len({item.binding_fingerprint for item in bindings}) == 7
+    )
+
+
+def _composition_fingerprint(
+    bindings: tuple[BoundAuditCallbackV1, ...],
+    policy_fingerprint: str,
+) -> str:
+    return fingerprint(
+        "final-audit-composition-v1",
+        {
+            "callback_bindings": [item.binding_fingerprint for item in bindings],
+            "policy_fingerprint": policy_fingerprint,
+        },
     )
 
 
