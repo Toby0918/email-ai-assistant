@@ -520,7 +520,7 @@ class CutoverContractArchitectureTests(unittest.TestCase):
                 )
                 if imports_contracts:
                     violations.append(path.relative_to(ROOT).as_posix())
-        self.assertEqual(violations, sorted(ALLOWED_CONSUMERS))
+        self.assertEqual(sorted(violations), sorted(ALLOWED_CONSUMERS))
 
         for relative, expected_symbols in ALLOWED_CONSUMERS.items():
             bridge = ROOT / relative
