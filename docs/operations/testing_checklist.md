@@ -496,6 +496,26 @@ source_type: operation_guide
 - Review the package description mechanically: it is evidence, not backup,
   Runtime artifact, private-data container, or migration authorization.
 
+## Issue #55 focused acceptance
+
+1. Run `test_cutover_host_mutation_contracts`,
+   `test_cutover_host_mutation_portable`,
+   `test_cutover_host_mutation_operator`, and
+   `test_cutover_host_mutation_architecture` on every platform.
+2. On Windows, run `test_cutover_host_mutation_windows_acl` and
+   `test_cutover_host_mutation_windows_filesystem` only with test-created
+   temporary NTFS roots.
+3. Verify exact token SID binding, protected three-principal DACL,
+   owner/group preservation and mechanical SACL non-update, parent/finance
+   exact equality, complete source incompatibility, and eight inherited zones.
+4. Verify durable-INTENT-first directory/file/move effects, reparse and
+   identity drift, target race, cross-volume rejection, no-replace, and the
+   same file ID after publication.
+5. Run affected Issue #51/#52/#53/#54 architecture and contract suites, full
+   unit tests, documentation/constraint checks, leakage checks, and the
+   read-only maintenance scan. Do not interpret green tests as real-host
+   authority.
+
 ## Option C 多模态离线门
 
 - all providers disabled by default；自动化只使用 synthetic DOM/media fixtures、fake provider 和 injected clock，不读取邮箱、不访问网络、不读取 `.env` 或 key。

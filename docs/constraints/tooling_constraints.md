@@ -1002,6 +1002,19 @@ Agent 每次开始任务前，必须确认：
   automatic upload of a dataset/reference as a training corpus, model self-grading,
   or an automatic production model switch.
 
+## Issue #55 native API tooling boundary
+
+Issue #55 adds no dependency, executable, CLI, shell command, or environment
+configuration. ACL capture/apply uses direct `advapi32` calls; filesystem
+identity and create-only effects use direct `kernel32`/`ntdll` calls. Tests must
+not generate or run `icacls`, PowerShell, command-shell, or replayable ACL
+transcripts. A test junction is created directly with `DeviceIoControl` inside
+the temporary sandbox so reparse coverage does not depend on Developer Mode.
+
+The repository environment runs the Windows sandbox suite. Linux CI imports
+and validates only portable contracts and must not claim Windows ACL, NTFS
+file-ID, or native no-replace evidence.
+
 ## 14. 执行后检查
 
 Agent 每次完成任务后，必须确认：

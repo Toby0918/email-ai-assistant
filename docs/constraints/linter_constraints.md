@@ -806,6 +806,16 @@ schema/import/serialization guards before any V2 dataset can be created or opene
 and those guards must prohibit raw ChatGPT transcripts, automatic training,
 automatic upload, model self-grading, and an automatic production model switch.
 
+## Issue #55 static capability rules
+
+Static checks reject command/process ACL surfaces, named-path ACL setters,
+replayable descriptor setters, replace-capable move APIs, normal-runtime
+consumers, non-fixed adapter methods, and any additional `SetSecurityInfo`
+caller. The sole apply call must pass null owner/group/SACL pointers and the
+exact DACL plus protected-DACL flags. Public contracts and results remain
+repr-redacted and may expose only fixed enums, fingerprints, booleans, and
+allowlisted counts.
+
 ## 14. 修改规则
 
 如果新增或修改 linter 规则，必须同步更新：

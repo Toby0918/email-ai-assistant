@@ -180,6 +180,23 @@ would prove only the synthetic composition and locked-entry boundary. It would
 not create or authorize a real package, migration, mutation, cutover, rollback,
 or cleanup, and it does not replace human Standards/Spec review.
 
+### Issue #55 fixed-role Windows ACL and filesystem gate
+
+Windows CI runs the real native sandbox tests for token SID binding, exact
+three-principal protected DACL, unchanged parent/finance, protected/unexpected
+source incompatibility, eight-zone inheritance, reparse insertion, target
+appearance after durable INTENT, source/parent identity drift, cross-volume
+rejection, same-file-ID publication, and no-clobber. Every native path must be
+under the test-owned temporary NTFS root.
+
+Linux CI runs the portable contract, receipt, architecture, authorization-lock,
+and journal-binding tests only and makes no NTFS or Windows ACL claim. Both
+platforms reject any command ACL surface, normal-runtime consumer, public raw
+path/SID/SDDL/exception, missing durable INTENT, replace/repair/delete fallback,
+test authorization at the real constructor, or executable real command before
+Issue #39. Green CI proves only the bounded primitives; it does not authorize a
+real ACL change, migration, cutover, rollback, or cleanup.
+
 ## 5. 失败处理原则
 
 如果 CI 失败，Agent 必须先阅读失败信息。  
