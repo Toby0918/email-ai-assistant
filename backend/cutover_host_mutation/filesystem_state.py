@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from threading import Lock
 from typing import Any
-from weakref import WeakKeyDictionary
+from weakref import WeakKeyDictionary, finalize
 
 from .filesystem_contracts import (
     FilesystemMutationExpectationV1,
@@ -21,12 +21,15 @@ class DirectoryPrimitiveState:
     parent: Path
     target: Path
     profile_fingerprint: str
+    operator_fingerprint: str
     authorization_fingerprint: str
     root_identity: str
     marker_identity: str
     parent_identity: str
     volume_fingerprint: str
     expectation: FilesystemMutationExpectationV1
+    guarded_container: bool
+    target_race_barrier: object | None
 
 
 @dataclass(frozen=True, slots=True, repr=False)
@@ -36,6 +39,8 @@ class NewDirectoryClaim:
     parent_identity: str
     volume_fingerprint: str
     profile_fingerprint: str
+    guarded_container: bool
+    resource: Any | None
 
 
 @dataclass(frozen=True, slots=True, repr=False)
@@ -90,6 +95,8 @@ def register_new_directory(
 ) -> None:
     with _LOCK:
         _NEW_DIRECTORIES[observation] = claim
+        if claim.resource is not None:
+            finalize(observation, claim.resource.close_silently)
 
 
 def claim_new_directory(

@@ -566,11 +566,14 @@ private-data container, or authorization to migrate.
    rejects protected or non-allowlisted descriptors.
 3. Parent and finance baseline equality includes object identity, canonical
    SDDL fingerprint, and binary descriptor fingerprint.
-4. Only a create-only directory observation can authorize the empty Container
-   DACL apply; the claim is single-use and requires a durable ACL INTENT.
+4. Only a guarded create-only directory observation can authorize the empty
+   Container DACL apply; the claim is single-use and requires a durable ACL
+   INTENT. Its protected construction DACL has no child-creation right and its
+   root/marker/parent/target handles remain held through final apply.
 5. `SetSecurityInfo` receives only DACL/protected-DACL information with null
    owner, group, and SACL pointers.
-6. Create-only directory/file operations reject all existing targets. Native
+6. Create-only directory uses parent-handle-relative `NtCreateFile` with
+   `FILE_CREATE`; directory/file operations reject all existing targets. Native
    publication holds source and parent handles, sets no-replace, rejects
    reparse/cross-volume/identity drift, and proves the same 128-bit file ID.
 7. Every mutation returns a content-free observation bound to the consumed

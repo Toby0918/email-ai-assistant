@@ -21,6 +21,7 @@ from .windows_filesystem_common import (
     fail,
     map_native_failure,
     observe_existing,
+    open_bound_scope,
     require_absent,
 )
 from .windows_handles import (
@@ -46,12 +47,26 @@ class _NoReplacePrimitive:
     def _mutate(self, *, intent, durable_permit):
         state = _state(self)
         api = WindowsHandleApi()
-        _require_scope(api, state)
-        source_handle, parent_handle, source, parent = _open_handles(api, state)
+        handles: list[int] = []
         try:
+            root_handle, marker_handle = open_bound_scope(
+                api,
+                root=state.root,
+                marker=state.marker,
+                root_identity=state.root_identity,
+                marker_identity=state.marker_identity,
+            )
+            handles.extend((root_handle, marker_handle))
+            source_handle, parent_handle, source, parent = _open_handles(
+                api, state
+            )
+            handles.extend((source_handle, parent_handle))
             target = _effect(
                 api, state, source_handle, parent_handle,
                 source, parent, intent, durable_permit,
+            )
+            _require_held_scope(
+                api, state, root_handle, marker_handle
             )
             return _observation(self._kind, state, target, intent)
         except CutoverHostMutationError:
@@ -61,7 +76,7 @@ class _NoReplacePrimitive:
         except Exception:
             fail("internal_error")
         finally:
-            close_handles(api, parent_handle, source_handle)
+            close_handles(api, *reversed(handles))
 
 
 class CreateOnlyFilePublicationPrimitive(_NoReplacePrimitive):
@@ -78,14 +93,16 @@ class SameIdentityMovePrimitive(_NoReplacePrimitive):
         return self._mutate(intent=intent, durable_permit=durable_permit)
 
 
-def _require_scope(api, state) -> None:
-    root = observe_existing(api, state.root)
-    marker = observe_existing(api, state.marker)
+def _require_held_scope(api, state, root_handle, marker_handle) -> None:
+    root = api.observe(root_handle)
+    marker = api.observe(marker_handle)
     if (
         root.object_identity_fingerprint != state.root_identity
         or marker.object_identity_fingerprint != state.marker_identity
     ):
         fail("filesystem_identity_changed")
+    api.require_stable(root_handle, root, state.root)
+    api.require_stable(marker_handle, marker, state.marker)
 
 
 def _open_handles(api, state):

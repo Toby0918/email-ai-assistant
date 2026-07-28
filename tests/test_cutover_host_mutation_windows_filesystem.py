@@ -171,6 +171,61 @@ class CutoverHostMutationWindowsFilesystemTests(unittest.TestCase):
             target_parent.rename(root / "retired-target")
             store.close()
 
+    def test_missing_source_maps_to_a_fixed_public_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source_parent = root / "source"
+            target_parent = root / "target"
+            source_parent.mkdir()
+            target_parent.mkdir()
+            source = source_parent / "payload.bin"
+            source.write_bytes(b"synthetic")
+            primitive = _file_primitive(
+                root,
+                source,
+                target_parent / "payload.bin",
+            )
+            intent, permit, store = _intent(primitive)
+            source.unlink()
+
+            with self.assertRaises(CutoverHostMutationError) as raised:
+                primitive.publish_file(
+                    intent=intent,
+                    durable_permit=permit,
+                )
+
+            self.assertEqual(
+                raised.exception.code,
+                "filesystem_scope_invalid",
+            )
+            self.assertNotIn("WinError", repr(raised.exception))
+            store.close()
+
+    def test_marker_cannot_be_bound_as_a_publication_source(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            target_parent = root / "target"
+            target_parent.mkdir()
+            profile, authorization, marker = _scope(root)
+
+            with self.assertRaises(CutoverHostMutationError) as raised:
+                _create_test_file_publication_primitive(
+                    root=root,
+                    marker=marker,
+                    authorization=authorization,
+                    profile=profile,
+                    source=marker,
+                    target_parent=target_parent,
+                    target=target_parent / "marker-copy",
+                    observed_at_epoch=100,
+                )
+
+            self.assertEqual(
+                raised.exception.code,
+                "filesystem_authorization_rejected",
+            )
+            self.assertTrue(marker.is_file())
+
     def test_move_rejects_cross_volume_observation_before_effect(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -316,6 +371,72 @@ class CutoverHostMutationWindowsFilesystemTests(unittest.TestCase):
             parent.rename(root / "replacement-parent")
             store.close()
 
+    def test_missing_marker_maps_to_a_fixed_public_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            parent = root / "parent"
+            parent.mkdir()
+            target = parent / "Container"
+            primitive = _primitive(root, parent, target)
+            intent, permit, store = _intent(primitive)
+            (root / ".codex-cutover-mutation-test-sandbox").unlink()
+
+            with self.assertRaises(CutoverHostMutationError) as raised:
+                primitive.create_directory(
+                    intent=intent,
+                    durable_permit=permit,
+                )
+
+            self.assertEqual(
+                raised.exception.code,
+                "filesystem_scope_invalid",
+            )
+            self.assertNotIn("WinError", repr(raised.exception))
+            self.assertFalse(target.exists())
+            store.close()
+
+    def test_ancestor_replacement_after_intent_is_blocked_by_handles(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            sandbox_parent = Path(temporary)
+            root = sandbox_parent / "root"
+            parent = root / "approved" / "parent"
+            parent.mkdir(parents=True)
+            target = parent / "Container"
+            barrier = threading.Barrier(2)
+            primitive = _primitive(
+                root,
+                parent,
+                target,
+                target_race_barrier=barrier,
+            )
+            intent, permit, store = _intent(primitive)
+            errors: list[int | None] = []
+
+            def replace_root() -> None:
+                barrier.wait(timeout=5)
+                try:
+                    root.rename(sandbox_parent / "retired-root")
+                except OSError as error:
+                    errors.append(error.winerror)
+                finally:
+                    barrier.wait(timeout=5)
+
+            racer = threading.Thread(target=replace_root)
+            racer.start()
+            observation = primitive.create_directory(
+                intent=intent,
+                durable_permit=permit,
+            )
+            racer.join(timeout=5)
+
+            self.assertFalse(racer.is_alive())
+            self.assertEqual(errors, [5])
+            self.assertTrue(target.is_dir())
+            self.assertTrue(observation.no_replace)
+            store.close()
+
     def test_reparse_parent_inserted_after_binding_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -343,7 +464,13 @@ class CutoverHostMutationWindowsFilesystemTests(unittest.TestCase):
             store.close()
 
 
-def _primitive(root: Path, parent: Path, target: Path):
+def _primitive(
+    root: Path,
+    parent: Path,
+    target: Path,
+    *,
+    target_race_barrier: object | None = None,
+):
     profile, authorization, marker = _scope(root)
     return _create_test_directory_primitive(
         root=root,
@@ -353,6 +480,7 @@ def _primitive(root: Path, parent: Path, target: Path):
         parent=parent,
         target=target,
         observed_at_epoch=100,
+        _target_race_barrier=target_race_barrier,
     )
 
 

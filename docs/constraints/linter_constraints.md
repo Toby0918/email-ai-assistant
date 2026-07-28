@@ -814,7 +814,10 @@ consumers, non-fixed adapter methods, and any additional `SetSecurityInfo`
 caller. The sole apply call must pass null owner/group/SACL pointers and the
 exact DACL plus protected-DACL flags. Public contracts and results remain
 repr-redacted and may expose only fixed enums, fingerprints, booleans, and
-allowlisted counts.
+allowlisted counts. Static checks also require parent-handle-relative
+`NtCreateFile` with `FILE_CREATE`, reject `CreateDirectoryW`, and pin the
+protected construction guard to one non-inheritable operator ACE without
+add-file, add-subdirectory, or delete-child rights.
 
 ## 14. 修改规则
 

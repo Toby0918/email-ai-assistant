@@ -88,6 +88,43 @@ def observe_existing(api: WindowsHandleApi, path: Path):
         api.close(handle)
 
 
+def open_bound_scope(
+    api: WindowsHandleApi,
+    *,
+    root: Path,
+    marker: Path,
+    root_identity: str,
+    marker_identity: str,
+):
+    root_handle = api.open_existing(root, access=FILE_READ_ATTRIBUTES)
+    try:
+        marker_handle = api.open_existing(
+            marker,
+            access=FILE_READ_ATTRIBUTES,
+        )
+    except Exception:
+        close_handles(api, root_handle)
+        raise
+    try:
+        root_value = api.observe(root_handle)
+        marker_value = api.observe(marker_handle)
+        if (
+            root_value.file_attributes & FILE_ATTRIBUTE_REPARSE_POINT
+            or marker_value.file_attributes & FILE_ATTRIBUTE_REPARSE_POINT
+            or root_value.object_identity_fingerprint != root_identity
+            or marker_value.object_identity_fingerprint != marker_identity
+            or root_value.volume_fingerprint
+            != marker_value.volume_fingerprint
+        ):
+            fail("filesystem_identity_changed")
+        api.require_stable(root_handle, root_value, root)
+        api.require_stable(marker_handle, marker_value, marker)
+        return root_handle, marker_handle
+    except Exception:
+        close_handles(api, marker_handle, root_handle)
+        raise
+
+
 def require_absent(api: WindowsHandleApi, target: Path) -> None:
     try:
         handle = api.open_existing(target, access=FILE_READ_ATTRIBUTES)

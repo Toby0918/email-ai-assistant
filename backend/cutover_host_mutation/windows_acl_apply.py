@@ -4,14 +4,14 @@ from __future__ import annotations
 
 import ctypes
 import os
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 
 from .errors import CutoverHostMutationError
 from .roles import AclRole
+from .windows_acl_apply_bindings import bind_acl_apply
 from .windows_handles import (
-    READ_CONTROL,
-    WRITE_DAC,
     WindowsHandleApi,
     _NativeWindowsFailure,
 )
@@ -78,51 +78,64 @@ class WindowsAclWriter:
         self._security = WindowsSecurityApi()
         self._kernel = ctypes.WinDLL("kernel32", use_last_error=True)
         self._advapi = ctypes.WinDLL("advapi32", use_last_error=True)
-        _bind_apply(self._kernel, self._advapi)
+        bind_acl_apply(self._kernel, self._advapi, _ExplicitAccessW)
 
     def apply_new_container(
         self,
         path: Path,
         *,
         expected_identity: str,
+        expected_parent_identity: str,
+        parent_path: Path,
         operator_sid: bytes,
+        resource,
+        child_race_barrier,
     ) -> AppliedAclProof:
-        before = self._security.capture(
-            path,
+        _root, _marker, parent_handle, target_handle = resource.snapshot()
+        parent = self._handles.observe(parent_handle)
+        if parent.object_identity_fingerprint != expected_parent_identity:
+            _fail("acl_identity_changed")
+        self._handles.require_stable(parent_handle, parent, parent_path)
+        before = self._security.capture_handle(
+            target_handle,
+            path=path,
             role=AclRole.PROJECT_CONTAINER,
         )
         if before.observation.object_identity_fingerprint != expected_identity:
             _fail("acl_identity_changed")
         _require_empty(path)
         principals = self._apply_handle_effect(
-            path,
-            expected_identity=expected_identity,
+            target_handle,
+            path=path,
+            before=before,
             operator_sid=operator_sid,
+            child_race_barrier=child_race_barrier,
         )
-        after = self._security.capture(
-            path,
+        after = self._security.capture_handle(
+            target_handle,
+            path=path,
             role=AclRole.PROJECT_CONTAINER,
         )
+        self._handles.require_stable(parent_handle, parent, parent_path)
         _validate_after(before, after, expected_identity, principals)
         return AppliedAclProof(before, after, principals)
 
     def _apply_handle_effect(
         self,
+        handle: int,
         path: Path,
         *,
-        expected_identity: str,
+        before: CapturedSecurityDescriptor,
         operator_sid: bytes,
+        child_race_barrier,
     ) -> tuple[bytes, ...]:
-        handle = self._handles.open_existing(
-            path,
-            access=READ_CONTROL | WRITE_DAC,
-        )
         acl = ctypes.c_void_p()
         try:
-            native = self._handles.observe(handle)
-            if native.object_identity_fingerprint != expected_identity:
-                _fail("acl_identity_changed")
-            self._handles.require_stable(handle, native, path)
+            self._handles.require_stable(
+                handle,
+                before.native_identity,
+                path,
+            )
             _require_empty(path)
             principals, buffers = self._principal_sids(operator_sid)
             entries = self._entries(buffers)
@@ -134,6 +147,7 @@ class WindowsAclWriter:
             )
             if result != 0 or not acl.value:
                 raise _NativeWindowsFailure()
+            _run_child_race_barrier(child_race_barrier)
             result = self._advapi.SetSecurityInfo(
                 handle,
                 _SE_FILE_OBJECT,
@@ -145,13 +159,15 @@ class WindowsAclWriter:
             )
             if result != 0:
                 raise _NativeWindowsFailure()
-            self._handles.require_stable(handle, native, path)
-            _require_empty(path)
+            self._handles.require_stable(
+                handle,
+                before.native_identity,
+                path,
+            )
             return principals
         finally:
             if acl.value:
                 self._kernel.LocalFree(acl)
-            self._handles.close(handle)
 
     def _principal_sids(
         self, operator_sid: bytes
@@ -258,33 +274,14 @@ def _require_empty(path: Path) -> None:
         _fail("acl_descriptor_invalid")
 
 
-def _bind_apply(kernel, advapi) -> None:
-    kernel.LocalFree.argtypes = (ctypes.c_void_p,)
-    kernel.LocalFree.restype = ctypes.c_void_p
-    advapi.CreateWellKnownSid.argtypes = (
-        ctypes.c_int,
-        ctypes.c_void_p,
-        ctypes.c_void_p,
-        ctypes.POINTER(ctypes.c_uint32),
-    )
-    advapi.CreateWellKnownSid.restype = ctypes.c_int
-    advapi.SetEntriesInAclW.argtypes = (
-        ctypes.c_uint32,
-        ctypes.POINTER(_ExplicitAccessW),
-        ctypes.c_void_p,
-        ctypes.POINTER(ctypes.c_void_p),
-    )
-    advapi.SetEntriesInAclW.restype = ctypes.c_uint32
-    advapi.SetSecurityInfo.argtypes = (
-        ctypes.c_void_p,
-        ctypes.c_uint32,
-        ctypes.c_uint32,
-        ctypes.c_void_p,
-        ctypes.c_void_p,
-        ctypes.c_void_p,
-        ctypes.c_void_p,
-    )
-    advapi.SetSecurityInfo.restype = ctypes.c_uint32
+def _run_child_race_barrier(barrier) -> None:
+    if barrier is None:
+        return
+    try:
+        barrier.wait(timeout=5)
+        barrier.wait(timeout=5)
+    except threading.BrokenBarrierError:
+        _fail("acl_policy_rejected")
 
 
 def _fail(code: str) -> None:

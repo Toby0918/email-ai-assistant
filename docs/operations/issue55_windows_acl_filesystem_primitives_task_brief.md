@@ -120,13 +120,18 @@ security descriptor, DACL, and canonical SDDL exist only in the shortest local
 native context and are immediately projected to SHA-256 fingerprints. Public
 values contain no path, SID, SDDL, account, native error, or exception detail.
 
-The exact Container DACL is protected and contains only inheritable Full Control
-allow ACEs for the current token user, LocalSystem, and built-in
-Administrators. `SetSecurityInfo` is mechanically limited to DACL plus protected
-DACL security-information flags; owner, group, and SACL pointers are always
-null. Owner and group are captured and compared before and after. The absence
-of owner, group, and SACL security-information flags is the executable proof
-that the operation cannot modify those descriptor portions.
+Container creation atomically installs a protected construction DACL with one
+non-inheritable current-operator ACE. Its fixed access mask permits only list,
+traverse, read attributes, read control, write DAC, and synchronize; it omits
+add file, add subdirectory, and delete child. Root, marker, parent, and target
+handles remain held by the single-use guarded claim until the final ACL effect.
+The exact final Container DACL is protected and contains only inheritable Full
+Control allow ACEs for the current token user, LocalSystem, and built-in
+Administrators. `SetSecurityInfo` runs through the held target handle and is
+mechanically limited to DACL plus protected DACL security-information flags;
+owner, group, and SACL pointers are always null. Owner and group are captured
+and compared before and after. The absence of owner, group, and SACL flags is
+the executable proof that the final operation cannot modify those portions.
 
 ### 8.3 Source compatibility and inheritance
 
@@ -149,9 +154,11 @@ test-owned sandbox. Operations accept no runtime path:
 - publish one bound file no-replace;
 - move one bound file or directory no-replace while preserving identity.
 
-The primitives hold the approved source and parent handles across the effect,
-reject reparse components, aliases, cross-volume state, target appearance,
-source or parent identity drift, and any pre-existing target. Windows
+The primitives hold the approved root, marker, source, and parent handles
+across the effect, reject reparse components, aliases, cross-volume state,
+target appearance, source or parent identity drift, and any pre-existing
+target. Directory creation calls `NtCreateFile` with the approved parent handle
+as `RootDirectory`, one fixed path component, and `FILE_CREATE`. Windows
 publication sets no-replace and verifies the original 128-bit file ID and
 volume at the new role. No primitive repairs, removes, replaces, or selects an
 alternate target.
@@ -220,12 +227,14 @@ principal, ACL transcript, script, exception, or free-form instruction.
 
 1. Every Issue #55 acceptance criterion is covered by an executable focused
    test or a fixed mechanical guard.
-2. Windows ACL tests prove token SID binding, exact protected DACL, owner/group
-   equality, no SACL apply capability, parent/finance equality, source
-   incompatibility rejection, and exact fixed-zone inheritance.
+2. Windows ACL tests prove token SID binding, protected construction guard,
+   child-insertion exclusion, exact final DACL, owner/group equality, no SACL
+   apply capability, parent/finance equality, source reparse/incompatibility
+   rejection, and exact fixed-zone inheritance.
 3. Windows filesystem tests prove opened-handle identity, parent identity,
-   reparse and target races, identity drift, cross-volume rejection,
-   no-replace, no-clobber, and same-file-ID publication.
+   handle-relative `FILE_CREATE`, ancestor/reparse/target races, identity
+   drift, cross-volume rejection, no-replace, no-clobber, and same-file-ID
+   publication.
 4. Directory/file create-only operations reject every existing target and
    perform no repair, removal, replacement, or alternate selection.
 5. Each mutation rejects a missing, forged, replayed, wrong-action, or

@@ -187,7 +187,10 @@ three-principal protected DACL, unchanged parent/finance, protected/unexpected
 source incompatibility, eight-zone inheritance, reparse insertion, target
 appearance after durable INTENT, source/parent identity drift, cross-volume
 rejection, same-file-ID publication, and no-clobber. Every native path must be
-under the test-owned temporary NTFS root.
+under the test-owned temporary NTFS root. The gate also injects ancestor
+replacement and child insertion after durable INTENT, proves the held handles
+block namespace replacement, proves the construction guard blocks child
+creation before final DACL apply, and rejects ordinary or replayed claims.
 
 Linux CI runs the portable contract, receipt, architecture, authorization-lock,
 and journal-binding tests only and makes no NTFS or Windows ACL claim. Both

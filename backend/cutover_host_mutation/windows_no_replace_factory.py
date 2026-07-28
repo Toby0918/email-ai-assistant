@@ -92,6 +92,7 @@ def _validate_factory(
     if (
         type(source) is not type(Path())
         or root not in source.parents
+        or source == marker
         or source == target
         or (
             barrier is not None

@@ -690,17 +690,24 @@ Issue #55 implements portable closed contracts plus internal Windows primitives
 in `backend.cutover_host_mutation`. The exact fixed-role ACL adapter captures a
 complete read-only source compatibility observation, captures and compares
 parent/finance exactly, applies the approved protected three-principal
-inheritable DACL only to a journal-proven newly created empty Container, and
-verifies the eight fixed zones inherit exactly. Direct Windows security APIs
-receive no owner/group/SACL update flags or pointers, and no executable ACL
-command or transcript exists.
+inheritable DACL only through a single-use guarded claim for a journal-proven
+new Container, and verifies the eight exact direct-child zones inherit exactly.
+The Container is created parent-handle-relative by
+`NtCreateFile(FILE_CREATE)` with a protected construction DACL that allows
+inspection and final DACL replacement but no file/subdirectory addition or
+child deletion. Held root, marker, parent, and Container handles close the
+ancestor and child insertion races until the final DACL write linearizes the
+claim. Ordinary observations and replayed claims are rejected. Direct Windows
+security APIs receive no owner/group/SACL update flags or pointers, and no
+executable ACL command or transcript exists.
 
 Create-only directory, file publication, and same-identity move primitives bind
-opened handles, fixed NTFS volume, 128-bit file ID, target-parent identity,
-target absence, and reparse-free state. Every effect consumes the exact durable
-Issue #52 INTENT before mutation and returns a content-free observation.
-Existing targets, reparse insertion, identity drift, target race, or
-cross-volume state fail without repair, deletion, replacement, or alternate
+opened root/marker/source/parent handles, fixed NTFS volume, 128-bit file ID,
+target-parent identity, target absence, and reparse-free state. A source reparse
+point is captured without following it and rejected. Every effect consumes the
+exact durable Issue #52 INTENT before mutation and returns a content-free
+observation. Existing targets, reparse insertion, identity drift, target race,
+or cross-volume state fail without repair, deletion, replacement, or alternate
 selection.
 
 Executable native evidence is restricted to caller-owned temporary NTFS

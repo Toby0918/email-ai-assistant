@@ -121,6 +121,20 @@ class CutoverHostMutationArchitectureTests(unittest.TestCase):
         self.assertIn("ntsetinformationfile", source)
         self.assertIn("replace_if_exists = 0", source)
 
+    def test_directory_create_is_handle_relative_and_atomic_no_replace(
+        self,
+    ) -> None:
+        directory = _source("windows_directory.py")
+        native = _source("windows_directory_native.py")
+        bindings = _source("windows_native_bindings.py")
+
+        self.assertIn("create_directory_relative", directory)
+        self.assertNotIn("CreateDirectoryW", directory)
+        self.assertIn("NtCreateFile", native)
+        self.assertIn("root_directory=parent_handle", native)
+        self.assertIn("_FILE_CREATE", native)
+        self.assertIn("NtCreateFile", bindings)
+
     def test_no_runtime_script_frontend_or_workflow_consumer_exists(
         self,
     ) -> None:
@@ -184,6 +198,10 @@ def _named_call(source: str, name: str) -> ast.Call:
     if len(calls) != 1:
         raise AssertionError(f"expected one {name} call")
     return calls[0]
+
+
+def _source(name: str) -> str:
+    return (PACKAGE / name).read_text(encoding="utf-8")
 
 
 if __name__ == "__main__":

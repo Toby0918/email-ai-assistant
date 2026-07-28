@@ -1,20 +1,27 @@
 """Direct advapi32 capture of token SID and file security descriptors."""
 from __future__ import annotations
 import ctypes
-import hashlib
 from dataclasses import dataclass
 from pathlib import Path
+
+from backend.real_host_preflight.windows_paths import expected_final_path
 
 from .acl_contracts import AclDescriptorObservationV1
 from .errors import CutoverHostMutationError
 from .roles import AclRole
 from .windows_handles import (
+    FILE_ATTRIBUTE_REPARSE_POINT,
     READ_CONTROL,
     NativeObjectIdentity,
     WindowsHandleApi,
     _NativeWindowsFailure,
 )
 from .windows_security_bindings import bind_security
+from .windows_security_projection import (
+    descriptor_observation,
+    hash_bytes,
+)
+from .windows_sid import current_token_sid, sid_bytes
 _OWNER_SECURITY_INFORMATION = 0x00000001
 _GROUP_SECURITY_INFORMATION = 0x00000002
 _DACL_SECURITY_INFORMATION = 0x00000004
@@ -27,8 +34,6 @@ _SE_FILE_OBJECT = 1
 _SDDL_REVISION_1 = 1
 _SE_DACL_PROTECTED = 0x1000
 _INHERITED_ACE = 0x10
-_TOKEN_QUERY = 0x0008
-_TOKEN_USER = 1
 
 
 class _Acl(ctypes.Structure):
@@ -43,17 +48,6 @@ class _Acl(ctypes.Structure):
 
 class _SecurityDescriptorControl(ctypes.c_ushort):
     pass
-
-
-class _SidAndAttributes(ctypes.Structure):
-    _fields_ = [
-        ("sid", ctypes.c_void_p),
-        ("attributes", ctypes.c_uint32),
-    ]
-
-
-class _TokenUser(ctypes.Structure):
-    _fields_ = [("user", _SidAndAttributes)]
 
 
 @dataclass(frozen=True, slots=True, repr=False)
@@ -88,61 +82,49 @@ class WindowsSecurityApi:
         )
 
     def current_token_sid(self) -> bytes:
-        token = ctypes.c_void_p()
-        if not self._advapi.OpenProcessToken(
-            self._kernel.GetCurrentProcess(),
-            _TOKEN_QUERY,
-            ctypes.byref(token),
-        ):
-            raise _NativeWindowsFailure()
-        try:
-            required = ctypes.c_uint32()
-            self._advapi.GetTokenInformation(
-                token, _TOKEN_USER, None, 0, ctypes.byref(required)
-            )
-            if required.value == 0:
-                raise _NativeWindowsFailure()
-            buffer = ctypes.create_string_buffer(required.value)
-            if not self._advapi.GetTokenInformation(
-                token,
-                _TOKEN_USER,
-                buffer,
-                required.value,
-                ctypes.byref(required),
-            ):
-                raise _NativeWindowsFailure()
-            sid = ctypes.cast(buffer, ctypes.POINTER(_TokenUser)).contents.user.sid
-            return self._sid_bytes(sid)
-        finally:
-            if not self._kernel.CloseHandle(token):
-                raise _NativeWindowsFailure()
+        return current_token_sid(self._kernel, self._advapi)
 
     def capture(
         self,
         path: Path,
         *,
         role: AclRole,
+        _allow_reparse: bool = False,
     ) -> CapturedSecurityDescriptor:
         handle = self._handles.open_existing(path, access=READ_CONTROL)
+        try:
+            return self.capture_handle(
+                handle,
+                path=path,
+                role=role,
+                _allow_reparse=_allow_reparse,
+            )
+        finally:
+            self._handles.close(handle)
+
+    def capture_handle(
+        self,
+        handle: int,
+        *,
+        path: Path,
+        role: AclRole,
+        _allow_reparse: bool = False,
+    ) -> CapturedSecurityDescriptor:
         descriptor = ctypes.c_void_p()
         try:
             native = self._handles.observe(handle)
-            self._handles.require_stable(handle, native, path)
-            owner = ctypes.c_void_p()
-            group = ctypes.c_void_p()
-            dacl = ctypes.c_void_p()
-            result = self._advapi.GetSecurityInfo(
+            _require_capture_stable(
+                self._handles,
                 handle,
-                _SE_FILE_OBJECT,
-                _CAPTURE_INFORMATION,
-                ctypes.byref(owner),
-                ctypes.byref(group),
-                ctypes.byref(dacl),
-                None,
-                ctypes.byref(descriptor),
+                native,
+                path,
+                allow_reparse=_allow_reparse,
             )
-            if result != 0 or not descriptor.value or not dacl.value:
-                raise _NativeWindowsFailure()
+            owner, group, dacl = _security_info(
+                self._advapi,
+                handle,
+                descriptor,
+            )
             captured = self._project(
                 native=native,
                 role=role,
@@ -151,12 +133,17 @@ class WindowsSecurityApi:
                 group=group,
                 dacl=dacl,
             )
-            self._handles.require_stable(handle, native, path)
+            _require_capture_stable(
+                self._handles,
+                handle,
+                native,
+                path,
+                allow_reparse=_allow_reparse,
+            )
             return captured
         finally:
             if descriptor.value:
                 self._kernel.LocalFree(descriptor)
-            self._handles.close(handle)
 
     def _project(
         self,
@@ -168,8 +155,8 @@ class WindowsSecurityApi:
         group: ctypes.c_void_p,
         dacl: ctypes.c_void_p,
     ) -> CapturedSecurityDescriptor:
-        owner_bytes = self._sid_bytes(owner)
-        group_bytes = self._sid_bytes(group)
+        owner_bytes = sid_bytes(self._advapi, owner)
+        group_bytes = sid_bytes(self._advapi, group)
         acl = ctypes.cast(dacl, ctypes.POINTER(_Acl)).contents
         dacl_bytes = ctypes.string_at(dacl, acl.size)
         descriptor_length = self._advapi.GetSecurityDescriptorLength(descriptor)
@@ -187,7 +174,7 @@ class WindowsSecurityApi:
             bool(ace.ace_flags & _INHERITED_ACE) for ace in aces
         )
         sddl = self._canonical_sddl(descriptor)
-        observation = _descriptor_observation(
+        observation = descriptor_observation(
             role=role,
             native=native,
             sddl=sddl,
@@ -208,14 +195,6 @@ class WindowsSecurityApi:
             aces=aces,
         )
 
-    def _sid_bytes(self, sid: ctypes.c_void_p) -> bytes:
-        if not sid or not self._advapi.IsValidSid(sid):
-            raise _NativeWindowsFailure()
-        length = self._advapi.GetLengthSid(sid)
-        if length == 0 or length > 1024:
-            raise _NativeWindowsFailure()
-        return ctypes.string_at(sid, length)
-
     def _aces(
         self, dacl: ctypes.c_void_p, ace_count: int
     ) -> tuple[CapturedAce, ...]:
@@ -230,7 +209,10 @@ class WindowsSecurityApi:
             if size < 8:
                 raise _NativeWindowsFailure()
             mask = ctypes.c_uint32.from_address(ace.value + 4).value
-            sid = self._sid_bytes(ctypes.c_void_p(ace.value + 8))
+            sid = sid_bytes(
+                self._advapi,
+                ctypes.c_void_p(ace.value + 8),
+            )
             result.append(CapturedAce(ace_type, flags, mask, sid))
         return tuple(result)
 
@@ -255,45 +237,45 @@ class WindowsSecurityApi:
 
 def current_operator_sid_fingerprint() -> str:
     try:
-        return _hash_bytes(WindowsSecurityApi().current_token_sid())
+        return hash_bytes(WindowsSecurityApi().current_token_sid())
     except CutoverHostMutationError:
         raise
     except Exception:
         raise CutoverHostMutationError("acl_descriptor_invalid") from None
 
 
-def _descriptor_observation(
-    *,
-    role,
-    native,
-    sddl,
-    descriptor_bytes,
-    owner_bytes,
-    group_bytes,
-    dacl_bytes,
-    protected,
-    ace_count,
-    inherited_count,
-):
-    return AclDescriptorObservationV1.create(
-        role=role,
-        object_identity_fingerprint=native.object_identity_fingerprint,
-        canonical_sddl_fingerprint=_hash_text(sddl),
-        binary_descriptor_fingerprint=_hash_bytes(descriptor_bytes),
-        owner_fingerprint=_hash_bytes(owner_bytes),
-        group_fingerprint=_hash_bytes(group_bytes),
-        dacl_fingerprint=_hash_bytes(dacl_bytes),
-        dacl_protected=protected,
-        ace_count=ace_count,
-        inherited_ace_count=inherited_count,
-        complete=True,
-        content_observed=False,
+def _require_capture_stable(
+    handles, handle, expected, path, *, allow_reparse
+) -> None:
+    current = handles.observe(handle)
+    if (
+        current != expected
+        or current.filesystem_name != "NTFS"
+        or current.drive_type != "fixed"
+        or (
+            not allow_reparse
+            and current.file_attributes & FILE_ATTRIBUTE_REPARSE_POINT
+        )
+        or current.normalized_path.casefold()
+        != expected_final_path(path).casefold()
+    ):
+        raise CutoverHostMutationError("acl_identity_changed") from None
+
+
+def _security_info(advapi, handle, descriptor):
+    owner = ctypes.c_void_p()
+    group = ctypes.c_void_p()
+    dacl = ctypes.c_void_p()
+    result = advapi.GetSecurityInfo(
+        handle,
+        _SE_FILE_OBJECT,
+        _CAPTURE_INFORMATION,
+        ctypes.byref(owner),
+        ctypes.byref(group),
+        ctypes.byref(dacl),
+        None,
+        ctypes.byref(descriptor),
     )
-
-
-def _hash_bytes(value: bytes) -> str:
-    return hashlib.sha256(value).hexdigest()
-
-
-def _hash_text(value: str) -> str:
-    return hashlib.sha256(value.encode("utf-8")).hexdigest()
+    if result != 0 or not descriptor.value or not dacl.value:
+        raise _NativeWindowsFailure()
+    return owner, group, dacl

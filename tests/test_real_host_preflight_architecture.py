@@ -797,7 +797,7 @@ class RealHostPreflightArchitectureTests(unittest.TestCase):
             "backend/cutover_host_mutation/windows_acl_factory.py": {
                 "is_absolute_local_path",
             },
-            "backend/cutover_host_mutation/windows_directory.py": {
+            "backend/cutover_host_mutation/windows_directory_factory.py": {
                 "expected_final_path",
             },
             "backend/cutover_host_mutation/windows_filesystem_common.py": {
@@ -807,6 +807,9 @@ class RealHostPreflightArchitectureTests(unittest.TestCase):
                 "expected_final_path",
             },
             "backend/cutover_host_mutation/windows_no_replace.py": {
+                "expected_final_path",
+            },
+            "backend/cutover_host_mutation/windows_security.py": {
                 "expected_final_path",
             },
             "backend/migration_evidence_publication/host_baseline_bridge.py": {

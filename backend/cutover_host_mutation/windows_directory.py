@@ -2,11 +2,8 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+import threading
 
-from backend.cutover_contracts import CutoverProfileV1
-
-from .canonical import fingerprint
 from .errors import CutoverHostMutationError
 from .filesystem_contracts import (
     FilesystemMutationExpectationV1,
@@ -16,29 +13,30 @@ from .filesystem_state import (
     DirectoryPrimitiveState,
     NewDirectoryClaim,
     directory_primitive_state,
-    register_directory_primitive,
     register_new_directory,
 )
 from .journal_intent import consumed_filesystem_intent
 from .roles import FilesystemMutationKind
 from .windows_filesystem_common import (
     ZERO_FINGERPRINT,
-    authorization_fingerprint,
     close_handles,
     fail,
     map_native_failure,
-    observe_existing,
+    open_bound_scope,
     require_absent,
-    validate_scope,
 )
+from .windows_construction_acl import guarded_descriptor
+from .windows_directory_native import create_directory_relative
+from .windows_directory_resources import GuardedDirectoryHandles
 from .windows_handles import (
-    ERROR_ALREADY_EXISTS,
-    ERROR_FILE_EXISTS,
     FILE_ATTRIBUTE_REPARSE_POINT,
     FILE_READ_ATTRIBUTES,
     WindowsHandleApi,
     _NativeWindowsFailure,
 )
+
+_FILE_TRAVERSE = 0x00000020
+_FILE_ADD_SUBDIRECTORY = 0x00000004
 
 
 class CreateOnlyDirectoryPrimitive:
@@ -59,14 +57,27 @@ class CreateOnlyDirectoryPrimitive:
     ) -> FilesystemMutationObservationV1:
         state = _state(self)
         api = WindowsHandleApi()
-        _require_scope(api, state)
-        handle, parent = _open_parent(api, state)
+        handles: list[int] = []
+        transferred = False
         try:
-            target = _effect(
-                api, state, handle, parent, intent, durable_permit
+            root_handle, marker_handle = open_bound_scope(
+                api,
+                root=state.root,
+                marker=state.marker,
+                root_identity=state.root_identity,
+                marker_identity=state.marker_identity,
             )
+            handles.extend((root_handle, marker_handle))
+            parent_handle, parent = _open_parent(api, state)
+            handles.append(parent_handle)
+            target_handle, target = _effect(
+                api, state, parent_handle, parent, intent, durable_permit
+            )
+            handles.append(target_handle)
             observation = _observation(state, target, intent)
-            _register_claim(state, observation, target)
+            resource = _guarded_resource(api, state, handles)
+            _register_claim(state, observation, target, resource)
+            transferred = resource is not None
             return observation
         except CutoverHostMutationError:
             raise
@@ -75,118 +86,19 @@ class CreateOnlyDirectoryPrimitive:
         except Exception:
             fail("internal_error")
         finally:
-            close_handles(api, handle)
-
-
-def _create_test_directory_primitive(
-    *,
-    root: Path,
-    marker: Path,
-    authorization: object,
-    profile: CutoverProfileV1,
-    parent: Path,
-    target: Path,
-    observed_at_epoch: int,
-) -> CreateOnlyDirectoryPrimitive:
-    validate_scope(
-        root=root,
-        marker=marker,
-        authorization=authorization,
-        profile=profile,
-        parent=parent,
-        target=target,
-        observed_at_epoch=observed_at_epoch,
-    )
-    try:
-        state = _build_state(
-            root, marker, authorization, profile, parent, target
-        )
-        primitive = object.__new__(CreateOnlyDirectoryPrimitive)
-        register_directory_primitive(primitive, state)
-        return primitive
-    except CutoverHostMutationError:
-        raise
-    except Exception:
-        fail("filesystem_scope_invalid")
-
-
-def _build_state(
-    root: Path,
-    marker: Path,
-    authorization: object,
-    profile: CutoverProfileV1,
-    parent: Path,
-    target: Path,
-) -> DirectoryPrimitiveState:
-    api = WindowsHandleApi()
-    root_value = observe_existing(api, root)
-    marker_value = observe_existing(api, marker)
-    parent_value = observe_existing(api, parent)
-    if root_value.volume_fingerprint != parent_value.volume_fingerprint:
-        fail("filesystem_volume_mismatch")
-    auth = authorization_fingerprint(authorization)
-    body = _binding_body(profile, target, parent_value, auth)
-    expectation = _expectation(body)
-    return DirectoryPrimitiveState(
-        root, marker, parent, target, profile.profile_fingerprint, auth,
-        root_value.object_identity_fingerprint,
-        marker_value.object_identity_fingerprint,
-        parent_value.object_identity_fingerprint,
-        parent_value.volume_fingerprint,
-        expectation,
-    )
-
-
-def _binding_body(profile, target, parent, auth) -> dict[str, object]:
-    from backend.real_host_preflight.windows_paths import expected_final_path
-    import hashlib
-
-    return {
-        "authorization_fingerprint": auth,
-        "kind": FilesystemMutationKind.CREATE_DIRECTORY.value,
-        "normalized_target_fingerprint": hashlib.sha256(
-            expected_final_path(target).casefold().encode("utf-8")
-        ).hexdigest(),
-        "parent_identity_fingerprint": parent.object_identity_fingerprint,
-        "profile_fingerprint": profile.profile_fingerprint,
-        "volume_fingerprint": parent.volume_fingerprint,
-    }
-
-
-def _expectation(body: dict[str, object]):
-    binding = fingerprint(
-        "filesystem-mutation-binding-v1",
-        body,
-        code="filesystem_contract_invalid",
-    )
-    return FilesystemMutationExpectationV1.create(
-        kind=FilesystemMutationKind.CREATE_DIRECTORY,
-        binding_fingerprint=binding,
-        before_fingerprint=fingerprint(
-            "create-directory-absent-v1",
-            body,
-            code="filesystem_contract_invalid",
-        ),
-        expected_after_fingerprint=fingerprint(
-            "create-directory-present-v1",
-            body,
-            code="filesystem_contract_invalid",
-        ),
-    )
-
-
-def _require_scope(api, state: DirectoryPrimitiveState) -> None:
-    root = observe_existing(api, state.root)
-    marker = observe_existing(api, state.marker)
-    if (
-        root.object_identity_fingerprint != state.root_identity
-        or marker.object_identity_fingerprint != state.marker_identity
-    ):
-        fail("filesystem_identity_changed")
+            if not transferred:
+                close_handles(api, *reversed(handles))
 
 
 def _open_parent(api, state: DirectoryPrimitiveState):
-    handle = api.open_existing(state.parent, access=FILE_READ_ATTRIBUTES)
+    handle = api.open_existing(
+        state.parent,
+        access=(
+            FILE_READ_ATTRIBUTES
+            | _FILE_TRAVERSE
+            | _FILE_ADD_SUBDIRECTORY
+        ),
+    )
     try:
         parent = api.observe(handle)
         if parent.file_attributes & FILE_ATTRIBUTE_REPARSE_POINT:
@@ -205,22 +117,54 @@ def _open_parent(api, state: DirectoryPrimitiveState):
 
 def _effect(api, state, handle, parent, intent, permit):
     require_absent(api, state.target)
-    with consumed_filesystem_intent(
-        intent=intent,
-        durable_permit=permit,
-        expectation=state.expectation,
-    ):
-        try:
-            api.create_directory(state.target)
-        except _NativeWindowsFailure as error:
-            if error.code in {ERROR_FILE_EXISTS, ERROR_ALREADY_EXISTS}:
-                fail("filesystem_no_clobber_rejected")
-            raise
-        api.require_stable(handle, parent, state.parent)
-        target = observe_existing(api, state.target)
-        if target.volume_fingerprint != state.volume_fingerprint:
-            fail("filesystem_volume_mismatch")
-        return target
+    descriptor = (
+        guarded_descriptor(state.operator_fingerprint)
+        if state.guarded_container
+        else None
+    )
+    target_handle = None
+    try:
+        with consumed_filesystem_intent(
+            intent=intent,
+            durable_permit=permit,
+            expectation=state.expectation,
+        ):
+            api.require_stable(handle, parent, state.parent)
+            _run_target_race_barrier(state.target_race_barrier)
+            target_handle = create_directory_relative(
+                parent_handle=handle,
+                target_name=state.target.name,
+                security_descriptor=(
+                    descriptor.pointer if descriptor is not None else None
+                ),
+                guarded=state.guarded_container,
+            )
+            target = api.observe(target_handle)
+            _validate_target(api, state, target_handle, target)
+            api.require_stable(handle, parent, state.parent)
+            return target_handle, target
+    except Exception:
+        if target_handle is not None:
+            close_handles(api, target_handle)
+        raise
+
+
+def _validate_target(api, state, handle, target) -> None:
+    if target.file_attributes & FILE_ATTRIBUTE_REPARSE_POINT:
+        fail("filesystem_reparse_rejected")
+    if target.volume_fingerprint != state.volume_fingerprint:
+        fail("filesystem_volume_mismatch")
+    api.require_stable(handle, target, state.target)
+
+
+def _run_target_race_barrier(barrier) -> None:
+    if barrier is None:
+        return
+    try:
+        barrier.wait(timeout=5)
+        barrier.wait(timeout=5)
+    except threading.BrokenBarrierError:
+        fail("filesystem_scope_invalid")
 
 
 def _observation(state, target, intent):
@@ -240,7 +184,19 @@ def _observation(state, target, intent):
     )
 
 
-def _register_claim(state, observation, target) -> None:
+def _guarded_resource(api, state, handles):
+    if not state.guarded_container:
+        return None
+    return GuardedDirectoryHandles(
+        api,
+        root_handle=handles[0],
+        marker_handle=handles[1],
+        parent_handle=handles[2],
+        target_handle=handles[3],
+    )
+
+
+def _register_claim(state, observation, target, resource) -> None:
     register_new_directory(
         observation,
         NewDirectoryClaim(
@@ -249,6 +205,8 @@ def _register_claim(state, observation, target) -> None:
             parent_identity=state.parent_identity,
             volume_fingerprint=state.volume_fingerprint,
             profile_fingerprint=state.profile_fingerprint,
+            guarded_container=state.guarded_container,
+            resource=resource,
         ),
     )
 

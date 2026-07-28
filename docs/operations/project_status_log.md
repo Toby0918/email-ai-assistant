@@ -55,7 +55,7 @@ Issue #53 content-free Windows real-host preflight composition is offline implem
 
 Issue #54 reviewed Migration Evidence publication and verification is present for synthetic-only use in `backend.migration_evidence_publication` and `backend.migration_evidence_verifier`. Profile-bound review keeps the complete `MigrationEvidenceReview` in memory and exposes only `MigrationEvidenceReviewReceiptV1`; its test-only target-parent marker hard-link anchor rejects same-path replacement even when POSIX recycles directory identity. Create requires the exact `EvidencePublicationAuthorizationV1` and confirmed review fingerprint, then performs complete rediscovery and fresh HostBaseline collection before the existing create-only no-clobber commit; creator-owned source-snapshot, package, manifest, and published-identity bindings reject post-review or post-commit replacement. The creator cannot call the independent verifier. Verification runs in a separate read-only process, reads the package once through a bounded descriptor, verifies those exact bytes through the independent payload verifier, requires an identical target reread, and independently recomputes package/manifest hashes and counts without publication or mutation capability. `MigrationEvidenceReviewReceiptV1`, `MigrationEvidenceCreatedReceiptV1`, and `MigrationEvidenceVerifiedReceiptV1` must agree exactly before `MigrationEvidenceReceiptSetV1` can exist; receipts and the Set remain content-free evidence rather than authority. All real entries remain locked before Issue #39 and reject missing, wrong-phase, and test authorization. No real evidence package was created, and no host preflight, service, repository/worktree move, ACL, Runtime, database, provider, mailbox, vault, private-store, or private-data operation was run. The package is evidence, not a backup, Runtime artifact, private-data container, or migration authorization. Focused, affected, constraint, full-suite, maintenance, Standards, and Spec verification passed locally. Ready-for-review PR #63 already exists; the Linux inode-reuse repair still requires explicit allowlist stage, commit, and push before remote CI reruns, and merge remains unauthorized.
 
-Issue #55 fixed-role Windows ACL and no-clobber filesystem primitives are offline implemented in `backend.cutover_host_mutation`. The public surface contains only closed portable ACL/filesystem observations and four content-free receipt types. The internal `WindowsAclAdapter` performs complete read-only source compatibility, exact parent/finance capture-and-compare, direct protected-DACL apply only to a journal-proven newly created empty Container, and exact inheritance verification across eight fixed zones. The DACL grants inheritable Full Control only to the current token SID, SYSTEM, and built-in Administrators; owner/group are compared unchanged and the exact `SetSecurityInfo` call omits all owner/group/SACL flags and pointers. Create-only directory, file publication, and same-identity move effects require a durable Issue #52 INTENT, bind opened source/parent handles, fixed NTFS volume, 128-bit file ID, parent identity and reparse-free state, set no-replace, and prove identical target identity. Native tests ran only in caller-owned temporary NTFS sandboxes; portable Linux tests claim no Windows ACL or NTFS behavior. The real constructor rejects test authorization and remains locked at `BLOCKED_NO_APPROVED_COMMAND` before Issue #39. No real ACL, repository/worktree, service, Runtime, SQLite, provider, mailbox, vault, private store, or private data was accessed or changed. Issues #56 through #59, Issues #38/#39, and parent Spec #50 remain separate.
+Issue #55 fixed-role Windows ACL and no-clobber filesystem primitives are offline implemented in `backend.cutover_host_mutation`. The public surface contains only closed portable ACL/filesystem observations and four content-free receipt types. The internal `WindowsAclAdapter` performs complete read-only source compatibility without reparse traversal, exact parent/finance capture-and-compare, and exact inheritance verification across eight fixed direct zones. The newly created empty Container is published by parent-handle-relative `NtCreateFile` with `FILE_CREATE` and a protected operator-only construction DACL that grants no child-creation right; root, marker, parent, and target handles remain held until the journaled final DACL linearization point. The final DACL grants inheritable Full Control only to the current token SID, SYSTEM, and built-in Administrators; owner/group are compared unchanged and the exact `SetSecurityInfo` call omits all owner/group/SACL flags and pointers. Create-only directory, file publication, and same-identity move effects require a durable Issue #52 INTENT, bind opened scope/source/parent handles, fixed NTFS volume, 128-bit file ID, parent identity and reparse-free state, set no-replace, and prove identical target identity. Native tests ran only in caller-owned temporary NTFS sandboxes; portable Linux tests claim no Windows ACL or NTFS behavior. The real constructor rejects test authorization and remains locked at `BLOCKED_NO_APPROVED_COMMAND` before Issue #39. No real ACL, repository/worktree, service, Runtime, SQLite, provider, mailbox, vault, private store, or private data was accessed or changed. Issues #56 through #59, Issues #38/#39, and parent Spec #50 remain separate.
 
 The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器扩展, with current-message collection only after an explicit user click.
 
@@ -207,6 +207,7 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 | `backend/cutover_host_mutation/acl_contracts.py` | yes |
 | `backend/cutover_host_mutation/acl_journal.py` | yes |
 | `backend/cutover_host_mutation/acl_paths.py` | yes |
+| `backend/cutover_host_mutation/acl_receipt_factory.py` | yes |
 | `backend/cutover_host_mutation/acl_state.py` | yes |
 | `backend/cutover_host_mutation/canonical.py` | yes |
 | `backend/cutover_host_mutation/errors.py` | yes |
@@ -220,8 +221,13 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 | `backend/cutover_host_mutation/windows_acl.py` | yes |
 | `backend/cutover_host_mutation/windows_acl_adapter.py` | yes |
 | `backend/cutover_host_mutation/windows_acl_apply.py` | yes |
+| `backend/cutover_host_mutation/windows_acl_apply_bindings.py` | yes |
 | `backend/cutover_host_mutation/windows_acl_factory.py` | yes |
+| `backend/cutover_host_mutation/windows_construction_acl.py` | yes |
 | `backend/cutover_host_mutation/windows_directory.py` | yes |
+| `backend/cutover_host_mutation/windows_directory_factory.py` | yes |
+| `backend/cutover_host_mutation/windows_directory_native.py` | yes |
+| `backend/cutover_host_mutation/windows_directory_resources.py` | yes |
 | `backend/cutover_host_mutation/windows_filesystem.py` | yes |
 | `backend/cutover_host_mutation/windows_filesystem_common.py` | yes |
 | `backend/cutover_host_mutation/windows_handles.py` | yes |
@@ -230,6 +236,8 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 | `backend/cutover_host_mutation/windows_no_replace_factory.py` | yes |
 | `backend/cutover_host_mutation/windows_security.py` | yes |
 | `backend/cutover_host_mutation/windows_security_bindings.py` | yes |
+| `backend/cutover_host_mutation/windows_security_projection.py` | yes |
+| `backend/cutover_host_mutation/windows_sid.py` | yes |
 | `backend/reparenting_rehearsal/__init__.py` | yes |
 | `backend/reparenting_rehearsal/rehearsal.py` | yes |
 | `backend/runtime_activation_rehearsal/__init__.py` | yes |

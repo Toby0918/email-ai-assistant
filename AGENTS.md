@@ -438,17 +438,22 @@ Issue #55 adds only `backend.cutover_host_mutation` fixed-role Windows ACL and
 handle-relative no-clobber primitives. `WindowsAclAdapter` exposes descriptor
 capture, exact compare, new-Container policy apply, and fixed-zone inheritance
 verification only. Parent and finance are capture-and-compare roles; source
-compatibility is complete and read-only. The only ACL write is a direct
-`SetSecurityInfo` DACL update on a journal-proven, newly created, empty
-Container. It uses the current token SID, SYSTEM, and built-in Administrators,
-sets a protected inheritable Full Control DACL, passes null owner/group/SACL
-pointers, and never emits or executes an ACL command or transcript.
+compatibility is complete, read-only, and rejects reparse traversal. The new
+Container is created atomically with a protected construction DACL that grants
+the operator only list/read-control/write-DAC/synchronize access and no child
+creation right. Its root, marker, parent, and target handles remain held until
+the journaled `SetSecurityInfo` linearization point replaces that guard with
+the exact final DACL. The final policy uses the current token SID, SYSTEM, and
+built-in Administrators, sets protected inheritable Full Control, passes null
+owner/group/SACL pointers, and never emits or executes an ACL command or
+transcript.
 
 The Issue #55 filesystem primitives open and revalidate source and parent
 handles, NTFS volume identity, 128-bit file ID, parent identity, normalized
-target role, and reparse state. Directory creation and handle-relative
-publication are create-only; rename uses no-replace and must prove the same file
-ID at the target. Every effect first consumes the exact durable Issue #52
+target role, and reparse state. Directory creation uses handle-relative
+`NtCreateFile` with `FILE_CREATE`; publication rename is handle-relative and
+no-replace and must prove the same file ID at the target. Every effect first
+consumes the exact durable Issue #52
 INTENT permit and returns a content-free observation. Tests may execute these
 effects only beneath their caller-owned temporary NTFS sandbox. The real
 constructor remains locked before Issue #39, rejects test authorization, and

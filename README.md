@@ -422,14 +422,18 @@ fixed-role Windows ACL proof and handle-relative no-clobber filesystem
 operations. The public package surface is portable content-free contracts only.
 Its internal Windows adapter can capture source/parent/finance descriptors,
 compare parent and finance exactly, apply the approved DACL only to a newly
-created empty Container, and verify inheritance across the eight fixed zones.
-ACL application uses direct Windows security APIs, retains owner and group,
-omits every owner/group/SACL update flag and pointer, and has no command,
-PowerShell, shell, `icacls`, or replayable transcript surface.
+created empty Container, and verify inheritance across the eight exact direct
+zones. Container creation atomically installs a protected, non-inheritable
+operator construction guard with no add-child rights and holds root, marker,
+parent, and target handles until the journaled final DACL apply. ACL application
+uses direct Windows security APIs, retains owner and group, omits every
+owner/group/SACL update flag and pointer, and has no command, PowerShell,
+shell, `icacls`, or replayable transcript surface.
 
 The filesystem primitives require a durable Issue #52 INTENT before each
-effect. Create-only directories reject any existing target. File publication
-and object move use opened source and target-parent handles, no-replace
+effect. Create-only directories use parent-handle-relative `NtCreateFile` with
+`FILE_CREATE` and reject any existing target. File publication and object move
+use opened source and target-parent handles, no-replace
 handle-relative rename, same-volume and reparse checks, and post-effect
 128-bit file-ID equality. Results expose only fixed status/counts and
 fingerprints. Windows execution is confined to test-owned temporary NTFS

@@ -25,6 +25,7 @@ class AclAdapterState:
     marker: Path
     root_identity: str
     marker_identity: str
+    child_race_barrier: object | None
 
 
 @dataclass(frozen=True, slots=True, repr=False)

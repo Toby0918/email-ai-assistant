@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import sys
 import tempfile
+import threading
 import unittest
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from backend.cutover_contracts import (
@@ -36,6 +37,7 @@ from backend.cutover_host_mutation.windows_acl import (
 )
 from backend.cutover_host_mutation.windows_filesystem import (
     _create_test_directory_primitive,
+    _create_test_guarded_container_primitive,
 )
 from backend.cutover_host_mutation.windows_security import WindowsSecurityApi
 from backend.cutover_journal import DurabilityPlatform
@@ -44,6 +46,7 @@ from tests.cutover_contract_fixtures import (
     valid_profile_body,
 )
 from tests.cutover_host_mutation_fixtures import durable_intent
+from tests.windows_reparse_fixtures import create_test_junction
 
 
 @unittest.skipUnless(sys.platform == "win32", "Windows integration only")
@@ -81,6 +84,45 @@ class CutoverHostMutationWindowsAclTests(unittest.TestCase):
             )
             self.assertNotIn(str(root), repr(receipt))
 
+    def test_source_tree_reparse_is_rejected_without_target_traversal(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "source"
+            outside = root / "outside"
+            finance = root / "finance"
+            source.mkdir()
+            outside.mkdir()
+            finance.mkdir()
+            (outside / "not-source.txt").write_text(
+                "synthetic",
+                encoding="utf-8",
+            )
+            junction = source / "linked"
+            create_test_junction(junction, outside)
+            policy = AclCompatibilityPolicyV1.create(
+                allowed_descriptor_fingerprints=(
+                    _descriptor_fingerprints((source,))
+                ),
+                maximum_objects=10,
+            )
+            adapter = _adapter_with_policy(
+                root,
+                source=source,
+                finance=finance,
+                policy=policy,
+            )
+
+            receipt = adapter.capture(AclRole.SOURCE_TREE)
+
+            self.assertIs(receipt.status, AclReceiptStatus.REJECTED)
+            self.assertEqual(receipt.observed_objects, 2)
+            self.assertEqual(
+                (outside / "not-source.txt").read_text(encoding="utf-8"),
+                "synthetic",
+            )
+
     def test_source_tree_rejects_unexpected_descriptor_without_writes(
         self,
     ) -> None:
@@ -115,10 +157,7 @@ class CutoverHostMutationWindowsAclTests(unittest.TestCase):
     ) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             bundle = _bundle(Path(temporary))
-            created, create_store = _create_directory(
-                bundle,
-                bundle.paths.project_container,
-            )
+            created, create_store = _create_guarded_container(bundle)
             intent, permit, apply_store = durable_intent(
                 before_fingerprint=created.observation_fingerprint,
                 expected_after_fingerprint=bundle.policy.policy_fingerprint,
@@ -182,6 +221,20 @@ class CutoverHostMutationWindowsAclTests(unittest.TestCase):
             self.assertNotIn(str(root), repr(parent_baseline))
             self.assertNotIn(str(root), repr(finance_result))
 
+    def test_missing_marker_maps_to_a_fixed_acl_failure(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            bundle = _bundle(Path(temporary))
+            bundle.marker.unlink()
+
+            with self.assertRaises(CutoverHostMutationError) as raised:
+                bundle.adapter.capture(AclRole.PARENT)
+
+            self.assertEqual(
+                raised.exception.code,
+                "acl_descriptor_invalid",
+            )
+            self.assertNotIn("WinError", repr(raised.exception))
+
     def test_adapter_binds_current_token_sid_to_profile_fingerprint(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -212,6 +265,43 @@ class CutoverHostMutationWindowsAclTests(unittest.TestCase):
                 "acl_authorization_rejected",
             )
 
+    def test_adapter_rejects_nonfixed_or_nested_zone_bindings(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source = root / "source"
+            finance = root / "finance"
+            source.mkdir()
+            finance.mkdir()
+            policy = AclCompatibilityPolicyV1.create(
+                allowed_descriptor_fingerprints=(opaque_fingerprint(612),),
+                maximum_objects=10,
+            )
+            profile = _profile(
+                policy,
+                operator=_current_operator_sid_fingerprint(),
+            )
+            paths = _paths(root, source, finance)
+            invalid = replace(
+                paths,
+                runtimes=paths.project_container / "nested" / "Runtimes",
+            )
+
+            with self.assertRaises(CutoverHostMutationError) as raised:
+                _create_test_windows_acl_adapter(
+                    root=root,
+                    marker=_marker(root),
+                    authorization=_authorization(profile),
+                    profile=profile,
+                    compatibility_policy=policy,
+                    role_paths=invalid,
+                    observed_at_epoch=100,
+                )
+
+            self.assertEqual(
+                raised.exception.code,
+                "acl_authorization_rejected",
+            )
+
     def test_apply_is_journaled_exact_and_leaves_adjacent_acls_unchanged(
         self,
     ) -> None:
@@ -219,10 +309,7 @@ class CutoverHostMutationWindowsAclTests(unittest.TestCase):
             bundle = _bundle(Path(temporary))
             parent_baseline = bundle.adapter.capture(AclRole.PARENT)
             finance_baseline = bundle.adapter.capture(AclRole.FINANCE)
-            created, create_store = _create_directory(
-                bundle,
-                bundle.paths.project_container,
-            )
+            created, create_store = _create_guarded_container(bundle)
             intent, permit, apply_store = durable_intent(
                 before_fingerprint=created.observation_fingerprint,
                 expected_after_fingerprint=bundle.policy.policy_fingerprint,
@@ -250,6 +337,16 @@ class CutoverHostMutationWindowsAclTests(unittest.TestCase):
                 list(bundle.paths.project_container.iterdir()),
                 [],
             )
+            with self.assertRaises(CutoverHostMutationError) as replayed:
+                bundle.adapter.apply_new_container_policy(
+                    created_container=created,
+                    intent=intent,
+                    durable_permit=permit,
+                )
+            self.assertEqual(
+                replayed.exception.code,
+                "acl_policy_rejected",
+            )
             create_store.close()
             apply_store.close()
 
@@ -267,6 +364,83 @@ class CutoverHostMutationWindowsAclTests(unittest.TestCase):
                 | _SACL_SECURITY_INFORMATION
             )
         )
+
+    def test_guarded_container_blocks_child_insertion_until_acl_apply(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            barrier = threading.Barrier(2)
+            bundle = _bundle(
+                Path(temporary),
+                child_race_barrier=barrier,
+            )
+            created, create_store = _create_guarded_container(bundle)
+            guard = WindowsSecurityApi().capture(
+                bundle.paths.project_container,
+                role=AclRole.PROJECT_CONTAINER,
+            )
+            forbidden = 0x00000002 | 0x00000004 | 0x00000040
+            self.assertTrue(guard.observation.dacl_protected)
+            self.assertEqual(guard.observation.ace_count, 1)
+            self.assertTrue(
+                all(ace.access_mask & forbidden == 0 for ace in guard.aces)
+            )
+            intent, permit, apply_store = durable_intent(
+                before_fingerprint=created.observation_fingerprint,
+                expected_after_fingerprint=bundle.policy.policy_fingerprint,
+                platform=DurabilityPlatform.WINDOWS,
+            )
+            errors: list[int | None] = []
+            child = bundle.paths.project_container / "racing-child"
+
+            def insert_child() -> None:
+                barrier.wait(timeout=5)
+                try:
+                    child.mkdir()
+                except OSError as error:
+                    errors.append(error.winerror)
+                finally:
+                    barrier.wait(timeout=5)
+
+            racer = threading.Thread(target=insert_child)
+            racer.start()
+            receipt = bundle.adapter.apply_new_container_policy(
+                created_container=created,
+                intent=intent,
+                durable_permit=permit,
+            )
+            racer.join(timeout=5)
+
+            self.assertFalse(racer.is_alive())
+            self.assertEqual(errors, [5])
+            self.assertFalse(child.exists())
+            self.assertIs(receipt.status, AclReceiptStatus.ACCEPTED)
+            create_store.close()
+            apply_store.close()
+
+    def test_acl_apply_rejects_an_ordinary_directory_claim(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            bundle = _bundle(Path(temporary))
+            created, create_store = _create_directory(
+                bundle,
+                bundle.paths.project_container,
+            )
+            intent, permit, apply_store = durable_intent(
+                before_fingerprint=created.observation_fingerprint,
+                expected_after_fingerprint=bundle.policy.policy_fingerprint,
+                platform=DurabilityPlatform.WINDOWS,
+            )
+
+            with self.assertRaises(CutoverHostMutationError) as raised:
+                bundle.adapter.apply_new_container_policy(
+                    created_container=created,
+                    intent=intent,
+                    durable_permit=permit,
+                )
+
+            self.assertEqual(raised.exception.code, "acl_policy_rejected")
+            create_store.close()
+            apply_store.close()
 
     def test_apply_rejects_nonempty_or_unproven_container_without_change(
         self,
@@ -307,10 +481,7 @@ class CutoverHostMutationWindowsAclTests(unittest.TestCase):
     def test_fixed_zones_inherit_exact_container_policy(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             bundle = _bundle(Path(temporary))
-            created, create_store = _create_directory(
-                bundle,
-                bundle.paths.project_container,
-            )
+            created, create_store = _create_guarded_container(bundle)
             intent, permit, apply_store = durable_intent(
                 before_fingerprint=created.observation_fingerprint,
                 expected_after_fingerprint=bundle.policy.policy_fingerprint,
@@ -333,6 +504,44 @@ class CutoverHostMutationWindowsAclTests(unittest.TestCase):
             self.assertEqual(receipt.observed_objects, 8)
             create_store.close()
             apply_store.close()
+            for store in zone_stores:
+                store.close()
+
+    def test_fixed_zone_reparse_is_never_accepted_as_inheritance(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            bundle = _bundle(Path(temporary))
+            created, create_store = _create_guarded_container(bundle)
+            intent, permit, apply_store = durable_intent(
+                before_fingerprint=created.observation_fingerprint,
+                expected_after_fingerprint=bundle.policy.policy_fingerprint,
+                platform=DurabilityPlatform.WINDOWS,
+            )
+            bundle.adapter.apply_new_container_policy(
+                created_container=created,
+                intent=intent,
+                durable_permit=permit,
+            )
+            alternate = bundle.paths.project_container / "Alternate"
+            _observation, alternate_store = _create_directory(
+                bundle,
+                alternate,
+            )
+            create_test_junction(bundle.paths.runtimes, alternate)
+            zone_stores = []
+            for zone in _zone_paths(bundle.paths)[1:]:
+                _observation, store = _create_directory(bundle, zone)
+                zone_stores.append(store)
+
+            with self.assertRaises(CutoverHostMutationError) as raised:
+                bundle.adapter.verify_fixed_zone_inheritance()
+
+            self.assertEqual(
+                raised.exception.code,
+                "acl_inheritance_rejected",
+            )
+            create_store.close()
+            apply_store.close()
+            alternate_store.close()
             for store in zone_stores:
                 store.close()
 
@@ -385,7 +594,11 @@ class _Bundle:
     adapter: object
 
 
-def _bundle(root: Path) -> _Bundle:
+def _bundle(
+    root: Path,
+    *,
+    child_race_barrier: object | None = None,
+) -> _Bundle:
     source = root / "source"
     finance = root / "finance"
     source.mkdir()
@@ -409,6 +622,7 @@ def _bundle(root: Path) -> _Bundle:
         compatibility_policy=policy,
         role_paths=paths,
         observed_at_epoch=100,
+        _child_race_barrier=child_race_barrier,
     )
     return _Bundle(
         root,
@@ -429,6 +643,30 @@ def _create_directory(bundle: _Bundle, target: Path):
         profile=bundle.profile,
         parent=target.parent,
         target=target,
+        observed_at_epoch=100,
+    )
+    intent, permit, store = durable_intent(
+        before_fingerprint=primitive.expectation.before_fingerprint,
+        expected_after_fingerprint=(
+            primitive.expectation.expected_after_fingerprint
+        ),
+        platform=DurabilityPlatform.WINDOWS,
+    )
+    observation = primitive.create_directory(
+        intent=intent,
+        durable_permit=permit,
+    )
+    return observation, store
+
+
+def _create_guarded_container(bundle: _Bundle):
+    primitive = _create_test_guarded_container_primitive(
+        root=bundle.root,
+        marker=bundle.marker,
+        authorization=bundle.authorization,
+        profile=bundle.profile,
+        parent=bundle.paths.project_container.parent,
+        target=bundle.paths.project_container,
         observed_at_epoch=100,
     )
     intent, permit, store = durable_intent(

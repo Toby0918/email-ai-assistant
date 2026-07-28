@@ -124,11 +124,6 @@ class WindowsHandleApi:
             raise _NativeWindowsFailure(ctypes.get_last_error())
         return handle
 
-    def create_directory(self, path: Path) -> None:
-        if self._kernel.CreateDirectoryW(str(path), None):
-            return
-        raise _NativeWindowsFailure(ctypes.get_last_error())
-
     def rename_no_replace(
         self,
         source_handle: int,

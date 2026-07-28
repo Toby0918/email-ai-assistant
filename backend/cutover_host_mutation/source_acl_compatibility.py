@@ -13,6 +13,7 @@ from .acl_contracts import (
 from .canonical import fingerprint
 from .errors import CutoverHostMutationError
 from .roles import AclRole
+from .windows_handles import FILE_ATTRIBUTE_REPARSE_POINT
 from .windows_security import WindowsSecurityApi
 
 
@@ -52,8 +53,16 @@ def _snapshot(
     compatible = True
     while pending:
         path = pending.pop()
-        descriptor = security.capture(path, role=AclRole.SOURCE_TREE)
+        descriptor = security.capture(
+            path,
+            role=AclRole.SOURCE_TREE,
+            _allow_reparse=True,
+        )
         item = descriptor.observation
+        reparse = bool(
+            descriptor.native_identity.file_attributes
+            & FILE_ATTRIBUTE_REPARSE_POINT
+        )
         relative = "." if path == root else str(path.relative_to(root))
         observed.append(
             (
@@ -63,26 +72,33 @@ def _snapshot(
             )
         )
         compatible = compatible and (
-            not item.dacl_protected
+            not reparse
+            and not item.dacl_protected
             and item.canonical_sddl_fingerprint
             in policy.allowed_descriptor_fingerprints
         )
         if len(observed) > policy.maximum_objects:
             raise CutoverHostMutationError("acl_compatibility_rejected")
-        if path.is_dir():
-            try:
-                children = [
-                    Path(entry.path)
-                    for entry in os.scandir(path)
-                ]
-            except OSError:
-                raise CutoverHostMutationError(
-                    "acl_compatibility_rejected"
-                ) from None
+        if not reparse:
             pending.extend(
-                sorted(children, key=lambda item: item.name.casefold(), reverse=True)
+                sorted(
+                    _children(path),
+                    key=lambda item: item.name.casefold(),
+                    reverse=True,
+                )
             )
     observed.sort()
     if not observed:
         raise CutoverHostMutationError("acl_compatibility_rejected")
     return tuple(observed), compatible
+
+
+def _children(path: Path) -> list[Path]:
+    if not path.is_dir():
+        return []
+    try:
+        return [Path(entry.path) for entry in os.scandir(path)]
+    except OSError:
+        raise CutoverHostMutationError(
+            "acl_compatibility_rejected"
+        ) from None

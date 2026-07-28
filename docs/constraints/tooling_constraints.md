@@ -1006,7 +1006,10 @@ Agent 每次开始任务前，必须确认：
 
 Issue #55 adds no dependency, executable, CLI, shell command, or environment
 configuration. ACL capture/apply uses direct `advapi32` calls; filesystem
-identity and create-only effects use direct `kernel32`/`ntdll` calls. Tests must
+identity and create-only effects use direct `kernel32`/`ntdll` calls. Directory
+creation is `NtCreateFile` relative to an approved parent handle with
+`FILE_CREATE`; no named-path create fallback exists. The construction DACL is
+built only through fixed direct security APIs and is never serialized. Tests must
 not generate or run `icacls`, PowerShell, command-shell, or replayable ACL
 transcripts. A test junction is created directly with `DeviceIoControl` inside
 the temporary sandbox so reparse coverage does not depend on Developer Mode.

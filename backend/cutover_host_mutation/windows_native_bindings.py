@@ -24,11 +24,6 @@ def load_kernel32():
         ctypes.c_uint32,
     )
     kernel.GetFileInformationByHandleEx.restype = ctypes.c_int
-    kernel.CreateDirectoryW.argtypes = (
-        ctypes.c_wchar_p,
-        ctypes.c_void_p,
-    )
-    kernel.CreateDirectoryW.restype = ctypes.c_int
     _bind_path_functions(kernel)
     return kernel
 
@@ -43,6 +38,27 @@ def load_ntdll(io_status_type):
         ctypes.c_int,
     )
     library.NtSetInformationFile.restype = ctypes.c_long
+    library.RtlNtStatusToDosError.argtypes = (ctypes.c_long,)
+    library.RtlNtStatusToDosError.restype = ctypes.c_uint32
+    return library
+
+
+def load_ntdll_for_directory(io_status_type, object_attributes_type):
+    library = ctypes.WinDLL("ntdll")
+    library.NtCreateFile.argtypes = (
+        ctypes.POINTER(ctypes.c_void_p),
+        ctypes.c_uint32,
+        ctypes.POINTER(object_attributes_type),
+        ctypes.POINTER(io_status_type),
+        ctypes.c_void_p,
+        ctypes.c_uint32,
+        ctypes.c_uint32,
+        ctypes.c_uint32,
+        ctypes.c_uint32,
+        ctypes.c_void_p,
+        ctypes.c_uint32,
+    )
+    library.NtCreateFile.restype = ctypes.c_long
     library.RtlNtStatusToDosError.argtypes = (ctypes.c_long,)
     library.RtlNtStatusToDosError.restype = ctypes.c_uint32
     return library

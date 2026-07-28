@@ -344,16 +344,22 @@ verification. Source compatibility rejects protected or unexpected existing
 descriptors without applying an ACL. Parent and finance never own apply
 capability.
 
-ACL application calls direct Windows APIs and is bound to a test-created empty
-Container observation. The update information is exactly DACL plus protected
-DACL; owner, group, and SACL pointers are null. The current operator SID exists
-only in module-owned memory and is public only as a fingerprint. No ACL
-command, shell, PowerShell, `icacls`, or replayable transcript can be generated.
+Container creation atomically installs a code-fixed protected construction
+DACL with one non-inheritable operator ACE. It grants list/read-control/
+write-DAC/synchronize only and grants no add-file, add-subdirectory, or
+delete-child right. The claim holds root, marker, parent, and target handles
+until the journaled final ACL effect. ACL application consumes that one guarded
+claim, proves the Container empty, and replaces the guard through the held
+target handle. The update information is exactly DACL plus protected DACL;
+owner, group, and SACL pointers are null. The current operator SID exists only
+in module-owned memory and is public only as a fingerprint. No ACL command,
+shell, PowerShell, `icacls`, or replayable transcript can be generated.
 
 Create-only directory, file publication, and same-identity move effects require
-an exact durable journal INTENT permit. Opened handles bind source, target
-parent, fixed NTFS volume, 128-bit file ID, normalized target, and reparse-free
-state. Publication sets no-replace and verifies source absence, target
+an exact durable journal INTENT permit. Directory creation uses `NtCreateFile`
+relative to the approved parent handle with `FILE_CREATE`. Opened handles bind
+root, marker, source, target parent, fixed NTFS volume, 128-bit file ID,
+normalized target, and reparse-free state. Publication sets no-replace and verifies source absence, target
 presence, and identical file ID after the effect. Existing targets and drift
 fail without repair, deletion, replacement, or alternate selection.
 

@@ -93,11 +93,14 @@ _Avoid_: Persisted review authority, combined creator-verifier, real package run
 **Fixed-Role Host Mutation Primitive**:
 The Issue #55 internal Windows capability set. ACL capture is role-bound;
 parent and finance can only be captured and compared. The sole ACL update is a
-direct DACL-only apply to one journal-proven newly created empty Container,
-followed by exact eight-zone inheritance verification. Create-only filesystem
-effects hold and revalidate opened source/parent handles, reject reparse and
-cross-volume state, set no-replace, and prove the same 128-bit file ID at the
-new role. Public values contain only fingerprints, fixed status, and counts.
+direct DACL-only apply to one journal-proven newly created empty Container.
+An atomic protected construction guard denies child insertion while
+root/marker/parent/target handles remain held through the final DACL
+linearization point, followed by exact eight-zone inheritance verification.
+Create-only directory effects use parent-handle-relative `NtCreateFile`;
+publication effects hold and revalidate opened source/parent handles, reject
+reparse and cross-volume state, set no-replace, and prove the same 128-bit file
+ID at the new role. Public values contain only fingerprints, fixed status, and counts.
 The real constructor stays locked before Issue #39.
 _Avoid_: Arbitrary path mutator, recursive ACL normalizer, ACL command transcript
 

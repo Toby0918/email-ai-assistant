@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import threading
 from pathlib import Path
 
 from backend.cutover_contracts import (
@@ -36,15 +37,17 @@ def create_test_windows_acl_adapter(
     compatibility_policy: AclCompatibilityPolicyV1,
     role_paths: AclRolePaths,
     observed_at_epoch: int,
+    _child_race_barrier: object | None = None,
 ) -> WindowsAclAdapter:
     try:
         _validate_inputs(
             root, marker, authorization, profile,
             compatibility_policy, role_paths, observed_at_epoch,
+            _child_race_barrier,
         )
         state = _build_state(
             root, marker, authorization, profile,
-            compatibility_policy, role_paths,
+            compatibility_policy, role_paths, _child_race_barrier,
         )
         adapter = object.__new__(WindowsAclAdapter)
         register_adapter(adapter, state)
@@ -70,7 +73,9 @@ def marker_identity(marker: Path) -> str:
         api.close(handle)
 
 
-def _build_state(root, marker, authorization, profile, policy, paths):
+def _build_state(
+    root, marker, authorization, profile, policy, paths, barrier
+):
     security = WindowsSecurityApi()
     operator_sid = security.current_token_sid()
     if current_operator_sid_fingerprint() != profile.operator_fingerprint:
@@ -86,17 +91,21 @@ def _build_state(root, marker, authorization, profile, policy, paths):
         marker=marker,
         root_identity=root_capture.observation.object_identity_fingerprint,
         marker_identity=marker_identity(marker),
+        child_race_barrier=barrier,
     )
 
 
 def _validate_inputs(
     root, marker, authorization, profile, policy, paths, observed_at,
+    barrier,
 ) -> None:
     if not _valid_fixed_inputs(
         root, marker, authorization, profile, policy, paths, observed_at
     ):
         raise CutoverHostMutationError("acl_authorization_rejected")
     _require_exact_authorization(authorization)
+    if barrier is not None and type(barrier) is not threading.Barrier:
+        raise CutoverHostMutationError("acl_authorization_rejected")
     if any(not _path_in_scope(root, path) for path in _all_paths(paths)):
         raise CutoverHostMutationError("acl_authorization_rejected")
 
@@ -122,6 +131,7 @@ def _valid_fixed_inputs(
         and profile.to_mapping()["acl_policy"]["policy_fingerprint"]
         == policy.policy_fingerprint
         and paths.parent == root
+        and _fixed_container_paths(paths, root)
     )
 
 
@@ -150,6 +160,25 @@ def _all_paths(paths):
         paths.worktrees,
         paths.config,
         paths.operator_private,
+    )
+
+
+def _fixed_container_paths(paths, root) -> bool:
+    container = paths.project_container
+    expected = (
+        ("Runtimes", paths.runtimes),
+        ("LocalData", paths.local_data),
+        ("RuntimeTemp", paths.runtime_temp),
+        ("Logs", paths.logs),
+        ("Artifacts", paths.artifacts),
+        ("Worktrees", paths.worktrees),
+        ("Config", paths.config),
+        ("OperatorPrivate", paths.operator_private),
+    )
+    return (
+        container.parent == root
+        and container.name == "Container"
+        and all(path == container / name for name, path in expected)
     )
 
 

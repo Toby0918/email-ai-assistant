@@ -121,7 +121,7 @@ ALLOWED_CONSUMERS = {
         "CutoverProfileV1",
         "TestSandboxAuthorizationV1",
     },
-    "backend/cutover_host_mutation/windows_directory.py": {
+    "backend/cutover_host_mutation/windows_directory_factory.py": {
         "CutoverProfileV1",
     },
     "backend/cutover_host_mutation/windows_filesystem_common.py": {

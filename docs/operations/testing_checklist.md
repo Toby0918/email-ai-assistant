@@ -505,12 +505,13 @@ source_type: operation_guide
 2. On Windows, run `test_cutover_host_mutation_windows_acl` and
    `test_cutover_host_mutation_windows_filesystem` only with test-created
    temporary NTFS roots.
-3. Verify exact token SID binding, protected three-principal DACL,
+3. Verify exact token SID binding, the protected no-add-child construction
+   guard, child-insertion exclusion, protected three-principal final DACL,
    owner/group preservation and mechanical SACL non-update, parent/finance
-   exact equality, complete source incompatibility, and eight inherited zones.
-4. Verify durable-INTENT-first directory/file/move effects, reparse and
-   identity drift, target race, cross-volume rejection, no-replace, and the
-   same file ID after publication.
+   exact equality, source reparse/incompatibility, and eight inherited zones.
+4. Verify durable-INTENT-first parent-handle-relative `FILE_CREATE`,
+   directory/file/move effects, ancestor/reparse/identity drift, target race,
+   cross-volume rejection, no-replace, and the same file ID after publication.
 5. Run affected Issue #51/#52/#53/#54 architecture and contract suites, full
    unit tests, documentation/constraint checks, leakage checks, and the
    read-only maintenance scan. Do not interpret green tests as real-host
