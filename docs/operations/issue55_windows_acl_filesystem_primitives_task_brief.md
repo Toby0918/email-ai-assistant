@@ -23,7 +23,7 @@ security
 ## 3. Current status
 
 ```text
-in_progress
+ready_for_review
 ```
 
 ## 4. Goal
@@ -323,4 +323,54 @@ unchanged.
 
 ## 22. Post-execution record
 
-To be completed after implementation, verification, review, and publication.
+Implementation was completed in the isolated
+`codex/issue-55-acl-filesystem` worktree from exact remote
+`master@34cc9b614a6b3b5c2d21e76bdfd74fe28c78aebc`. Commit `3f220e0`
+introduced the fixed-role ACL and no-clobber primitives; commit `b315742`
+closed the review-discovered race and failure-boundary gaps.
+
+The first Spec review found two P1 issues: directory creation was not
+parent-handle-relative, and the empty-directory check could race with child
+insertion before final ACL apply. The repair now uses
+`NtCreateFile(FILE_CREATE)` relative to a held parent handle with a protected
+construction DACL that grants no add-file, add-subdirectory, or delete-child
+right. Root, marker, parent, and target handles remain held through a
+single-use guarded claim; the DACL-only `SetSecurityInfo` is the final
+linearization point. Ancestor replacement, child insertion, ordinary claim,
+and replayed claim tests cover the boundary.
+
+The first Standards review found two P2 issues: some public operations could
+leak dynamic native failures, and the sandbox marker could be selected as a
+publication source. The repair wraps each complete public native operation in
+the fixed content-free error boundary, rejects the marker as a source, holds
+root/marker/source/parent handles, and revalidates the sandbox anchors after
+the effect. Source reparse points are captured without traversal and rejected;
+fixed zones must be the exact eight non-reparse direct children of the held
+Container.
+
+Parallel re-review of the complete baseline-to-HEAD diff passed both axes with
+no P1, P2, or P3 findings. Local validation after the repair completed as
+follows:
+
+- Issue #55 focused Windows/portable/contract/architecture tests: 47 passed.
+- Affected `test_cutover_*` tests: 168 passed.
+- Affected `test_real_host_preflight*` tests: 62 passed.
+- Architecture/static/mechanical/leakage/status/transport constraints: 164
+  passed.
+- Status-generator and mailbox-transport pin tests: 43 passed.
+- Full verified-root-environment suite: 2,181 passed in 305.058 seconds with
+  three expected skips.
+- `compileall`, ten frontend `node --check` runs, extension manifest parsing,
+  `git diff --check`, project-status regeneration, and the read-only
+  maintenance scan all passed; the maintenance scan reported no findings.
+
+One earlier full-suite attempt used the dependency-incomplete system Python
+and produced import errors for pinned project packages such as `bs4` and
+`openai`; that environment-invalid run is not test evidence. The authoritative
+full run used the root repository's verified Python 3.12.13 environment, with
+SQLite 3.50.4, beautifulsoup4 4.15.0, and openai 2.45.0.
+
+All Windows mutations remained inside caller-owned temporary NTFS sandboxes.
+No real ACL, repository, worktree, service, Runtime, SQLite, provider, mailbox,
+vault, private store, private data, Issue #38/#39 state, or parent Spec #50
+state was accessed or modified.
