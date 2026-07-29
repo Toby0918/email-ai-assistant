@@ -363,7 +363,7 @@ class GenerateProjectStatusTests(unittest.TestCase):
             "cannot create, issue, or mint",
             "strict canonical `ReceiptEnvelopeV1`",
             "`BLOCKED_NO_APPROVED_COMMAND`",
-            "approved consumers are the exact Issue #52 journal bridge, exact Issue #53 preflight contract bridge, exact Issue #54 evidence-publication contract bridge, exact Issue #55 mutation contract consumers, and exact Issue #56 synthetic transaction scope consumers",
+            "approved consumers are the exact Issue #52 journal bridge, exact Issue #53 preflight contract bridge, exact Issue #54 evidence-publication contract bridge, exact Issue #55 mutation contract consumers, exact Issue #56 synthetic transaction scope consumers, and exact Issue #57 synthetic managed-publication contract consumers",
             "`backend/cutover_contracts/profile.py`",
             "`backend/cutover_contracts/authorization.py`",
             "`backend/cutover_contracts/receipt.py`",
@@ -543,6 +543,65 @@ class GenerateProjectStatusTests(unittest.TestCase):
             "`tests/test_cutover_repository_transaction_windows_round_trip.py`",
             "`tests/test_cutover_repository_transaction_windows_boundary_reverse.py`",
             "`tests/test_cutover_repository_transaction_crash_gaps.py`",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, report)
+
+    def test_issue57_managed_activation_is_synthetic_and_create_only(
+        self,
+    ) -> None:
+        module = load_script_module(
+            SCRIPT,
+            "generate_project_status_issue57_managed_activation",
+        )
+        report = module.build_project_status()
+
+        for marker in (
+            "Issue #57 managed Runtime, LocalData, CRX, and Config publication",
+            "`backend.cutover_managed_activation`",
+            "`ManagedActivationPhase`",
+            "`LockedRuntimeBuilder`",
+            "Python 3.12.13",
+            "complete CPython source tree",
+            "held against write/delete sharing",
+            "mutable source namespace",
+            "`_pth` startup paths",
+            "`managed-startup.zip`",
+            "pre-script encoding-package injection",
+            "code-fixed create-only `python312._pth`",
+            "preventing both pre-script encoding-package injection",
+            "hash-locked offline wheelhouse",
+            "complete installed closure",
+            "parent-handle-relative `NtCreateFile(FILE_CREATE)`",
+            "captured bytes",
+            "held exact Runtime tree",
+            "resource ceilings",
+            "bounded streaming extraction",
+            "stdout overflow terminates the child",
+            "recursive directory-change guard",
+            "`-X frozen_modules=on -I -B -S`",
+            "`_imp.is_frozen(\"codecs\")`",
+            "imports only built-in `sys`, `nt`, `_sha2`, and `_imp`",
+            "SQLite binary hashes are compared",
+            "startup-ZIP",
+            "transient target packages cannot execute",
+            "junction/reparse",
+            "after final target verification",
+            "final exact reread",
+            "new Runtime verifier",
+            "`StoppedDatabaseCopier`",
+            "write-blocking source handle",
+            "WAL, SHM, or rollback journal",
+            "profile-bound reviewed CRX",
+            "deterministic non-secret Config",
+            "partial or failed publication remains in place",
+            "`BLOCKED_NO_APPROVED_COMMAND`",
+            "No real Runtime, SQLite, CRX, Config, service",
+            "Issues #58/#59",
+            "`docs/operations/issue57_managed_activation_publication_task_brief.md`",
+            "`tests/test_cutover_managed_activation_contracts.py`",
+            "`tests/test_cutover_managed_activation_fail_closed.py`",
+            "`tests/test_cutover_managed_activation_windows_edges.py`",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, report)

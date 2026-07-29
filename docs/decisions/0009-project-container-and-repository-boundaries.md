@@ -563,6 +563,61 @@ Ambiguity stops. This synthetic proof grants no authority over the real
 repository or existing worktrees and does not approve Issues #57-#59, #38/#39,
 merge, or closure of parent Spec #50.
 
+### Issue #57 managed publication boundary
+
+Issue #57 proves only the next publication phase in a caller-owned synthetic
+Windows sandbox. `ManagedActivationPhase` composes four narrow adapters for a
+fresh locked Runtime, a stopped-source SQLite copy, one reviewed CRX, and one
+deterministic non-secret Config. It receives no service, repository/worktree,
+ACL, browser, mailbox, provider, credential, vault, private-data, cleanup,
+repair, replacement, or arbitrary command capability.
+
+The Runtime is created from an exact approved Python 3.12.13 source, a lock
+enumerating the complete installed closure, and a hash-locked offline
+wheelhouse. Reviewed wheel bytes are captured through held handles, startup
+hooks are rejected, and the new Runtime verifies itself under fixed
+`-X frozen_modules=on -I -B -S`.
+The harness materializes the approved Python distribution inside the sandbox;
+external source paths fail. Its complete canonical tree manifest binds entry
+count, total bytes, executable hash, and tree fingerprint; every source entry
+is reparse/ADS checked, held against write/delete sharing, and recursively
+monitored before execution through verification. Held-handle size and
+remaining-aggregate gates precede all capture.
+The CPython distribution streamed from held source handles plus every
+wheel/lock addition is a held exact tree; mutable source namespace entries are
+never executed,
+child creation is parent-handle-relative and reparse, ADS, extra, missing, or
+changed entries fail closed. The complete approved `Lib/encodings` package is
+streamed from held source handles into bounded deterministic ZIP_STORED
+`managed-startup.zip`. Code-fixed create-only `python312._pth` and
+`python._pth` sentinels put that immutable archive before `Lib`/`DLLs`, omit
+`import site`, and remain held before target execution. Fixed wheel/archive/tree resource budgets,
+pre-parser central-directory bounds, pre-sort enumeration bounds, and bounded
+streaming prevent unbounded allocation or disk growth. The new Runtime
+verifier imports only built-in `sys`, `nt`, `_sha2`, and `_imp`, proves
+`_imp.is_frozen("codecs")`, blocks every later import, and hashes exact
+Python/SQLite/startup-ZIP/lock/import files plus bounded expected
+distribution metadata. SQLite hashes are compared with the held approved
+source entries, and installed package code never executes,
+while a recursive parent-directory change guard spans sealing through receipt
+construction so transient child or NTFS stream mutation yields no receipt.
+Runtime stdout is incrementally capped and overflow terminates the child
+without buffering unbounded evidence.
+The fingerprinted receipt set revalidates all four complete typed mappings and
+their common chain.
+The immutable scope holds root, marker, and each target parent while creating
+the target with parent-handle-relative `NtCreateFile(FILE_CREATE)`. SQLite
+publication holds a write-blocking source handle and requires exact
+stopped-service evidence, absent sidecars before and after copy, read-only
+integrity, stable source hash, and unchanged source identity, with the final
+sidecar gate after target verification. CRX remains held through its final
+source/target verification and receipt construction; CRX and Config are exact
+create-only publications. Every partial failure remains for later
+failed-Container handling; no automatic cleanup or repair is introduced. Real
+constructors remain locked before Issue #39.
+This proof does not approve Issues #58/#59, #38/#39, merge, or parent Spec #50
+closure.
+
 ## Consequences
 
 - The migration is a security and repository-boundary change, not a file cleanup.

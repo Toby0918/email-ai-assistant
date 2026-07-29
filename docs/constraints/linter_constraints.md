@@ -839,6 +839,51 @@ Journal/result/repr/stdout/stderr
 tests reject path, ref, object ID, worktree/admin name, Git command, opaque
 administrative bytes, native error, and exception leakage.
 
+## Issue #57 static capability rules
+
+Static checks pin the exact `backend/cutover_managed_activation/` file and
+public-export allowlists. Public APIs remain closed to the exact four adapters
+and fixed review/receipt values. Static checks reject service,
+repository/worktree, Git, ACL, browser, mailbox, provider, credential, vault,
+private-data, cleanup, repair, overwrite, delete, sign, install, load, and
+arbitrary-command seams.
+
+AST guards reject pip/index use, `PATH` lookup, system-Python fallback,
+environment/config/registry/credential/clipboard readers, socket-capable
+builder code, SQLite checkpoint and application-row queries, sidecar deletion,
+and replace-capable publication. Only the fixed Runtime subprocess surface may
+exist; it uses the reviewed source/new Runtime executable,
+`-X frozen_modules=on -I -B -S`,
+sanitized environment, closed stdin, incrementally bounded stdout with
+overflow termination, and no shell. Wheel
+members named `.pth`, `sitecustomize.py`, or `usercustomize.py` are rejected.
+The complete CPython source tree is canonical-manifest bound, reparse/ADS
+checked, held against write/delete sharing, and recursively monitored before
+execution. Source/wheel/lock capture uses held-handle size and
+remaining-aggregate gates. EOCD and central-directory limits precede
+`ZipFile`; wheelhouse and Runtime directory limits precede collection/sorting.
+One bounded deterministic ZIP_STORED `managed-startup.zip` contains the complete
+approved `Lib/encodings` package streamed from held source handles. Code-fixed
+create-only `python312._pth` and `python._pth` sentinels order that immutable
+archive before `Lib`/`DLLs`, omit `import site`, and are held before target
+execution.
+Exact package/export guards and the normal-runtime executable-import consumer
+guard cover recursive payloads, equivalent imports, relative imports, dynamic
+import aliases, and package/function size bounds. Runtime tree guards reject
+junction/reparse members, alternate data streams, unsafe Windows components,
+and every extra/missing/changed file or directory. Fixed archive/tree ceilings
+and bounded streaming reject member-count, expanded-size, compression-ratio,
+entry-count, file-size, total-byte, path, and depth exhaustion. The new
+Runtime verifier may import only built-in `sys`, `nt`, `_sha2`, and `_imp`;
+it must prove `_imp.is_frozen("codecs")` before its audit hook rejects every
+later import. It hashes exact Python/SQLite/startup-ZIP/lock/import
+files and parses bounded exact distribution metadata but never imports or
+executes installed package code. A recursive Windows parent-directory change guard rejects even
+transient child or root-stream mutation before a receipt can return. Result,
+receipt, repr,
+stdout, stderr, and error tests reject paths, filenames, domains, package
+names, Config values, exception text, source bytes, and private data.
+
 ## 14. 修改规则
 
 如果新增或修改 linter 规则，必须同步更新：

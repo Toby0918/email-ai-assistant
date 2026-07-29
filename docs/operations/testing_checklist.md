@@ -542,6 +542,48 @@ source_type: operation_guide
    static, mechanical, documentation, status, and maintenance suites before the
    full test command. Synthetic success is not real cutover authority.
 
+## Issue #57 focused acceptance
+
+1. Run
+   `python -B -m unittest discover -s tests -p "test_cutover_managed_activation_*.py"`.
+2. Require exact four-adapter composition, same-chain content-free receipts,
+   fresh Runtime creation from Python 3.12.13 plus a complete dependency lock
+   and captured bytes from the hash-locked offline wheelhouse, startup-hook
+   rejection, held exact-tree verification, child-handle-relative
+   publication, junction/reparse/ADS/extra/missing rejection, and fixed
+   `-X frozen_modules=on -I -B -S`
+   self-verification by the newly created Runtime. Require fixed archive/tree
+   budgets, held-handle source bounds, pre-parser central-directory and
+   pre-sort enumeration gates, bounded streaming extraction/hash, exact
+   import-leaf proof without installed-code execution, in-sandbox Python
+   source, typed receipt-set round trip, and transient child/root-ADS races
+   that return no receipt and create no execution marker.
+   The in-sandbox Python source must also prove a complete canonical-tree
+   manifest, held write/delete-blocking source entries, reparse/ADS and
+   post-authorization drift rejection before execution, early wheelhouse and
+   remaining-aggregate limits, incremental stdout overflow termination, and
+   a bounded deterministic held-source `managed-startup.zip` containing the
+   complete approved `encodings` package plus held code-fixed
+   `python312._pth`/`python._pth` isolation sentinels that order the archive
+   before target directories and prevent transient pre-script
+   `encodings.aliases`, frozen-`codecs`, and target `sitecustomize.py` marker
+   execution.
+3. Require stopped-service receipt and write-blocking source-handle coverage,
+   WAL/SHM/rollback-journal rejection before copy and after final target
+   verification, read-only SQLite integrity without application-row
+   inspection, durable create-only copy, stable hash, and unchanged source
+   identity.
+4. Require profile-bound CRX format/size/hash copy and deterministic
+   non-secret closed-schema Config publication. Cover collision, input drift,
+   partial flush/copy failure, immutable-scope retargeting, ADS target names,
+   held-parent replacement, concurrent writer, post-verification CRX mutation,
+   source replacement, forbidden dynamic readers, no cleanup, content-free
+   outputs, and locked real constructors.
+5. Run affected Issue #37 and #51-#56 contracts/architecture, constraints,
+   documentation, status, leakage, maintenance, and the full unit suite.
+   Linux portable tests make no Windows execution claim; synthetic success is
+   not real activation or cutover authority.
+
 ## Option C 多模态离线门
 
 - all providers disabled by default；自动化只使用 synthetic DOM/media fixtures、fake provider 和 injected clock，不读取邮箱、不访问网络、不读取 `.env` 或 key。

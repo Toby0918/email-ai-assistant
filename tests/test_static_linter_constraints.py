@@ -933,6 +933,32 @@ class StaticLinterConstraintTests(unittest.TestCase):
                     ),
                 )
 
+    def test_issue57_static_capability_rules_are_documented(self) -> None:
+        path = ROOT / "docs" / "constraints" / "linter_constraints.md"
+        text = read_text(path)
+
+        for marker in (
+            "Issue #57 static capability rules",
+            "backend/cutover_managed_activation/",
+            "pip/index",
+            "SQLite checkpoint",
+            "replace-capable publication",
+            "complete CPython source tree",
+            "incrementally bounded stdout",
+            "`python312._pth` and `python._pth` sentinels order",
+            "ZIP_STORED `managed-startup.zip`",
+            "Fixed archive/tree ceilings",
+            "`-X frozen_modules=on -I -B -S`",
+            "`_imp.is_frozen(\"codecs\")`",
+            "built-in `sys`, `nt`, `_sha2`, and `_imp`",
+            "audit hook rejects every",
+            "never imports or\nexecutes installed package code",
+            "recursive Windows parent-directory change guard",
+            "content-free",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, text)
+
     def test_docs_markdown_front_matter_status_uses_allowed_values(self) -> None:
         docs = ROOT / "docs"
         if not docs.exists():

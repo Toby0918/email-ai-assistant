@@ -170,6 +170,28 @@ class MechanicalRuleConstraintTests(unittest.TestCase):
         self.assertIn("frontend/local_debug_page", text)
         self.assertIn("scripts/manage_local_service.py", text)
 
+    def test_issue57_mechanical_and_ci_rules_are_documented(self) -> None:
+        mechanical = (
+            ROOT / "docs" / "constraints" / "mechanical_rule_translation.md"
+        ).read_text(encoding="utf-8")
+        ci = (ROOT / "docs" / "constraints" / "ci_guardrails.md").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("Issue #57 managed publication rules", mechanical)
+        self.assertIn("partial target remains", mechanical)
+        self.assertIn("Post-authorization source drift", mechanical)
+        self.assertIn("Wheelhouse enumeration stops", mechanical)
+        self.assertIn("superscript `COM¹/²/³`", mechanical)
+        self.assertIn("ZIP_STORED", mechanical)
+        self.assertIn("`Lib/encodings/aliases/__init__.py`", mechanical)
+        self.assertIn("Issue #57 managed publication gate", ci)
+        self.assertIn("complete in-sandbox CPython distribution", ci)
+        self.assertIn("`managed-startup.zip`", ci)
+        self.assertIn("pre-script `encodings.aliases`/`codecs` injection", ci)
+        self.assertIn("Linux", ci)
+        self.assertIn("Issues #58/#59", ci)
+
 
 if __name__ == "__main__":
     unittest.main()

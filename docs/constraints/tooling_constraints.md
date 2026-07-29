@@ -1041,6 +1041,57 @@ forward plus reverse crash-gap reconciliation after an explicit repeated
 reverse call, without effect replay. Linux may import and validate
 portable contracts and architecture guards but must not claim NTFS execution.
 
+## Issue #57 managed publication tooling boundary
+
+Issue #57 adds no dependency, CLI, HTTP route, workflow, scheduler, service
+command, browser operation, or real-host adapter. `LockedRuntimeBuilder` may
+invoke only the exact profile-bound Python 3.12.13 source with fixed
+`-X frozen_modules=on -I -B -S` to
+create and self-verify a fresh Runtime. Its environment is sanitized and has
+no `PATH`; pip, indexes, network, user-site, user cache, system-Python lookup,
+live dependency resolution, and copying a legacy venv are absent. Dependency
+files come only from a lock enumerating the complete installed closure and
+captured bytes from the exact hash-locked offline wheelhouse; interpreter
+startup-hook members are rejected. The harness materializes the approved
+Python distribution inside the caller-owned sandbox; external source paths
+fail. A canonical manifest binds its complete source tree, exact entry count,
+total bytes, executable hash, and tree fingerprint. Every source entry is
+reparse/ADS checked, held against write/delete sharing, and recursively
+monitored before target code executes and until verification ends. Held-handle
+size and remaining-aggregate gates precede source/wheel/lock capture. An exact
+CPython distribution streamed from held handles plus every
+wheel/lock member forms one held exact Runtime tree; child creation is
+handle-relative and verification rejects reparse points, alternate data
+streams, and every extra, missing, or changed entry. The complete approved
+`Lib/encodings` package is streamed from held source handles into a bounded,
+deterministic, create-only ZIP_STORED `managed-startup.zip`. Code-fixed
+`python312._pth` and `python._pth` order that immutable archive before `Lib`
+and `DLLs`, omit `import site`, and are held before target execution. Fixed wheel payload,
+member, expanded-size, compression-ratio, aggregate-capture, and Runtime
+entry/file/total/path/depth ceilings are enforced. EOCD/central-directory
+bounds precede `ZipFile`, tree counts precede sorting, and extraction/import/
+tree hashing are bounded and streaming. The new Runtime verifier imports only
+built-in `sys`, `nt`, `_sha2`, and `_imp`, first proves
+`_imp.is_frozen("codecs")`, blocks every later import, and proves
+Python/SQLite/startup-ZIP/lock/installed/import fingerprints from bounded exact target
+bytes and metadata. SQLite binary hashes are compared with the held approved
+source entries; no installed code is imported. A recursive directory-change
+guard watches the Runtime parent from sealing through receipt construction
+and rejects transient child or NTFS stream mutation before success.
+Subprocess stdout is read incrementally into a fixed-cap buffer; overflow
+terminates the child and returns only the fixed failure code.
+
+All publication runs in caller-owned temporary Windows sandboxes. Immutable
+scope snapshots hold each target parent and create the child with
+`NtCreateFile(FILE_CREATE)`. SQLite is copied only while a source handle denies
+write/delete sharing, after a strict stopped-service receipt, and between two
+sidecar-absence checks including a final post-target-verification gate; CRX and
+Config targets are create-only and durably flushed, and CRX remains held
+through its final exact reread. Tests inject failures without cleanup or
+overwrite. Linux CI
+validates portable contracts, receipt chaining, architecture, and real locks
+only and makes no Windows handle, Runtime-build, or durable-flush claim.
+
 ## 14. 执行后检查
 
 Agent 每次完成任务后，必须确认：

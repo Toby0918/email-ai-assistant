@@ -384,7 +384,7 @@ mailbox, vault, private-store, or private-data capability exists.
   loads/aliases including `breakpoint`/`delattr`/`setattr`, dotted modules, and
   parent-relative imports;
 - package-wide absence of real-authorization issuer or mint functions;
-- the exact reviewed #52/#53/#54/#55/#56 consumers as the only Issue #51
+- the exact reviewed #52/#53/#54/#55/#56/#57 consumers as the only Issue #51
   consumers, plus only the exact #55 and #56 journal-effect bridges as journal
   consumers; every other Python/JavaScript file under
   `backend/`, `scripts/`, and `frontend/`, using AST checks for equivalent
@@ -454,6 +454,73 @@ exists. The real
 constructor remains locked
 without an exact external execution authorization and, even with one, has no
 approved command before Issue #39.
+
+## Issue #57 managed publication guard
+
+Issue #57 publishes only into one exact caller-owned synthetic Windows
+sandbox. The scope snapshots immutable paths and binds held root/marker/
+target-parent identities, exact Profile/test authorization, fixed roles,
+reviewed inputs, and absent targets. Target creation is parent-handle-relative
+`NtCreateFile(FILE_CREATE)`; target handles prevent replacement and file
+writers through final verification. The phase can call only Runtime, database,
+artifact, and Config adapters; it cannot stop or start a service, mutate a
+repository/worktree or ACL, access a browser profile, or reach mailbox/
+provider/credential/vault/private-data capabilities.
+
+Runtime publication accepts only one approved Python 3.12.13 source, one
+canonical lock enumerating the complete installed closure, and the exact
+hash-locked offline wheelhouse. It captures each reviewed wheel through a
+write/delete-blocking handle, after the harness materializes the approved
+Python distribution inside the sandbox and scope rejects external source
+paths. A canonical manifest binds every CPython source-tree entry, total
+bytes, executable hash, and tree fingerprint. Publication rechecks reparse/
+ADS state, holds every source entry against write/delete sharing, and watches
+the source recursively from before execution through verification. Held-handle
+size and remaining-aggregate gates precede source/wheel/lock reads. It installs
+captured bytes rather than raced paths,
+rejects interpreter startup hooks, and has the new Runtime verify itself under
+fixed `-X frozen_modules=on -I -B -S`. The approved CPython distribution is streamed from held handles
+into the empty create-only Runtime root and never executed from the mutable
+source namespace. That baseline and every wheel/lock addition are held as one
+exact tree: children are created by held-parent handles, reparse points and
+alternate data streams are forbidden, and any extra/missing/changed entry
+fails. The complete approved `Lib/encodings` package is streamed from held
+source handles into bounded deterministic ZIP_STORED `managed-startup.zip`.
+Code-fixed create-only `python312._pth` and `python._pth` sentinels put that
+immutable archive before `Lib` and `DLLs`, omit `import site`, and remain held
+before target execution, so transient pre-script encoding children and later
+startup namespace entries cannot execute. Archive and
+Runtime resource use has fixed member/count/size/ratio/
+depth ceilings; central-directory gates precede `ZipFile`, enumeration gates
+precede sorting, and extraction/hash are bounded and streaming. The new Runtime
+verifier imports only built-in `sys`, `nt`, `_sha2`, and `_imp`, proves
+`_imp.is_frozen("codecs")`, and blocks every later import. Thus transient
+`Lib/codecs/__init__.py` cannot run before the hook. It hashes exact Python,
+SQLite, startup-ZIP, lock, and import files and parses only
+bounded expected distribution metadata; SQLite hashes are bound to the held
+approved source entries and installed code never executes. A recursive child-change
+guard watches the Runtime parent from sealing through receipt construction,
+so transient child/root-stream mutation cannot execute installed code or
+yield a receipt. Runtime stdout is consumed incrementally and overflow
+terminates the child at the fixed cap. The fingerprinted receipt set
+revalidates all four complete
+typed mappings and their common chain. Database
+publication requires the exact stopped-service receipt,
+denies source write/delete sharing throughout, checks WAL/SHM/rollback journal
+absence before copy and again after final target verification, and never
+checkpoints, removes a sidecar, mutates the source, or inspects application
+rows. CRX publication keeps both source and target held through receipt
+construction and a final exact reread. It is exact copy-only; Config is
+deterministic, non-secret, and closed-schema. Unsafe Windows target components,
+including alternate-stream syntax and superscript `COM¹/²/³` or `LPT¹/²/³`
+reserved-device aliases, fail before native creation. All targets are
+create-only, failures retain partial state, and all public evidence is
+content-free.
+
+Missing or test authorization is rejected by every real constructor. Exact
+real execution authorization still yields `BLOCKED_NO_APPROVED_COMMAND`
+before Issue #39. Synthetic success is evidence only and grants no real-host,
+Issues #58/#59, #38/#39, merge, or parent-Spec authority.
 
 ## Security review checklist
 

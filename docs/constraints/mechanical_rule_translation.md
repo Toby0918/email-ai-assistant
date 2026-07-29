@@ -619,3 +619,90 @@ private-data container, or authorization to migrate.
 7. The final forward verifier composes unchanged ContainerAudit
    filesystem/Git/embedded-worktree validators over actual synthetic metadata;
    exact #56 Git verification separately covers all three external worktrees.
+
+## Issue #57 managed publication rules
+
+1. `test_cutover_managed_activation_contracts` pins the exact four adapters,
+   strict receipt types, fixed order, same-operation/Profile/master/
+   authorization chain, and a fingerprinted set that revalidates all four
+   complete typed receipt mappings.
+2. Runtime tests require an exact canonical manifest for the complete
+   in-sandbox Python 3.12.13 distribution tree, including executable hash,
+   entry count, total bytes, and tree fingerprint, a
+   dependency lock that enumerates the complete installed closure, an exact
+   offline wheelhouse, captured reviewed wheel bytes, a fresh target, and
+   self-verification of Python, SQLite, the complete installed set, lock, and
+   every import fingerprint.
+3. Static and failure tests reject network, pip/index/PATH, system Python,
+   user-site/cache, legacy venv reuse, unreviewed wheel, live resolution,
+   `.pth`/`sitecustomize.py`/`usercustomize.py`, source/lock/wheel drift,
+   path-swap races, child junction/reparse escape, alternate data streams,
+   extra/missing Runtime entries, collision, and verification spoofing.
+4. Database tests require the exact stopped-service receipt, a held
+   write-blocking source handle, absent WAL/SHM/rollback journal before and
+   after copy, read-only integrity verification without application-row
+   inspection, durable create-only copy, stable hash, and unchanged held
+   identity.
+5. Artifact and Config tests require profile-bound CRX identity/format/size/
+   hash and deterministic closed-schema Config bytes; build/sign/install/load,
+   browser-profile access, environment/registry/credential/clipboard/hidden
+   readers, alternate targets, overwrite, repair, and cleanup are absent.
+6. Failure injection proves every partial target remains. Leakage tests pin
+   content-free receipts, errors, repr, stdout, and stderr.
+7. `real_lock` proves missing or test authority constructs nothing and exact
+   real execution authority still returns `BLOCKED_NO_APPROVED_COMMAND`
+   before Issue #39.
+8. Exact package/export and consumer tests pin the complete implementation
+   surface. Immutable scope snapshots plus held root/marker/target-parent
+   handles require handle-relative `NtCreateFile(FILE_CREATE)`; created file
+   handles deny concurrent writers until final verification.
+9. A held Runtime-tree manifest captures only the CPython distribution streamed
+   from held source handles plus every captured-wheel/lock addition. Mutable
+   source namespace entries are never executed. Child creation is
+   handle-relative, every
+   baseline and created entry remains held, and exact scans reject reparse,
+   ADS, extra, missing, or changed entries. Database and CRX tests inject drift
+   after target verification to prove their final held-window gates.
+10. Wheel capture/extraction and Runtime scans enforce fixed aggregate,
+    member, expanded-size, compression-ratio, entry, file, byte, path, and
+    depth budgets before unsafe allocation or growth. Held-handle size checks,
+    pre-`ZipFile` central-directory bounds, pre-sort enumeration bounds, and
+    bounded streaming extraction/hash are required.
+11. New-Runtime import proof hashes exact installed import leaves without
+    importing installed code. A recursive directory-change guard spans
+    verification and receipt construction; the transient add/remove test
+    requires a fixed failure, no receipt, and zero marker execution.
+12. The harness materializes the approved Python distribution inside each
+    test-owned sandbox; scope review rejects any external source executable.
+13. Exact scans cover the Runtime root stream. The recursive change guard
+    watches the Runtime parent from sealing through receipt construction and
+    rejects transient child or NTFS stream mutation.
+14. Before `venv` executes, every CPython source-tree entry is reparse/ADS
+    checked, held against write/delete sharing, and recursively monitored.
+    Post-authorization source drift must fail before marker code executes.
+15. Runtime subprocess stdout is read incrementally; reaching the fixed byte
+    ceiling terminates the child instead of buffering additional output.
+    Wheelhouse enumeration stops at the expected-count ceiling before
+    collecting an unbounded set.
+16. Windows component validation rejects the superscript `COM¹/²/³` and
+    `LPT¹/²/³` reserved-device aliases before any native create call.
+17. Before target execution, the complete held-source `Lib/encodings` package
+    is streamed into a bounded deterministic ZIP_STORED
+    `managed-startup.zip`. Code-fixed create-only held `python312._pth` and
+    `python._pth` sentinels order that immutable archive before `Lib` and
+    `DLLs`; neither contains `import site`. Collision or replacement yields no
+    execution or receipt, and transient `sitecustomize.py` creates no marker.
+18. The verifier runs with fixed `-X frozen_modules=on`, imports only built-in
+    `sys`, `nt`, `_sha2`, and `_imp`, proves `_imp.is_frozen("codecs")`, then
+    blocks every later import. A transient `Lib/hashlib/__init__.py` package must
+    create no marker and must be rejected only by the exact-tree change gate.
+    New-Runtime hashes for `python.exe`, `_sqlite3.pyd`, and `sqlite3.dll` are
+    compared with the approved held source entries.
+19. A transient `Lib/encodings/aliases/__init__.py` package injected after the
+    final scan must never execute before the verifier audit hook; CPython must
+    resolve `encodings` and its children from `managed-startup.zip`, and the
+    exact-tree change gate must reject the publication with no marker.
+20. A transient `Lib/codecs/__init__.py` package must never execute before the
+    verifier hook because fixed frozen-module mode resolves `codecs` through
+    FrozenImporter; the new Runtime must report that proof and the exact-tree
+    gate must reject the added package with no marker.
