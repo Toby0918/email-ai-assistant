@@ -221,6 +221,47 @@ repository transaction, Issue #57 through #59, Issues #38/#39, service/ACL/
 Runtime/SQLite/provider/mailbox/vault/private-data work, merge, or parent Spec
 closure.
 
+### Issue #57 managed publication gate
+
+Every platform runs portable tests matching
+`tests/test_cutover_managed_activation_*.py` for contracts, receipt chaining,
+architecture, leakage, and locked real constructors. Windows also runs the
+caller-owned temporary sandbox Runtime, stopped SQLite, CRX, Config, handle,
+collision, drift, and partial-publication suites.
+
+The Windows gate must prove a fresh Python 3.12.13 Runtime from the exact
+complete dependency lock and hash-locked offline wheelhouse, captured-wheel
+race resistance, startup-hook rejection, and new-Runtime self-verification
+under fixed `-X frozen_modules=on -I -B -S`, including explicit frozen
+`codecs` proof. It must bind the complete in-sandbox CPython distribution
+through an exact canonical tree manifest, fixed entry/byte/file/path/depth
+budgets, reparse/ADS rejection, held write/delete-blocking handles, recursive
+change monitoring, and post-authorization drift nonexecution. It must also
+prove immutable scope snapshots, held-parent
+handle-relative create-only targets, concurrent-writer denial, a held exact
+Runtime tree, child-handle-relative wheel/lock publication, junction/reparse/
+ADS and extra/missing-member rejection, fixed wheel/archive/Runtime resource
+ceilings, held-handle source bounds, pre-parser central-directory and pre-sort
+enumeration bounds, pre-read remaining aggregate limits, bounded streaming
+extraction/hash and subprocess stdout, overflow child termination, a
+deterministic held-source `managed-startup.zip` containing the complete
+approved `encodings` package before mutable target directories,
+non-executing import-fingerprint
+proof, and transient child-mutation rejection with zero installed-code
+execution. External Python source paths, Runtime-root ADS, transient stream
+mutation, pre-script `encodings.aliases`/`codecs` injection and
+startup-namespace injection against held code-fixed
+`python312._pth`/`python._pth` sentinels, and forged receipt-set mappings must
+fail with zero marker execution. The gate also requires
+stopped-service and write-blocking
+database-source binding, sidecar rejection before and after final target
+verification, read-only integrity without application-row inspection, durable
+publication, final held-handle CRX format/size/hash verification, deterministic
+non-secret Config, unchanged sources, partial-target retention, and
+content-free output. Passing
+synthetic CI does not authorize real Runtime/SQLite/CRX/Config/service/browser
+work, Issues #58/#59, Issues #38/#39, merge, or parent Spec closure.
+
 ## 5. 失败处理原则
 
 如果 CI 失败，Agent 必须先阅读失败信息。  

@@ -441,7 +441,7 @@ backend.reparenting_rehearsal public seam -> Path/repository/target/host capabil
 backend.migration_evidence -> mailbox/provider/SQLite/vault/private-store/lifecycle capability
 normal runtime/browser/scripts/wrappers/workflows/cleanup/leakage -> backend.runtime_activation_rehearsal
 backend.runtime_activation_rehearsal -> filesystem/SQLite/process/network/provider/mailbox/vault/private-store/credential/audit/evidence capability
-all backend packages except exact reviewed #52/#53/#54/#55/#56 consumers, plus scripts/frontend -> backend.cutover_contracts
+all backend packages except exact reviewed #52/#53/#54/#55/#56/#57 consumers, plus scripts/frontend -> backend.cutover_contracts
 backend.cutover_contracts -> filesystem/SQLite/process/network/Git/ACL/provider/mailbox/vault/private-store/authority issuer
 normal runtime/browser/scripts/wrappers/workflows/cleanup/leakage -> backend.real_host_preflight
 backend.real_host_preflight -> service-control/ACL-apply/rename/Git-worktree mutation/Runtime-build/SQLite-copy/artifact/Config/provider/mailbox/vault/private-data capability
@@ -934,6 +934,85 @@ must not consume this package. The real constructor accepts no test authority
 and remains `BLOCKED_NO_APPROVED_COMMAND` even after exact
 `CutoverExecutionAuthorizationV1` validation, before a separately approved
 Issue #39 command.
+
+## Issue #57 managed publication architecture
+
+`backend.cutover_managed_activation` is an internal synthetic-Windows
+publication layer. `ManagedActivationPhase` composes exactly four narrow
+sealed adapters: Runtime publication, stopped-database copy, CRX publication,
+and deterministic Config publication. It owns no service, repository,
+worktree, Git, ACL, browser, mailbox, provider, credential, vault,
+private-data, cleanup, repair, replace, or arbitrary path/command capability.
+
+The package snapshots one caller-owned sandbox into immutable exact paths and
+binds its Profile/test authorization, held root/marker/target-parent identities,
+approved Python source, canonical complete dependency lock, exact offline
+wheelhouse, stopped-service receipt, database source identity, reviewed CRX
+identity, and closed Config review. Every target is created relative to the
+held parent handle with `NtCreateFile(FILE_CREATE)` and remains held against
+replacement; created files also deny concurrent writers during publication.
+The test harness materializes the approved Python distribution inside the
+caller-owned sandbox; scope review rejects an external source path. Its
+canonical manifest binds the complete CPython distribution tree, exact entry
+count, total bytes, executable hash, and tree fingerprint. Before executing
+target code, publication reopens and holds every source directory and file against
+write/delete sharing, rejects reparse points and alternate streams, recomputes
+the exact bounded manifest, and keeps a recursive change guard pending through
+the complete build and verification window. Source/wheel/lock capture checks
+size and aggregate remaining capacity before reading from held handles rather
+than allocating from raced paths.
+Runtime installation consumes only bytes captured from write/delete-blocked
+reviewed wheel handles, rejects `.pth`, `sitecustomize.py`, and
+`usercustomize.py`, and verifies the full installed closure through the new
+Runtime running with fixed `-X frozen_modules=on -I -B -S`. An empty create-only Runtime root receives
+only exact approved CPython files streamed from held source handles; each
+finished file is reopened read-only against write/delete sharing before any
+target code executes. A held exact tree binds that source-distribution
+baseline, rejects reparse points and alternate data streams, and creates every
+wheel member and dependency lock relative to a held child-parent handle.
+The complete approved `Lib/encodings` package is streamed from held source
+handles into one bounded deterministic ZIP_STORED `managed-startup.zip`.
+That create-only held archive is first in code-fixed `python312._pth` and
+`python._pth`, followed by `Lib` and `DLLs`; neither sentinel contains
+`import site`. CPython startup therefore resolves its regular `encodings`
+package from an immutable namespace before any target directory can supply a
+new child. Archive/sentinel collision fails before execution. Wheel
+payload, member, expanded-size, compression-ratio,
+and complete Runtime entry/file/byte/path/depth ceilings fail before unsafe
+allocation or disk growth. EOCD/central-directory bounds run before
+`ZipFile`, enumeration is capped before sorting, and extraction plus import/
+tree hashing are bounded and streaming. Fixed frozen-module mode plus explicit
+`_imp.is_frozen("codecs")` evidence closes the pre-script `codecs` dependency.
+Self-verification imports only the CPython built-ins `sys`, `nt`, `_sha2`, and
+`_imp`, then rejects every later import.
+It hashes the exact target executable, SQLite binaries, startup archive, dependency lock, and
+installed import leaves; SQLite hashes are compared with the held approved
+source-tree entries, and bounded exact distribution metadata proves the
+installed set without importing or executing installed package code. Runtime process stdout is consumed
+incrementally and the child is terminated at the fixed byte ceiling rather
+than buffered without a bound. A recursive Windows change guard remains
+pending on the Runtime parent across sealing, self-verification, and receipt
+construction; child and NTFS stream changes fail before success linearizes.
+Exact scans verify the Runtime root default stream and reject every extra,
+missing, or changed member. Database copy keeps its
+write-blocking source handle through pre-copy and post-copy sidecar checks,
+integrity, hash, and
+identity checks, including one final sidecar/identity gate after target
+verification. The CRX target handle remains held through source stability,
+receipt construction, and a final exact reread; CRX cannot be built, signed,
+installed, loaded, or unpacked.
+Config cannot read environment files, process environment, registry,
+credential stores, clipboard, or hidden input.
+
+Every target is create-only and every partial or failed publication is
+retained. Public results are one fingerprinted four-receipt set that
+independently rebuilds the complete typed mappings and top-level operation/
+Profile/master/authorization chain; it remains content-free. Exact package/
+export guards and an
+executable-import consumer guard keep normal runtime, scripts, frontend,
+workflows, and all other backend packages from consuming this package. Each
+real constructor rejects test authority and remains
+`BLOCKED_NO_APPROVED_COMMAND` before Issue #39.
 
 ## 7. 修改规则
 

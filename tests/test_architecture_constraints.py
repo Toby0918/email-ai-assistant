@@ -2756,6 +2756,45 @@ class ArchitectureConstraintTests(unittest.TestCase):
         self.assertIn("no path", template)
         self.assertIn("default host adapter", template)
 
+    def test_issue57_managed_publication_architecture_is_documented(
+        self,
+    ) -> None:
+        architecture = read_text(
+            ROOT / "docs" / "constraints" / "architecture_constraints.md"
+        )
+        security = read_text(
+            ROOT / "docs" / "security" / "project_container_cutover_contracts.md"
+        )
+
+        for marker in (
+            "backend.cutover_managed_activation",
+            "ManagedActivationPhase",
+            "exactly four narrow",
+            "write-blocking source handle",
+            "canonical manifest binds the complete CPython distribution tree",
+            "Runtime process stdout is consumed\nincrementally",
+            "EOCD/central-directory bounds",
+            "ZIP_STORED `managed-startup.zip`",
+            "CPython startup therefore resolves its regular `encodings`",
+            "`_imp.is_frozen(\"codecs\")` evidence",
+            "CPython built-ins `sys`, `nt`, `_sha2`, and",
+            "rejects every later import",
+            "SQLite hashes are compared with the held approved",
+            "recursive Windows change guard",
+            "every partial or failed publication is",
+            "`BLOCKED_NO_APPROVED_COMMAND`",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, architecture)
+        self.assertIn("Issue #57 managed publication guard", security)
+        self.assertIn("central-directory gates precede `ZipFile`", security)
+        self.assertIn("transient child/root-stream", security)
+        self.assertIn("Runtime stdout is consumed incrementally", security)
+        self.assertIn("ZIP_STORED `managed-startup.zip`", security)
+        self.assertIn("pre-script encoding children", security)
+        self.assertIn("Code-fixed create-only `python312._pth`", security)
+        self.assertIn("Issues #58/#59", security)
+
     def test_python_modules_do_not_contain_raw_secret_literals(self) -> None:
         secret_patterns = {
             "openai_key": r"\bsk-[A-Za-z0-9_-]{10,}",
