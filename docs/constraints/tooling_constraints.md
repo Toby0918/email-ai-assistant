@@ -1092,6 +1092,35 @@ overwrite. Linux CI
 validates portable contracts, receipt chaining, architecture, and real locks
 only and makes no Windows handle, Runtime-build, or durable-flush claim.
 
+## Issue #58 provider-disabled lifecycle tooling boundary
+
+Issue #58 adds no dependency, CLI, HTTP route, workflow, scheduler, provider
+client, service manager, process launcher, socket probe, database reader,
+filesystem path, shell, or arbitrary command surface.
+`ProviderDisabledServiceController` receives only exact sealed new-service and
+legacy-service adapters. New service has fixed provider-disabled start, exact
+health, one code-owned synthetic analysis, one matching-row observation, and
+exact stop/containment. Legacy service has only dedicated provider-disabled
+recovery start, exact health, and stop; it has no analysis method.
+
+The lifecycle consumes a completely rebuilt Issue #57 receipt set and binds
+the new Runtime, Config, LocalData role, Profile, PID/start time, executable,
+fixed literal port ownership, fresh UUIDv4 nonce, and disabled primary/fallback
+providers. The only activation input is the fixed synthetic request. Success
+requires `deterministic_rules`, zero provider attempts, and exactly one matching
+new LocalData row. Legacy recovery uses code-owned Config with
+`reads_environment=False` and cannot write a synthetic analysis.
+
+Rollback receives one exact staged adapter. It may prove exact stop, preserve
+three external worktrees and eleven opaque Git records, seal the failed
+Container, restore main/Git/eight embedded plus three external worktrees from
+the committed forward journal, and reverify closed legacy prerequisites.
+There is no caller-selected reverse action or target. Windows execution is
+limited to test-owned synthetic sandboxes; portable tests claim no real
+service, port, repository, worktree, ACL, Runtime, or SQLite evidence. The real
+constructor requires exact execution and recovery authorization validation and
+still returns `BLOCKED_NO_APPROVED_COMMAND` before Issue #39.
+
 ## 14. 执行后检查
 
 Agent 每次完成任务后，必须确认：

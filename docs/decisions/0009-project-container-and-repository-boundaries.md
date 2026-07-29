@@ -618,6 +618,28 @@ constructors remain locked before Issue #39.
 This proof does not approve Issues #58/#59, #38/#39, merge, or parent Spec #50
 closure.
 
+### Issue #58 provider-disabled activation and recovery boundary
+
+Issue #58 is limited to a test-owned synthetic lifecycle transaction. It
+accepts the verified Issue #57 receipt set and exact injected service-role
+adapters; it has no arbitrary command, launcher, process, environment, or
+service-discovery surface. New-service health binds exact process identity,
+port ownership, Profile, `LocalData` role, fresh UUIDv4 nonce, and both
+providers disabled. The only activation request is code-fixed, must resolve
+through deterministic rules with zero provider attempts, and must create
+exactly one matching synthetic row in the new database.
+
+Known pre-mutation start rejection is a `SAFE_ABORT`. Known post-mutation
+validation failure requires committed-journal-driven reverse and exact
+restoration evidence for main, Git administrative records, and all eleven
+worktrees while preserving failed/new evidence. Identity, journal, reparse,
+provider, or safety ambiguity instead stops as an incident. Legacy recovery
+uses a separate injected provider-disabled Config and fresh nonce, performs no
+synthetic analysis, and has one fixed incident outcome on failure. Real
+lifecycle construction remains locked before Issue #39. This decision adds no
+authority for real activation, recovery, cleanup, Issue #59, Issues #38/#39,
+merge, or parent Spec #50 closure.
+
 ## Consequences
 
 - The migration is a security and repository-boundary change, not a file cleanup.

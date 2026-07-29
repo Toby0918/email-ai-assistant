@@ -706,3 +706,39 @@ private-data container, or authorization to migrate.
     verifier hook because fixed frozen-module mode resolves `codecs` through
     FrozenImporter; the new Runtime must report that proof and the exact-tree
     gate must reject the added package with no marker.
+
+## Issue #58 provider-disabled lifecycle rules
+
+1. Contract tests pin exact new/legacy service roles, dedicated legacy Config,
+   fresh UUIDv4 nonces, PID/start time/executable/port-owner/Profile/Runtime/
+   Config/data-role equality, and disabled providers.
+2. Controller tests rebuild the complete Issue #57 receipt set, issue one
+   code-owned synthetic request, accept only `deterministic_rules`, require
+   provider attempts zero, and require exactly one matching new LocalData row.
+3. Start and health identity drift, stale process/nonce, wrong port owner,
+   provider attempt, arbitrary adapter, or non-nominal evidence fails closed.
+4. Known typed pre-mutation start rejection becomes `SAFE_ABORT` with no stop
+   or rollback. Known typed post-mutation health/result/persistence failure becomes
+   `ROLLBACK_REQUIRED`; forward resume and unauthorised rollback are rejected.
+5. Identity, journal, reparse, provider-boundary, safety, or untyped start
+   ambiguity becomes `INCIDENT_STOP`. Stop containment is invoked only when
+   the exact new-service identity has already passed validation.
+6. Rollback tests require fixed order: exact stop, preserve three external
+   worktrees and eleven Git records, seal failed Container, restore main/Git/
+   eight embedded plus three external worktrees, then reverify legacy
+   prerequisites. Every stage binds the committed journal head.
+7. Windows sandbox coverage composes the actual #56 full forward transaction,
+   interrupts reverse after committed `NEW_STATE_PRESERVED`, seals the failed
+   Container before main extraction, resumes reverse, and proves exact original
+   physical/admin identities for all eleven worktrees.
+8. Legacy recovery uses one dedicated environment-independent disabled Config,
+   a fresh distinct nonce, one start, one health check, and no analysis method.
+   Failure is fixed
+   `INCIDENT_STOP_LEGACY_SERVICE_RECOVERY_FAILED` with no retry.
+9. Synthetic SQLite coverage proves exactly one retained new activation row and
+   zero writes to the legacy analysis table.
+10. Architecture/leakage tests reject host/process/network/database/path/command
+    capabilities and bound result/receipt/error/repr/stdout/stderr surfaces to
+    fixed codes, fingerprints, and allowlisted counts.
+11. Real-lock tests require both exact authorization types and prove missing,
+    test, invalid, or even fully valid pre-#39 inputs construct nothing.

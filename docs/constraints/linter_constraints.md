@@ -884,6 +884,27 @@ receipt, repr,
 stdout, stderr, and error tests reject paths, filenames, domains, package
 names, Config values, exception text, source bytes, and private data.
 
+## Issue #58 static capability rules
+
+Static checks pin the exact `backend/cutover_service_lifecycle/` adapter fields,
+public exports, module-size bound, and normal-runtime/script/frontend
+non-consumers. The legacy adapter must not expose analysis, database-write,
+Config mutation, launcher selection, retry, provider, environment, path, or
+command fields.
+
+AST guards reject `os`, `pathlib`, `subprocess`, `socket`, `sqlite3`, `ctypes`,
+network, logging, dynamic import, file-open, shell, service-discovery,
+repository/worktree, and normal-runtime imports from the lifecycle package.
+Only pure standard-library value helpers plus exact Cutover contracts and
+Issue #57 receipt types are allowed.
+
+Focused tests pin every start/health identity field, provider-attempt
+rejection, fresh UUIDv4 nonces, deterministic-rules-only activation, exact
+matching row count, every reverse stage, fixed legacy failure, real-lock
+statuses, and content-free repr/stdout/stderr/errors. Windows sandbox tests
+compose the actual synthetic #56 forward/reverse seam and make no real-host
+claim.
+
 ## 14. 修改规则
 
 如果新增或修改 linter 规则，必须同步更新：
