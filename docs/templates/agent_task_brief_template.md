@@ -359,7 +359,14 @@ Evidence publication composition.
 [ ] Issue #54 real entries remain locked before Issue #39 and reject missing, wrong-phase, malformed and TestSandboxAuthorizationV1 inputs.
 [ ] Issue #54 tests run only in test-owned temporary synthetic sandboxes and expose no path/ref/object ID/worktree name/command/content/native error/exception through receipts/results/repr/stdout/stderr/logs.
 [ ] A Migration Evidence Package is evidence, not backup, Runtime artifact, private-data container or authorization to migrate; no real package or host/service/repository/ACL/Runtime/database/provider/mailbox/vault/private-data operation occurs.
-[ ] Issues #55 through #59 remain separate and require their own approval; this task does not modify or close Issues #38/#39 or parent Spec #50.
+[ ] If Issue #55 is in scope, Windows native ACL/filesystem effects run only in a caller-owned temporary NTFS sandbox and require exact test authorization plus durable Issue #52 INTENT.
+[ ] Issue #55 ACL capture is fixed-role; parent and finance are compare-only, source compatibility is complete/read-only, and only a single-use guarded claim for the newly created Container can receive the protected three-principal inheritable DACL.
+[ ] The Issue #55 Container is created by parent-handle-relative `NtCreateFile(FILE_CREATE)` with a protected construction DACL that grants no add-file, add-subdirectory, or delete-child right; held root/marker/parent/target handles and the final DACL write close ancestor/child insertion races.
+[ ] Issue #55 uses direct Windows APIs only; owner/group/SACL are unchanged, and no shell, PowerShell, icacls, ACL transcript, recursive rewrite, repair, delete, replace, or alternate target exists.
+[ ] Issue #55 no-replace primitives bind opened root/marker/source/parent handles, 128-bit file ID, fixed NTFS volume, parent identity, reparse-free state, target absence, and same-identity publication; source reparse points are observed without traversal and rejected.
+[ ] Issue #55 fixed-zone verification accepts only the exact eight direct children of the held Container, rejects reparse zones, and requires exact inherited ACL equality.
+[ ] Issue #55 public values are content-free; the real constructor rejects test authorization and remains locked before Issue #39.
+[ ] Issues #56 through #59 remain separate and require their own approval; this task does not modify or close Issues #38/#39 or parent Spec #50.
 ```
 
 ## 22. 执行后记录

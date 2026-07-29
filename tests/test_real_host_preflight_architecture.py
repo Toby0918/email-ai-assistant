@@ -794,6 +794,24 @@ class RealHostPreflightArchitectureTests(unittest.TestCase):
         self,
     ) -> None:
         allowed_consumers = {
+            "backend/cutover_host_mutation/windows_acl_factory.py": {
+                "is_absolute_local_path",
+            },
+            "backend/cutover_host_mutation/windows_directory_factory.py": {
+                "expected_final_path",
+            },
+            "backend/cutover_host_mutation/windows_filesystem_common.py": {
+                "is_absolute_local_path",
+            },
+            "backend/cutover_host_mutation/windows_handles.py": {
+                "expected_final_path",
+            },
+            "backend/cutover_host_mutation/windows_no_replace.py": {
+                "expected_final_path",
+            },
+            "backend/cutover_host_mutation/windows_security.py": {
+                "expected_final_path",
+            },
             "backend/migration_evidence_publication/host_baseline_bridge.py": {
                 "RealHostBaselineCollector",
             },
@@ -835,7 +853,10 @@ class RealHostPreflightArchitectureTests(unittest.TestCase):
                 for node in ast.walk(tree)
                 if isinstance(node, ast.ImportFrom)
                 and node.level == 0
-                and node.module == "backend.real_host_preflight"
+                and (
+                    node.module == "backend.real_host_preflight"
+                    or node.module == "backend.real_host_preflight.windows_paths"
+                )
             ]
             self.assertEqual(len(imports), 1)
             self.assertEqual(

@@ -110,6 +110,24 @@ PACKAGE_MODULES = {
     for name in EXPECTED_FILES
 }
 ALLOWED_CONSUMERS = {
+    "backend/cutover_host_mutation/operator_entry.py": {
+        "AuthorizationValidationStatus",
+        "CutoverExecutionAuthorizationV1",
+        "CutoverProfileV1",
+        "TestSandboxAuthorizationV1",
+        "validate_real_host_authorization",
+    },
+    "backend/cutover_host_mutation/windows_acl_factory.py": {
+        "CutoverProfileV1",
+        "TestSandboxAuthorizationV1",
+    },
+    "backend/cutover_host_mutation/windows_directory_factory.py": {
+        "CutoverProfileV1",
+    },
+    "backend/cutover_host_mutation/windows_filesystem_common.py": {
+        "CutoverProfileV1",
+        "TestSandboxAuthorizationV1",
+    },
     "backend/cutover_journal/contracts_bridge.py": {
         "AuthorizationValidationStatus",
         "CutoverExecutionAuthorizationV1",

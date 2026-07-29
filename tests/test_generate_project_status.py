@@ -363,7 +363,7 @@ class GenerateProjectStatusTests(unittest.TestCase):
             "cannot create, issue, or mint",
             "strict canonical `ReceiptEnvelopeV1`",
             "`BLOCKED_NO_APPROVED_COMMAND`",
-            "approved consumers are the exact Issue #52 journal bridge, exact Issue #53 preflight contract bridge, and exact Issue #54 evidence-publication contract bridge",
+            "approved consumers are the exact Issue #52 journal bridge, exact Issue #53 preflight contract bridge, exact Issue #54 evidence-publication contract bridge, and exact Issue #55 mutation contract consumers",
             "`backend/cutover_contracts/profile.py`",
             "`backend/cutover_contracts/authorization.py`",
             "`backend/cutover_contracts/receipt.py`",
@@ -429,7 +429,7 @@ class GenerateProjectStatusTests(unittest.TestCase):
             "final-audit readiness",
             "`BLOCKED_NO_APPROVED_COMMAND`",
             "no service-control",
-            "Issues #55 through #59",
+            "Issues #56 through #59",
             "`backend/real_host_preflight/windows_observation.py`",
             "`backend/real_host_preflight/composition.py`",
             "`docs/operations/issue53_windows_real_host_preflight_task_brief.md`",
@@ -478,6 +478,36 @@ class GenerateProjectStatusTests(unittest.TestCase):
             "`tests/test_migration_evidence_publication_create_verify.py`",
             "`tests/test_migration_evidence_publication_receipts.py`",
             "`tests/test_migration_evidence_verifier_process.py`",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, report)
+
+    def test_issue55_mutation_primitives_are_reported_as_sandbox_only(
+        self,
+    ) -> None:
+        module = load_script_module(
+            SCRIPT,
+            "generate_project_status_issue55_mutation",
+        )
+        report = module.build_project_status()
+
+        for marker in (
+            "Issue #55 fixed-role Windows ACL and no-clobber filesystem primitives",
+            "`backend.cutover_host_mutation`",
+            "`WindowsAclAdapter`",
+            "complete read-only source compatibility",
+            "exact parent/finance capture-and-compare",
+            "newly created empty Container",
+            "owner/group/SACL flags and pointers",
+            "durable Issue #52 INTENT",
+            "128-bit file ID",
+            "caller-owned temporary NTFS sandboxes",
+            "`BLOCKED_NO_APPROVED_COMMAND`",
+            "No real ACL, repository/worktree, service, Runtime, SQLite",
+            "Issues #56 through #59",
+            "`docs/operations/issue55_windows_acl_filesystem_primitives_task_brief.md`",
+            "`tests/test_cutover_host_mutation_windows_acl.py`",
+            "`tests/test_cutover_host_mutation_windows_filesystem.py`",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, report)

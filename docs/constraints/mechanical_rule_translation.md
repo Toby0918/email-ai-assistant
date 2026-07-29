@@ -557,3 +557,27 @@ preflight, service, repository/worktree move, ACL apply, Runtime build, database
 copy, provider, mailbox, vault, private store, or private data is accessed. A
 Migration Evidence Package is evidence, not backup, Runtime artifact,
 private-data container, or authorization to migrate.
+
+## Issue #55 fixed-role ACL and filesystem rules
+
+1. `WindowsAclAdapter` has exactly `capture`, `compare`,
+   `apply_new_container_policy`, and `verify_fixed_zone_inheritance`.
+2. Source-tree compatibility is complete, two-pass, read-only, bounded, and
+   rejects protected or non-allowlisted descriptors.
+3. Parent and finance baseline equality includes object identity, canonical
+   SDDL fingerprint, and binary descriptor fingerprint.
+4. Only a guarded create-only directory observation can authorize the empty
+   Container DACL apply; the claim is single-use and requires a durable ACL
+   INTENT. Its protected construction DACL has no child-creation right and its
+   root/marker/parent/target handles remain held through final apply.
+5. `SetSecurityInfo` receives only DACL/protected-DACL information with null
+   owner, group, and SACL pointers.
+6. Create-only directory uses parent-handle-relative `NtCreateFile` with
+   `FILE_CREATE`; directory/file operations reject all existing targets. Native
+   publication holds source and parent handles, sets no-replace, rejects
+   reparse/cross-volume/identity drift, and proves the same 128-bit file ID.
+7. Every mutation returns a content-free observation bound to the consumed
+   journal INTENT and expected after fingerprint.
+8. Architecture tests reject shell/PowerShell/`icacls`, replayable ACL
+   transcripts, replace-capable moves, production consumers, and unlocked real
+   constructors.

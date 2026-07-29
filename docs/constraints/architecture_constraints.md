@@ -852,6 +852,27 @@ matched text, placeholder value, prompt, response, exception, or dynamic detail.
 Deadline refusal maps to the existing `budget_exhausted` / `budget` /
 `not_applicable` tuple. The public field set and diagnostic field shape remain frozen.
 
+## Issue #55 fixed-role mutation architecture
+
+`backend.cutover_host_mutation.__init__` may export only portable contracts and
+must not import Windows adapters or the locked operator entry. No normal
+runtime, script, frontend, root wrapper, or workflow may import this package.
+The package may consume only the exact Issue #51 authorization/profile symbols,
+the exact Issue #52 durable-permit seam, and Issue #53 path normalization
+helpers.
+
+Only `windows_acl_apply.py` may call `SetSecurityInfo`, and it may update only
+the protected DACL of the journal-proven guarded new empty Container. Its
+construction DACL is code-fixed, protected, non-inheritable, operator-only, and
+contains no add-file, add-subdirectory, or delete-child right. Root, marker,
+parent, and target handles stay held until the final DACL linearization point.
+Parent, finance, and source-tree paths remain read-only; source reparse objects
+are not traversed. Directory creation must use parent-handle-relative
+`NtCreateFile` plus `FILE_CREATE`. Native rename must be handle-relative,
+no-replace, same-volume, and same-file-ID verified. Test-only native execution
+must remain inside a caller-owned temporary NTFS sandbox; the real constructor
+stays locked and has no adapter imports.
+
 ## 7. 修改规则
 
 如果需要改变架构边界，必须同时修改：

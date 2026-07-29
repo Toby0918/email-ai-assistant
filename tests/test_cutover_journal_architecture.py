@@ -348,6 +348,10 @@ class CutoverJournalArchitectureTests(unittest.TestCase):
                 )
 
     def test_no_backend_script_or_frontend_consumer_exists(self) -> None:
+        allowed_consumers = {
+            "backend/cutover_host_mutation/acl_journal.py",
+            "backend/cutover_host_mutation/journal_intent.py",
+        }
         violations = []
         for root_name in ("backend", "scripts", "frontend"):
             for path in (ROOT / root_name).rglob("*"):
@@ -370,7 +374,7 @@ class CutoverJournalArchitectureTests(unittest.TestCase):
                     violations.append(
                         path.relative_to(ROOT).as_posix()
                     )
-        self.assertEqual(violations, [])
+        self.assertEqual(set(violations), allowed_consumers)
 
     def test_consumer_guard_recognizes_equivalent_imports(self) -> None:
         cases = (

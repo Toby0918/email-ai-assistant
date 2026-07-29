@@ -434,6 +434,34 @@ private-data operation is authorized. A Migration Evidence Package is evidence,
 not a backup, Runtime artifact, private-data container, or authorization to
 migrate.
 
+Issue #55 adds only `backend.cutover_host_mutation` fixed-role Windows ACL and
+handle-relative no-clobber primitives. `WindowsAclAdapter` exposes descriptor
+capture, exact compare, new-Container policy apply, and fixed-zone inheritance
+verification only. Parent and finance are capture-and-compare roles; source
+compatibility is complete, read-only, and rejects reparse traversal. The new
+Container is created atomically with a protected construction DACL that grants
+the operator only list/read-control/write-DAC/synchronize access and no child
+creation right. Its root, marker, parent, and target handles remain held until
+the journaled `SetSecurityInfo` linearization point replaces that guard with
+the exact final DACL. The final policy uses the current token SID, SYSTEM, and
+built-in Administrators, sets protected inheritable Full Control, passes null
+owner/group/SACL pointers, and never emits or executes an ACL command or
+transcript.
+
+The Issue #55 filesystem primitives open and revalidate source and parent
+handles, NTFS volume identity, 128-bit file ID, parent identity, normalized
+target role, and reparse state. Directory creation uses handle-relative
+`NtCreateFile` with `FILE_CREATE`; publication rename is handle-relative and
+no-replace and must prove the same file ID at the target. Every effect first
+consumes the exact durable Issue #52
+INTENT permit and returns a content-free observation. Tests may execute these
+effects only beneath their caller-owned temporary NTFS sandbox. The real
+constructor remains locked before Issue #39, rejects test authorization, and
+returns no mutation capability even for otherwise valid execution
+authorization. No real project ACL, repository/worktree, service, Runtime,
+SQLite, provider, mailbox, vault, private store, or private data may be touched.
+Issues #56 through #59, Issues #38/#39, and parent Spec #50 remain separate.
+
 The pure project-layout seam performs no directory creation, move, deletion,
 migration, mailbox or
 provider operation, secret read, vault/private-store access, ACL change, or host

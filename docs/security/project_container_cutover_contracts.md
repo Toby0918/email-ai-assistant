@@ -335,6 +335,41 @@ command, exception, host identity, or free text. `SAFE_ABORT`,
 There is no real filesystem/service/ACL/Git/worktree/Runtime/SQLite/provider/
 mailbox/vault/private-data capability or production consumer.
 
+## Issue #55 fixed-role ACL and no-clobber guard
+
+`backend.cutover_host_mutation` publicly exports only closed portable
+contracts. Its internal Windows adapter has exactly four operations: fixed-role
+capture, exact compare, new-Container policy apply, and fixed-zone inheritance
+verification. Source compatibility rejects protected or unexpected existing
+descriptors without applying an ACL. Parent and finance never own apply
+capability.
+
+Container creation atomically installs a code-fixed protected construction
+DACL with one non-inheritable operator ACE. It grants list/read-control/
+write-DAC/synchronize only and grants no add-file, add-subdirectory, or
+delete-child right. The claim holds root, marker, parent, and target handles
+until the journaled final ACL effect. ACL application consumes that one guarded
+claim, proves the Container empty, and replaces the guard through the held
+target handle. The update information is exactly DACL plus protected DACL;
+owner, group, and SACL pointers are null. The current operator SID exists only
+in module-owned memory and is public only as a fingerprint. No ACL command,
+shell, PowerShell, `icacls`, or replayable transcript can be generated.
+
+Create-only directory, file publication, and same-identity move effects require
+an exact durable journal INTENT permit. Directory creation uses `NtCreateFile`
+relative to the approved parent handle with `FILE_CREATE`. Opened handles bind
+root, marker, source, target parent, fixed NTFS volume, 128-bit file ID,
+normalized target, and reparse-free state. Publication sets no-replace and verifies source absence, target
+presence, and identical file ID after the effect. Existing targets and drift
+fail without repair, deletion, replacement, or alternate selection.
+
+All native effects run only in caller-owned temporary NTFS sandboxes under
+exact `TestSandboxAuthorizationV1`. The real constructor rejects that test
+authorization and remains `BLOCKED_NO_APPROVED_COMMAND` even for a valid
+`CutoverExecutionAuthorizationV1` before Issue #39. No production consumer,
+CLI, workflow, service, repository/worktree, Runtime, SQLite, provider,
+mailbox, vault, private-store, or private-data capability exists.
+
 ## Executable capability guards
 
 `tests/test_cutover_contract_architecture.py` pins all of the following:

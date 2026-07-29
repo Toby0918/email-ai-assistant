@@ -503,6 +503,37 @@ Rejected because a clone does not preserve the current dirty working tree,
 ignored local state, reflog-equivalent local history, and linked-worktree
 identity without additional error-prone reconstruction.
 
+### Issue #55 fixed-role ACL and filesystem mutation boundary
+
+Issue #55 implements only the low-level primitives needed by a later cutover
+transaction. Existing source ACLs receive a complete two-pass compatibility
+observation and are never normalized. Parent and finance descriptors are
+captured before an effect and compared afterward using exact object identity,
+canonical SDDL fingerprint, and binary descriptor fingerprint equality.
+
+The only ACL write is to a newly created Container whose identity comes from a
+single-use guarded claim. The create is one parent-handle-relative
+`NtCreateFile(FILE_CREATE)` with a protected construction DACL that allows the
+operator to inspect the directory and replace that DACL but grants no token the
+right to add a file or subdirectory or delete a child. The parent, sandbox root,
+marker, and new Container handles remain open until direct Windows security
+APIs replace only the DACL with three inheritable Full Control ACEs for the
+current token SID, SYSTEM, and built-in Administrators. That final DACL write is
+the linearization point; ordinary create observations and replayed claims are
+rejected. Owner, group, and SACL remain outside the update information flags and
+receive null pointers.
+
+Filesystem publication is handle-relative and no-replace. It binds source,
+target parent, sandbox root and marker, NTFS volume, 128-bit file ID, object
+type, target leaf, and reparse-free state while the corresponding handles stay
+open. It consumes a durable journal INTENT before effect and proves the same
+object identity at the target. A reparse source is observed without traversal
+and rejected; the eight fixed zones must be exact direct children of the held
+Container and must inherit the exact final ACL. Existing targets are never
+repaired, deleted, replaced, or bypassed with another name. Executable proof is
+confined to test-owned temporary NTFS sandboxes, and the real constructor
+remains locked before Issue #39.
+
 ## Consequences
 
 - The migration is a security and repository-boundary change, not a file cleanup.

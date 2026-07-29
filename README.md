@@ -417,6 +417,31 @@ database copy, provider, mailbox, vault, private-store, or private-data
 operation. A Migration Evidence Package is evidence, not a backup, Runtime
 artifact, private-data container, or migration authorization.
 
+Issue #55 provides an internal `backend/cutover_host_mutation/` package for
+fixed-role Windows ACL proof and handle-relative no-clobber filesystem
+operations. The public package surface is portable content-free contracts only.
+Its internal Windows adapter can capture source/parent/finance descriptors,
+compare parent and finance exactly, apply the approved DACL only to a newly
+created empty Container, and verify inheritance across the eight exact direct
+zones. Container creation atomically installs a protected, non-inheritable
+operator construction guard with no add-child rights and holds root, marker,
+parent, and target handles until the journaled final DACL apply. ACL application
+uses direct Windows security APIs, retains owner and group, omits every
+owner/group/SACL update flag and pointer, and has no command, PowerShell,
+shell, `icacls`, or replayable transcript surface.
+
+The filesystem primitives require a durable Issue #52 INTENT before each
+effect. Create-only directories use parent-handle-relative `NtCreateFile` with
+`FILE_CREATE` and reject any existing target. File publication and object move
+use opened source and target-parent handles, no-replace
+handle-relative rename, same-volume and reparse checks, and post-effect
+128-bit file-ID equality. Results expose only fixed status/counts and
+fingerprints. Windows execution is confined to test-owned temporary NTFS
+sandboxes; Linux validates the portable schemas without claiming Windows ACL
+or NTFS behavior. The real mutation constructor remains locked before Issue
+#39 and rejects test authorization. No real host target or adjacent project ACL
+was accessed or changed.
+
 ## 后台清理扫描
 
 旧 Codex `Weekly Cleanup Agent` 已由操作员删除，deprecated 记录见
