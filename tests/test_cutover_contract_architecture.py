@@ -157,6 +157,17 @@ ALLOWED_CONSUMERS = {
         "CutoverProfileV1",
         "TestSandboxAuthorizationV1",
     },
+    "backend/cutover_service_lifecycle/rollback_validation.py": {
+        "TestSandboxAuthorizationV1",
+    },
+    "backend/cutover_service_lifecycle/real_lock.py": {
+        "AuthorizationValidationStatus",
+        "CutoverExecutionAuthorizationV1",
+        "CutoverProfileV1",
+        "RecoveryAuthorizationV1",
+        "TestSandboxAuthorizationV1",
+        "validate_real_host_authorization",
+    },
     "backend/real_host_preflight/contracts_bridge.py": {
         "AuthorizationValidationStatus",
         "CutoverProfileV1",

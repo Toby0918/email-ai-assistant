@@ -363,7 +363,7 @@ class GenerateProjectStatusTests(unittest.TestCase):
             "cannot create, issue, or mint",
             "strict canonical `ReceiptEnvelopeV1`",
             "`BLOCKED_NO_APPROVED_COMMAND`",
-            "approved consumers are the exact Issue #52 journal bridge, exact Issue #53 preflight contract bridge, exact Issue #54 evidence-publication contract bridge, exact Issue #55 mutation contract consumers, exact Issue #56 synthetic transaction scope consumers, and exact Issue #57 synthetic managed-publication contract consumers",
+            "approved consumers are the exact Issue #52 journal bridge, exact Issue #53 preflight contract bridge, exact Issue #54 evidence-publication contract bridge, exact Issue #55 mutation contract consumers, exact Issue #56 synthetic transaction scope consumers, exact Issue #57 synthetic managed-publication contract consumers, and exact Issue #58 synthetic lifecycle/real-lock consumers",
             "`backend/cutover_contracts/profile.py`",
             "`backend/cutover_contracts/authorization.py`",
             "`backend/cutover_contracts/receipt.py`",
@@ -602,6 +602,40 @@ class GenerateProjectStatusTests(unittest.TestCase):
             "`tests/test_cutover_managed_activation_contracts.py`",
             "`tests/test_cutover_managed_activation_fail_closed.py`",
             "`tests/test_cutover_managed_activation_windows_edges.py`",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, report)
+
+    def test_issue58_provider_disabled_lifecycle_is_synthetic_and_locked(
+        self,
+    ) -> None:
+        module = load_script_module(
+            SCRIPT,
+            "generate_project_status_issue58_service_lifecycle",
+        )
+        report = module.build_project_status()
+
+        for marker in (
+            "Issue #58 provider-disabled activation and legacy recovery",
+            "`backend.cutover_service_lifecycle`",
+            "`ProviderDisabledServiceController`",
+            "fresh UUIDv4 nonce",
+            "PID, start time, executable, port ownership",
+            "deterministic-rules",
+            "provider attempts",
+            "exactly one matching synthetic row",
+            "`SAFE_ABORT`",
+            "`ROLLBACK_REQUIRED`",
+            "`INCIDENT_STOP`",
+            "committed journal entries",
+            "all eleven worktrees",
+            "`INCIDENT_STOP_LEGACY_SERVICE_RECOVERY_FAILED`",
+            "no synthetic analysis",
+            "`BLOCKED_NO_APPROVED_COMMAND`",
+            "No real service, repository/worktree",
+            "Issue #59",
+            "`docs/operations/issue58_provider_disabled_activation_recovery_task_brief.md`",
+            "`tests/test_cutover_service_lifecycle_windows_sandbox.py`",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, report)

@@ -15,7 +15,7 @@ from scripts.repo_utils import read_text
 ROOT = Path(__file__).resolve().parents[1]
 
 STATUS_GENERATOR_AST_SHA256 = (
-    "5ca75709874d4202a6a95de903c2b32ce684a45c2860180a7c65e8f8d9e4d995"
+    "177de9ac2b178df9f5a5d3f310793235d956548459b49e580a570f965bbf8f6f"
 )
 
 POLICY_DOCS = (

@@ -522,6 +522,40 @@ real execution authorization still yields `BLOCKED_NO_APPROVED_COMMAND`
 before Issue #39. Synthetic success is evidence only and grants no real-host,
 Issues #58/#59, #38/#39, merge, or parent-Spec authority.
 
+## Issue #58 provider-disabled lifecycle guard
+
+Issue #58 composes only exact injected new-service and legacy-service role
+adapters inside a caller-owned synthetic sandbox. A new-service start accepts
+the verified Issue #57 managed Runtime and deterministic Config receipts,
+sets both providers to `disabled`, rejects legacy-environment inheritance, and
+binds a fresh UUIDv4 nonce. Health must match the exact PID, start time,
+executable, port owner, Profile, `LocalData` role, nonce, and provider-disabled
+state. Activation submits one code-fixed synthetic request, accepts only a
+deterministic-rules result with zero provider attempts, and proves exactly one
+matching synthetic row in the new `LocalData`.
+
+Known pre-mutation start rejection returns `SAFE_ABORT` without containment or
+rollback. Known post-mutation validation failures return `ROLLBACK_REQUIRED`. Identity,
+journal, reparse, provider-boundary, or safety ambiguity returns
+`INCIDENT_STOP` after exact containment. Rollback accepts only an explicit
+test sandbox authorization and a complete committed-journal binding, executes
+the fixed reverse stages, retains the failed Container, new external
+worktrees, and Git administrative evidence, and proves exact restoration of
+the original main plus all eleven reviewed worktrees. Legacy recovery uses
+one dedicated injected provider-disabled Config and a distinct fresh UUIDv4
+nonce, never reads an environment file, and never writes a synthetic analysis
+to the legacy database. Any legacy recovery failure is the fixed
+`INCIDENT_STOP_LEGACY_SERVICE_RECOVERY_FAILED`; no alternate launcher,
+configuration, retry, cleanup, or repair exists.
+
+All public results, receipts, journal bindings, stdout, stderr, and errors are
+content-free. Real lifecycle construction remains locked without both exact
+`CutoverExecutionAuthorizationV1` and `RecoveryAuthorizationV1` values and
+still returns `BLOCKED_NO_APPROVED_COMMAND` before Issue #39. Synthetic
+success grants no real service, repository/worktree, ACL, Runtime, SQLite,
+browser, mailbox, provider, credential, vault, private-data, Issue #59,
+Issue #38/#39, merge, or parent-Spec authority.
+
 ## Security review checklist
 
 - [ ] Values remain pathless, immutable, repr-redacted, and content-free.

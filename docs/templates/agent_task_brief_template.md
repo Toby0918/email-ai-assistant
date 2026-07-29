@@ -367,6 +367,12 @@ Evidence publication composition.
 [ ] Issue #55 fixed-zone verification accepts only the exact eight direct children of the held Container, rejects reparse zones, and requires exact inherited ACL equality.
 [ ] Issue #55 public values are content-free; the real constructor rejects test authorization and remains locked before Issue #39.
 [ ] Issues #56 through #59 remain separate and require their own approval; this task does not modify or close Issues #38/#39 or parent Spec #50.
+[ ] If Issue #58 is in scope, service lifecycle callbacks are exact reviewed new/legacy roles with no arbitrary launcher, process, command, environment reader, retry, repair, or alternate configuration.
+[ ] Issue #58 new activation binds verified managed Runtime/Config receipts, fresh UUIDv4 nonce, exact health identity, both providers disabled, one fixed synthetic request, deterministic rules, zero provider attempts, and exactly one matching new-LocalData row.
+[ ] Issue #58 known pre-mutation start rejection is `SAFE_ABORT`; known post-mutation validation failure is `ROLLBACK_REQUIRED`; identity, journal, reparse, provider-boundary, or safety ambiguity is `INCIDENT_STOP`.
+[ ] Issue #58 rollback is committed-journal-driven, retains failed/new evidence, and proves exact restoration of main, Git records, and all eleven worktrees before dedicated provider-disabled legacy recovery.
+[ ] Issue #58 legacy recovery uses a distinct fresh nonce and injected closed Config, reads no environment file, writes no legacy synthetic analysis, and has one fixed incident outcome on failure.
+[ ] Issue #58 real lifecycle construction requires exact external cutover and recovery authorizations and remains `BLOCKED_NO_APPROVED_COMMAND` before Issue #39.
 ```
 
 ## 22. 执行后记录

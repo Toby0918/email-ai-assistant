@@ -584,6 +584,34 @@ source_type: operation_guide
    Linux portable tests make no Windows execution claim; synthetic success is
    not real activation or cutover authority.
 
+## Issue #58 focused acceptance
+
+1. Run
+   `python -B -m unittest discover -s tests -p "test_cutover_service_lifecycle_*.py"`.
+2. Require exact new/legacy role adapters, the complete Issue #57
+   operation/Profile/master/authorization receipt chain, verified
+   Runtime/Config receipts, fresh UUIDv4 nonces, disabled providers, no
+   legacy-environment inheritance, and exact health binding for PID, start
+   time, executable, port owner, Profile, `LocalData` role, nonce, and
+   provider state.
+3. Require one fixed synthetic activation request, deterministic-rules output,
+   zero provider attempts, and exactly one matching row in new `LocalData`.
+   Legacy recovery must use its dedicated injected disabled Config and must
+   not write a legacy synthetic row.
+4. Cover successful activation, known pre-mutation `SAFE_ABORT`, every known
+   post-mutation validation failure,
+   every reverse boundary, immutable rollback-plan/stage evidence,
+   unexpected-exception incident containment, legacy recovery failure,
+   content-free outputs, and locked real constructors. The Windows sandbox
+   must exercise the complete Issue #56 forward/reverse topology, resume every
+   committed reverse boundary, reject a pre-existing failed-Container
+   collision, and prove exact restoration of main, Git records, and all eleven
+   worktrees while retaining failed/new evidence.
+5. Run affected Issue #51-#57 lifecycle/architecture suites, constraints,
+   documentation, status, leakage, maintenance, and the full unit suite.
+   Synthetic success does not authorize a real service probe or operation,
+   Issue #59, Issues #38/#39, merge, or parent Spec #50 closure.
+
 ## Option C 多模态离线门
 
 - all providers disabled by default；自动化只使用 synthetic DOM/media fixtures、fake provider 和 injected clock，不读取邮箱、不访问网络、不读取 `.env` 或 key。

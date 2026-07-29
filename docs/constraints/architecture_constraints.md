@@ -402,7 +402,7 @@ Issue #53 exact read-only composition -> backend.container_audit injected values
 manual offline operator -> backend.migration_evidence review/create/verify
 backend.reparenting_rehearsal -> exact synthetic audit/evidence/layout bridges
 tests only -> backend.runtime_activation_rehearsal exact injected adapters
-tests plus exact #52/#53/#54 bridges -> backend.cutover_contracts pure value seams
+tests plus exact #52/#53/#54/#55/#56/#57/#58 consumers -> backend.cutover_contracts pure value seams
 tests -> backend.real_host_preflight test-owned Windows sandbox and portable seams
 backend.real_host_preflight -> exact audit/baseline/contracts bridges
 backend.migration_evidence_publication -> exact review/create/HostBaseline/contracts bridges
@@ -441,7 +441,7 @@ backend.reparenting_rehearsal public seam -> Path/repository/target/host capabil
 backend.migration_evidence -> mailbox/provider/SQLite/vault/private-store/lifecycle capability
 normal runtime/browser/scripts/wrappers/workflows/cleanup/leakage -> backend.runtime_activation_rehearsal
 backend.runtime_activation_rehearsal -> filesystem/SQLite/process/network/provider/mailbox/vault/private-store/credential/audit/evidence capability
-all backend packages except exact reviewed #52/#53/#54/#55/#56/#57 consumers, plus scripts/frontend -> backend.cutover_contracts
+all backend packages except exact reviewed #52/#53/#54/#55/#56/#57/#58 consumers, plus scripts/frontend -> backend.cutover_contracts
 backend.cutover_contracts -> filesystem/SQLite/process/network/Git/ACL/provider/mailbox/vault/private-store/authority issuer
 normal runtime/browser/scripts/wrappers/workflows/cleanup/leakage -> backend.real_host_preflight
 backend.real_host_preflight -> service-control/ACL-apply/rename/Git-worktree mutation/Runtime-build/SQLite-copy/artifact/Config/provider/mailbox/vault/private-data capability
@@ -1013,6 +1013,45 @@ executable-import consumer guard keep normal runtime, scripts, frontend,
 workflows, and all other backend packages from consuming this package. Each
 real constructor rejects test authority and remains
 `BLOCKED_NO_APPROVED_COMMAND` before Issue #39.
+
+## Issue #58 provider-disabled lifecycle architecture
+
+`backend.cutover_service_lifecycle` is an internal synthetic lifecycle
+composition. It may import only pure Cutover contracts and Issue #57 managed
+publication receipts. It has no OS, path, socket, subprocess, SQLite, service
+discovery, Git, ACL, browser, mailbox, provider, credential, vault,
+private-data, logging, environment, cleanup, repair, or arbitrary command
+capability.
+
+`ProviderDisabledServiceAdapters` contains exactly `NewServiceAdapter` and
+`LegacyServiceAdapter`. The new role has fixed start/health/synthetic
+analysis/row-observation/stop callbacks. The legacy role has only recovery
+start/health/stop callbacks. The controller generates each UUIDv4 nonce and
+code-owned request/Config itself; callers cannot supply a launcher, process,
+command, retry policy, provider setting, environment mapping, port, or role.
+Start and health bind the same exact process, Runtime, Config, Profile,
+LocalData/database role, nonce, and port owner.
+
+`ProviderDisabledLifecycleTransaction` is single-forward and single-recovery.
+Known pre-mutation start rejection becomes `SAFE_ABORT` without containment.
+Known post-mutation validation failure becomes `ROLLBACK_REQUIRED` and rejects
+forward resume. Identity, journal, reparse, provider-boundary, or safety
+ambiguity becomes `INCIDENT_STOP`; containment calls only the exact proven
+new-service stop. Rollback uses one fixed staged adapter and one committed
+journal-head binding. It seals `FailedContainerPublicationReceiptV1` before
+main restoration, retains new external/Git evidence, restores exactly eleven
+original worktrees, and classifies the retained Container
+`FAILED_CONTAINER_PRESERVED_WITH_LEGACY_MAIN_EXTRACTED`.
+
+Legacy recovery is attempted once with dedicated environment-independent
+provider-disabled Config and a nonce distinct from activation. Any start or
+health failure becomes
+`INCIDENT_STOP_LEGACY_SERVICE_RECOVERY_FAILED`, without alternate launcher,
+changed Config, retry, provider enablement, or synthetic legacy database write.
+Normal runtime, frontend, scripts, workflows, cleanup, and every other backend
+package remain non-consumers. Real construction remains locked without exact
+`CutoverExecutionAuthorizationV1` and `RecoveryAuthorizationV1` and remains
+non-executable before Issue #39.
 
 ## 7. 修改规则
 
