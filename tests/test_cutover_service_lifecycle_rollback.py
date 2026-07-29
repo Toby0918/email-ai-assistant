@@ -7,6 +7,7 @@ import unittest
 from backend.cutover_contracts import TestSandboxAuthorizationV1
 from backend.cutover_service_lifecycle import (
     ActivationFailureKind,
+    CommittedRollbackPlanV1,
     FailedContainerPublicationReceiptV1,
     JournalDrivenRollbackAdapter,
     LegacyPrerequisiteEvidenceV1,
@@ -28,21 +29,46 @@ from backend.cutover_service_lifecycle import (
     SyntheticRowEvidenceV1,
 )
 from tests.test_cutover_service_lifecycle_activation import (
+    AUTHORIZATION,
+    MASTER,
+    OPERATION,
     PROFILE,
     publication_receipts,
 )
 
 
-OPERATION = "6" * 64
 JOURNAL_HEAD = "7" * 64
 NOW = 1_900_000_000
 
 
+def rollback_plan(**overrides):
+    values = {
+        "journal_head_fingerprint": JOURNAL_HEAD,
+        "committed_records_fingerprint": "8" * 64,
+        "original_topology_fingerprint": "9" * 64,
+        "parent_descriptor_fingerprint": "b" * 64,
+        "finance_descriptor_fingerprint": "c" * 64,
+        "original_database_fingerprint": "d" * 64,
+        "sidecar_state_fingerprint": "e" * 64,
+        "legacy_runtime_fingerprint": "f" * 64,
+        "repository_identity_fingerprint": "0" * 64,
+    }
+    values.update(overrides)
+    return CommittedRollbackPlanV1.create(**values)
+
+
 class _LifecycleHarness:
-    def __init__(self, *, activation_failure=None, legacy_failure=False):
+    def __init__(
+        self,
+        *,
+        activation_failure=None,
+        legacy_failure=False,
+        unexpected_phase=None,
+    ):
         self.events: list[str] = []
         self.activation_failure = activation_failure
         self.legacy_failure = legacy_failure
+        self.unexpected_phase = unexpected_phase
         self.new_start = None
         self.legacy_starts = 0
         self.legacy_health = 0
@@ -66,7 +92,16 @@ class _LifecycleHarness:
             new_service=new, legacy_service=legacy
         )
 
-    def rollback_adapter(self, fail_stage=None):
+    def rollback_adapter(
+        self, fail_stage=None, plan=None, prerequisite_drift=None
+    ):
+        plan = plan or rollback_plan()
+
+        def prerequisite_value(name):
+            if prerequisite_drift == name:
+                return "1" * 64
+            return getattr(plan, name)
+
         def maybe(stage, value):
             self.events.append(stage)
             if fail_stage == stage:
@@ -80,6 +115,10 @@ class _LifecycleHarness:
                     stage=RollbackStage.NEW_SERVICE_STOPPED,
                     journal_head_fingerprint=JOURNAL_HEAD,
                     observation_fingerprint="8" * 64,
+                    rollback_plan_fingerprint=plan.plan_fingerprint,
+                    previous_observation_fingerprint=(
+                        plan.committed_records_fingerprint
+                    ),
                     retained_external=0,
                     retained_git_records=0,
                 ),
@@ -90,6 +129,8 @@ class _LifecycleHarness:
                     stage=RollbackStage.NEW_EVIDENCE_PRESERVED,
                     journal_head_fingerprint=JOURNAL_HEAD,
                     observation_fingerprint="9" * 64,
+                    rollback_plan_fingerprint=plan.plan_fingerprint,
+                    previous_observation_fingerprint="8" * 64,
                     retained_external=3,
                     retained_git_records=11,
                 ),
@@ -99,6 +140,8 @@ class _LifecycleHarness:
                 FailedContainerPublicationReceiptV1.create(
                     journal_head_fingerprint=JOURNAL_HEAD,
                     failed_container_fingerprint="a" * 64,
+                    rollback_plan_fingerprint=plan.plan_fingerprint,
+                    preservation_observation_fingerprint="9" * 64,
                     retained_external=3,
                     retained_git_records=11,
                 ),
@@ -109,6 +152,11 @@ class _LifecycleHarness:
                     journal_head_fingerprint=JOURNAL_HEAD,
                     failed_container_receipt_fingerprint=(
                         failed.receipt_fingerprint
+                    ),
+                    rollback_plan_fingerprint=plan.plan_fingerprint,
+                    reverse_receipt_fingerprint="a" * 64,
+                    original_topology_fingerprint=(
+                        plan.original_topology_fingerprint
                     ),
                     main_restored=1,
                     git_records_restored=11,
@@ -123,12 +171,42 @@ class _LifecycleHarness:
                     rollback_observation_fingerprint=(
                         restored.observation_fingerprint
                     ),
-                    parent_descriptor_fingerprint="b" * 64,
-                    finance_descriptor_fingerprint="c" * 64,
-                    original_database_fingerprint="d" * 64,
-                    sidecar_state_fingerprint="e" * 64,
-                    legacy_runtime_fingerprint="f" * 64,
-                    repository_identity_fingerprint="0" * 64,
+                    rollback_plan_fingerprint=plan.plan_fingerprint,
+                    original_topology_fingerprint=(
+                        prerequisite_value(
+                            "original_topology_fingerprint"
+                        )
+                    ),
+                    parent_descriptor_fingerprint=(
+                        prerequisite_value(
+                            "parent_descriptor_fingerprint"
+                        )
+                    ),
+                    finance_descriptor_fingerprint=(
+                        prerequisite_value(
+                            "finance_descriptor_fingerprint"
+                        )
+                    ),
+                    original_database_fingerprint=(
+                        prerequisite_value(
+                            "original_database_fingerprint"
+                        )
+                    ),
+                    sidecar_state_fingerprint=(
+                        prerequisite_value(
+                            "sidecar_state_fingerprint"
+                        )
+                    ),
+                    legacy_runtime_fingerprint=(
+                        prerequisite_value(
+                            "legacy_runtime_fingerprint"
+                        )
+                    ),
+                    repository_identity_fingerprint=(
+                        prerequisite_value(
+                            "repository_identity_fingerprint"
+                        )
+                    ),
                     git_records_verified=11,
                     worktrees_verified=11,
                 ),
@@ -163,6 +241,8 @@ class _LifecycleHarness:
 
     def health_new(self, start):
         self.events.append("health_new")
+        if self.unexpected_phase == "health":
+            raise RuntimeError("private health detail")
         if (
             self.activation_failure
             is ActivationFailureKind.HEALTH_REJECTED
@@ -172,6 +252,8 @@ class _LifecycleHarness:
 
     def analyze(self, request):
         self.events.append("analyze")
+        if self.unexpected_phase == "analysis":
+            raise RuntimeError("private analysis detail")
         if (
             self.activation_failure
             is ActivationFailureKind.DETERMINISTIC_RESULT_REJECTED
@@ -192,6 +274,8 @@ class _LifecycleHarness:
 
     def row(self, request):
         self.events.append("row")
+        if self.unexpected_phase == "row":
+            raise RuntimeError("private row detail")
         matching = (
             0
             if self.activation_failure
@@ -246,22 +330,68 @@ def recovery_authorization():
     )
 
 
-def transaction(harness, *, fail_stage=None):
+def transaction(
+    harness, *, fail_stage=None, plan=None, prerequisite_drift=None
+):
+    plan = plan or rollback_plan()
     controller = ProviderDisabledServiceController.create(
+        operation_fingerprint=OPERATION,
         profile_fingerprint=PROFILE,
+        governing_master_commit=MASTER,
+        publication_authorization_fingerprint=AUTHORIZATION,
         adapters=harness.service_adapters(),
     )
     return ProviderDisabledLifecycleTransaction.create(
         operation_fingerprint=OPERATION,
         profile_fingerprint=PROFILE,
+        governing_master_commit=MASTER,
+        publication_authorization_fingerprint=AUTHORIZATION,
         journal_head_fingerprint=JOURNAL_HEAD,
         publications=publication_receipts(),
         controller=controller,
-        rollback_adapter=harness.rollback_adapter(fail_stage),
+        rollback_adapter=harness.rollback_adapter(
+            fail_stage, plan, prerequisite_drift
+        ),
+        rollback_plan=plan,
     )
 
 
 class LifecycleRollbackTests(unittest.TestCase):
+    def test_malformed_exact_type_bindings_fail_with_fixed_code(self):
+        harness = _LifecycleHarness()
+        plan = rollback_plan()
+        publications = publication_receipts()
+        controller = ProviderDisabledServiceController.create(
+            operation_fingerprint=OPERATION,
+            profile_fingerprint=PROFILE,
+            governing_master_commit=MASTER,
+            publication_authorization_fingerprint=AUTHORIZATION,
+            adapters=harness.service_adapters(),
+        )
+        values = {
+            "operation_fingerprint": OPERATION,
+            "profile_fingerprint": PROFILE,
+            "governing_master_commit": MASTER,
+            "publication_authorization_fingerprint": AUTHORIZATION,
+            "journal_head_fingerprint": JOURNAL_HEAD,
+            "publications": publications,
+            "controller": controller,
+            "rollback_adapter": harness.rollback_adapter(plan=plan),
+            "rollback_plan": plan,
+        }
+        malformed = (
+            ("publications", object.__new__(type(publications))),
+            ("controller", object.__new__(type(controller))),
+            ("rollback_plan", object.__new__(type(plan))),
+        )
+        for name, value in malformed:
+            with self.subTest(name=name):
+                case = {**values, name: value}
+                with self.assertRaisesRegex(
+                    Exception, "^lifecycle_binding_invalid$"
+                ):
+                    ProviderDisabledLifecycleTransaction.create(**case)
+
     def test_known_pre_mutation_start_rejection_is_safe_abort(self):
         harness = _LifecycleHarness(
             activation_failure=ActivationFailureKind.START_REJECTED
@@ -328,6 +458,20 @@ class LifecycleRollbackTests(unittest.TestCase):
                     (0, 0),
                 )
                 self.assertNotIn("stop_new", harness.events)
+
+    def test_unexpected_post_start_exceptions_are_incident_contained(self):
+        for phase in ("health", "analysis", "row"):
+            with self.subTest(phase=phase):
+                harness = _LifecycleHarness(unexpected_phase=phase)
+
+                result = transaction(harness).activate_new_service()
+
+                self.assertIs(result.status, LifecycleStatus.INCIDENT_STOP)
+                self.assertEqual(
+                    (result.containment_attempted, result.contained),
+                    (1, 1),
+                )
+                self.assertEqual(harness.events.count("stop_new"), 1)
 
     def test_known_failure_requires_authorized_journal_rollback(self):
         harness = _LifecycleHarness(
@@ -406,6 +550,36 @@ class LifecycleRollbackTests(unittest.TestCase):
                     )
                 )
                 lifecycle = transaction(harness, fail_stage=stage)
+                lifecycle.activate_new_service()
+
+                result = lifecycle.rollback_and_recover_legacy(
+                    authorization=recovery_authorization(),
+                    observed_at_epoch=NOW,
+                )
+
+                self.assertIs(result.status, LifecycleStatus.INCIDENT_STOP)
+                self.assertEqual(harness.legacy_starts, 0)
+
+    def test_every_legacy_prerequisite_drift_incident_stops(self):
+        fields = (
+            "original_topology_fingerprint",
+            "parent_descriptor_fingerprint",
+            "finance_descriptor_fingerprint",
+            "original_database_fingerprint",
+            "sidecar_state_fingerprint",
+            "legacy_runtime_fingerprint",
+            "repository_identity_fingerprint",
+        )
+        for field in fields:
+            with self.subTest(field=field):
+                harness = _LifecycleHarness(
+                    activation_failure=(
+                        ActivationFailureKind.PERSISTENCE_REJECTED
+                    )
+                )
+                lifecycle = transaction(
+                    harness, prerequisite_drift=field
+                )
                 lifecycle.activate_new_service()
 
                 result = lifecycle.rollback_and_recover_legacy(

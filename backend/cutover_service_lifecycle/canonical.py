@@ -53,4 +53,3 @@ def fingerprint(domain: str, value: object, *, code: str) -> str:
         + b"\0"
         + canonical_json(value, code=code)
     ).hexdigest()
-

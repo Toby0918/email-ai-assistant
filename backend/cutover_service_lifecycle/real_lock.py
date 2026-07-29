@@ -8,10 +8,13 @@ from enum import Enum
 from backend.cutover_contracts import (
     AuthorizationValidationStatus,
     CutoverExecutionAuthorizationV1,
+    CutoverProfileV1,
     RecoveryAuthorizationV1,
     TestSandboxAuthorizationV1,
     validate_real_host_authorization,
 )
+
+from .canonical import is_fingerprint
 
 _MASTER = "dcb53169f7c8e73b6bf5387a02b18d4e6741d6ee"
 
@@ -42,7 +45,12 @@ def locked_real_service_lifecycle_constructor(
         return _blocked(
             LifecycleConstructorStatus.BLOCKED_AUTHORIZATION_INVALID
         )
-    early_status = _early_status(context)
+    try:
+        early_status = _early_status(context)
+    except Exception:
+        return _blocked(
+            LifecycleConstructorStatus.BLOCKED_AUTHORIZATION_INVALID
+        )
     if early_status is not None:
         return _blocked(early_status)
     if not _both_authorizations_valid(context):
@@ -84,10 +92,11 @@ def _early_status(context: dict[str, object]):
     if (
         type(execution) is not CutoverExecutionAuthorizationV1
         or type(recovery) is not RecoveryAuthorizationV1
-        or getattr(
-            context["profile"], "governing_master_commit", None
-        )
-        != _MASTER
+        or type(context["profile"]) is not CutoverProfileV1
+        or context["profile"].governing_master_commit != _MASTER
+        or not is_fingerprint(context["operation_fingerprint"])
+        or type(context["observed_at_epoch"]) is not int
+        or context["observed_at_epoch"] < 0
     ):
         return LifecycleConstructorStatus.BLOCKED_AUTHORIZATION_INVALID
     return None
@@ -97,24 +106,27 @@ def _both_authorizations_valid(context: dict[str, object]) -> bool:
     profile = context["profile"]
     operation = context["operation_fingerprint"]
     observed = context["observed_at_epoch"]
-    execution_result = validate_real_host_authorization(
-        context["execution_authorization"],
-        profile=profile,
-        expected_operation="cutover_execution",
-        expected_operation_fingerprint=operation,
-        expected_phase="execute",
-        expected_operator_fingerprint=profile.operator_fingerprint,
-        observed_at_epoch=observed,
-    )
-    recovery_result = validate_real_host_authorization(
-        context["recovery_authorization"],
-        profile=profile,
-        expected_operation="recovery",
-        expected_operation_fingerprint=operation,
-        expected_phase="rollback",
-        expected_operator_fingerprint=profile.operator_fingerprint,
-        observed_at_epoch=observed,
-    )
+    try:
+        execution_result = validate_real_host_authorization(
+            context["execution_authorization"],
+            profile=profile,
+            expected_operation="cutover_execution",
+            expected_operation_fingerprint=operation,
+            expected_phase="execute",
+            expected_operator_fingerprint=profile.operator_fingerprint,
+            observed_at_epoch=observed,
+        )
+        recovery_result = validate_real_host_authorization(
+            context["recovery_authorization"],
+            profile=profile,
+            expected_operation="recovery",
+            expected_operation_fingerprint=operation,
+            expected_phase="rollback",
+            expected_operator_fingerprint=profile.operator_fingerprint,
+            observed_at_epoch=observed,
+        )
+    except Exception:
+        return False
     return (
         execution_result.status
         is AuthorizationValidationStatus.AUTHORIZED

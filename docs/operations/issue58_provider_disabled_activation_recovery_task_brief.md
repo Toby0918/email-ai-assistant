@@ -120,6 +120,9 @@ provider-disabled recovery start, exact health, and stop. There is no generic
 launch, command, process, shell, path, environment, Config mutation, provider,
 database-query, retry, or alternate adapter surface.
 
+The controller also binds the exact operation, Profile, governing master, and
+publication-authorization fingerprints shared by all four Issue #57 receipts;
+a receipt-set or controller binding mismatch is rejected before service start.
 Each start receives a controller-created fresh UUIDv4 nonce. Health must match
 the started role, PID, start time, executable fingerprint, listening-port
 owner, Profile fingerprint, LocalData/database role, nonce, and the exact
@@ -143,9 +146,10 @@ is retained as activation evidence. No customer or private content is used.
 Known pre-mutation start rejection returns `SAFE_ABORT` without containment or
 rollback. Known post-mutation validation failures return `ROLLBACK_REQUIRED`, prohibit
 forward resume, and require explicit recovery authorization before rollback.
-Identity, journal, reparse, provider-boundary, or safety ambiguity returns
-`INCIDENT_STOP`. Incident containment may stop only the exact proven new
-service identity; an unproven identity causes no guessed stop.
+Identity, journal, reparse, provider-boundary, safety ambiguity, or any
+unexpected post-start adapter exception returns `INCIDENT_STOP`. Incident
+containment may stop only the exact proven new service identity; an unproven
+identity causes no guessed stop.
 
 ### 8.4 Journal-driven rollback
 
@@ -160,10 +164,14 @@ Rollback receives one exact sealed adapter whose stages are fixed:
 5. reverify failed-Container classification and complete legacy
    prerequisites.
 
-Every stage binds the same committed journal-head fingerprint. The sealed
-failed-Container receipt must exist before the main-extraction/restoration
-stage. No caller supplies a reverse action, path, role, count, or alternate
-target. The retained state is exactly
+Every stage binds the same committed journal-head and immutable rollback-plan
+fingerprints. The plan independently binds the complete committed-record set,
+original topology, parent/finance descriptors, original database and sidecar
+state, legacy Runtime, and repository identity. Each stage also binds the
+previous observation or receipt, and restoration binds the actual #56 reverse
+receipt. The sealed failed-Container receipt must exist before the
+main-extraction/restoration stage. No caller supplies a reverse action, path,
+role, count, or alternate target. The retained state is exactly
 `FAILED_CONTAINER_PRESERVED_WITH_LEGACY_MAIN_EXTRACTED` and is never reported
 as a runnable nine-zone Container.
 
@@ -232,6 +240,8 @@ None.
   Profile, nonce, and process identity are exact and fail closed.
 - [x] Reverse stages are fixed and journal-head bound; no arbitrary recovery
   action or cleanup capability is added.
+- [x] Rollback evidence is chained to one immutable committed-record/topology/
+  ACL/database/sidecar/Runtime/repository plan and the actual reverse receipt.
 - [x] Receipts, journal, stdout, stderr, logs, and errors remain content-free.
 
 ## 11. Prompt injection protection
@@ -355,17 +365,38 @@ Implementation and local validation are complete in the isolated worktree.
 - TDD evidence includes intentional RED failures for missing contracts,
   controller, rollback, real lock, Windows retained-state evidence, status
   generation, exact Cutover-contract consumer allowlisting, and `SAFE_ABORT`.
-- Focused: 26 tests passed in 29.183 seconds.
-- Affected: 514 tests passed in 1676.426 seconds; 1 platform-conditional skip.
-- Full: 2334 tests passed in 1857.377 seconds; 3
+- Initial pre-review validation passed: focused 26, affected 514 with one
+  platform-conditional skip, full 2334 with three platform-conditional skips,
+  and constraint/architecture/status/transport/leakage 165.
+- Initial Standards/Spec review found incomplete Issue #57 binding,
+  self-asserted rollback prerequisites, unsafe unexpected-exception
+  classification, incomplete static consumer pinning, and malformed
+  real-lock handling. All P1/P2 findings were repaired with exact
+  operation/Profile/master/authorization binding, immutable rollback-plan and
+  stage-chain evidence, unexpected post-start incident containment, exact
+  package import/consumer guards, exact-type receipt/plan/Profile/
+  authorization reconstruction or fixed rejection, and fixed
+  malformed-authorization handling. A second Standards pass identified and
+  closed nested-import, dynamic-import-alias, and extra imported-symbol
+  capability bypasses.
+- Windows synthetic proof now resumes all five reverse committed boundaries
+  and incident-stops on a pre-existing failed-Container collision without
+  starting legacy recovery.
+- Post-repair focused: 35 tests passed in 66.635 seconds.
+- Post-repair affected: 610 tests passed in 1718.891 seconds.
+- Post-repair full: 2343 tests passed in 1918.430 seconds with three
   platform-conditional skips.
-- Constraint/architecture/status/transport/leakage suite: 165 tests passed in
-  17.255 seconds.
-- Compileall, frontend JavaScript syntax, extension manifest JSON,
+- Constraint/architecture/status/transport/leakage: 167 tests passed in
+  23.609 seconds.
+- Compileall, ten frontend JavaScript syntax checks, extension manifest JSON,
   `git diff --check`, maintenance scan, and repository leakage scan passed;
   maintenance found no cleanup findings and leakage total was zero.
+- Final Standards and Spec re-review both passed with P1=0 and P2=0.
+- Allowlist publication, remote CI, and PR recording remain pending before
+  final handoff.
 - No real service, repository/worktree, ACL, Runtime, SQLite, browser,
   mailbox, provider, credential, vault, private data, or root-worktree state
   was accessed or changed.
-- Standards/Spec review, allowlist publication, remote CI, and PR recording
-  remain to be completed below before handoff.
+- P3 only: the rollback and Windows sandbox test modules are intentionally
+  larger than the production guidance because they hold the complete matrix;
+  no production module exceeds the 300-line bound.

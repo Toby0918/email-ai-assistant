@@ -9,6 +9,11 @@ import sys
 import unittest
 
 from backend.cutover_contracts import TestSandboxAuthorizationV1
+from backend.cutover_host_mutation.roles import AclRole
+from backend.cutover_host_mutation.windows_security import WindowsSecurityApi
+from backend.cutover_host_mutation.windows_filesystem_common import (
+    authorization_fingerprint,
+)
 from backend.cutover_managed_activation import (
     ConfigPublicationReceiptV1,
     CrxPublicationReceiptV1,
@@ -38,6 +43,7 @@ from backend.cutover_repository_transaction.synthetic_scope import (
     _review_test_sandbox,
 )
 from backend.cutover_service_lifecycle import (
+    CommittedRollbackPlanV1,
     FailedContainerPublicationReceiptV1,
     JournalDrivenRollbackAdapter,
     LegacyPrerequisiteEvidenceV1,
@@ -65,65 +71,121 @@ from tests.cutover_repository_transaction_fixtures import (
 )
 
 
+def _prepare_sandbox_lifecycle():
+    scenario = build_synthetic_repository_scenario()
+    review = _review_test_sandbox(scenario)
+    original_root = directory_identity(scenario.source)
+    original_physical = tuple(
+        directory_identity(item.original) for item in scenario.worktrees
+    )
+    original_admin = tuple(
+        item.admin_identity for item in review.observations
+    )
+    profile = profile_for_review(review)
+    authorization = authorization_for(
+        profile, review.operation_fingerprint
+    )
+    forward_authorization_fingerprint = authorization_fingerprint(
+        authorization
+    )
+    scope = _bind_test_sandbox_transaction(
+        review=review,
+        profile=profile,
+        authorization=authorization,
+        observed_at_epoch=OBSERVED_AT,
+    )
+    publications = _publication_receipts(
+        profile.profile_fingerprint,
+        review.operation_fingerprint,
+        profile.governing_master_commit,
+        forward_authorization_fingerprint,
+    )
+    run_forward_synthetic_transaction(
+        scope=scope,
+        failure_selector=SyntheticFailureSelectorV1.none(),
+        observed_at_epoch=OBSERVED_AT,
+    )
+    journal_head = _forward_journal_head(scenario)
+    service = _SandboxService(
+        scenario.root,
+        profile.profile_fingerprint,
+        publications.receipts[1].receipt_fingerprint,
+    )
+    legacy_database_before = _file_hash(service.legacy_database)
+    legacy_runtime = scenario.root / "legacy-runtime.bin"
+    legacy_runtime.write_bytes(b"issue58-synthetic-legacy-runtime")
+    rollback_plan = _rollback_plan(
+        scenario,
+        journal_head,
+        original_root,
+        original_physical,
+        original_admin,
+        service.legacy_database,
+        legacy_runtime,
+    )
+    controller = ProviderDisabledServiceController.create(
+        operation_fingerprint=review.operation_fingerprint,
+        profile_fingerprint=profile.profile_fingerprint,
+        governing_master_commit=profile.governing_master_commit,
+        publication_authorization_fingerprint=(
+            forward_authorization_fingerprint
+        ),
+        adapters=service.adapters(),
+    )
+    lifecycle = ProviderDisabledLifecycleTransaction.create(
+        operation_fingerprint=review.operation_fingerprint,
+        profile_fingerprint=profile.profile_fingerprint,
+        governing_master_commit=profile.governing_master_commit,
+        publication_authorization_fingerprint=(
+            forward_authorization_fingerprint
+        ),
+        journal_head_fingerprint=journal_head,
+        publications=publications,
+        controller=controller,
+        rollback_adapter=_repository_rollback_adapter(
+            scenario,
+            scope,
+            review,
+            journal_head,
+            original_root,
+            original_physical,
+            original_admin,
+            service,
+            rollback_plan,
+            legacy_runtime,
+        ),
+        rollback_plan=rollback_plan,
+    )
+    return (
+        scenario,
+        review,
+        original_root,
+        original_physical,
+        original_admin,
+        profile,
+        service,
+        legacy_database_before,
+        lifecycle,
+    )
+
+
 @unittest.skipUnless(sys.platform == "win32", "Windows sandbox required")
 class ServiceLifecycleWindowsSandboxTests(unittest.TestCase):
     def test_full_failed_activation_preserves_and_restores_exact_topology(
         self,
     ) -> None:
-        scenario = build_synthetic_repository_scenario()
+        (
+            scenario,
+            review,
+            original_root,
+            original_physical,
+            original_admin,
+            profile,
+            service,
+            legacy_database_before,
+            lifecycle,
+        ) = _prepare_sandbox_lifecycle()
         try:
-            review = _review_test_sandbox(scenario)
-            original_root = directory_identity(scenario.source)
-            original_physical = tuple(
-                directory_identity(item.original)
-                for item in scenario.worktrees
-            )
-            original_admin = tuple(
-                item.admin_identity for item in review.observations
-            )
-            profile = profile_for_review(review)
-            authorization = authorization_for(
-                profile, review.operation_fingerprint
-            )
-            scope = _bind_test_sandbox_transaction(
-                review=review,
-                profile=profile,
-                authorization=authorization,
-                observed_at_epoch=OBSERVED_AT,
-            )
-            run_forward_synthetic_transaction(
-                scope=scope,
-                failure_selector=SyntheticFailureSelectorV1.none(),
-                observed_at_epoch=OBSERVED_AT,
-            )
-            journal_head = _forward_journal_head(scenario)
-            service = _SandboxService(
-                scenario.root, profile.profile_fingerprint
-            )
-            legacy_database_before = _file_hash(service.legacy_database)
-            lifecycle = ProviderDisabledLifecycleTransaction.create(
-                operation_fingerprint=review.operation_fingerprint,
-                profile_fingerprint=profile.profile_fingerprint,
-                journal_head_fingerprint=journal_head,
-                publications=_publication_receipts(
-                    profile.profile_fingerprint
-                ),
-                controller=ProviderDisabledServiceController.create(
-                    profile_fingerprint=profile.profile_fingerprint,
-                    adapters=service.adapters(),
-                ),
-                rollback_adapter=_repository_rollback_adapter(
-                    scenario,
-                    scope,
-                    review,
-                    journal_head,
-                    original_root,
-                    original_physical,
-                    original_admin,
-                    service,
-                ),
-            )
-
             failed = lifecycle.activate_new_service()
             self.assertIs(failed.status, LifecycleStatus.ROLLBACK_REQUIRED)
             recovered = lifecycle.rollback_and_recover_legacy(
@@ -173,15 +235,49 @@ class ServiceLifecycleWindowsSandboxTests(unittest.TestCase):
         finally:
             scenario.close()
 
+    def test_preexisting_failed_container_collision_incident_stops(
+        self,
+    ) -> None:
+        (
+            scenario,
+            review,
+            _original_root,
+            _original_physical,
+            _original_admin,
+            profile,
+            service,
+            _legacy_database_before,
+            lifecycle,
+        ) = _prepare_sandbox_lifecycle()
+        try:
+            failed = lifecycle.activate_new_service()
+            self.assertIs(failed.status, LifecycleStatus.ROLLBACK_REQUIRED)
+            scenario.failed_container.mkdir()
+            stopped = lifecycle.rollback_and_recover_legacy(
+                authorization=TestSandboxAuthorizationV1.create(
+                    profile_fingerprint=profile.profile_fingerprint,
+                    operation_fingerprint=review.operation_fingerprint,
+                    phase="rollback",
+                    expires_at_epoch=OBSERVED_AT + 600,
+                ),
+                observed_at_epoch=OBSERVED_AT,
+            )
+            self.assertIs(stopped.status, LifecycleStatus.INCIDENT_STOP)
+            self.assertEqual(service.legacy_starts, 0)
+        finally:
+            scenario.close()
+
 
 class _SandboxService:
-    def __init__(self, root, profile):
+    def __init__(self, root, profile, data_role):
         self.profile = profile
+        self.data_role = data_role
         self.new_database = root / "issue58-new.sqlite3"
         self.legacy_database = root / "issue58-legacy.sqlite3"
         _create_database(self.new_database)
         _create_database(self.legacy_database)
         self.new_start = None
+        self.legacy_starts = 0
 
     def adapters(self):
         return ProviderDisabledServiceAdapters(
@@ -224,9 +320,7 @@ class _SandboxService:
     def observe_row_as_failure(self, request):
         return SyntheticRowEvidenceV1.create(
             request_fingerprint=request.request_fingerprint,
-            data_role_fingerprint=_publication_receipts(
-                self.profile
-            ).receipts[1].receipt_fingerprint,
+            data_role_fingerprint=self.data_role,
             matching_rows=0,
         )
 
@@ -234,6 +328,7 @@ class _SandboxService:
         return ServiceStopEvidenceV1.create_from_start(start)
 
     def start_legacy(self, request):
+        self.legacy_starts += 1
         return _start(ServiceRole.LEGACY, 5200, request)
 
 
@@ -264,6 +359,8 @@ def _repository_rollback_adapter(
     original_physical,
     original_admin,
     service,
+    plan,
+    legacy_runtime,
 ):
     def verify_stopped(stop):
         if stop != ServiceStopEvidenceV1.create_from_start(service.new_start):
@@ -272,6 +369,10 @@ def _repository_rollback_adapter(
             stage=RollbackStage.NEW_SERVICE_STOPPED,
             journal_head_fingerprint=journal_head,
             observation_fingerprint="b" * 64,
+            rollback_plan_fingerprint=plan.plan_fingerprint,
+            previous_observation_fingerprint=(
+                plan.committed_records_fingerprint
+            ),
             retained_external=0,
             retained_git_records=0,
         )
@@ -293,6 +394,8 @@ def _repository_rollback_adapter(
             stage=RollbackStage.NEW_EVIDENCE_PRESERVED,
             journal_head_fingerprint=journal_head,
             observation_fingerprint="c" * 64,
+            rollback_plan_fingerprint=plan.plan_fingerprint,
+            previous_observation_fingerprint="b" * 64,
             retained_external=3,
             retained_git_records=11,
         )
@@ -302,11 +405,33 @@ def _repository_rollback_adapter(
         return FailedContainerPublicationReceiptV1.create(
             journal_head_fingerprint=journal_head,
             failed_container_fingerprint="d" * 64,
+            rollback_plan_fingerprint=plan.plan_fingerprint,
+            preservation_observation_fingerprint="c" * 64,
             retained_external=3,
             retained_git_records=11,
         )
 
     def restore(failed):
+        for boundary, mutation_index in (
+            (ReverseBoundary.MAIN_EXTRACTED, 19),
+            (ReverseBoundary.ADMIN_RECORDS_RESTORED, 30),
+            (ReverseBoundary.PHYSICAL_WORKTREES_RESTORED, 41),
+            (ReverseBoundary.ORIGINAL_REPOSITORY_VERIFIED, 42),
+        ):
+            selector = SyntheticFailureSelectorV1.create(
+                direction=SyntheticTransactionDirection.REVERSE,
+                boundary=boundary,
+                mutation_index=mutation_index,
+                gap=SyntheticCrashGap.AFTER_COMMITTED,
+            )
+            with unittest.TestCase().assertRaises(
+                RepositoryTransactionError
+            ):
+                run_reverse_synthetic_transaction(
+                    scope=scope,
+                    failure_selector=selector,
+                    observed_at_epoch=OBSERVED_AT,
+                )
         receipt = run_reverse_synthetic_transaction(
             scope=scope,
             failure_selector=SyntheticFailureSelectorV1.none(),
@@ -332,6 +457,13 @@ def _repository_rollback_adapter(
             failed_container_receipt_fingerprint=(
                 failed.receipt_fingerprint
             ),
+            rollback_plan_fingerprint=plan.plan_fingerprint,
+            reverse_receipt_fingerprint=receipt.receipt_fingerprint,
+            original_topology_fingerprint=(
+                _topology_fingerprint(
+                    scenario, review
+                )
+            ),
             main_restored=1,
             git_records_restored=11,
             embedded_worktrees_restored=8,
@@ -339,17 +471,34 @@ def _repository_rollback_adapter(
         )
 
     def prerequisites(restored):
+        security = WindowsSecurityApi()
         return LegacyPrerequisiteEvidenceV1.create(
             journal_head_fingerprint=journal_head,
             rollback_observation_fingerprint=(
                 restored.observation_fingerprint
             ),
-            parent_descriptor_fingerprint="e" * 64,
-            finance_descriptor_fingerprint="f" * 64,
-            original_database_fingerprint="0" * 64,
-            sidecar_state_fingerprint="1" * 64,
-            legacy_runtime_fingerprint="2" * 64,
-            repository_identity_fingerprint="3" * 64,
+            rollback_plan_fingerprint=plan.plan_fingerprint,
+            original_topology_fingerprint=(
+                _topology_fingerprint(scenario, review)
+            ),
+            parent_descriptor_fingerprint=_acl_fingerprint(
+                security, scenario.root, AclRole.PARENT
+            ),
+            finance_descriptor_fingerprint=_acl_fingerprint(
+                security,
+                scenario.root / "finance-synthetic",
+                AclRole.FINANCE,
+            ),
+            original_database_fingerprint=_file_hash(
+                service.legacy_database
+            ),
+            sidecar_state_fingerprint=_sidecar_fingerprint(
+                service.legacy_database
+            ),
+            legacy_runtime_fingerprint=_file_hash(legacy_runtime),
+            repository_identity_fingerprint=directory_identity(
+                scenario.source
+            ),
             git_records_verified=11,
             worktrees_verified=11,
         )
@@ -363,7 +512,7 @@ def _repository_rollback_adapter(
     )
 
 
-def _publication_receipts(profile):
+def _publication_receipts(profile, operation, master, authorization):
     types = (
         ManagedRuntimeReceiptV1,
         StoppedDatabaseCopyReceiptV1,
@@ -372,10 +521,10 @@ def _publication_receipts(profile):
     )
     receipts = tuple(
         kind.create(
-            operation_fingerprint="4" * 64,
+            operation_fingerprint=operation,
             profile_fingerprint=profile,
-            governing_master_commit="5" * 40,
-            authorization_fingerprint="6" * 64,
+            governing_master_commit=master,
+            authorization_fingerprint=authorization,
             input_fingerprints=(str(index) * 64,),
             observation_fingerprint=str(index + 4) * 64,
             counts={"published": 1, "rejected": 0},
@@ -391,6 +540,89 @@ def _forward_journal_head(scenario):
         for path in sorted(scenario.journal_root.glob("*.json"))
     ]
     return bodies[-1]["record_hash"]
+
+
+def _rollback_plan(
+    scenario,
+    journal_head,
+    original_root,
+    original_physical,
+    original_admin,
+    legacy_database,
+    legacy_runtime,
+):
+    security = WindowsSecurityApi()
+    records = [
+        item["record_hash"]
+        for item in _journal_bodies(scenario)
+        if item["event"].casefold() == "committed"
+    ]
+    return CommittedRollbackPlanV1.create(
+        journal_head_fingerprint=journal_head,
+        committed_records_fingerprint=_opaque_fingerprint(records),
+        original_topology_fingerprint=_opaque_fingerprint(
+            [original_root, *original_physical, *original_admin]
+        ),
+        parent_descriptor_fingerprint=_acl_fingerprint(
+            security, scenario.root, AclRole.PARENT
+        ),
+        finance_descriptor_fingerprint=_acl_fingerprint(
+            security,
+            scenario.root / "finance-synthetic",
+            AclRole.FINANCE,
+        ),
+        original_database_fingerprint=_file_hash(legacy_database),
+        sidecar_state_fingerprint=_sidecar_fingerprint(legacy_database),
+        legacy_runtime_fingerprint=_file_hash(legacy_runtime),
+        repository_identity_fingerprint=original_root,
+    )
+
+
+def _journal_bodies(scenario):
+    return [
+        json.loads(path.read_text("ascii"))
+        for path in sorted(scenario.journal_root.glob("*.json"))
+    ]
+
+
+def _topology_fingerprint(scenario, review):
+    return _opaque_fingerprint(
+        [
+            directory_identity(scenario.source),
+            *(
+                directory_identity(item.original)
+                for item in scenario.worktrees
+            ),
+            *(
+                directory_identity(item.admin)
+                for item in review.observations
+            ),
+        ]
+    )
+
+
+def _acl_fingerprint(security, path, role):
+    return security.capture(path, role=role).observation.observation_fingerprint
+
+
+def _sidecar_fingerprint(database):
+    return _opaque_fingerprint(
+        [
+            (database.parent / f"{database.name}{suffix}").exists()
+            for suffix in ("-wal", "-shm", "-journal")
+        ]
+    )
+
+
+def _opaque_fingerprint(values):
+    return hashlib.sha256(
+        json.dumps(
+            values,
+            ensure_ascii=True,
+            sort_keys=True,
+            separators=(",", ":"),
+        ).encode("ascii")
+    ).hexdigest()
 
 
 def _create_database(path):

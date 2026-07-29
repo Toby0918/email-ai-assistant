@@ -29,6 +29,7 @@ from .lifecycle import (
 )
 from .rollback_adapters import JournalDrivenRollbackAdapter
 from .rollback_contracts import (
+    CommittedRollbackPlanV1,
     FailedContainerPublicationReceiptV1,
     LegacyPrerequisiteEvidenceV1,
     RollbackRestoreEvidenceV1,
@@ -43,6 +44,7 @@ from .real_lock import (
 
 __all__ = [
     "ActivationFailureKind",
+    "CommittedRollbackPlanV1",
     "FailedContainerPublicationReceiptV1",
     "JournalDrivenRollbackAdapter",
     "LegacyRecoveryConfigV1",

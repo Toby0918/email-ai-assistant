@@ -66,7 +66,6 @@ class LegacyServiceStartRequestV1:
             object.__setattr__(value, name, item)
         return value
 
-
 @dataclass(frozen=True, slots=True, init=False, repr=False)
 class LegacyServiceRecoveryReceiptV1:
     status: str
@@ -115,4 +114,3 @@ class LegacyServiceRecoveryReceiptV1:
             fingerprint("issue58-legacy-receipt-v1", body, code=_ERROR),
         )
         return value
-

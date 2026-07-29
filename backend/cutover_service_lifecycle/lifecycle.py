@@ -5,21 +5,26 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 
-from backend.cutover_contracts import TestSandboxAuthorizationV1
 from backend.cutover_managed_activation import ManagedActivationReceiptSetV1
 
 from .canonical import fail, fingerprint, is_fingerprint
 from .controller import ProviderDisabledServiceController
 from .failures import ServiceBoundaryFailure
-from .rollback_adapters import (
-    has_exact_rollback_adapter,
-)
+from .lifecycle_binding import valid_lifecycle_bindings
 from .rollback_contracts import (
+    CommittedRollbackPlanV1,
     FailedContainerPublicationReceiptV1,
     LegacyPrerequisiteEvidenceV1,
     RollbackRestoreEvidenceV1,
     RollbackStage,
     RollbackStageEvidenceV1,
+)
+from .rollback_validation import (
+    require_failed,
+    require_prerequisites,
+    require_restored,
+    require_stage,
+    valid_recovery_authorization,
 )
 
 
@@ -55,6 +60,7 @@ class ProviderDisabledLifecycleTransaction:
         "_publications",
         "_controller",
         "_rollback",
+        "_rollback_plan",
         "_state",
     )
 
@@ -65,27 +71,7 @@ class ProviderDisabledLifecycleTransaction:
 
     @classmethod
     def create(cls, **values: object):
-        expected = {
-            "operation_fingerprint",
-            "profile_fingerprint",
-            "journal_head_fingerprint",
-            "publications",
-            "controller",
-            "rollback_adapter",
-        }
-        if (
-            set(values) != expected
-            or not is_fingerprint(values["operation_fingerprint"])
-            or not is_fingerprint(values["profile_fingerprint"])
-            or not is_fingerprint(values["journal_head_fingerprint"])
-            or type(values["publications"])
-            is not ManagedActivationReceiptSetV1
-            or type(values["controller"])
-            is not ProviderDisabledServiceController
-            or not has_exact_rollback_adapter(values["rollback_adapter"])
-            or values["publications"].profile_fingerprint
-            != values["profile_fingerprint"]
-        ):
+        if not valid_lifecycle_bindings(values):
             fail("lifecycle_binding_invalid")
         value = object.__new__(cls)
         value._operation = values["operation_fingerprint"]
@@ -94,6 +80,7 @@ class ProviderDisabledLifecycleTransaction:
         value._publications = values["publications"]
         value._controller = values["controller"]
         value._rollback = values["rollback_adapter"]
+        value._rollback_plan = values["rollback_plan"]
         value._state = "ready"
         return value
 
@@ -138,7 +125,7 @@ class ProviderDisabledLifecycleTransaction:
             fail("lifecycle_recovery_not_repeatable")
         if self._state != "rollback_required":
             fail("lifecycle_rollback_not_allowed")
-        if not _valid_recovery_authorization(
+        if not valid_recovery_authorization(
             authorization,
             observed_at_epoch,
             self._profile,
@@ -181,78 +168,34 @@ class ProviderDisabledLifecycleTransaction:
         try:
             stopped = self._controller.stop_new_exact()
             stop_stage = self._rollback.verify_new_service_stopped(stopped)
-            _require_stage(
-                stop_stage, RollbackStage.NEW_SERVICE_STOPPED, self._journal
+            require_stage(
+                stop_stage,
+                RollbackStage.NEW_SERVICE_STOPPED,
+                self._rollback_plan,
+                self._rollback_plan.committed_records_fingerprint,
             )
             preserved = self._rollback.preserve_new_evidence()
-            _require_stage(
+            require_stage(
                 preserved,
                 RollbackStage.NEW_EVIDENCE_PRESERVED,
-                self._journal,
+                self._rollback_plan,
+                stop_stage.observation_fingerprint,
             )
             failed = self._rollback.publish_failed_container(preserved)
-            _require_failed(failed, self._journal)
+            require_failed(failed, self._rollback_plan, preserved)
             restored = self._rollback.restore_original_topology(failed)
-            _require_restored(restored, failed, self._journal)
+            require_restored(
+                restored, failed, self._rollback_plan
+            )
             prerequisites = (
                 self._rollback.verify_legacy_prerequisites(restored)
             )
-            _require_prerequisites(
-                prerequisites, restored, self._journal
+            require_prerequisites(
+                prerequisites, restored, self._rollback_plan
             )
             return prerequisites
         except Exception:
             return None
-
-
-def _valid_recovery_authorization(value, observed, profile, operation):
-    return (
-        type(value) is TestSandboxAuthorizationV1
-        and type(observed) is int
-        and 0 <= observed < value.expires_at_epoch
-        and value.profile_fingerprint == profile
-        and value.operation_fingerprint == operation
-        and value.phase == "rollback"
-    )
-
-
-def _require_stage(value, stage, journal) -> None:
-    if (
-        type(value) is not RollbackStageEvidenceV1
-        or value.stage != stage.value
-        or value.journal_head_fingerprint != journal
-    ):
-        fail("lifecycle_rollback_stage_invalid")
-
-
-def _require_failed(value, journal) -> None:
-    if (
-        type(value) is not FailedContainerPublicationReceiptV1
-        or value.journal_head_fingerprint != journal
-        or value.classification
-        != "FAILED_CONTAINER_SEALED_PENDING_LEGACY_MAIN_EXTRACTION"
-    ):
-        fail("lifecycle_failed_container_invalid")
-
-
-def _require_restored(value, failed, journal) -> None:
-    if (
-        type(value) is not RollbackRestoreEvidenceV1
-        or value.journal_head_fingerprint != journal
-        or value.failed_container_receipt_fingerprint
-        != failed.receipt_fingerprint
-    ):
-        fail("lifecycle_restore_invalid")
-
-
-def _require_prerequisites(value, restored, journal) -> None:
-    if (
-        type(value) is not LegacyPrerequisiteEvidenceV1
-        or value.journal_head_fingerprint != journal
-        or value.rollback_observation_fingerprint
-        != restored.observation_fingerprint
-    ):
-        fail("lifecycle_legacy_prerequisites_invalid")
 
 
 def _result(

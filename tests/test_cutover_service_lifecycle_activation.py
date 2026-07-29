@@ -28,7 +28,7 @@ from backend.cutover_service_lifecycle import (
 
 OPERATION = "1" * 64
 PROFILE = "2" * 64
-MASTER = "3" * 40
+MASTER = "dcb53169f7c8e73b6bf5387a02b18d4e6741d6ee"
 AUTHORIZATION = "4" * 64
 EXECUTABLE = "5" * 64
 
@@ -137,13 +137,22 @@ def adapters(harness: _NewServiceHarness):
     )
 
 
+def controller_for(harness, **overrides):
+    values = {
+        "operation_fingerprint": OPERATION,
+        "profile_fingerprint": PROFILE,
+        "governing_master_commit": MASTER,
+        "publication_authorization_fingerprint": AUTHORIZATION,
+        "adapters": adapters(harness),
+    }
+    values.update(overrides)
+    return ProviderDisabledServiceController.create(**values)
+
+
 class ProviderDisabledActivationTests(unittest.TestCase):
     def test_fixed_activation_uses_one_fresh_nonce_and_zero_providers(self):
         harness = _NewServiceHarness()
-        controller = ProviderDisabledServiceController.create(
-            profile_fingerprint=PROFILE,
-            adapters=adapters(harness),
-        )
+        controller = controller_for(harness)
 
         receipt = controller.activate_new(publication_receipts())
 
@@ -179,10 +188,7 @@ class ProviderDisabledActivationTests(unittest.TestCase):
             return ServiceHealthEvidenceV1.create_from_start(stale_start)
 
         harness.health_transform = stale
-        controller = ProviderDisabledServiceController.create(
-            profile_fingerprint=PROFILE,
-            adapters=adapters(harness),
-        )
+        controller = controller_for(harness)
 
         with self.assertRaises(ServiceBoundaryFailure) as raised:
             controller.activate_new(publication_receipts())
@@ -196,10 +202,7 @@ class ProviderDisabledActivationTests(unittest.TestCase):
     def test_provider_attempt_is_provider_boundary_ambiguity(self) -> None:
         harness = _NewServiceHarness()
         harness.provider_attempts = 1
-        controller = ProviderDisabledServiceController.create(
-            profile_fingerprint=PROFILE,
-            adapters=adapters(harness),
-        )
+        controller = controller_for(harness)
 
         with self.assertRaises(ServiceBoundaryFailure) as raised:
             controller.activate_new(publication_receipts())
@@ -238,10 +241,7 @@ class ProviderDisabledActivationTests(unittest.TestCase):
                     )
 
                 harness.start_transform = transform
-                controller = ProviderDisabledServiceController.create(
-                    profile_fingerprint=PROFILE,
-                    adapters=adapters(harness),
-                )
+                controller = controller_for(harness)
                 with self.assertRaises(ServiceBoundaryFailure) as raised:
                     controller.activate_new(publication_receipts())
                 self.assertIs(
@@ -270,10 +270,7 @@ class ProviderDisabledActivationTests(unittest.TestCase):
                     return ServiceHealthEvidenceV1.create_from_start(changed)
 
                 harness.health_transform = stale
-                controller = ProviderDisabledServiceController.create(
-                    profile_fingerprint=PROFILE,
-                    adapters=adapters(harness),
-                )
+                controller = controller_for(harness)
                 with self.assertRaises(ServiceBoundaryFailure) as raised:
                     controller.activate_new(publication_receipts())
                 self.assertIs(
@@ -285,10 +282,21 @@ class ProviderDisabledActivationTests(unittest.TestCase):
         with self.assertRaisesRegex(
             Exception, "^service_adapter_bundle_invalid$"
         ):
-            ProviderDisabledServiceController.create(
-                profile_fingerprint=PROFILE,
-                adapters=object(),
-            )
+            controller_for(harness=_NewServiceHarness(), adapters=object())
+
+    def test_publication_chain_mismatch_is_rejected(self) -> None:
+        harness = _NewServiceHarness()
+        for field, value in (
+            ("operation_fingerprint", "b" * 64),
+            ("governing_master_commit", "c" * 40),
+            ("publication_authorization_fingerprint", "d" * 64),
+        ):
+            with self.subTest(field=field):
+                controller = controller_for(harness, **{field: value})
+                with self.assertRaisesRegex(
+                    Exception, "^service_publication_receipts_invalid$"
+                ):
+                    controller.activate_new(publication_receipts())
 
 
 if __name__ == "__main__":

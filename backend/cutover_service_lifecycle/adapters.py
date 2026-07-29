@@ -42,4 +42,3 @@ def has_exact_adapters(value: object) -> bool:
 
 def _all_callables(value: object) -> bool:
     return all(callable(getattr(value, item.name)) for item in fields(value))
-

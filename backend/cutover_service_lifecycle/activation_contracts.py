@@ -71,7 +71,6 @@ class NewServiceStartRequestV1:
             object.__setattr__(value, name, item)
         return value
 
-
 @dataclass(frozen=True, slots=True, init=False, repr=False)
 class SyntheticActivationRequestV1:
     request_fingerprint: str = field(repr=False)
@@ -201,4 +200,3 @@ class NewServiceActivationReceiptV1:
             fingerprint("issue58-activation-receipt-v1", body, code=_ERROR),
         )
         return value
-

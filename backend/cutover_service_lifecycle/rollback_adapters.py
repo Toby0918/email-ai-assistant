@@ -16,10 +16,8 @@ class JournalDrivenRollbackAdapter:
         repr=False
     )
 
-
 def has_exact_rollback_adapter(value: object) -> bool:
     return (
         type(value) is JournalDrivenRollbackAdapter
         and all(callable(getattr(value, item.name)) for item in fields(value))
     )
-

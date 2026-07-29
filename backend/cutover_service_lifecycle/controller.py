@@ -2,21 +2,20 @@
 
 from __future__ import annotations
 
-import uuid
-
-from backend.cutover_managed_activation import (
-    ManagedActivationReceiptSetV1,
-)
-
 from .activation_contracts import (
     NewServiceActivationReceiptV1,
-    NewServiceStartRequestV1,
     SyntheticActivationEvidenceV1,
     SyntheticActivationRequestV1,
     SyntheticRowEvidenceV1,
 )
+from .activation_validation import (
+    activation_receipt,
+    boundary,
+    start_request,
+    validated_publications,
+)
 from .adapters import has_exact_adapters
-from .canonical import fail, fingerprint, is_fingerprint
+from .canonical import fail, is_fingerprint
 from .contracts import (
     ServiceHealthEvidenceV1,
     ServiceStartEvidenceV1,
@@ -32,6 +31,9 @@ class ProviderDisabledServiceController:
 
     __slots__ = (
         "_profile",
+        "_operation",
+        "_master",
+        "_publication_authorization",
         "_adapters",
         "_state",
         "_new_start",
@@ -45,14 +47,37 @@ class ProviderDisabledServiceController:
 
     @classmethod
     def create(
-        cls, *, profile_fingerprint: object, adapters: object
+        cls,
+        *,
+        operation_fingerprint: object,
+        profile_fingerprint: object,
+        governing_master_commit: object,
+        publication_authorization_fingerprint: object,
+        adapters: object,
     ) -> ProviderDisabledServiceController:
-        if not is_fingerprint(profile_fingerprint):
+        if (
+            not is_fingerprint(operation_fingerprint)
+            or not is_fingerprint(profile_fingerprint)
+            or type(governing_master_commit) is not str
+            or len(governing_master_commit) != 40
+            or any(
+                item not in "0123456789abcdef"
+                for item in governing_master_commit
+            )
+            or not is_fingerprint(
+                publication_authorization_fingerprint
+            )
+        ):
             fail("service_controller_binding_invalid")
         if not has_exact_adapters(adapters):
             fail("service_adapter_bundle_invalid")
         value = object.__new__(cls)
         value._profile = profile_fingerprint
+        value._operation = operation_fingerprint
+        value._master = governing_master_commit
+        value._publication_authorization = (
+            publication_authorization_fingerprint
+        )
         value._adapters = adapters
         value._state = "ready"
         value._new_start = None
@@ -61,14 +86,36 @@ class ProviderDisabledServiceController:
         value._legacy_attempted = False
         return value
 
+    def matches_binding(
+        self,
+        *,
+        operation_fingerprint: object,
+        profile_fingerprint: object,
+        governing_master_commit: object,
+        publication_authorization_fingerprint: object,
+    ) -> bool:
+        return (
+            operation_fingerprint == self._operation
+            and profile_fingerprint == self._profile
+            and governing_master_commit == self._master
+            and publication_authorization_fingerprint
+            == self._publication_authorization
+        )
+
     def activate_new(
         self, publications: object
     ) -> NewServiceActivationReceiptV1:
         if self._state != "ready":
             fail("service_forward_start_prohibited")
-        receipts = _validated_publications(publications, self._profile)
+        receipts = validated_publications(
+            publications,
+            operation=self._operation,
+            profile=self._profile,
+            master=self._master,
+            authorization=self._publication_authorization,
+        )
         self._state = "starting"
-        request = _start_request(receipts, self._profile)
+        request = start_request(receipts, self._profile)
         start = self._call_start(request)
         self._new_start = start
         self._validate_start(request, start)
@@ -82,7 +129,7 @@ class ProviderDisabledServiceController:
         row = self._call_row(synthetic)
         self._validate_row(synthetic, receipts, row)
         self._state = "activated"
-        return _activation_receipt(
+        return activation_receipt(
             request, start, health, synthetic, result, row
         )
 
@@ -141,7 +188,7 @@ class ProviderDisabledServiceController:
             raise
         except Exception:
             raise ServiceBoundaryFailure(
-                ActivationFailureKind.HEALTH_REJECTED
+                ActivationFailureKind.SAFETY_AMBIGUITY
             ) from None
 
     def _call_analysis(self, request):
@@ -151,7 +198,7 @@ class ProviderDisabledServiceController:
             raise
         except Exception:
             raise ServiceBoundaryFailure(
-                ActivationFailureKind.DETERMINISTIC_RESULT_REJECTED
+                ActivationFailureKind.SAFETY_AMBIGUITY
             ) from None
 
     def _call_row(self, request):
@@ -161,13 +208,13 @@ class ProviderDisabledServiceController:
             raise
         except Exception:
             raise ServiceBoundaryFailure(
-                ActivationFailureKind.PERSISTENCE_REJECTED
+                ActivationFailureKind.SAFETY_AMBIGUITY
             ) from None
 
     @staticmethod
     def _validate_start(request, start) -> None:
         if type(start) is not ServiceStartEvidenceV1:
-            _boundary(ActivationFailureKind.SAFETY_AMBIGUITY)
+            boundary(ActivationFailureKind.SAFETY_AMBIGUITY)
         expected = {
             "role": request.role,
             "profile_fingerprint": request.profile_fingerprint,
@@ -179,87 +226,36 @@ class ProviderDisabledServiceController:
             "port": request.port,
         }
         if any(getattr(start, name) != item for name, item in expected.items()):
-            _boundary(ActivationFailureKind.IDENTITY_AMBIGUITY)
+            boundary(ActivationFailureKind.IDENTITY_AMBIGUITY)
 
     @staticmethod
     def _validate_health(start, health) -> None:
         if type(health) is not ServiceHealthEvidenceV1:
-            _boundary(ActivationFailureKind.SAFETY_AMBIGUITY)
+            boundary(ActivationFailureKind.SAFETY_AMBIGUITY)
         expected = {**start.to_mapping(), "healthy": True}
         if health.to_mapping() != expected:
-            _boundary(ActivationFailureKind.IDENTITY_AMBIGUITY)
+            boundary(ActivationFailureKind.IDENTITY_AMBIGUITY)
 
     @staticmethod
     def _validate_analysis(request, result) -> None:
         if type(result) is not SyntheticActivationEvidenceV1:
-            _boundary(ActivationFailureKind.SAFETY_AMBIGUITY)
+            boundary(ActivationFailureKind.SAFETY_AMBIGUITY)
         if result.provider_attempts != 0:
-            _boundary(ActivationFailureKind.PROVIDER_BOUNDARY_AMBIGUITY)
+            boundary(ActivationFailureKind.PROVIDER_BOUNDARY_AMBIGUITY)
         if (
             result.request_fingerprint != request.request_fingerprint
             or result.route != "deterministic_rules"
         ):
-            _boundary(ActivationFailureKind.DETERMINISTIC_RESULT_REJECTED)
+            boundary(ActivationFailureKind.DETERMINISTIC_RESULT_REJECTED)
 
     @staticmethod
     def _validate_row(request, receipts, row) -> None:
         if type(row) is not SyntheticRowEvidenceV1:
-            _boundary(ActivationFailureKind.SAFETY_AMBIGUITY)
+            boundary(ActivationFailureKind.SAFETY_AMBIGUITY)
         if (
             row.request_fingerprint != request.request_fingerprint
             or row.data_role_fingerprint
             != receipts.receipts[1].receipt_fingerprint
             or row.matching_rows != 1
         ):
-            _boundary(ActivationFailureKind.PERSISTENCE_REJECTED)
-
-
-def _validated_publications(value, profile):
-    if type(value) is not ManagedActivationReceiptSetV1:
-        fail("service_publication_receipts_invalid")
-    try:
-        rebuilt = ManagedActivationReceiptSetV1.from_mapping(
-            value.to_mapping()
-        )
-    except Exception:
-        fail("service_publication_receipts_invalid")
-    if rebuilt != value or rebuilt.profile_fingerprint != profile:
-        fail("service_publication_receipts_invalid")
-    return rebuilt
-
-
-def _start_request(receipts, profile):
-    return NewServiceStartRequestV1.create(
-        profile_fingerprint=profile,
-        runtime_fingerprint=receipts.receipts[0].receipt_fingerprint,
-        config_fingerprint=receipts.receipts[3].receipt_fingerprint,
-        data_role_fingerprint=receipts.receipts[1].receipt_fingerprint,
-        nonce=str(uuid.uuid4()),
-    )
-
-
-def _activation_receipt(request, start, health, synthetic, result, row):
-    values = (
-        fingerprint(
-            "issue58-start-evidence-v1",
-            start.to_mapping(),
-            code="service_activation_receipt_invalid",
-        ),
-        fingerprint(
-            "issue58-health-evidence-v1",
-            health.to_mapping(),
-            code="service_activation_receipt_invalid",
-        ),
-        synthetic.request_fingerprint,
-        result.result_fingerprint,
-        row.data_role_fingerprint,
-        request.config_fingerprint,
-    )
-    return NewServiceActivationReceiptV1.create(
-        nonce=request.nonce,
-        input_fingerprints=values,
-    )
-
-
-def _boundary(kind: ActivationFailureKind) -> None:
-    raise ServiceBoundaryFailure(kind) from None
+            boundary(ActivationFailureKind.PERSISTENCE_REJECTED)

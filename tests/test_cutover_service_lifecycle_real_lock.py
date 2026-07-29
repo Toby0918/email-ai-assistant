@@ -24,6 +24,66 @@ OPERATION = "8" * 64
 
 
 class ServiceLifecycleRealLockTests(unittest.TestCase):
+    def test_empty_exact_type_values_are_fixed_blocked(self):
+        profile = _profile()
+        values = {
+            "profile": profile,
+            "execution_authorization": _execution(profile),
+            "recovery_authorization": _recovery(profile),
+            "operation_fingerprint": OPERATION,
+            "observed_at_epoch": NOW,
+        }
+        malformed = (
+            ("profile", object.__new__(CutoverProfileV1)),
+            (
+                "execution_authorization",
+                object.__new__(CutoverExecutionAuthorizationV1),
+            ),
+            (
+                "recovery_authorization",
+                object.__new__(RecoveryAuthorizationV1),
+            ),
+        )
+        for name, value in malformed:
+            with self.subTest(name=name):
+                result = locked_real_service_lifecycle_constructor(
+                    **{**values, name: value}
+                )
+                self.assertEqual(
+                    result.status.value,
+                    "BLOCKED_AUTHORIZATION_INVALID",
+                )
+                self.assertEqual((result.blocked, result.constructed), (1, 0))
+
+    def test_malformed_profile_operation_and_time_are_fixed_blocked(self):
+        profile = _profile()
+
+        class DuckProfile:
+            governing_master_commit = MASTER
+
+        for overrides in (
+            {"profile": DuckProfile()},
+            {"operation_fingerprint": object()},
+            {"observed_at_epoch": True},
+        ):
+            with self.subTest(field=next(iter(overrides))):
+                values = {
+                    "profile": profile,
+                    "execution_authorization": _execution(profile),
+                    "recovery_authorization": _recovery(profile),
+                    "operation_fingerprint": OPERATION,
+                    "observed_at_epoch": NOW,
+                }
+                values.update(overrides)
+
+                result = locked_real_service_lifecycle_constructor(**values)
+
+                self.assertEqual(
+                    result.status.value,
+                    "BLOCKED_AUTHORIZATION_INVALID",
+                )
+                self.assertEqual((result.blocked, result.constructed), (1, 0))
+
     def test_missing_either_authorization_constructs_nothing(self) -> None:
         profile = _profile()
         execution = _execution(profile)

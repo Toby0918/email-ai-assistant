@@ -43,7 +43,6 @@ def run_legacy_recovery(
         health_fingerprint=_evidence_fingerprint("health", health),
     )
 
-
 def _validate_start(request, start) -> None:
     if type(start) is not ServiceStartEvidenceV1:
         fail("legacy_service_recovery_failed")
@@ -75,4 +74,3 @@ def _evidence_fingerprint(kind: str, evidence: object) -> str:
         evidence.to_mapping(),
         code="legacy_service_recovery_failed",
     )
-

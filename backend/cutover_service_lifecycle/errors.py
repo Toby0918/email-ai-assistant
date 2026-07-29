@@ -3,4 +3,3 @@
 
 class ServiceLifecycleError(Exception):
     """Reject invalid lifecycle evidence without host details."""
-

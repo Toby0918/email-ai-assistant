@@ -720,17 +720,22 @@ private-data container, or authorization to migrate.
 4. Known typed pre-mutation start rejection becomes `SAFE_ABORT` with no stop
    or rollback. Known typed post-mutation health/result/persistence failure becomes
    `ROLLBACK_REQUIRED`; forward resume and unauthorised rollback are rejected.
-5. Identity, journal, reparse, provider-boundary, safety, or untyped start
-   ambiguity becomes `INCIDENT_STOP`. Stop containment is invoked only when
-   the exact new-service identity has already passed validation.
+5. Identity, journal, reparse, provider-boundary, safety, untyped start, or
+   unexpected post-start adapter ambiguity becomes `INCIDENT_STOP`. Stop
+   containment is invoked only when the exact new-service identity has already
+   passed validation.
 6. Rollback tests require fixed order: exact stop, preserve three external
    worktrees and eleven Git records, seal failed Container, restore main/Git/
    eight embedded plus three external worktrees, then reverify legacy
-   prerequisites. Every stage binds the committed journal head.
+   prerequisites. Every stage binds the committed journal head, immutable
+   committed-record/topology/ACL/database/sidecar/Runtime/repository plan, and
+   previous observation or receipt; restoration also binds the actual #56
+   reverse receipt.
 7. Windows sandbox coverage composes the actual #56 full forward transaction,
-   interrupts reverse after committed `NEW_STATE_PRESERVED`, seals the failed
-   Container before main extraction, resumes reverse, and proves exact original
-   physical/admin identities for all eleven worktrees.
+   interrupts and resumes every committed reverse boundary, seals the failed
+   Container before main extraction, rejects a pre-existing failed-Container
+   collision, and proves exact original physical/admin identities for all
+   eleven worktrees.
 8. Legacy recovery uses one dedicated environment-independent disabled Config,
    a fresh distinct nonce, one start, one health check, and no analysis method.
    Failure is fixed
@@ -742,3 +747,6 @@ private-data container, or authorization to migrate.
     fixed codes, fingerprints, and allowlisted counts.
 11. Real-lock tests require both exact authorization types and prove missing,
     test, invalid, or even fully valid pre-#39 inputs construct nothing.
+12. Exact public-export, per-module import, all-backend/script/frontend/workflow
+    consumer, and dynamic-import guards prevent an unreviewed lifecycle
+    capability or consumer from being added.
