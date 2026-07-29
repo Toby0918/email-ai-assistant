@@ -1980,6 +1980,22 @@ class ArchitectureConstraintTests(unittest.TestCase):
             (
                 ROOT
                 / "backend"
+                / "cutover_repository_transaction"
+                / "git_runner.py"
+            ).resolve(): {
+                "imports": {
+                    "backend.migration_evidence.process_tree",
+                },
+                "calls": set(),
+                "symbols": {
+                    "backend.migration_evidence.process_tree": {
+                        "ProcessTree",
+                    },
+                },
+            },
+            (
+                ROOT
+                / "backend"
                 / "reparenting_rehearsal"
                 / "evidence_bridge.py"
             ).resolve(): {
@@ -2491,6 +2507,17 @@ class ArchitectureConstraintTests(unittest.TestCase):
             (
                 ROOT
                 / "backend"
+                / "cutover_repository_transaction"
+                / "container_audit_bridge.py"
+            ).resolve(): {
+                "backend.container_audit",
+                "backend.container_audit.filesystem_checks",
+                "backend.container_audit.policy",
+                "backend.container_audit.system_checks",
+            },
+            (
+                ROOT
+                / "backend"
                 / "reparenting_rehearsal"
                 / "audit_bridge.py"
             ).resolve(): {"backend.container_audit"},
@@ -2559,17 +2586,29 @@ class ArchitectureConstraintTests(unittest.TestCase):
                         or module.startswith("backend.container_audit.")
                     }
                     called = parse_called_names(path) & {
-                        "run_container_audit"
+                        "run_container_audit",
+                        "valid_filesystem",
+                        "valid_git",
+                        "valid_object",
+                        "valid_worktrees",
                     }
                     if path.resolve() in allowed_bridges:
                         self.assertEqual(
                             audit_imports,
                             allowed_bridges[path.resolve()],
                         )
-                        self.assertEqual(
-                            called,
-                            {"run_container_audit"},
+                        expected_calls = (
+                            {
+                                "valid_filesystem",
+                                "valid_git",
+                                "valid_object",
+                                "valid_worktrees",
+                            }
+                            if "cutover_repository_transaction"
+                            in path.parts
+                            else {"run_container_audit"}
                         )
+                        self.assertEqual(called, expected_calls)
                         if path.name == "audit_bridge.py" and (
                             "real_host_preflight" in path.parts
                         ):

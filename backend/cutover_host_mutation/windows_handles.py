@@ -107,8 +107,11 @@ class WindowsHandleApi:
         *,
         access: int,
         share_delete: bool = False,
+        share_write: bool = True,
     ) -> int:
-        share = FILE_SHARE_READ | FILE_SHARE_WRITE
+        share = FILE_SHARE_READ
+        if share_write:
+            share |= FILE_SHARE_WRITE
         if share_delete:
             share |= FILE_SHARE_DELETE
         handle = self._kernel.CreateFileW(

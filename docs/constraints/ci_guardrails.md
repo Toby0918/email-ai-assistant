@@ -200,6 +200,27 @@ test authorization at the real constructor, or executable real command before
 Issue #39. Green CI proves only the bounded primitives; it does not authorize a
 real ACL change, migration, cutover, rollback, or cleanup.
 
+### Issue #56 reversible repository/worktree transaction gate
+
+Every platform runs the portable contract, journal, real-lock, and architecture
+tests matching `tests/test_cutover_repository_transaction_*.py`. Windows also
+runs the caller-owned temporary NTFS scope, round-trip, failure, and crash-gap
+suites. The gate must observe exactly eight embedded and three external
+reviewed worktrees, all forward/reverse boundaries, all four safely
+classifiable crash gaps in both directions, explicit-reverse
+`ABORTED/NOT_APPLIED` or missing-fact-only reconciliation without replay,
+exact checkpoint validation and continuation after every safe reverse gap,
+after-INTENT target/admin no-clobber, same-name admin reuse, drift and reparse
+rejection, hostile Git config/hook suppression, exact administrative namespace,
+actual observation binding, unchanged ContainerAudit policy-seam validation,
+content-free
+output, failed-state preservation, and exact restoration.
+
+Passing synthetic CI is evidence only. It does not authorize or run a real
+repository transaction, Issue #57 through #59, Issues #38/#39, service/ACL/
+Runtime/SQLite/provider/mailbox/vault/private-data work, merge, or parent Spec
+closure.
+
 ## 5. 失败处理原则
 
 如果 CI 失败，Agent 必须先阅读失败信息。  
