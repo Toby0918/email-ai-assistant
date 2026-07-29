@@ -392,8 +392,11 @@ Implementation and local validation are complete in the isolated worktree.
   `git diff --check`, maintenance scan, and repository leakage scan passed;
   maintenance found no cleanup findings and leakage total was zero.
 - Final Standards and Spec re-review both passed with P1=0 and P2=0.
-- Allowlist publication, remote CI, and PR recording remain pending before
-  final handoff.
+- Explicit allowlist staging produced implementation commits `5352190` and
+  `f9d5cbb`;
+  branch `codex/issue-58-provider-disabled-recovery` was pushed and ready PR
+  #67 was created with `Closes #58`. GitHub Actions quality-gates run
+  `30489412472` passed. The PR remains open, non-draft, and unmerged.
 - No real service, repository/worktree, ACL, Runtime, SQLite, browser,
   mailbox, provider, credential, vault, private data, or root-worktree state
   was accessed or changed.
