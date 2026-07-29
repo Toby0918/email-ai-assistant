@@ -118,7 +118,7 @@ callback, command, environment value, or authorization and always returns
 executable operator entry or executable real-host operation requires a separate
 approved Issue. Issue #53 composes only the locked read-only boundary, and Issue
 #54 keeps its real review, publication, and verification entries locked. Neither
-provides an approved command; Issues #55 through #59 remain separate.
+provides an approved command; Issues #57 through #59 remain separate.
 
 ## Issue #53 Windows read-only observation boundary
 
@@ -384,8 +384,9 @@ mailbox, vault, private-store, or private-data capability exists.
   loads/aliases including `breakpoint`/`delattr`/`setattr`, dotted modules, and
   parent-relative imports;
 - package-wide absence of real-authorization issuer or mint functions;
-- the exact journal and #53 contracts bridges as the only Issue #51 consumers,
-  plus zero journal consumers in every other Python/JavaScript file under
+- the exact reviewed #52/#53/#54/#55/#56 consumers as the only Issue #51
+  consumers, plus only the exact #55 and #56 journal-effect bridges as journal
+  consumers; every other Python/JavaScript file under
   `backend/`, `scripts/`, and `frontend/`, using AST checks for equivalent
   Python import forms,
   direct/attribute/imported/rebound dynamic-import call aliases, and fixed token
@@ -402,6 +403,57 @@ The exact guards must fail if a real/default adapter, issuer, composition root,
 consumer, or additional package capability is introduced. Synthetic tests use
 only fixed enums and opaque content-free fingerprints; they do not read or
 invoke a real host.
+
+## Issue #56 reversible mixed-topology transaction guard
+
+Issue #56 composes only caller-owned synthetic Windows sandboxes. A bound scope
+contains one marker identity, exact Profile/test authorization, opened Git
+executable identity/version/content binding, original Repository
+Root/common-directory identities, and
+exactly eleven clean reviewed worktrees: eight embedded and three external.
+No public API accepts a path, ref, object ID, administrative name, Git command,
+or host adapter.
+
+Original physical worktrees and their opaque Git administrative entries move
+no-replace to same-volume preservation before any counterpart creation. The
+original Repository Root becomes `main` only through identity-preserving
+relocation. Container/zones/targets are create-only. Administrative bytes are
+bounded-fingerprinted and relocated as opaque objects; the transaction never
+edits them. Fixed Git recreation must reproduce the reviewed ref/commit/common
+relationship, preserve the reserved target identity, add exactly one fresh
+admin entry, and remain clean.
+The fixed runner denies executable write sharing during every operation,
+revalidates its exact executable identity and bounded full-content digest plus
+sandbox identities before and after use, owns a bounded process tree,
+suppresses repository hooks, rejects unsafe local configuration at scope
+bind/rebind, and rejects any extra administrative namespace child.
+
+Every mutation is preceded by a durably published content-free INTENT and
+followed by the actual #55 or Git OBSERVED fact. COMMITTED is allowed only
+after an independent reread matches OBSERVED exactly; filesystem rereads hold
+the target against write/delete sharing, administrative rereads also bind
+opaque content, and Git rereads repeat the exact reviewed state.
+Explicit reverse appends
+`ABORTED/NOT_APPLIED` only after exact before-effect observation, or appends
+only missing OBSERVED/COMMITTED facts after exact after-effect observation;
+it never replays the effect. Reverse accepts every complete forward boundary
+and safely classified forward crash gap, preserves any published new failed
+evidence, then restores all original identities. The actual Container-create
+identity is journaled and must equal both the unchanged ContainerAudit trusted
+policy selection and the forward/failed Container object. An explicitly
+repeated reverse call derives the committed-stage plan, validates complete
+journal-bound failed evidence before any resumed mutation, validates a safely
+classified reverse checkpoint, and executes only the remaining fixed
+mutations. Final Git verification rejects non-intentional reviewed local-ref or
+remote-configuration drift. Final forward verification
+reuses unchanged ContainerAudit filesystem/Git/embedded-worktree validators
+without claiming a full host audit; external worktrees remain separately exact
+Git-verified. Journal or state ambiguity stops as `INCIDENT_STOP`; no blind
+replay, repair, cleanup, overwrite, background resume, or ambiguous resume
+exists. The real
+constructor remains locked
+without an exact external execution authorization and, even with one, has no
+approved command before Issue #39.
 
 ## Security review checklist
 

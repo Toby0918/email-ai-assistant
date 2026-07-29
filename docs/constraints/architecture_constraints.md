@@ -441,7 +441,7 @@ backend.reparenting_rehearsal public seam -> Path/repository/target/host capabil
 backend.migration_evidence -> mailbox/provider/SQLite/vault/private-store/lifecycle capability
 normal runtime/browser/scripts/wrappers/workflows/cleanup/leakage -> backend.runtime_activation_rehearsal
 backend.runtime_activation_rehearsal -> filesystem/SQLite/process/network/provider/mailbox/vault/private-store/credential/audit/evidence capability
-all backend packages except exact #52/#53 bridges, plus scripts/frontend -> backend.cutover_contracts
+all backend packages except exact reviewed #52/#53/#54/#55/#56 consumers, plus scripts/frontend -> backend.cutover_contracts
 backend.cutover_contracts -> filesystem/SQLite/process/network/Git/ACL/provider/mailbox/vault/private-store/authority issuer
 normal runtime/browser/scripts/wrappers/workflows/cleanup/leakage -> backend.real_host_preflight
 backend.real_host_preflight -> service-control/ACL-apply/rename/Git-worktree mutation/Runtime-build/SQLite-copy/artifact/Config/provider/mailbox/vault/private-data capability
@@ -872,6 +872,68 @@ are not traversed. Directory creation must use parent-handle-relative
 no-replace, same-volume, and same-file-ID verified. Test-only native execution
 must remain inside a caller-owned temporary NTFS sandbox; the real constructor
 stays locked and has no adapter imports.
+
+## Issue #56 reversible repository transaction architecture
+
+`backend.cutover_repository_transaction` is an internal synthetic-Windows
+composition layer. Its executable entry points accept only a package-private
+scope previously bound to a caller-owned temporary sandbox, one closed failure
+selector, and an epoch. They expose no path, ref, Git command, repository,
+repair, deletion, cleanup, service, Runtime, SQLite, ACL, provider, mailbox,
+vault, private-store, or private-data parameter.
+
+The package may cross only the exact #51 Profile/test-authorization values,
+#52 durable-effect permit, and #55 handle-relative no-replace primitives. One
+fixed scope-bound Git runner performs read-only relationship discovery and the
+single reviewed `worktree add`. It binds the executable's opened identity,
+version, and bounded whole-file content digest; for every allowlisted operation
+it denies executable write sharing and revalidates exact executable content,
+identity, and sandbox identities before and after use. It owns a bounded
+process tree, suppresses repository hooks, rejects unsafe local Git
+configuration at scope bind/rebind, and
+has no arbitrary command seam; clone, repository copy, fetch, reset, stash,
+prune, remove, and repair are absent. The reviewed roster is exactly eight
+embedded plus three external worktrees. Administrative entries are discovered
+only through verified Git relationships; the complete exact namespace is
+enumerated, bounded-fingerprinted as opaque objects, and never parsed or edited
+by the transaction.
+
+Every physical/admin/directory/Git effect has a create-only durable journal
+INTENT before the effect, the actual #55 or Git observation in OBSERVED after
+it, and COMMITTED only after an independent reread matches OBSERVED exactly.
+Filesystem rereads hold the target against write/delete sharing through
+COMMITTED, administrative rereads also bind opaque content, and Git rereads
+repeat relationship/ref/commit/clean-state verification. On an explicit
+reverse request, an
+exact before-effect
+observation records `ABORTED/NOT_APPLIED`; an exact after-effect observation
+may append only the missing OBSERVED/COMMITTED facts and never replays the
+effect. Forward moves every original physical and administrative
+object into no-replace preservation before counterpart creation, relocates the
+original Repository Root identity to `main`, and journals the actual new
+Container object identity. That identity is the trusted ContainerAudit policy
+selection and must equal the freshly observed Container object. Final
+verification also requires the reviewed non-intentional local-ref and remote
+configuration selections. It verifies the exact nine-zone Container plus 8+3
+topology through the unchanged ContainerAudit
+filesystem/Git/embedded-worktree validators plus exact external Git
+verification. Reverse accepts every exact completed forward boundary and each
+safely classified forward crash gap, first preserves any published new failed
+state, then restores the original Repository Root, all original
+administrative identities, and all eleven original physical identities.
+An explicitly repeated reverse call derives an exact plan from the committed
+forward stage, reconciles each safely classified reverse crash gap, validates
+the complete journal-bound retained failed evidence before any resumed
+mutation, validates the exact current checkpoint, and continues only the
+remaining fixed mutations. The retained failed Container must keep the same
+journaled Container identity. It never resumes in the background or from an
+ambiguous state.
+
+Normal runtime, scripts, frontend, workflows, and all other backend packages
+must not consume this package. The real constructor accepts no test authority
+and remains `BLOCKED_NO_APPROVED_COMMAND` even after exact
+`CutoverExecutionAuthorizationV1` validation, before a separately approved
+Issue #39 command.
 
 ## 7. 修改规则
 

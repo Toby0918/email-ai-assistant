@@ -135,6 +135,14 @@ ALLOWED_CONSUMERS = {
         "RecoveryAuthorizationV1",
         "validate_real_host_authorization",
     },
+    "backend/cutover_repository_transaction/scope_models.py": {
+        "CutoverProfileV1",
+        "TestSandboxAuthorizationV1",
+    },
+    "backend/cutover_repository_transaction/synthetic_scope.py": {
+        "CutoverProfileV1",
+        "TestSandboxAuthorizationV1",
+    },
     "backend/real_host_preflight/contracts_bridge.py": {
         "AuthorizationValidationStatus",
         "CutoverProfileV1",

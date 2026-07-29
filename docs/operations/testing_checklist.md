@@ -517,6 +517,31 @@ source_type: operation_guide
    read-only maintenance scan. Do not interpret green tests as real-host
    authority.
 
+## Issue #56 focused acceptance
+
+1. Run
+   `python -B -m unittest discover -s tests -p "test_cutover_repository_transaction_*.py"`.
+2. Require exact 8 embedded + 3 external scope binding, complete forward and
+   reverse boundary sets, original Repository Root identity at `main`, original
+   physical/admin preservation before counterpart creation, exact failed-state
+   retention, and full restoration.
+3. Require durable INTENT/OBSERVED/COMMITTED triplets, all four crash gaps in
+   both directions, explicit-reverse `ABORTED/NOT_APPLIED` before-effect
+   reconciliation, missing-fact-only completion after effect,
+   `SAFE_ABORT`/`SAFE_COMMIT_FACTS` exact classification, and `INCIDENT_STOP`
+   for ambiguity without replay. Require an explicitly repeated reverse call
+   to restore the exact original topology after every safely classified
+   reverse crash gap.
+4. Require target/admin collision, reparse, out-of-scope/volume, dirty/ref,
+   physical/admin/executable/topology drift, same-name admin reuse,
+   unsafe Git config/hook, unexpected admin namespace, invalid actual
+   observation, final-zone inventory, after-INTENT target race, no-clobber,
+   content-free
+   journal/receipt/repr/stdout/stderr, and locked real-constructor tests.
+5. Run affected Issue #51-#55, ContainerAudit, reparenting, architecture,
+   static, mechanical, documentation, status, and maintenance suites before the
+   full test command. Synthetic success is not real cutover authority.
+
 ## Option C 多模态离线门
 
 - all providers disabled by default；自动化只使用 synthetic DOM/media fixtures、fake provider 和 injected clock，不读取邮箱、不访问网络、不读取 `.env` 或 key。

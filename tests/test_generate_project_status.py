@@ -363,7 +363,7 @@ class GenerateProjectStatusTests(unittest.TestCase):
             "cannot create, issue, or mint",
             "strict canonical `ReceiptEnvelopeV1`",
             "`BLOCKED_NO_APPROVED_COMMAND`",
-            "approved consumers are the exact Issue #52 journal bridge, exact Issue #53 preflight contract bridge, exact Issue #54 evidence-publication contract bridge, and exact Issue #55 mutation contract consumers",
+            "approved consumers are the exact Issue #52 journal bridge, exact Issue #53 preflight contract bridge, exact Issue #54 evidence-publication contract bridge, exact Issue #55 mutation contract consumers, and exact Issue #56 synthetic transaction scope consumers",
             "`backend/cutover_contracts/profile.py`",
             "`backend/cutover_contracts/authorization.py`",
             "`backend/cutover_contracts/receipt.py`",
@@ -399,7 +399,7 @@ class GenerateProjectStatusTests(unittest.TestCase):
             "`INCIDENT_STOP`",
             "`CUTOVER_SUCCEEDED`",
             "No real filesystem target",
-            "Issues #55 through #59 remain separate",
+            "Issues #57 through #59 remain separate",
             "`backend/cutover_journal/journal_store.py`",
             "`backend/cutover_journal/recovery_classifier.py`",
             "`docs/operations/issue52_crash_safe_journal_recovery_task_brief.md`",
@@ -508,6 +508,41 @@ class GenerateProjectStatusTests(unittest.TestCase):
             "`docs/operations/issue55_windows_acl_filesystem_primitives_task_brief.md`",
             "`tests/test_cutover_host_mutation_windows_acl.py`",
             "`tests/test_cutover_host_mutation_windows_filesystem.py`",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, report)
+
+    def test_issue56_repository_transaction_is_synthetic_and_reversible(
+        self,
+    ) -> None:
+        module = load_script_module(
+            SCRIPT,
+            "generate_project_status_issue56_transaction",
+        )
+        report = module.build_project_status()
+
+        for marker in (
+            "Issue #56 reversible mixed-topology repository/worktree transaction",
+            "`backend.cutover_repository_transaction`",
+            "exactly eight embedded and three external",
+            "durably journals INTENT",
+            "preserves every original physical/admin object",
+            "relocates the original Repository Root identity to `main`",
+            "original Repository Root, all eleven original administrative identities",
+            "`SAFE_ABORT`",
+            "`SAFE_COMMIT_FACTS`",
+            "`ABORTED/NOT_APPLIED`",
+            "`INCIDENT_STOP`",
+            "explicitly repeated reverse call",
+            "rejects unsafe local config",
+            "actual #55 object identity or Git observation",
+            "`BLOCKED_NO_APPROVED_COMMAND`",
+            "No real repository/worktree",
+            "Issues #57 through #59",
+            "`docs/operations/issue56_repository_worktree_transaction_task_brief.md`",
+            "`tests/test_cutover_repository_transaction_windows_round_trip.py`",
+            "`tests/test_cutover_repository_transaction_windows_boundary_reverse.py`",
+            "`tests/test_cutover_repository_transaction_crash_gaps.py`",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, report)

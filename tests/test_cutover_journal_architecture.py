@@ -351,6 +351,7 @@ class CutoverJournalArchitectureTests(unittest.TestCase):
         allowed_consumers = {
             "backend/cutover_host_mutation/acl_journal.py",
             "backend/cutover_host_mutation/journal_intent.py",
+            "backend/cutover_repository_transaction/issue52_bridge.py",
         }
         violations = []
         for root_name in ("backend", "scripts", "frontend"):

@@ -673,7 +673,7 @@ operator entry to remain zero-capability and fixed at
 authorization cannot enter that seam. Issue #53 performs no real project,
 service, ACL, repository/worktree, Runtime, database, artifact, Config,
 provider, mailbox, vault, private-data, migration, cutover, or recovery
-operation. Issues #55 through #59 remain separate.
+operation. Issues #57 through #59 remain separate.
 
 ### Reviewed Migration Evidence publication mechanical guards
 
@@ -818,6 +818,26 @@ allowlisted counts. Static checks also require parent-handle-relative
 `NtCreateFile` with `FILE_CREATE`, reject `CreateDirectoryW`, and pin the
 protected construction guard to one non-inheritable operator ACE without
 add-file, add-subdirectory, or delete-child rights.
+
+## Issue #56 static capability rules
+
+Static checks pin the exact `backend/cutover_repository_transaction/` file and
+public-export allowlists. Public transaction signatures contain only opaque
+scope, closed failure selector, and epoch. No normal runtime, script, frontend,
+or workflow consumer is allowed. Only the exact internal bridges may import
+`backend.cutover_host_mutation`; only `issue52_bridge.py` may import
+`backend.cutover_journal`; only `container_audit_bridge.py` may import the
+unchanged ContainerAudit filesystem/Git/worktree policy validators.
+
+AST guards reject copy/clone, deletion, named replace/rename, fetch, reset,
+stash, prune, worktree remove/repair, shell execution, arbitrary subprocess,
+print, logging, and environment-driven command selection. The sole subprocess
+module is the bounded scope-bound Git runner; it must use the reviewed
+process-tree owner, fixed operation methods, hook suppression, unsafe-config
+rejection, and repeated executable/sandbox identity checks.
+Journal/result/repr/stdout/stderr
+tests reject path, ref, object ID, worktree/admin name, Git command, opaque
+administrative bytes, native error, and exception leakage.
 
 ## 14. 修改规则
 

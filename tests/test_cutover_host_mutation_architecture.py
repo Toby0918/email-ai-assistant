@@ -138,6 +138,14 @@ class CutoverHostMutationArchitectureTests(unittest.TestCase):
     def test_no_runtime_script_frontend_or_workflow_consumer_exists(
         self,
     ) -> None:
+        allowed_consumers = {
+            "backend/cutover_repository_transaction/git_runner.py",
+            "backend/cutover_repository_transaction/issue52_bridge.py",
+            "backend/cutover_repository_transaction/mutation_executor.py",
+            "backend/cutover_repository_transaction/real_lock.py",
+            "backend/cutover_repository_transaction/stable_observation.py",
+            "backend/cutover_repository_transaction/windows_identity.py",
+        }
         violations = []
         roots = (
             ROOT / "backend",
@@ -165,7 +173,7 @@ class CutoverHostMutationArchitectureTests(unittest.TestCase):
                     or "backend/cutover_host_mutation" in source
                 ):
                     violations.append(path.relative_to(ROOT).as_posix())
-        self.assertEqual(violations, [])
+        self.assertEqual(set(violations), allowed_consumers)
 
     def test_package_has_no_print_logging_or_environment_reads(self) -> None:
         forbidden_calls = {"getenv", "print", "system"}

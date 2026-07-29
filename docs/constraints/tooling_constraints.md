@@ -452,7 +452,7 @@ authorization. Windows behavior is exercised only in test-owned temporary
 sandboxes; Linux runs portable-contract tests only. The package owns no
 service-control, ACL-apply, rename, worktree-mutation, Runtime-build,
 database-copy, artifact, Config, provider, mailbox, vault, or private-data
-capability. Issues #55 through #59 remain separate.
+capability. Issues #57 through #59 remain separate.
 
 ### Reviewed Migration Evidence publication tooling boundary
 
@@ -1017,6 +1017,29 @@ the temporary sandbox so reparse coverage does not depend on Developer Mode.
 The repository environment runs the Windows sandbox suite. Linux CI imports
 and validates only portable contracts and must not claim Windows ACL, NTFS
 file-ID, or native no-replace evidence.
+
+## Issue #56 synthetic transaction tooling boundary
+
+Issue #56 adds no dependency, CLI, HTTP route, workflow, scheduler, service
+command, environment configuration, or real-host adapter. Native mutation is
+delegated only to the reviewed #55 primitives. The only process surface is one
+fixed Git executable whose opened binary identity and version are profile
+bound; its environment is allowlisted, prompts and optional locks are disabled,
+stdin is closed, stdout/stderr are bounded, the whole process tree is owned,
+repository hooks and filters are neutralized or rejected, `shell=False`, and
+the only mutating Git operation is fixed reviewed `worktree add`.
+Final topology validation calls only unchanged pure ContainerAudit
+filesystem/Git/embedded-worktree validators over actual synthetic metadata;
+it does not run or claim a full real-host audit.
+
+All Windows executions use test-created caller-owned temporary NTFS sandboxes.
+Tests exercise exact 8+3 mixed topology, no-replace collisions, an
+after-INTENT target race, reparse and scope/volume escape,
+dirty/ref/admin/executable/identity drift, same-name admin reuse, every
+completed forward boundary, complete forward/reverse restoration, and safe
+forward plus reverse crash-gap reconciliation after an explicit repeated
+reverse call, without effect replay. Linux may import and validate
+portable contracts and architecture guards but must not claim NTFS execution.
 
 ## 14. 执行后检查
 

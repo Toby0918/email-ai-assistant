@@ -442,7 +442,7 @@ No test or implementation opens a real filesystem target, service, ACL,
 repository/worktree, Runtime, SQLite, provider, mailbox, vault, private store,
 or private data. `SAFE_ABORT`, `ROLLBACK_REQUIRED`, `INCIDENT_STOP`, and
 `CUTOVER_SUCCEEDED` are distinct classifications; a result or fingerprint is
-not host authority. Issues #55 through #59 remain separate.
+not host authority. Issues #57 through #59 remain separate.
 
 ## 17. Content-free Windows real-host preflight composition rule
 
@@ -499,7 +499,7 @@ run against the real Repository Root or any real host target. It has no
 service-control, ACL-apply, rename, worktree mutation, Runtime build, database
 copy, artifact, Config, provider, mailbox, vault, private-store/private-data,
 evidence publication, migration, cutover, resume, rollback, recovery, or
-cleanup capability. Issues #55 through #59 remain separately authorized.
+cleanup capability. Issues #57 through #59 remain separately authorized.
 
 ## 18. Reviewed Migration Evidence publication and verification rule
 
@@ -581,3 +581,41 @@ private-data container, or authorization to migrate.
 8. Architecture tests reject shell/PowerShell/`icacls`, replayable ACL
    transcripts, replace-capable moves, production consumers, and unlocked real
    constructors.
+
+## Issue #56 reversible repository transaction rules
+
+1. `test_cutover_repository_transaction_contracts`,
+   `windows_scope`, and `architecture` pin the exact 8 embedded + 3 external
+   roster, reviewed Git/common/admin/physical bindings, opaque pathless public
+   seams, fixed imports, and absence of forbidden capabilities.
+2. `durable_store` and journal tests pin strict canonical create-only records,
+   sequence/hash chaining, INTENT/effect/OBSERVED/COMMITTED ordering, stable
+   reread, exact `ABORTED/NOT_APPLIED` before-effect reconciliation, missing
+   fact-only after-effect completion, corruption rejection, and content-free
+   persistence.
+3. `windows_round_trip` and `windows_boundary_reverse` prove the original
+   Repository Root becomes `main`
+   through same-volume identity-preserving relocation, every original
+   physical/admin object is preserved first, exactly eleven reviewed
+   counterparts are recreated with safe same-name admin reuse, and every
+   completed forward boundary reverses while retaining any published failed
+   evidence and restoring all twelve original repository/worktree physical
+   identities plus all eleven original administrative identities.
+4. `crash_gaps` covers after-INTENT, after-effect, after-OBSERVED, and
+   after-COMMITTED gaps in both directions. Exact before state is `SAFE_ABORT`;
+   exact expected-after state may be `SAFE_COMMIT_FACTS`; ambiguity is
+   `INCIDENT_STOP`. Explicit reverse reconciles only exact safe forward gaps;
+   an explicitly repeated reverse call also reconciles each safe reverse gap,
+   validates its exact checkpoint, and runs only remaining mutations. No effect
+   replay, background resume, or ambiguous resume exists.
+5. `fail_closed` covers target/admin collision, after-INTENT target race,
+   reparse, scope/volume escape,
+   ref, dirty state, Git executable, physical identity, opaque administrative
+   content, actual #55 observation, hostile Git config/hook, exact admin
+   namespace, zone inventory, and unexpected worktree drift without clobber.
+6. `real_lock` proves missing/test/malformed authority constructs nothing and
+   exact real execution authority still returns
+   `BLOCKED_NO_APPROVED_COMMAND` before Issue #39.
+7. The final forward verifier composes unchanged ContainerAudit
+   filesystem/Git/embedded-worktree validators over actual synthetic metadata;
+   exact #56 Git verification separately covers all three external worktrees.

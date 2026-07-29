@@ -534,6 +534,35 @@ repaired, deleted, replaced, or bypassed with another name. Executable proof is
 confined to test-owned temporary NTFS sandboxes, and the real constructor
 remains locked before Issue #39.
 
+### Issue #56 reversible repository and worktree transaction boundary
+
+Issue #56 accepts the #55 primitive boundary and proves its composition only in
+a caller-owned synthetic Windows sandbox. The reviewed inventory is fixed at
+eight embedded and three external worktrees. The original Repository Root is
+relocated by same-volume identity into `main`; original physical worktrees and
+opaque Git administrative entries are preserved no-replace before fixed-ref
+counterparts are created. No clone, repository copy, fetch, reset, stash,
+prune, remove, repair, deletion, replacement, or alternate target exists.
+The fixed Git runner revalidates its bound executable and sandbox identities
+for every allowlisted operation, owns a bounded process tree, disables
+repository hooks, rejects unsafe local configuration at scope bind/rebind, and
+requires an exact administrative namespace.
+
+The durable content-free journal records INTENT before every effect, then exact
+actual OBSERVED and COMMITTED facts. Exact before-effect crash state may append
+`ABORTED/NOT_APPLIED`; exact after-effect crash state may append only missing
+facts, never replay the effect. Reverse accepts every completed forward
+boundary and safely classified forward crash gap, first retains any published
+new failed state, then restores the original Repository Root, administrative
+records, and all eleven physical identities. After any safe reverse crash gap,
+an explicitly repeated reverse call validates the exact checkpoint and
+continues only the remaining fixed mutations. Final forward validation reuses
+the unchanged ContainerAudit filesystem/Git/embedded-worktree policy
+validators while independently checking all three external worktrees.
+Ambiguity stops. This synthetic proof grants no authority over the real
+repository or existing worktrees and does not approve Issues #57-#59, #38/#39,
+merge, or closure of parent Spec #50.
+
 ## Consequences
 
 - The migration is a security and repository-boundary change, not a file cleanup.
