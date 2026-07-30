@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-26
+last_update: 2026-07-29
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -611,6 +611,51 @@ source_type: operation_guide
    documentation, status, leakage, maintenance, and the full unit suite.
    Synthetic success does not authorize a real service probe or operation,
    Issue #59, Issues #38/#39, merge, or parent Spec #50 closure.
+
+## Issue #59 focused acceptance
+
+1. Run the portable composition suite:
+   `python -B -m unittest tests.test_cutover_composition_architecture tests.test_cutover_composition_operator_lock tests.test_cutover_composition_receipt_chain tests.test_cutover_composition_coverage_contract tests.test_cutover_composition_leakage tests.test_real_host_preflight_composition_root tests.test_migration_evidence_publication_composition_root tests.test_cutover_transaction_composition_root`.
+2. On Windows, run
+   `python -B -m unittest tests.test_project_container_composition_windows_end_to_end`.
+   It must use only caller-owned temporary sandboxes and end at
+   `LEGACY_RECOVERED` after actual synthetic preflight, evidence, ACL,
+   repository/worktree, managed publication, failed activation, failed-
+   Container preservation, reverse restoration, and legacy health. The
+   ACL-through-activation forward roles must pass through transaction
+   `execute()` before the committed journal prefix enters rollback. Assert
+   the accepted #55 ACL policy is the #56 Profile ACL policy, the #56 forward
+   receipt supplies the journal state, the #58 lifecycle consumes the exact
+   #57 receipt-set fingerprint, and new-service data-role evidence equals the
+   actual #57 database receipt. Construct no substitute publication receipt.
+3. Run all affected #51-#58 contract, architecture, race, crash, no-clobber,
+   leakage, real-lock, and Windows sandbox suites. Confirm every
+   `SyntheticCrashGap` and all eleven worktree restoration paths remain
+   covered.
+4. Run compile, documentation/front-matter, architecture, static-linter,
+   mechanical-rule, maintenance, repository-leakage, and diff checks, followed
+   by the full unit suite from the final integrated snapshot.
+5. Confirm every real constructor/entry rejects test authorization and returns
+   `BLOCKED_NO_APPROVED_COMMAND` after valid real authorization. Confirm no
+   operator root is imported by product runtime, browser, cleanup, scheduler,
+   script, or workflow code. Confirm backend packages contain no executable
+   test binder and test-only assembly cannot select or outlive its internally
+   owned temporary scope. Confirm the scope owns every component
+   `TemporaryDirectory` and closing it blocks each role/journal callback
+   before the underlying fixture callback. Inject cleanup failure and a
+   concurrent close/callback race; the scope must become irreversibly inactive
+   first, invoke zero new underlying callbacks, and never expose a half-cleaned
+   active lease.
+6. Confirm every partial chain is an exact approved prefix, linked
+   prior/current journal heads are exact, the terminal receipt changes the
+   chain fingerprint, resume/rollback verify the initial head before a role,
+   authorization expiry is rechecked before every boundary, and one journal
+   owner rejects gate replay across composition objects.
+7. Confirm #38 remains open/ready-for-human, R1 remains `NOT EXECUTABLE`, #39
+   remains unstarted, and no real authorization or operation was issued.
+8. The handoff must state that merging #59 changes the governing master,
+   invalidates old R1, and requires all fourteen #38 approval items plus a new
+   R2 against the exact final master before #39 can be considered.
 
 ## Option C 多模态离线门
 

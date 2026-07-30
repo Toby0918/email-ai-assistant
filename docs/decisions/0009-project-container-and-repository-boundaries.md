@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-27
+last_update: 2026-07-29
 status: draft
 owner: "@tobyWang"
 review_cycle: quarterly
@@ -639,6 +639,52 @@ synthetic analysis, and has one fixed incident outcome on failure. Real
 lifecycle construction remains locked before Issue #39. This decision adds no
 authority for real activation, recovery, cleanup, Issue #59, Issues #38/#39,
 merge, or parent Spec #50 closure.
+
+### Issue #59 final composition boundary
+
+Issue #59 assembles the prerequisite behind three physically separate operator
+roots: `RealHostPreflightComposition`,
+`MigrationEvidencePublicationComposition`, and
+`CutoverTransactionComposition`. Each root accepts only a nominal,
+Profile-bound fixed-role bundle. The roots do not import one another, and
+mechanical consumer guards keep them out of normal runtime, browser, scripts,
+cleanup, scheduler, and workflows. No root accepts a caller-selected path,
+repository, worktree, Runtime, database, artifact, Config, ACL, rollback
+target, shell, PowerShell, or Git command.
+
+The closed `ProjectContainerReceiptChainV1` binds one operation, Profile,
+governing-master fingerprint, operator, authorization sequence, review,
+package verification, ACL baseline, fresh pre-mutation gate, journal owner and
+linked prior/current heads, terminal receipt, activation, final audit,
+failed-state preservation, rollback restoration, legacy health, and terminal
+recovery state. A receipt is evidence, never authority. Every partial chain is
+an approved prefix and its fingerprint commits its ordered terminal receipt.
+Execute, resume, and rollback are single-owner, single-action seams; the owner
+atomically claims the fresh gate across composition objects and supplies the
+per-boundary authorization clock. Receipt, predecessor, binding, freshness,
+journal-head, or terminal-state drift fails closed.
+
+All real constructors and command entries require their exact phase-specific
+Issue #51 authorization. Missing, wrong-phase, expired, or synthetic/test
+authorization is rejected. Even an otherwise valid real authorization returns
+`BLOCKED_NO_APPROVED_COMMAND` and constructs nothing before Issue #39.
+Backend packages expose no executable test binder. Test-only assembly owns an
+internally created temporary scope with no root-selection input. That scope
+owns every component `TemporaryDirectory`, and every bound role/journal
+callback rechecks the live scope. Executable proof is confined to caller-owned
+Windows sandboxes, routes the forward path through transaction `execute()`,
+binds the accepted #55 ACL policy into the #56 Profile, and passes the exact
+#57 four-receipt set directly to the #58 lifecycle/controller. It constructs
+no substitute publication receipt. Portable and Linux tests prove only
+contracts, ordering, and isolation; they make no NTFS or Windows ACL claim.
+
+Issue #59 creates no real command and grants no authority to run preflight,
+publish evidence, change ACLs, move a repository/worktree, build a Runtime,
+copy a database, publish CRX/Config, start/stop a service, activate, resume, or
+rollback. Issue #38 remains open and its R1 remains `NOT EXECUTABLE`. After
+Issue #59 merges, that merge's final master invalidates the old R1 checkpoint:
+all fourteen Issue #38 approval items must be re-reviewed against that exact
+master and a new R2 must be published before Issue #39 can be considered.
 
 ## Consequences
 

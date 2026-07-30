@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-27
+last_update: 2026-07-29
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -1120,6 +1120,30 @@ limited to test-owned synthetic sandboxes; portable tests claim no real
 service, port, repository, worktree, ACL, Runtime, or SQLite evidence. The real
 constructor requires exact execution and recovery authorization validation and
 still returns `BLOCKED_NO_APPROVED_COMMAND` before Issue #39.
+
+## Issue #59 composition tooling boundary
+
+Issue #59 adds no dependency, CLI, HTTP route, service manager, process
+launcher, workflow, scheduler, cleanup action, provider client, socket, SQLite
+reader, filesystem path selector, environment reader, shell, PowerShell, or
+Git command surface. The four new backend packages use only the standard
+library plus exact existing Cutover contracts.
+
+Backend packages contain no executable test binder. All executable integration
+remains in tests, where assembly requires an internally created temporary
+scope with no caller-selected root. Windows tests compose existing #53-#58
+test-only binders and caller-owned temporary roots; they may create
+synthetic Git repositories, evidence packages, ACLs, Runtime/data/CRX/Config,
+and service evidence only inside those sandboxes. They do not read or mutate
+the real repository, other worktrees, Project Container, mailbox, provider,
+vault, private store, credentials, or private data. Linux CI runs portable
+contracts and static guards only.
+
+The operator packages expose fixed nominal roles and locked authorization
+entries, not a launcher. The Windows forward path passes through transaction
+`execute()` before journal-bound rollback. Before Issue #39, all exact real
+authorizations still produce `BLOCKED_NO_APPROVED_COMMAND`; no command string,
+path, or adapter can be supplied to change that result.
 
 ## 14. 执行后检查
 

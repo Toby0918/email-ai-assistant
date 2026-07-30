@@ -110,6 +110,32 @@ PACKAGE_MODULES = {
     for name in EXPECTED_FILES
 }
 ALLOWED_CONSUMERS = {
+    "backend/cutover_composition_contracts/authorization_sequence.py": {
+        "AuthorizationValidationStatus",
+        "CutoverExecutionAuthorizationV1",
+        "CutoverProfileV1",
+        "EvidencePublicationAuthorizationV1",
+        "RealPreflightAuthorizationV1",
+        "RecoveryAuthorizationV1",
+        "TestSandboxAuthorizationV1",
+        "validate_real_host_authorization",
+    },
+    "backend/cutover_composition_contracts/binding.py": {
+        "AuthorizationValidationStatus",
+        "CutoverProfileV1",
+        "TestSandboxAuthorizationV1",
+        "validate_real_host_authorization",
+    },
+    "backend/real_host_preflight_composition/contracts_bridge.py": {
+        "RealPreflightAuthorizationV1",
+    },
+    "backend/migration_evidence_publication_composition/contracts_bridge.py": {
+        "EvidencePublicationAuthorizationV1",
+    },
+    "backend/cutover_transaction_composition/contracts_bridge.py": {
+        "CutoverExecutionAuthorizationV1",
+        "RecoveryAuthorizationV1",
+    },
     "backend/cutover_host_mutation/operator_entry.py": {
         "AuthorizationValidationStatus",
         "CutoverExecutionAuthorizationV1",

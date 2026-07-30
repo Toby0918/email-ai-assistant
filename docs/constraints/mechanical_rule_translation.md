@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-27
+last_update: 2026-07-29
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -750,3 +750,45 @@ private-data container, or authorization to migrate.
 12. Exact public-export, per-module import, all-backend/script/frontend/workflow
     consumer, and dynamic-import guards prevent an unreviewed lifecycle
     capability or consumer from being added.
+
+## Issue #59 final composition rules
+
+1. Exact file/export/import guards pin one pure composition-contract package
+   and three mutually isolated operator roots.
+2. Every nominal role bundle carries the exact composition-binding fingerprint;
+   extra, missing, mapping, subclass, duck-typed, or dynamically selected roles
+   fail before a callback.
+3. Real constructors and entries validate one exact phase authorization,
+   reject test authority, and remain `BLOCKED_NO_APPROVED_COMMAND` before #39.
+4. The receipt chain accepts only the code-fixed success or recovery sequence
+   or an exact nonempty prefix, and binds one operation, Profile, governing
+   master, operator,
+   authorization sequence, review, package verification, ACL baseline, fresh
+   gate, journal owner, linked prior/current heads, terminal receipt,
+   activation, final audit, and recovery state.
+5. Transaction execute/resume/rollback each consume one single-action claim.
+   The journal owner atomically claims the fresh gate across composition
+   objects and supplies the clock rechecked before every role. Resume accepts
+   only an exact longer journal continuation; drift or replay returns the
+   fixed rejection.
+6. A stale pre-mutation receipt stops before ACL publication. Wrong
+   predecessor, role, binding, receipt, owner, head, terminal state, or
+   authorization expiry fails closed.
+7. Coverage guards retain tests for reparse insertion, parent/source
+   replacement, target appearance, service/database/worktree/ACL/receipt
+   drift, every forward/reverse intent/effect/observation/commit gap, and each
+   package/journal/directory/worktree/Runtime/database/CRX/Config/failed-
+   Container/recovery no-clobber target.
+8. Receipt, chain, result, error, repr, JSON, stdout, stderr, and log tests
+   reject paths, SID/SDDL, Git names/IDs/commands, exceptions, credentials,
+   mailbox/provider/vault/private content, database rows, and dynamic fields.
+9. The complete E2E is `win32`-gated and executes only existing #53-#58
+   test-sandbox seams. Its forward path passes through transaction `execute()`
+   before journal-bound rollback. Portable/Linux tests claim no NTFS, Windows
+   ACL, service, or native durability evidence.
+10. Backend packages contain no executable test binder. Test-only assembly
+    owns an internally created temporary scope, accepts no caller-selected
+    root, and is invalid after close.
+11. Issue #38 and its non-executable R1 remain unchanged; Issue #39 has no
+    command or authorization. A merged final master requires a fourteen-item
+    #38 re-review and a new R2 before #39.
