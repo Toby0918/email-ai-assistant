@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-27
+last_update: 2026-07-29
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -555,6 +555,71 @@ still returns `BLOCKED_NO_APPROVED_COMMAND` before Issue #39. Synthetic
 success grants no real service, repository/worktree, ACL, Runtime, SQLite,
 browser, mailbox, provider, credential, vault, private-data, Issue #59,
 Issue #38/#39, merge, or parent-Spec authority.
+
+## Issue #59 three-root composition guard
+
+Issue #59 adds only four pure/operator packages:
+`backend.cutover_composition_contracts`,
+`backend.real_host_preflight_composition`,
+`backend.migration_evidence_publication_composition`, and
+`backend.cutover_transaction_composition`. The three operator roots are
+physically separate and mutually non-importing. Their exact frozen role bundles
+are bound to one `CompositionBindingV1`; normal runtime, browser, scripts,
+cleanup, scheduler, workflow, mailbox, provider, vault, private-data, and
+unrelated adapter packages cannot import them.
+
+Every public real constructor and command entry validates the exact nominal
+phase authorization. Synthetic/test authorization is always rejected. Exact
+real authorization still returns `BLOCKED_NO_APPROVED_COMMAND`, with zero
+executions and no constructed role bundle, until Issue #39 supplies a
+separately reviewed command. Backend packages expose no executable test
+binder. Test-only assembly requires the complete synthetic authorization
+sequence and an internally created temporary scope with no caller-selected
+root. That scope owns each component `TemporaryDirectory`, and every role and
+journal callback rechecks scope liveness before calling the component; it has
+no route into a real entry.
+
+`ProjectContainerReceiptChainV1` accepts only the exact ordered stage set and
+same operation/Profile/governing-master/operator/authorization-sequence
+binding. It also binds review, package verification, ACL baseline, expiring
+pre-mutation receipt, one journal owner, linked prior/current heads, terminal
+receipt, activation, final audit, failed
+Container preservation, rollback restoration, legacy health, and terminal
+recovery state. Each stage rejects a wrong predecessor, binding, role, owner,
+head link, freshness interval, count, or unapproved dynamic field. Every
+partial chain is an exact approved prefix, and the chain fingerprint commits
+its ordered stages and recursively linked terminal receipt. Execute, resume,
+and rollback are single-action; the journal owner also atomically claims the
+fresh gate across composition instances and supplies the clock used to
+revalidate authorization before every role boundary. Resume accepts only an
+exact journal-derived continuation, and recovery can branch only after
+activation or final audit.
+
+Receipts, chains, fixed errors, stdout, stderr, and logs expose only closed
+statuses, fingerprints, timestamps, and allowlisted counts. They reject raw
+paths, SID/SDDL, Git names/IDs, worktree/admin names, commands, exceptions,
+credentials, mailbox/provider/vault/private content, database rows, and
+dynamic fields.
+
+The Windows E2E test composes the existing #53-#58 implementations only in
+caller-owned temporary sandboxes. Its ACL-through-activation forward path
+passes through the transaction root, the fixed final audit rejects the known
+failed activation, and rollback consumes only the reconstructed committed
+journal prefix. The #55 ACL policy receipt is carried into the #56 Profile,
+the actual #56 forward receipt supplies journal state, and #58 consumes the
+exact #57 four-receipt set and database-receipt data role without a substitute
+publication receipt. It proves recovery while all providers remain disabled; it
+does not run a real preflight,
+evidence package, ACL change, repository/worktree move, Runtime build,
+database/CRX/Config publication, service operation, activation, or rollback.
+Linux and portable tests make no NTFS, Windows ACL, native durability, or
+service-control claim.
+
+Issue #38 remains open and R1 remains `NOT EXECUTABLE`; Issue #39 remains
+unstarted. The final master produced by merging Issue #59 will invalidate the
+old R1 SHA. All fourteen #38 approval items must be re-reviewed against that
+exact final master and a new R2 published before any #39 authorization can be
+considered.
 
 ## Security review checklist
 

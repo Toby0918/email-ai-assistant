@@ -223,3 +223,46 @@ only and is never a pre-cutover final-audit pass or cutover approval. Prepare
 captures a detached canonical policy snapshot; run snapshots it again and
 rebuilds adapters from the seven captured readers before any callback.
 _Avoid_: Final layout pass, executable cutover command
+
+**Project Container Composition Binding**:
+The Issue #59 immutable, content-free agreement on one operation, Profile,
+governing master, operator, and complete ordered authorization sequence. Every
+operator role bundle and receipt chain must match it exactly.
+_Avoid_: Runtime configuration, host target selection, authorization
+
+**Real Host Preflight Composition Root**:
+The physically separate Issue #59 root containing only fixed current-topology,
+HostBaseline, evidence review/verification, final-audit readiness, and recovery
+inspection roles. Its real constructor remains non-executable before Issue
+#39.
+_Avoid_: Cutover launcher, mutation adapter
+
+**Migration Evidence Publication Composition Root**:
+The physically separate Issue #59 create-only root that can publish only from
+one exact confirmed review fingerprint through one binding-bound role.
+_Avoid_: Evidence browser, verifier process, migration command
+
+**Cutover Transaction Composition Root**:
+The physically separate Issue #59 single-owner execute, resume, and rollback
+state machine. It accepts only fixed binding-bound roles and one journal owner;
+the owner atomically claims the pre-mutation gate and supplies the clock
+rechecked before every role and after final audit before success. Backend
+packages expose no executable test binder. Test-only roles and journal
+callbacks cannot outlive the internally owned temporary scope, and the root
+has no arbitrary host, path, selection, or command surface.
+_Avoid_: General orchestrator, shell runner, automatic recovery
+
+**Project Container Receipt Chain**:
+The exact Issue #59 sequence binding review, package verification, ACL
+baseline, pre-mutation freshness, linked prior/current journal heads, terminal
+receipt, managed publication, activation, final audit, failed-state
+preservation, rollback restoration, and legacy health to one composition
+binding. Every partial value is an approved prefix and the chain fingerprint
+commits its ordered terminal receipt. It is evidence, never authorization.
+_Avoid_: Cutover token, command transcript, mutable run state
+
+**Issue 38 R2 Re-Approval**:
+The mandatory human re-review of all fourteen Issue #38 approval items against
+the exact final master after Issue #59 merges. The old R1 remains
+`NOT EXECUTABLE`; Issue #39 cannot be considered until a new R2 is published.
+_Avoid_: Automatic approval rollover, stale-SHA authorization

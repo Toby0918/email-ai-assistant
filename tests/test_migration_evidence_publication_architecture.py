@@ -183,14 +183,13 @@ def _runtime_probe(access: str, forbidden: tuple[str, ...]) -> str:
 
 def _consumes_publication(path: Path) -> bool:
     source = path.read_text(encoding="utf-8", errors="ignore")
-    if "migration_evidence_publication" in source:
-        return True
-    if path.suffix != ".py":
-        return False
-    return any(
-        module == PACKAGE_MODULE or module.startswith(PACKAGE_MODULE + ".")
-        for module in _modules(path)
-    )
+    if path.suffix == ".py":
+        return any(
+            module == PACKAGE_MODULE
+            or module.startswith(PACKAGE_MODULE + ".")
+            for module in _modules(path)
+        )
+    return "migration_evidence_publication" in source
 
 
 class MigrationEvidencePublicationArchitectureTests(unittest.TestCase):

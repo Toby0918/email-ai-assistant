@@ -71,9 +71,17 @@ def build_synthetic_repository_scenario() -> SyntheticRepositoryScenario:
     )
 
 
-def profile_for_review(review) -> CutoverProfileV1:
+def profile_for_review(
+    review,
+    *,
+    acl_policy_fingerprint: str | None = None,
+) -> CutoverProfileV1:
     body = valid_profile_body()
     body["governing_master_commit"] = EXPECTED_MASTER
+    if acl_policy_fingerprint is not None:
+        body["acl_policy"]["policy_fingerprint"] = (
+            acl_policy_fingerprint
+        )
     body["role_selections"] = dict(review.role_selections)
     body["evidence_roles"] = dict(review.evidence_roles)
     body["reviewed_git_selections"] = dict(

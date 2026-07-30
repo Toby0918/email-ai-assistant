@@ -640,6 +640,37 @@ class GenerateProjectStatusTests(unittest.TestCase):
             with self.subTest(marker=marker):
                 self.assertIn(marker, report)
 
+    def test_issue59_final_composition_is_locked_and_requires_r2(self) -> None:
+        module = load_script_module(
+            SCRIPT,
+            "generate_project_status_issue59_composition",
+        )
+        report = module.build_project_status()
+
+        for marker in (
+            "Issue #59 final Project Container composition",
+            "`backend.real_host_preflight_composition`",
+            "`backend.migration_evidence_publication_composition`",
+            "`backend.cutover_transaction_composition`",
+            "`backend.cutover_composition_contracts`",
+            "physically separate, mutually non-importing",
+            "no executable test binder",
+            "linked prior/current journal heads",
+            "terminal receipt",
+            "transaction `execute()`",
+            "`ProjectContainerReceiptChainV1`",
+            "`BLOCKED_NO_APPROVED_COMMAND`",
+            "caller-owned temporary sandboxes",
+            "R1 remains `NOT EXECUTABLE`",
+            "all fourteen #38 approval items",
+            "a new R2",
+            "`docs/operations/issue59_project_container_composition_task_brief.md`",
+            "`tests/cutover_composition_binders.py`",
+            "`tests/test_project_container_composition_windows_end_to_end.py`",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, report)
+
     def test_browser_extension_files_are_reported_as_key_files(self) -> None:
         module = load_script_module(SCRIPT, "generate_project_status")
         report = module.build_project_status()

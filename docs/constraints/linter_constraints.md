@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-27
+last_update: 2026-07-29
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -908,6 +908,50 @@ unexpected-exception containment, fixed legacy failure, real-lock statuses,
 and content-free repr/stdout/stderr/errors. Windows sandbox tests compose the
 actual synthetic #56 forward/reverse seam, resume every committed reverse
 boundary, reject failed-Container collision, and make no real-host claim.
+
+## Issue #59 static composition rules
+
+Static tests pin the exact file and public-export allowlists for
+`backend.cutover_composition_contracts` and the three operator-root packages.
+The roots may import only their own modules, the pure composition contracts,
+and exact Issue #51 contract values. The roots cannot import one another;
+preflight cannot import mutation packages; evidence cannot import unrelated
+adapters.
+
+The same guards require executable sandbox assembly to exist only under
+`tests/`, normalize relative and `from backend import ...` forms, and reject
+qualified dynamic capability lookup such as `builtins.getattr` in composition
+code. Test-only assembly accepts no caller-selected root and becomes invalid
+when its internally owned temporary scope closes. Scope closure first marks
+an irreversible inactive state under one lock, then cleans all owned
+directories; cleanup failure cannot reactivate it. Every role/journal callback
+holds the same scope lease from liveness check through callback completion.
+
+Recursive consumer guards scan normal runtime, frontend/browser, scripts,
+cleanup, scheduler, and workflows. AST guards reject filesystem/path,
+subprocess, shell, PowerShell, socket, SQLite, logging, dynamic import, and
+arbitrary Git/command capability. Public entry signatures and exact nominal
+role dataclasses reject source, target, worktree, database, Runtime, artifact,
+Config, ACL, rollback, shell, PowerShell, Git command, varargs, kwargs,
+mapping, subclass, duck-typed, or extra-field surfaces. Composition code cannot
+use dynamic capability lookup.
+
+Focused tests require exact phase authorization for every real constructor and
+entry, reject `TestSandboxAuthorizationV1`, and pin valid pre-#39 results to
+`BLOCKED_NO_APPROVED_COMMAND`. Receipt tests pin exact operation/Profile/
+master/operator/authorization-sequence binding, approved partial prefixes,
+predecessor and prior/current journal-head order, per-boundary freshness,
+cross-composition gate claims, terminal receipt commitment,
+terminal success/recovery shapes, closed counts, and content-free
+serialization. Coverage guards retain the complete #53-#58 race,
+crash-gap, and no-clobber owners.
+
+The Windows E2E module is explicitly `win32`-gated, uses only caller-owned
+temporary sandboxes, and routes forward ACL-through-activation roles through
+transaction `execute()` before rollback. Portable tests are mechanically
+barred from claiming
+NTFS or Windows ACL proof. Leakage tests cover receipt/chain JSON and repr,
+fixed exceptions, stdout, stderr, and logs.
 
 ## 14. 修改规则
 

@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-27
+last_update: 2026-07-29
 status: draft
 owner: "@tobyWang"
 review_cycle: monthly
@@ -717,6 +717,67 @@ an otherwise valid `CutoverExecutionAuthorizationV1`. No real ACL, repository,
 worktree, service, Runtime, SQLite, provider, mailbox, vault, private store, or
 private data was accessed or modified. Issues #56 through #59 remain separate;
 Issues #38/#39 and parent Spec #50 remain unchanged.
+
+### 8.23 Issue #59 final three-root composition checkpoint
+
+Issue #59 assembles the closed #53-#58 prerequisite behind three physically
+separate roots:
+
+1. `RealHostPreflightComposition` has six fixed read-only roles.
+2. `MigrationEvidencePublicationComposition` has one exact-confirmed-review
+   create-only role.
+3. `CutoverTransactionComposition` has fixed execute/resume/rollback roles and
+   one journal owner.
+
+Every role bundle is nominal, frozen, repr-hidden, and bound to one
+`CompositionBindingV1`. The roots cannot import one another, and mechanical
+guards prohibit product runtime, browser, scripts, cleanup, scheduler, and
+workflow consumers. No root accepts arbitrary path, source, target, worktree,
+database, Runtime, artifact, Config, ACL, rollback, shell, PowerShell, Git
+command, environment, provider, mailbox, vault, private-store, or private-data
+input.
+
+The exact `ProjectContainerReceiptChainV1` binds one operation, Profile,
+governing master, operator, ordered authorization sequence, review, package
+verification, ACL baseline, fresh pre-mutation gate, one journal owner/head,
+linked prior/current journal heads, terminal receipt, activation, final audit,
+failed-Container preservation, rollback restoration, legacy health, and
+terminal state. Every partial chain is an exact approved prefix and the chain
+fingerprint commits its ordered terminal receipt. Receipt, predecessor,
+binding, expiry, journal, or terminal drift fails closed.
+Execute/resume/rollback are single-action; the journal owner atomically claims
+the fresh gate across composition objects and supplies the clock rechecked
+before every role. Resume accepts only an exact longer committed continuation
+and cannot guess or replay an effect.
+
+Every real constructor and entry validates only its exact Issue #51 phase
+authorization. Test authorization is rejected. Even exact valid real
+authorization returns `BLOCKED_NO_APPROVED_COMMAND` and constructs nothing
+before Issue #39. Backend packages expose no executable test binder; test-only
+assembly requires an internally created temporary scope and accepts no
+caller-selected root. That scope owns each component `TemporaryDirectory`,
+and every role/journal callback rechecks it before invoking the component. No
+production command, CLI, HTTP route, scheduler,
+cleanup, or launcher is added.
+
+The final Windows E2E uses only caller-owned temporary sandboxes and composes
+the actual existing #53-#58 test seams. Its forward roles pass through
+transaction `execute()` before journal-bound rollback. It exercises current topology,
+evidence review/create/verify, ACL publication, eleven-worktree forward state,
+Runtime/data/CRX/Config publication, provider-disabled failed activation,
+failed-Container preservation, reverse restoration, and legacy health.
+The #55 ACL policy receipt is bound into the #56 Profile, the actual #56
+forward receipt supplies the durable journal state, and the exact #57
+four-receipt set and database receipt are consumed by #58 without a substitute
+publication receipt.
+Portable/Linux tests prove contracts and isolation only and make no NTFS,
+Windows ACL, service, or native durability claim.
+
+Issue #38 remains open/ready-for-human and R1 remains `NOT EXECUTABLE`; Issue
+#39 remains unstarted. The final master after merging #59 invalidates R1's old
+SHA. A human must re-review all fourteen #38 approval items against that exact
+master and publish R2 before #39 can be considered. Issue #59 itself issues no
+real authorization and performs no real host or private operation.
 
 ## 9. 数据结构或接口变化
 

@@ -839,7 +839,7 @@ class RealHostPreflightArchitectureTests(unittest.TestCase):
         generator = (ROOT / "scripts" / "generate_project_status.py").resolve()
         for path in candidates:
             source = path.read_text(encoding="utf-8", errors="ignore")
-            if path.resolve() == generator:
+            if path.suffix == ".py" or path.resolve() == generator:
                 consumed = _python_consumes_preflight(source)
             else:
                 consumed = _text_consumes_preflight(source)

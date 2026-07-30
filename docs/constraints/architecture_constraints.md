@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-27
+last_update: 2026-07-29
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -1052,6 +1052,64 @@ Normal runtime, frontend, scripts, workflows, cleanup, and every other backend
 package remain non-consumers. Real construction remains locked without exact
 `CutoverExecutionAuthorizationV1` and `RecoveryAuthorizationV1` and remains
 non-executable before Issue #39.
+
+## Issue #59 final composition architecture
+
+Issue #59 introduces one pure closed-contract package and three physical
+operator roots:
+
+- `backend.cutover_composition_contracts` owns the authorization sequence,
+  immutable composition binding, closed stage receipts, and exact chain.
+- `backend.real_host_preflight_composition` owns six fixed read-only roles.
+- `backend.migration_evidence_publication_composition` owns one confirmed-
+  review create-only role.
+- `backend.cutover_transaction_composition` owns fixed execute, resume, and
+  rollback roles plus one journal owner.
+
+The three roots do not import one another. Preflight imports no mutation
+adapter; evidence imports no unrelated adapter; transaction receives only an
+exact binding-bound role bundle. Normal runtime, browser, scripts, cleanup,
+scheduler, workflows, and every unapproved consumer remain outside the roots.
+No root accepts arbitrary source, target, worktree, database, Runtime,
+artifact, Config, ACL, rollback, shell, PowerShell, Git command, path,
+environment, provider, or dynamic capability.
+
+Each real constructor is only a locked authorization-validation seam. Its
+entries validate the exact `RealPreflightAuthorizationV1`,
+`EvidencePublicationAuthorizationV1`,
+`CutoverExecutionAuthorizationV1`, or `RecoveryAuthorizationV1` phase.
+Test authorization is rejected; valid real authorization constructs nothing
+and returns `BLOCKED_NO_APPROVED_COMMAND` before Issue #39.
+
+Backend operator packages contain no executable test binder. Executable
+assembly exists only under `tests/`, requires an internally created temporary
+scope with no root-selection input, and is mechanically absent from every
+production consumer. The scope owns every component `TemporaryDirectory`
+owner and is revalidated by every bound role and journal callback, so closing
+the scope blocks execution before the original callback.
+
+`ProjectContainerReceiptChainV1` is the only cross-root state projection. It
+requires exact order and same operation, Profile, governing master, operator,
+authorization sequence, review, package verification, ACL baseline,
+pre-mutation freshness, journal owner plus linked prior/current heads,
+terminal receipt, activation, final audit, recovery
+inspection, failed-Container preservation, rollback, and legacy-health
+evidence. Every partial chain is an approved prefix and its fingerprint commits
+the ordered terminal receipt chain. Execute, resume, and rollback are
+single-owner and single-action; the owner atomically claims the fresh gate
+across composition objects and supplies the per-boundary authorization clock.
+
+Windows end-to-end evidence is restricted to a test-owned composition of the
+existing #53-#58 sandbox seams. Forward ACL-through-activation roles pass
+through transaction `execute()` before a journal-bound rollback. The accepted
+#55 ACL policy fingerprint is carried into the #56 Profile, the #56 forward
+receipt supplies the durable journal state, and the exact #57 four-receipt set
+is consumed directly by the #58 lifecycle and new-service data-role evidence;
+the harness constructs no substitute publication receipts. Linux runs
+portable contracts and architecture
+guards only and makes no Windows ACL, NTFS, native-handle, service, or
+durability claim. No Issue #59 package is a real command or production
+consumer.
 
 ## 7. 修改规则
 
