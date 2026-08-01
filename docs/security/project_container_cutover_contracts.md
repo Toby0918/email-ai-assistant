@@ -909,6 +909,29 @@ requires a completely fresh process and sink. The two nominal receipt types
 cannot be directly constructed or serialized and expose only redacted,
 content-free evidence.
 
+## Issue #81 two-start provider-disabled validation lifecycle
+
+The approved validation slice exact-types and binds the published evidence,
+repository topology, Runtime, CRX, Config, and database results before any
+service callback is available. Start A and Start B use distinct UUIDv4 nonces,
+process identity and start time while matching the exact Runtime, Config,
+Profile, port, database role, and disabled primary/fallback provider identities.
+
+Start A proves health, performs exactly one fixed public synthetic analysis
+whose `analysis_engine.source` is `rule_fallback`, records zero provider
+attempts, binds one operator confirmation to that exact result, and observes
+exactly one matching database row from one write. It then stops the exact Start
+A process and requires `FINAL_OR_RECOVERY_VERIFY` with zero sidecars before the
+independent stopped-layout audit. Start B proves health without analysis or
+write and is followed by the independent final-running audit. Each audit
+completion binds the applicable service nonce/process, journal head, approved
+identities, health evidence, fresh 300-second window, and a distinct audit PID.
+
+Every boundary has closed crash, deterministic-failure, and ambiguous-failure
+classification. Crash and deterministic mismatch require rollback; ambiguous
+types, process reuse, stale attestations, and adapter exceptions incident-stop.
+The slice is single-use, dormant, synthetic-only, and adds no real entry.
+
 ## Security review checklist
 
 - [ ] Values remain pathless, immutable, repr-redacted, and content-free.

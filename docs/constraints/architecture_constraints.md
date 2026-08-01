@@ -1343,6 +1343,23 @@ package module imports the transaction process, mutation implementation,
 ContainerAudit I/O adapters, provider, mailbox, vault, private knowledge, or
 migration-evidence surfaces.
 
+## Issue #81 complete validation-lifecycle architecture
+
+`backend.r2_validation_lifecycle` is a dormant composition root over exact
+content-free contracts from the evidence process, repository manifest,
+independent Runtime/CRX/Config/database units, existing service evidence, and
+independent audits. It owns only closed validation state and an exact injected
+adapter bundle. It cannot publish, mutate host layout, open a database, launch
+a process, select a path, call a provider, or acquire mailbox/private data.
+
+The composition is single-use and orders eleven fixed boundaries from Start A
+through final-running audit. Start A alone can call analysis, confirmation,
+row, stop, and database proof. Start B has only start, health, and final audit.
+The Windows test-owned binder supplies synthetic callbacks, one local SQLite
+file, and two fresh audit workers; it is not imported by backend, frontend,
+scripts, or workflows. No production executable or Issue #39 authority is
+added.
+
 ## 7. 修改规则
 
 如果需要改变架构边界，必须同时修改：

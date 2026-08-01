@@ -79,6 +79,7 @@ class R2IndependentAuditsArchitectureTests(unittest.TestCase):
 
     def test_normal_runtime_and_frontend_have_no_consumer(self) -> None:
         needle = "backend.r2_independent_audits"
+        approved_composition = ROOT / "backend" / "r2_validation_lifecycle"
         consumers = []
         for root_name in ("backend", "frontend", "scripts", ".github"):
             root = ROOT / root_name
@@ -87,6 +88,7 @@ class R2IndependentAuditsArchitectureTests(unittest.TestCase):
                     item.is_file()
                     and item.suffix in {".py", ".js", ".yml", ".yaml"}
                     and PACKAGE not in item.parents
+                    and approved_composition not in item.parents
                     and needle in item.read_text(encoding="utf-8")
                 ):
                     consumers.append(item.relative_to(ROOT).as_posix())

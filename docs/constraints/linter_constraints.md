@@ -1113,6 +1113,18 @@ process IDs, exact kind binding, one append, 300-second freshness, replay and
 sink-swap incident stops, deterministic rollback classification, and complete
 fresh invocation after expiry. Module/function size rules continue to apply.
 
+## Issue #81 static validation-lifecycle rules
+
+Static guards pin the four-file dormant package, exact approved-slice imports,
+single-use eleven-boundary order, provider-disabled identities, and absence of
+normal-runtime consumers or a real entry. They reject subprocess, SQLite,
+filesystem, environment, network, provider, mailbox, vault, private-data,
+arbitrary command, and cleanup capabilities in production modules. Behavior
+tests pin exactly one `rule_fallback` result, one confirmation, one database
+write/row, exact stop and final database proof, two distinct service starts,
+two distinct fresh audit processes, no Start B analysis/write, and all 33
+boundary fault classifications. Module/function size rules continue to apply.
+
 ## 14. 修改规则
 
 如果新增或修改 linter 规则，必须同步更新：

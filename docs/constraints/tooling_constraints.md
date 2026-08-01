@@ -1356,6 +1356,21 @@ separate fresh Python processes and observe only PID, kind, aggregate journal
 entry count, and fixed status. Other tests inject only opaque fingerprints and
 a fixed clock; no real host state or approved cutover receipt is consumed.
 
+## Issue #81 validation-lifecycle tooling boundary
+
+The lifecycle has no command line, environment, path, port selector, process
+launcher, database handle, provider client, force, retry, recovery, cleanup, or
+real operator entry. Its eight exact callbacks are pre-bound by the synthetic
+test harness. Production modules cannot import subprocess, SQLite, filesystem,
+network, provider, mailbox, vault, or private-data libraries.
+
+Windows behavior uses a fresh temporary sandbox, creates one synthetic SQLite
+table, writes exactly one opaque result fingerprint during Start A, verifies
+one row and no sidecars, and confirms Start B leaves both analysis and write
+counts unchanged. Two test workers execute the stopped and running audits in
+separate fresh processes. All inputs are opaque fingerprints or fixed public
+synthetic values; providers remain disabled and real entries remain locked.
+
 ## 14. 执行后检查
 
 Agent 每次完成任务后，必须确认：
