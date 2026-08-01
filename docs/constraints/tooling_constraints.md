@@ -1327,6 +1327,21 @@ exercise all eight PREPARE/PUBLISH gaps and fixed collision/race/reparse/drift/
 partial/verification faults in fresh synthetic sandboxes. No test grants real
 artifact, signing, installation, browser, or host authority.
 
+## Issue #79 Config tooling boundary
+
+The Config unit is not executable and accepts no environment, dotenv path,
+registry, clipboard, credential-store, hidden, legacy, provider, private,
+arbitrary path, force, shell, or retry input. Only the test binder supplies the
+fixed stage/target and synthetic absolute operational paths. The document is
+written create-only, fully flushed, byte-compared, renamed no-replace, held,
+and byte-compared again around the independent Managed loader call.
+
+Windows tests use fresh synthetic directories, patch hostile environment
+values without exposing them to the publisher, and cover all eight journal
+gaps plus collision, partial stage, replacement denial, BOM, CRLF, loader
+mismatch, and pending-generation rejection. No real Config, credential,
+provider, private store, or private data is read.
+
 ## 14. 执行后检查
 
 Agent 每次完成任务后，必须确认：

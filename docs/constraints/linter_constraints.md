@@ -1090,6 +1090,17 @@ consumers. Behavior tests pin exact CRX format/size/hash/identity, handle-held
 write/delete denial, the durable four-fact chains, tri-state recovery, pending-
 generation rejection, all crash gaps, and retained failure states.
 
+## Issue #79 static Config-unit rules
+
+Static guards pin the exact pathless exports and three reviewed dependencies:
+the Managed Config builder, Managed settings reader, and fixed native handle.
+They reject environment/`getenv`, dotenv loading, registry, clipboard,
+credential/keyring/getpass, legacy Config, direct secret assignment,
+subprocess/shell, arbitrary entry, replacement, deletion, cleanup, and normal-
+runtime test-binder consumers. Behavior tests pin the exact two-line UTF-8/LF
+document, hostile-environment independence, loader reconstruction, four-fact
+journal boundaries, tri-state recovery, all gaps, and retained faults.
+
 ## 14. 修改规则
 
 如果新增或修改 linter 规则，必须同步更新：

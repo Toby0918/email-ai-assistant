@@ -1310,6 +1310,22 @@ final target through authoritative verification. Recovery can reverse only an
 exact target to its fixed staging name and has no remove, replace, cleanup, or
 alternate target/source surface.
 
+## Issue #79 independent Config architecture
+
+`backend.r2_config_publication` exposes only closed pathless selection,
+prerequisite, fault, pending-state, status, and receipt contracts. Path binding
+is test-only. The unit reuses exactly the existing Managed settings reader,
+provider-disabled Config builder, and the fixed read-only-sharing handle; it
+does not import normal `load_config`, dotenv loading, provider clients, private
+knowledge, mailbox, vault, registry, clipboard, credential, or hidden-input
+surfaces.
+
+The publisher owns one fixed stage and final target. PREPARE creates and seals
+the deterministic dotenv bytes. PUBLISH renames no-replace, holds the exact
+target while the existing loader rereads it, and compares the reconstructed
+configuration against the selection and fixed operational paths. Recovery has
+no replace, delete, cleanup, or alternate-generation capability.
+
 ## 7. 修改规则
 
 如果需要改变架构边界，必须同时修改：

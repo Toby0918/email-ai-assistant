@@ -864,6 +864,31 @@ profile, signing-material, alternate-source, overwrite, deletion, or cleanup
 capability. Any pending staging blocks a fresh generation. Tests use only
 synthetic CRX bytes in a fresh test-owned NTFS sandbox.
 
+## Issue #79 independent loader-compatible Config unit
+
+`ManagedConfigSelectionV1` accepts exactly the two approved non-secret keys:
+sorted unique internal domains and a fixed log-level enum. It rejects string or
+canonical-JSON input, pair lists (including duplicate-key representations),
+unknown keys, provider/secret/private fields, and malformed values. Its only
+document is deterministic UTF-8 without BOM, with the two keys in fixed order,
+one `=` per line, LF endings, and a final LF.
+
+Config PREPARE and PUBLISH each record durable intent, effect observation,
+stable verification, and commit. The fixed `.prepare` file is create-only and
+flushed; PUBLISH is a same-parent no-replace rename. A read-only-sharing final
+target handle remains live while the existing Managed loader reads the exact
+bytes and `build_managed_container_config` independently reconstructs the
+expected provider-disabled configuration. Hostile ambient provider/private
+environment values have no effect.
+
+Collision, partial stage, blocked target replacement, BOM/encoding drift, CRLF
+drift, loader mismatch, crash, and pending staging retain their objects and
+fail closed. Recovery is tri-state and may reverse only an exact target to
+fixed staging. There is no overwrite, deletion, cleanup, retry, hidden input,
+legacy Config, registry, clipboard, credential store, or second generation.
+Receipts contain only fingerprints, status, counts, and booleans, never Config
+values.
+
 ## Security review checklist
 
 - [ ] Values remain pathless, immutable, repr-redacted, and content-free.
