@@ -1386,6 +1386,22 @@ recovery, and already-observed reverse effects. Final-seal tests supply only
 content-free audit completions, make one freshness call and one fixed append,
 and assert zero host mutations. No real host or journal is accessed.
 
+## Issue #83 full-verification tooling boundary
+
+`scripts/verify_r2_synthetic_topology.py` accepts no arguments and creates its
+own `TemporaryDirectory`. On Windows it first requires NTFS, then uses only the
+fixed Git verbs, fixed TTY process hosts, fixed synthetic authorization
+envelopes, actual local SQLite, fixed ACL descriptor observations, and exact
+#70-#82 composition seams. Public output is one aggregate JSON object with six
+SHA-256 fingerprints and contains no path, transcript, authorization value,
+host identity, repository name, row, provider value, or exception detail.
+
+The verifier performs no network access and no provider, mailbox, vault,
+private-store, credential, real service, real repository, or real ACL
+operation. Its TTY and Windows helpers are test-owned evidence adapters, not
+production authority. Non-Windows execution must fail or skip without making
+an NTFS, ACL, TTY, process-isolation, or native-durability claim.
+
 ## 14. 执行后检查
 
 Agent 每次完成任务后，必须确认：

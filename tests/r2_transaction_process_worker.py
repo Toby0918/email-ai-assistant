@@ -11,13 +11,14 @@ from tests.r2_transaction_process_fixture import create_synthetic_process
 
 def main() -> int:
     calls = 0
+    verb = sys.argv[1] if len(sys.argv) == 2 else ""
 
-    def execute() -> int:
+    def action() -> int:
         nonlocal calls
         calls += 1
         return 1
 
-    process = create_synthetic_process(execute)
+    process = create_synthetic_process(action, verb=verb)
     result = process.run(
         argv=tuple(sys.argv[1:]), terminal=SystemTerminal()
     )

@@ -792,3 +792,28 @@ private-data container, or authorization to migrate.
 11. Issue #38 and its non-executable R1 remain unchanged; Issue #39 has no
     command or authorization. A merged final master requires a fourteen-item
     #38 re-review and a new R2 before #39.
+
+## Issue #83 complete R2 verification rules
+
+1. The verifier has exactly one no-argument fixed entry and creates one fresh
+   physical NTFS sandbox without accepting a caller-selected root.
+2. One Windows lifecycle contains preflight, evidence, quiescence, legacy
+   anchor, Container/main/whole-tree ACL, full manifest, eleven worktrees,
+   Runtime/database/CRX/Config, Start A, rule row, stop, stopped audit, Start B,
+   final audit, and one `CUTOVER_SUCCESS` append.
+3. Preflight, evidence, and transaction use distinct real local TTY child
+   processes. Execution and recovery use distinct fixed verbs and all four
+   authorization domains remain nominally separate.
+4. Seven fixed semantics, two directions, and five journal gaps form exactly
+   70 cases. Every case owns a distinct fresh scope and proves absent effects
+   execute once, present effects never replay, and ambiguity incident-stops.
+5. Public JSON is limited to fixed status, six SHA-256 fingerprints, and
+   allowlisted counts. Paths, terminal transcripts, auth envelopes, identities,
+   Git names, rows, provider values, and exception details are rejected.
+6. Static reachability rejects obsolete batch publication, stale R1
+   verification, in-process operator substitution, self-certified audit, and
+   a legacy R2 success path.
+7. Portable tests validate only contracts and hashes and make no native claim.
+8. The accepted prototype fingerprint is non-authorizing prior art; fresh
+   criteria, matrix, script, bundle, surface, and package fingerprints are
+   mandatory and do not authorize Issue #39 or real-host work.

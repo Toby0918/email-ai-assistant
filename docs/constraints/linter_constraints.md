@@ -1141,6 +1141,23 @@ recovery incident-stop, sole rollback success status, audit/head/nonce/identity
 freshness, one `CUTOVER_SUCCESS` append, zero final host mutations, and single-
 use invocation. Module/function size rules continue to apply.
 
+## Issue #83 static full-verification rules
+
+Static guards pin the exact three-file `backend.r2_verification_evidence`
+package, the fixed 70-case vocabulary, closed bundle fields, six distinct
+fingerprints, and the no-argument verifier entry. They reject argv selectors,
+external roots, environment authority, arbitrary commands, network/provider/
+mailbox/vault/private-data access, cleanup/delete/replace, dynamic imports,
+normal-runtime consumers, and public output beyond fixed status, hashes, and
+allowlisted counts.
+
+Obsolete-surface tests recursively reject R2 reachability of batched managed
+publication, stale R1 verification, in-process-only operator substitution,
+self-certified audit receipts, and any legacy R2 success terminal. Windows
+behavior tests own every sandbox and require real TTY channels and distinct
+processes; portable tests explicitly make no native evidence claim. Existing
+module/function bounds continue to apply.
+
 ## 14. 修改规则
 
 如果新增或修改 linter 规则，必须同步更新：

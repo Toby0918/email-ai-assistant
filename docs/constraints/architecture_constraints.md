@@ -1377,6 +1377,22 @@ remaining plan exists and has no reverse callback. No normal runtime,
 frontend, script, workflow, provider, mailbox, vault, or private-data consumer
 is introduced, and there is no executable entry.
 
+## Issue #83 full-verification architecture
+
+`backend.r2_verification_evidence` is a pure content-free contract package for
+the closed 70-case semantic-gap matrix, the exact aggregate bundle, and six
+deterministic evidence fingerprints. It has no executable, host, path,
+authorization, journal, mutation, process, network, provider, mailbox, vault,
+private-data, or cleanup capability.
+
+The fixed no-argument verifier script is the sole synthetic full-topology
+entry. Its test support composes the separately bounded #71-#82 public seams
+inside one verifier-owned fresh NTFS sandbox and cannot select an external
+root. Production operator entries remain locked. Static guards reject every
+obsolete R2-reachable batch, R1, in-process operator, self-audit, and legacy-
+success consumer. Portable suites may validate only pure contracts; only the
+Windows verifier may claim physical NTFS, ACL, real TTY, or process isolation.
+
 ## 7. 修改规则
 
 如果需要改变架构边界，必须同时修改：

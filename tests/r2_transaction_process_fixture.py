@@ -28,7 +28,7 @@ _EXECUTION_SEED = hashlib.sha256(b"issue-73-execution-test-key").digest()
 _RECOVERY_SEED = hashlib.sha256(b"issue-73-recovery-test-key").digest()
 
 
-def create_synthetic_process(execute) -> SyntheticTransactionProcess:
+def create_synthetic_process(action, *, verb="execute") -> SyntheticTransactionProcess:
     profile, sequence, _binding = synthetic_context(
         operation_fingerprint=OPERATION
     )
@@ -47,14 +47,14 @@ def create_synthetic_process(execute) -> SyntheticTransactionProcess:
         observed_at_epoch=lambda: OBSERVED_AT,
         execution_public_key=_public_key(_EXECUTION_SEED),
         recovery_public_key=_public_key(_RECOVERY_SEED),
-        execute=execute,
+        execute=action if verb == "execute" else (lambda: 0),
         resume=lambda: 0,
-        rollback=lambda: 0,
+        rollback=action if verb == "rollback" else (lambda: 0),
         real_locked=False,
     )
 
 
-def valid_hidden_envelope() -> str:
+def valid_hidden_envelope(verb="execute") -> str:
     profile, sequence, _binding = synthetic_context(
         operation_fingerprint=OPERATION
     )
@@ -63,22 +63,27 @@ def valid_hidden_envelope() -> str:
         operation_fingerprint=OPERATION,
         authorization_sequence=sequence,
     )
+    recovery = verb == "rollback"
     authorization_body = {
-        "authorization_type": "CutoverExecutionAuthorizationV1",
-        "operation": "cutover_execution",
+        "authorization_type": (
+            "RecoveryAuthorizationV1"
+            if recovery
+            else "CutoverExecutionAuthorizationV1"
+        ),
+        "operation": "recovery" if recovery else "cutover_execution",
         "operation_fingerprint": OPERATION,
         "profile_fingerprint": profile.profile_fingerprint,
         "governing_master_commit": profile.governing_master_commit,
         "operator_fingerprint": profile.operator_fingerprint,
-        "phase": "execute",
+        "phase": verb,
         "issued_at_epoch": OBSERVED_AT - 20,
         "not_before_epoch": OBSERVED_AT - 10,
         "expires_at_epoch": OBSERVED_AT + 60,
     }
     body = {
         "envelope_type": "R2OperatorAuthorizationEnvelopeV1",
-        "domain": "execution",
-        "nonce": opaque_fingerprint(7399),
+        "domain": "recovery" if recovery else "execution",
+        "nonce": opaque_fingerprint(7398 if recovery else 7399),
         "authorization": {
             **authorization_body,
             "authorization_fingerprint": hashlib.sha256(
@@ -90,12 +95,14 @@ def valid_hidden_envelope() -> str:
             "approved_binding_fingerprint": binding.binding_fingerprint,
             "journal_owner_fingerprint": OWNER,
             "journal_head_fingerprint": HEAD,
-            "remaining_plan_fingerprint": UNBOUND_FINGERPRINT,
+            "remaining_plan_fingerprint": PLAN if recovery else UNBOUND_FINGERPRINT,
             "boundary_epoch": OBSERVED_AT,
-            "crash_nonce": opaque_fingerprint(7390),
+            "crash_nonce": opaque_fingerprint(7391 if recovery else 7390),
         },
     }
-    key = Ed25519PrivateKey.from_private_bytes(_EXECUTION_SEED)
+    key = Ed25519PrivateKey.from_private_bytes(
+        _RECOVERY_SEED if recovery else _EXECUTION_SEED
+    )
     payload = _canonical_json(
         {
             **body,

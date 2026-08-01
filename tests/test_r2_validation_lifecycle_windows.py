@@ -64,6 +64,7 @@ class _WindowsAdapters(SyntheticValidationAdapters):
         self.binding = binding
         self.database_path = root / "managed.sqlite3"
         self.audit_process_ids = []
+        self.audit_completions = []
         with closing(sqlite3.connect(self.database_path)) as connection, connection:
             connection.execute(
                 "CREATE TABLE analyses (result_fingerprint TEXT NOT NULL)"
@@ -125,6 +126,7 @@ class _WindowsAdapters(SyntheticValidationAdapters):
         values["audit_kind"] = request.audit_kind
         result = IndependentAuditCompletionV1.create(**values)
         self.audit_process_ids.append(result.audit_process_id)
+        self.audit_completions.append(result)
         return result
 
     def row_count(self):

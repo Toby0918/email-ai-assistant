@@ -392,6 +392,17 @@ email-ai-assistant/
 - `backend/real_host_preflight_composition/`: Issue #59 的 physically separate read-only operator root。只接收一个 binding-bound six-role bundle，暴露 fixed current-topology、HostBaseline、evidence review/verify、final-audit readiness 与 recovery inspection；不导入 mutation adapters，real constructor/entries 在 #39 前保持 `BLOCKED_NO_APPROVED_COMMAND`。
 - `backend/migration_evidence_publication_composition/`: Issue #59 的 physically separate create-only operator root。只接收 exact confirmed review fingerprint 与一个 binding-bound publication role；无 verifier、preflight、transaction 或 unrelated adapter import，real constructor/entry 继续 default-locked。
 - `backend/cutover_transaction_composition/`: Issue #59 的 physically separate single-owner execute/resume/rollback root。只接收 binding-bound closed roles 与一个 journal owner，逐 receipt 验证 exact predecessor/binding/freshness/prior-current head；owner 跨 composition objects 原子 claim fresh gate 并提供每个 role boundary 重验 authorization 的 clock；resume 只接受 exact journal prefix continuation，rollback 只接受 activation/final-audit recovery branch。三个 backend operator packages 都没有 executable test binder；test-only assembly 位于 `tests/cutover_composition_binders.py`，只接受内部创建且不可选择 root 的 temporary scope。无 arbitrary path/source/target/worktree/Runtime/database/artifact/Config/ACL/command surface，无 product/browser/script/cleanup/scheduler consumer。
+- `backend/r2_*`: Issues #70-#83 的 dormant R2 vertical slices。它们分别固定
+  vocabulary、三个物理进程边界、main/manifest/database/Runtime/CRX/Config
+  publication、独立 audits、two-start validation、cross-stage recovery/final
+  seal，以及 pure verification-evidence contracts。Production packages 不提供
+  real operator authority、caller-selected path、provider/mailbox/vault/private-
+  data 或 cleanup surface；Windows binders 位于 tests/support scripts 并只拥有
+  fresh synthetic NTFS sandbox。
+- `scripts/verify_r2_synthetic_topology.py`: Issue #83 的 fixed no-argument
+  synthetic verifier。它组合 #70-#82 的受限公开 seam，在一个自建 NTFS
+  sandbox 中验证完整拓扑、真实 TTY 进程、70 个语义 gap 和 final seal，只输出
+  aggregate counts 与六个确定性 fingerprint；它不是 Issue #39 command。
 - `backend/reparenting_rehearsal/`: Issue #36 的 temporary synthetic-only rehearsal 深模块；公开 seam 不接受 path，自建 marker-bound sandbox，复用 exact evidence/audit/layout bridges 演练 existing `.git` reparenting、reviewed worktree repair/recreate、post-state equality 和六个 rollback boundaries。它没有 real workspace、CLI、runtime、browser、workflow、mailbox/provider/vault/private-store/credential/ACL capability。
 - `backend/runtime_activation_rehearsal/`: Issue #37 的 pathless synthetic-only activation 深模块；只接受 exact five injected adapters，验证 pinned runtime、从 lock 重建的 Windows venv、`pre_publication` stopped-service create-only SQLite、reviewed-hash extension artifact、Managed writable roles、同一 activation token 绑定的 provider-disabled start/loopback health/一次持久化规则分析/`post_activation` fresh-stop proof 和最终 source preservation。它没有 path、default host adapter、真实 filesystem/SQLite/process/network/provider/mailbox/vault/credential/signing/evidence/cleanup capability，也没有 normal-runtime consumer。
 - `backend/cutover_contracts/`: Issue #51 的 pure content-free Cutover Profile、phase-specific authorization 和 canonical receipt 合同层。它只解析、验证和规范化 immutable values；四种 real-host authorization 只能验证外部提供的 canonical values，不能 create、issue 或 mint。`default_operator_entry()` 固定返回 `BLOCKED_NO_APPROVED_COMMAND`。该 package 没有 path、host adapter、filesystem、SQLite、ACL、Git/worktree、runtime、mailbox/provider/vault/private-data、preflight、migration 或 cutover capability，也没有 production consumer。

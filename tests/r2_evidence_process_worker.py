@@ -13,8 +13,14 @@ from tests.r2_evidence_process_fixture import create_synthetic_process
 
 def main() -> int:
     calls = 0
-    with tempfile.TemporaryDirectory(prefix="r2-evidence-worker-") as raw:
-        target = Path(raw) / "published.evidence"
+    owned = None
+    root = Path.cwd()
+    if (root / ".r2-full-topology-sandbox").is_file():
+        target = root / "published.evidence"
+    else:
+        owned = tempfile.TemporaryDirectory(prefix="r2-evidence-worker-")
+        target = Path(owned.name) / "published.evidence"
+    try:
 
         def publish() -> int:
             nonlocal calls
@@ -40,6 +46,9 @@ def main() -> int:
         )
         sys.stdout.flush()
         return 0 if valid else 5
+    finally:
+        if owned is not None:
+            owned.cleanup()
 
 
 if __name__ == "__main__":

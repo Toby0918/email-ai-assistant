@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ctypes
 import json
+import os
 import subprocess
 import sys
 import time
@@ -54,7 +55,7 @@ def main() -> int:
     if target.exists() or not target.parent.is_dir():
         return 3
     try:
-        result = _run_operator()
+        result = _run_operator(target.parent)
     except Exception:
         result = {"status": "rejected", "exit_code": -1}
     target.write_text(
@@ -64,8 +65,11 @@ def main() -> int:
     return 0
 
 
-def _run_operator() -> dict[str, object]:
+def _run_operator(workdir=None) -> dict[str, object]:
     root = Path(__file__).resolve().parents[1]
+    workdir = Path(workdir) if workdir is not None else root
+    environment = dict(os.environ)
+    environment["PYTHONPATH"] = str(root)
     python = Path(sys.executable).with_name("python.exe")
     startup = subprocess.STARTUPINFO()
     startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
@@ -78,7 +82,8 @@ def _run_operator() -> dict[str, object]:
             "tests.r2_preflight_process_worker",
             "current-topology",
         ),
-        cwd=root,
+        cwd=workdir,
+        env=environment,
         creationflags=subprocess.CREATE_NEW_CONSOLE,
         startupinfo=startup,
         close_fds=True,

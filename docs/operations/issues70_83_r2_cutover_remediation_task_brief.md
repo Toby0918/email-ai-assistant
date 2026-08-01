@@ -22,7 +22,7 @@ feature | security | test | docs
 ## 3. 当前状态
 
 ```text
-in_progress
+complete
 ```
 
 ## 4. 任务目标
@@ -164,13 +164,29 @@ Not applicable.
 
 ```text
 实际修改文件：
-- Pending
+- Issues #70-#82: fourteen independently committed dormant production slices,
+  their focused synthetic/Windows/architecture tests, and synchronized
+  security/tooling/architecture/linter contracts.
+- Issue #83: `backend/r2_verification_evidence/`, fixed synthetic verifier and
+  support scripts, full-topology/semantic-matrix/obsolete-surface tests,
+  verification criteria/evidence, project constraints, testing/CI/structure
+  guidance, and generated project status.
 
 测试结果：
-- Pending
+- Fixed verifier: `R2_SYNTHETIC_VERIFICATION_COMPLETE` and `CUTOVER_SUCCESS`;
+  70 semantic gaps, 11 worktrees, 4 managed units, 4 authorization domains,
+  3 real-TTY process types, 2 independent audits, and zero provider attempts,
+  leakage findings, or real-host operations.
+- Issue #83 focused/constraint set: 141 passed.
+- Complete R2 affected suite: 152 passed.
+- Final full suite: ran 2546, `OK (skipped=3)`.
+- Final status/architecture/static/mechanical/leakage gate: 128 passed.
+- Maintenance: 14 pre-existing low `stale_doc` findings, zero high findings.
+- Repository leakage scan: passed with zero findings.
 
 未完成事项：
-- Pending
+- No implementation item remains in #70-#83. Standards/Spec dual review and
+  any required P1/P2 repair remain the delivery review gate before handoff.
 
 后续建议：
 - Re-review Issue #38 against the final merged master in a separate approval task. Do not start #39 from this work.

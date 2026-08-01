@@ -959,6 +959,32 @@ processes, and exact 300-second windows. One minimal freshness observation is
 followed only by one `CUTOVER_SUCCESS` journal append. No host mutation or
 second invocation is permitted.
 
+## Issue #83 full R2 synthetic verification and obsolete-path contraction
+
+The only R2 verification entry is the fixed, no-argument
+`scripts/verify_r2_synthetic_topology.py`. It owns one fresh physical NTFS
+sandbox and reports only fixed status, deterministic fingerprints, and
+allowlisted aggregate counts. It cannot accept a root, path, Profile, journal,
+target, command, force, retry, cleanup, provider, mailbox, vault, private-data,
+or real authorization input.
+
+The Windows run proves the complete preflight-through-final-seal topology in
+that one sandbox: three distinct TTY process types, four distinct authorization
+domains, nine Project Container zones, one repository with exactly eleven
+reviewed worktrees, four independent managed units, Start A with one
+`rule_fallback` result and one row, stopped audit, Start B with no analysis or
+write, final-running audit, and one terminal `CUTOVER_SUCCESS`. The fixed
+seven-semantics by two-directions by five-gaps matrix executes 70 distinct
+fresh subscopes. Portable tests validate only contracts and fingerprints and
+make no NTFS, ACL, TTY, or process-isolation claim.
+
+Architecture guards make obsolete batched managed publication, stale R1
+verification, an in-process operator substitute, self-certified audit, and a
+legacy R2 success path unreachable. The accepted prototype fingerprint remains
+non-authorizing feasibility prior art only. Fresh criteria, matrix, script,
+bundle, complete R2 surface, and package fingerprints are required for this
+evidence and authorize neither Issue #39 nor any real-host operation.
+
 ## Security review checklist
 
 - [ ] Values remain pathless, immutable, repr-redacted, and content-free.

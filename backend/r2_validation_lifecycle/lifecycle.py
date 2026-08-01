@@ -3,7 +3,11 @@
 from __future__ import annotations
 
 from backend.cutover_composition_contracts.canonical import fingerprint
-from backend.cutover_service_lifecycle import ServiceHealthEvidenceV1, ServiceStartEvidenceV1, ServiceStopEvidenceV1
+from backend.cutover_service_lifecycle.contracts import (
+    ServiceHealthEvidenceV1,
+    ServiceStartEvidenceV1,
+    ServiceStopEvidenceV1,
+)
 from backend.r2_independent_audits import AuditKind
 
 from .adapters import ValidationAdaptersV1
