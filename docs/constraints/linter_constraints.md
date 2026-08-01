@@ -1101,6 +1101,18 @@ runtime test-binder consumers. Behavior tests pin the exact two-line UTF-8/LF
 document, hostile-environment independence, loader reconstruction, four-fact
 journal boundaries, tri-state recovery, all gaps, and retained faults.
 
+## Issue #80 static independent-audit rules
+
+Static guards pin the five-file pathless package, exact nominal receipt
+issuance inside the single-use sink, and absence of any transaction or normal-
+runtime consumer. They reject path and arbitrary I/O capabilities, receipt
+construction in the process, serialization/reset surfaces, subprocess/network,
+provider, mailbox, vault, private-knowledge, migration-evidence, registry,
+clipboard, credential, and database access. Behavior tests pin distinct fresh
+process IDs, exact kind binding, one append, 300-second freshness, replay and
+sink-swap incident stops, deterministic rollback classification, and complete
+fresh invocation after expiry. Module/function size rules continue to apply.
+
 ## 14. 修改规则
 
 如果新增或修改 linter 规则，必须同步更新：

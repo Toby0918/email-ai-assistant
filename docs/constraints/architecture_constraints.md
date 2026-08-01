@@ -1326,6 +1326,23 @@ target while the existing loader rereads it, and compares the reconstructed
 configuration against the selection and fixed operational paths. Recovery has
 no replace, delete, cleanup, or alternate-generation capability.
 
+## Issue #80 independent audit architecture
+
+`backend.r2_independent_audits` is a dormant, pathless capability package. Its
+process accepts exactly one `IndependentAuditAttestationSinkV1` and one closed
+content-free observation. The stopped-layout and final-running receipt classes
+are nominal values created only inside that sink after a successful append;
+the process, transaction packages, normal runtime, frontend, scripts, and
+workflows cannot construct, import, reset, serialize, or self-certify them.
+
+The test-only binder fixes the audit kind, operation, approved binding, journal
+head, approved identities, applicable health fingerprint, process ID, clock,
+and append callback before invocation. Synthetic subprocess tests start both
+audit kinds concurrently and require distinct live process IDs. No audit
+package module imports the transaction process, mutation implementation,
+ContainerAudit I/O adapters, provider, mailbox, vault, private knowledge, or
+migration-evidence surfaces.
+
 ## 7. 修改规则
 
 如果需要改变架构边界，必须同时修改：

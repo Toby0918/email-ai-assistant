@@ -889,6 +889,26 @@ legacy Config, registry, clipboard, credential store, or second generation.
 Receipts contain only fingerprints, status, counts, and booleans, never Config
 values.
 
+## Issue #80 independent stopped-layout and final-running audits
+
+The stopped-layout and final-running-health audits are two distinct fresh
+OS-process invocations, separate from the mutation process and from each other.
+Each receives exactly one pre-bound `IndependentAuditAttestationSinkV1`; the
+sink is exact-type, single-use, non-resettable, and can append only one fixed,
+content-free journal attestation. It has no path selection or filesystem,
+journal-selection, replacement, deletion, cleanup, provider, mailbox, vault,
+or private-data capability.
+
+Each sink is bound to one operation, approved binding, current journal head,
+approved identity set, applicable health evidence, audit kind, process
+identity, and observation epoch. Success independently rechecks all bindings
+and appends within the fixed 300-second window. Deterministic head, identity,
+or health mismatch returns `ROLLBACK_REQUIRED`; ambiguity, kind/sink swap,
+append failure, or replay returns `INCIDENT_STOP`; expiry consumes the sink and
+requires a completely fresh process and sink. The two nominal receipt types
+cannot be directly constructed or serialized and expose only redacted,
+content-free evidence.
+
 ## Security review checklist
 
 - [ ] Values remain pathless, immutable, repr-redacted, and content-free.

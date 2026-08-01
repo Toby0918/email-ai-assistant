@@ -1342,6 +1342,20 @@ gaps plus collision, partial stage, replacement denial, BOM, CRLF, loader
 mismatch, and pending-generation rejection. No real Config, credential,
 provider, private store, or private data is read.
 
+## Issue #80 independent-audit tooling boundary
+
+The audit capability has no executable transaction command, argv, environment,
+path, journal, host, service, provider, mailbox, vault, private-data, force,
+shell, retry, or cleanup selector. A pre-bound sink accepts exactly one typed
+observation and invokes exactly one fixed append callback with five
+content-free fields. It cannot open, read, list, create, truncate, replace,
+delete, or arbitrarily append journal records.
+
+Synthetic tests run the stopped-layout and final-running-health invocations in
+separate fresh Python processes and observe only PID, kind, aggregate journal
+entry count, and fixed status. Other tests inject only opaque fingerprints and
+a fixed clock; no real host state or approved cutover receipt is consumed.
+
 ## 14. 执行后检查
 
 Agent 每次完成任务后，必须确认：
