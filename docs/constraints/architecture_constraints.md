@@ -1170,6 +1170,28 @@ reader. Wrong authorization always fails before its reader-acquisition counter
 can change. The Windows real-TTY host is test-only and runs from a fresh
 temporary directory; portable tests make no Windows TTY claim.
 
+## Issue #72 evidence process architecture
+
+`backend.r2_evidence_process` is a new physical root beside, never beneath,
+`backend.r2_preflight_process`. Its production modules contain only the exact
+`publish` command check, evidence-specific TTY adapter, closed public result,
+and pre-#39 lock. They import neither preflight nor transaction process roots,
+and they have no verification, arbitrary filesystem, process, Git, SQLite,
+service, ACL, provider, mailbox, vault, private-store, cleanup, or repair
+capability.
+
+The `testing` module binds `ApprovedCutoverBindingV1`, exact confirmed-review
+fingerprints, the evidence-domain public key, an injected clock, an in-memory
+single-use nonce claim, and one narrow no-argument publication callback. The
+callback is not acquired until TTY, acknowledgement, canonical envelope,
+signature, nominal evidence authorization, immutable binding, expiry, replay,
+and confirmed-review gates pass. The real-locked branch never acquires it.
+
+Synthetic publication creates one caller-owned object exactly once. It does
+not verify that object; the existing `backend.migration_evidence_verifier`
+retains independent read-only process ownership. No normal runtime consumer can
+import the synthetic binder or either operator executable.
+
 ## 7. 修改规则
 
 如果需要改变架构边界，必须同时修改：

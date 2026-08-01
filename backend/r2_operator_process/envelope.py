@@ -16,8 +16,11 @@ from backend.cutover_composition_contracts.canonical import (
 )
 from backend.cutover_contracts import (
     AuthorizationValidationStatus,
+    CutoverExecutionAuthorizationV1,
     CutoverProfileV1,
+    EvidencePublicationAuthorizationV1,
     RealPreflightAuthorizationV1,
+    RecoveryAuthorizationV1,
     validate_real_host_authorization,
 )
 
@@ -34,6 +37,26 @@ class AuthorizationEnvelopeDomain(str, Enum):
     EVIDENCE = "evidence"
     EXECUTION = "execution"
     RECOVERY = "recovery"
+
+
+_DOMAIN_AUTHORIZATIONS = {
+    AuthorizationEnvelopeDomain.PREFLIGHT: (
+        RealPreflightAuthorizationV1,
+        "real_preflight",
+    ),
+    AuthorizationEnvelopeDomain.EVIDENCE: (
+        EvidencePublicationAuthorizationV1,
+        "evidence_publication",
+    ),
+    AuthorizationEnvelopeDomain.EXECUTION: (
+        CutoverExecutionAuthorizationV1,
+        "cutover_execution",
+    ),
+    AuthorizationEnvelopeDomain.RECOVERY: (
+        RecoveryAuthorizationV1,
+        "recovery",
+    ),
+}
 
 
 class AuthorizationEnvelopeError(ValueError):
@@ -67,7 +90,9 @@ def verify_authorization_envelope(
     expected_phase: str,
     observed_at_epoch: int,
     claim_nonce: Callable[[str], bool],
-) -> RealPreflightAuthorizationV1:
+    authorization_type: type = RealPreflightAuthorizationV1,
+    expected_operation: str = "real_preflight",
+) -> object:
     try:
         source = _decode_envelope(encoded)
         body = {name: source[name] for name in _BODY_KEYS}
@@ -77,15 +102,21 @@ def verify_authorization_envelope(
             expected_domain,
             verification_public_key,
         )
-        authorization = RealPreflightAuthorizationV1.from_mapping(
+        _require_domain_authorization_type(
+            expected_domain,
+            authorization_type,
+            expected_operation,
+        )
+        authorization = authorization_type.from_mapping(
             body["authorization"]
         )
-        _require_preflight_binding(
+        _require_authorization_binding(
             authorization,
             profile,
             operation_fingerprint,
             expected_phase,
             observed_at_epoch,
+            expected_operation,
         )
         nonce = body["nonce"]
         if claim_nonce(nonce) is not True:
@@ -156,17 +187,24 @@ def _decode_signature(value: object) -> bytes:
     return signature
 
 
-def _require_preflight_binding(
+def _require_domain_authorization_type(domain, kind, operation) -> None:
+    expected = _DOMAIN_AUTHORIZATIONS.get(domain)
+    if expected != (kind, operation):
+        raise AuthorizationEnvelopeError
+
+
+def _require_authorization_binding(
     authorization,
     profile,
     operation_fingerprint,
     phase,
     observed,
+    operation,
 ) -> None:
     result = validate_real_host_authorization(
         authorization,
         profile=profile,
-        expected_operation="real_preflight",
+        expected_operation=operation,
         expected_operation_fingerprint=operation_fingerprint,
         expected_phase=phase,
         expected_operator_fingerprint=profile.operator_fingerprint,

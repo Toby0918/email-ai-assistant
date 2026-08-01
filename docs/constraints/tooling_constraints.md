@@ -1187,6 +1187,29 @@ and proves the runner returns the pre-#39 locked result with zero host
 operations. The host and its output file live only in a test-owned temporary
 directory.
 
+## Issue #72 evidence process tooling boundary
+
+The second production module is only
+`python -B -m backend.r2_evidence_process publish`. It has no option parser,
+shell, PowerShell, arbitrary subprocess, path lookup, target/source/Profile/
+review/journal selector, recovery switch, force flag, or verification verb. It
+does not import either other operator root or the independent verifier.
+
+The shared authorization verifier now selects the exact nominal authorization
+class and operation from the Ed25519 domain: preflight uses
+`RealPreflightAuthorizationV1`, while evidence uses
+`EvidencePublicationAuthorizationV1`. Domain/type/operation disagreement fails
+closed. No signer, key generator, private key, issuer, file authorization,
+environment authorization, or durable envelope store is added.
+
+Portable tests own the publication callback and temporary target, prove
+create-only single publication, and make no TTY or process-isolation claim. A
+win32-only detached test host starts a dedicated evidence child in a fresh
+hidden local console, supplies one synthetic signed envelope through the
+console, and accepts exit zero only after the child observes one exact
+publication. The real production entry stays locked and performs no real
+publication before #39.
+
 ## 14. 执行后检查
 
 Agent 每次完成任务后，必须确认：

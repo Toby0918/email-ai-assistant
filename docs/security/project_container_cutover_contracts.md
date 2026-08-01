@@ -686,6 +686,36 @@ test-owned keys and state, and the Windows integration test uses one fresh
 hidden local console owned by a detached test host. Neither proof authorizes or
 observes the real cutover host.
 
+## Issue #72 fixed evidence-publication process
+
+Issue #72 adds `backend.r2_evidence_process` as a second, physically separate
+operator executable. It accepts only the exact `publish` verb and cannot import
+or select preflight, transaction, recovery, or the independent evidence
+verifier. No target, source, path, Profile, review, authorization, journal,
+recovery, force, vararg, or free-form value appears in argv.
+
+All three standard streams must be real Windows TTYs before the exact evidence
+acknowledgement and one hidden bounded base64 envelope read. Evidence envelopes
+use the distinct evidence Ed25519 public-key domain and nominal
+`EvidencePublicationAuthorizationV1`. Wrong-domain, missing, malformed,
+expired, replayed, Profile/master/operator/operation drift, or a review that is
+not exactly the preconfirmed opaque review fingerprint fails before the
+publication capability is acquired.
+
+The synthetic process binder supplies one narrow create-only callback in a
+fresh test-owned directory. An accepted invocation calls it exactly once and
+returns `EVIDENCE_PUBLISHED` with only `accepted`, `rejected`, and `published`
+counts. Collision, callback failure, non-unit completion, or a repeated
+invocation cannot claim success. Evidence verification remains owned by the
+existing physically independent read-only verifier and is never called by this
+process.
+
+The real evidence entry remains dormant before #39. A valid real authorization
+still returns `BLOCKED_NO_APPROVED_COMMAND` and acquires no publication
+capability. Tests use only synthetic package bytes and test-owned Ed25519 keys;
+they do not access a real evidence package, Repository Root, provider, mailbox,
+vault, credential, private store, or private content.
+
 ## Security review checklist
 
 - [ ] Values remain pathless, immutable, repr-redacted, and content-free.

@@ -992,6 +992,23 @@ single-use replay, cross-domain rejection, fixed public fields, redirected
 stream rejection, and the unchanged pre-#39 lock. Only the win32-gated fresh
 console test may claim real TTY evidence; portable tests make no such claim.
 
+## Issue #72 static evidence-process rules
+
+Static guards pin the exact evidence package file set, the sole `publish` verb,
+its one-argument signature, evidence-specific acknowledgement, fixed result
+fields, and disjoint imports from preflight, transaction, and the verifier.
+They reject target/source/path/Profile/review/journal/recovery/force selectors,
+option parsers, arbitrary subprocess or filesystem calls, environment/file
+authorization ingress, signing code, and any normal-runtime synthetic-binder
+consumer.
+
+Behavior tests require domain/type/operation agreement, confirmed-review
+agreement, expiry and replay rejection before capability acquisition,
+create-only one-shot publication, fixed public counts, redirected stream
+rejection, and the unchanged real lock. The only real-TTY and OS-process claim
+comes from the win32-gated fresh-console test; portable cases remain pure
+contract and injected-callback evidence.
+
 ## 14. 修改规则
 
 如果新增或修改 linter 规则，必须同步更新：

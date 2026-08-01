@@ -112,9 +112,16 @@ PACKAGE_MODULES = {
 ALLOWED_CONSUMERS = {
     "backend/r2_operator_process/envelope.py": {
         "AuthorizationValidationStatus",
+        "CutoverExecutionAuthorizationV1",
         "CutoverProfileV1",
+        "EvidencePublicationAuthorizationV1",
         "RealPreflightAuthorizationV1",
+        "RecoveryAuthorizationV1",
         "validate_real_host_authorization",
+    },
+    "backend/r2_evidence_process/testing.py": {
+        "CutoverProfileV1",
+        "EvidencePublicationAuthorizationV1",
     },
     "backend/r2_preflight_process/testing.py": {
         "CutoverProfileV1",
