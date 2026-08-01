@@ -1080,6 +1080,16 @@ consumers. Module/function size rules continue to apply. Behavior tests cover
 all eight PREPARE/PUBLISH gaps plus collision, source/dependency drift, reparse,
 self-verification failure, content-free classifications, and exact recovery.
 
+## Issue #78 static CRX-unit rules
+
+Static guards pin the closed pathless package exports and its single reviewed
+native-handle dependency. They reject archive/build, browser/profile,
+signing/private-key, installer/loader, subprocess/shell, arbitrary entry,
+overwrite, deletion, replacement, cleanup, and normal-runtime binder
+consumers. Behavior tests pin exact CRX format/size/hash/identity, handle-held
+write/delete denial, the durable four-fact chains, tri-state recovery, pending-
+generation rejection, all crash gaps, and retained failure states.
+
 ## 14. 修改规则
 
 如果新增或修改 linter 规则，必须同步更新：

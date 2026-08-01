@@ -1313,6 +1313,20 @@ no shell, a bounded timeout, and bounded output. Its script imports no installed
 dependency module. Windows executable tests use only fresh synthetic sandboxes;
 portable tests make no Runtime execution or NTFS claim.
 
+## Issue #78 CRX tooling boundary
+
+CRX publication is not executable and accepts no argv, environment, Profile,
+source/target selector, signing key, browser path, extension command, force,
+shell, or retry. The fixed source and final target use native handles opened
+with read sharing only. Stage bytes are create-only and `fsync`-flushed; the
+fixed publication and exact recovery moves are same-parent no-replace renames.
+
+Tests physically attempt source replacement and a final-target write while the
+corresponding handle is live, and require Windows sharing denial. They also
+exercise all eight PREPARE/PUBLISH gaps and fixed collision/race/reparse/drift/
+partial/verification faults in fresh synthetic sandboxes. No test grants real
+artifact, signing, installation, browser, or host authority.
+
 ## 14. 执行后检查
 
 Agent 每次完成任务后，必须确认：

@@ -1295,6 +1295,21 @@ PUBLISH owns the fixed no-replace rename and new authoritative verification.
 Recovery has no removal, replacement, cleanup, network, provider, mailbox,
 vault, private-data, or second-stage capability.
 
+## Issue #78 independent CRX architecture
+
+`backend.r2_crx_publication` is a dormant pathless CRX contract root plus one
+test-only path binder. Its only adjacent capability is the fixed read-only-
+sharing native handle from the #76 database unit. The unit never imports the
+browser extension, normal runtime, artifact builder, signer, installer,
+operator roots, provider, mailbox, vault, or private stores.
+
+The source handle stays open across both journal boundaries. Staging is a
+single fixed create-only generation; final publication closes the staging
+writer, performs one same-parent no-replace rename, and immediately holds the
+final target through authoritative verification. Recovery can reverse only an
+exact target to its fixed staging name and has no remove, replace, cleanup, or
+alternate target/source surface.
+
 ## 7. 修改规则
 
 如果需要改变架构边界，必须同时修改：

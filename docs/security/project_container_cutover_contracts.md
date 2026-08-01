@@ -841,6 +841,29 @@ are unavailable. Exact or partial staging is retained after crashes, collision,
 drift, reparse, or verification failure; recovery classifies it content-free
 and never deletes it.
 
+## Issue #78 independent reviewed-CRX unit
+
+The fixed reviewed CRX source is bound by native identity, CRX2/CRX3 format,
+size, and SHA-256 before a transaction exists. A read-only-sharing source
+handle denies write and delete sharing from pre-PREPARE review through the
+final target verification. PREPARE creates and flushes only the fixed
+`.crx.prepare` stage; PUBLISH performs only a same-parent no-replace rename,
+then opens the final target with the same write/delete denial through repeated
+identity, bytes, size, format, and hash verification.
+
+CRX PREPARE and PUBLISH each carry separate durable intent, effect-observed,
+stable-verified, and committed facts. Collision, target race, blocked source
+replacement, reparse target, hash/size drift, partial staging, crash, and
+blocked final-verification write remain retained and content-free. Recovery
+uses only `EFFECT_ABSENT_EXACT`, `EFFECT_PRESENT_EXACT`, or
+`EFFECT_AMBIGUOUS`; it can move an exact target back to retained staging but
+cannot overwrite or clean an ambiguous object.
+
+The unit has no CRX build, signing, installation, extension loading, browser
+profile, signing-material, alternate-source, overwrite, deletion, or cleanup
+capability. Any pending staging blocks a fresh generation. Tests use only
+synthetic CRX bytes in a fresh test-owned NTFS sandbox.
+
 ## Security review checklist
 
 - [ ] Values remain pathless, immutable, repr-redacted, and content-free.
