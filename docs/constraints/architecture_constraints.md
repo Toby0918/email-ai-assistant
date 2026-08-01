@@ -1111,6 +1111,31 @@ guards only and makes no Windows ACL, NTFS, native-handle, service, or
 durability claim. No Issue #59 package is a real command or production
 consumer.
 
+## Issue #70 additive R2 contract architecture
+
+Issue #70 expands only the pure `backend.cutover_composition_contracts` package.
+`approved_binding.py`, `r2_types.py`, and `r2_receipt.py` may import only pure
+standard-library value helpers, existing Issue #51 Profile values, and the
+existing Issue #59 authorization-sequence and canonical helpers. They own no
+filesystem/path, process, environment, clock, random source, signing key,
+issuer, SQLite, service, Git, ACL mutation, provider, mailbox, vault, credential,
+private-store, cleanup, dynamic-import, or host capability.
+
+`ApprovedCutoverBindingV1` is derived from an exact immutable Profile and
+authorization sequence. Parsing re-derives and compares the complete body, so a
+caller cannot redirect legacy-anchor, managed-main, ACL, manifest, worktree, or
+managed-unit selection. `AuthorizationDomain` contains exactly four nominal
+domains with a closed phase mapping. `R2CutoverReceiptV1` is canonical evidence,
+never authorization, and binds exactly one independently named boundary; Runtime,
+database, CRX, and Config each retain separate PREPARE and PUBLISH stages.
+
+The additive vocabulary does not change the existing Issue #59 composition
+roots, receipt chain, roles, constructors, operator signatures, imports, or
+default locks. Normal runtime, frontend, scripts, cleanup, schedulers, workflows,
+and unapproved consumers remain unable to consume the operator roots. Later
+Issues #71-#83 may use these pure values only within their separately approved
+scopes; Issue #70 itself performs no process, audit, journal, or host action.
+
 ## 7. 修改规则
 
 如果需要改变架构边界，必须同时修改：

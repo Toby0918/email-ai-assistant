@@ -1,4 +1,4 @@
-"""Mechanical isolation guards for the three Issue #59 operator roots."""
+"""Mechanical isolation guards for Issue #59 roots and Issue #70 contracts."""
 
 from __future__ import annotations
 
@@ -17,12 +17,15 @@ BACKEND_ROOT = REPOSITORY_ROOT / "backend"
 PACKAGES = {
     "cutover_composition_contracts": {
         "__init__.py",
+        "approved_binding.py",
         "authorization_sequence.py",
         "binding.py",
         "canonical.py",
         "chain.py",
         "errors.py",
         "receipts.py",
+        "r2_receipt.py",
+        "r2_types.py",
     },
     "real_host_preflight_composition": {
         "__init__.py",

@@ -621,6 +621,37 @@ old R1 SHA. All fourteen #38 approval items must be re-reviewed against that
 exact final master and a new R2 published before any #39 authorization can be
 considered.
 
+## Issue #70 additive R2 contract vocabulary
+
+Issue #70 adds only canonical, pathless values beside the Issue #59 contracts.
+`ApprovedCutoverBindingV1` is derived from one exact `CutoverProfileV1` and one
+exact `AuthorizationSequenceV1`; it binds the operation, Profile, governing
+master, operator, authorization sequence and expiry, legacy-source-anchor and
+managed-main identities, policy-derived inherited-DACL projection, repository
+manifest, eleven-worktree topology, and the four managed units by opaque
+fingerprints. It has no caller-selected path, discovery, override, or fallback
+surface. Canonical JSON parsing rejects duplicate or unknown fields and any
+value that differs from the reviewed Profile-derived body.
+
+`AuthorizationDomain` keeps preflight, evidence, execution, and recovery
+nominally distinct and maps only the fixed approved phases. A receipt, mapping,
+test value, or unknown phase cannot become authorization. The R2 journal
+vocabulary names quiescence, anchor/main/whole-tree ACL and repository
+boundaries; independent Runtime, database, CRX, and Config PREPARE/PUBLISH
+boundaries; the two-start lifecycle and independent audits; exact pending-effect
+tri-state; preservation and reverse boundaries; and the only final success,
+legacy-restoration, or incident outcomes. There is no batched
+managed-publication stage.
+
+`R2CutoverReceiptV1` is immutable, content-free evidence bound to the approved
+binding and exactly one journal boundary/fact. Its canonical mapping contains
+only enums, opaque fingerprints, and allowlisted counts. Pending classification
+accepts only `EFFECT_ABSENT_EXACT`, `EFFECT_PRESENT_EXACT`, or
+`EFFECT_AMBIGUOUS`; terminal outcomes are accepted only at their exact terminal
+boundary. The receipt has no inheritance or conversion path to any authorization
+type. Issue #70 adds no executable behavior: all Issue #59 entries and
+constructors retain their existing pre-#39 `BLOCKED_NO_APPROVED_COMMAND` result.
+
 ## Security review checklist
 
 - [ ] Values remain pathless, immutable, repr-redacted, and content-free.

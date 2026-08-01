@@ -110,6 +110,9 @@ PACKAGE_MODULES = {
     for name in EXPECTED_FILES
 }
 ALLOWED_CONSUMERS = {
+    "backend/cutover_composition_contracts/approved_binding.py": {
+        "CutoverProfileV1",
+    },
     "backend/cutover_composition_contracts/authorization_sequence.py": {
         "AuthorizationValidationStatus",
         "CutoverExecutionAuthorizationV1",

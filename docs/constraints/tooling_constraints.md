@@ -1145,6 +1145,22 @@ entries, not a launcher. The Windows forward path passes through transaction
 authorizations still produce `BLOCKED_NO_APPROVED_COMMAND`; no command string,
 path, or adapter can be supplied to change that result.
 
+## Issue #70 R2 vocabulary tooling boundary
+
+Issue #70 adds no dependency, command, CLI, process launcher, environment option,
+host adapter, or normal-runtime consumer. The additive R2 contracts use only
+frozen dataclasses, enums, SHA-256, strict bounded canonical JSON, the existing
+closed `CutoverProfileV1`, and the existing `AuthorizationSequenceV1`.
+
+All binding selections are re-derived from the reviewed Profile and exact
+authorization sequence; the API exposes no path, Profile field override,
+runtime discovery, fallback, or arbitrary phase. The four managed units are
+represented by separate PREPARE and PUBLISH enum values rather than one batch.
+Receipts expose only fixed enums, opaque fingerprints, and non-negative
+allowlisted counts, and cannot be accepted by any authorization validator.
+Tests are portable pure-contract tests and make no NTFS, Windows ACL, TTY,
+process-isolation, or real-host claim.
+
 ## 14. 执行后检查
 
 Agent 每次完成任务后，必须确认：

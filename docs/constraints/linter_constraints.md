@@ -953,6 +953,21 @@ barred from claiming
 NTFS or Windows ACL proof. Leakage tests cover receipt/chain JSON and repr,
 fixed exceptions, stdout, stderr, and logs.
 
+## Issue #70 static contract rules
+
+Static tests extend the exact `backend/cutover_composition_contracts` file
+allowlist with only `approved_binding.py`, `r2_types.py`, and `r2_receipt.py`.
+Focused behavior pins canonical round trips, duplicate/unknown-field rejection,
+Profile-derived immutable binding, four nominal authorization domains, separate
+managed PREPARE/PUBLISH boundaries, quiescence/audit/two-start/recovery vocabulary,
+the exact pending-effect tri-state, exact terminal outcomes, content-free receipt
+fields, and the absence of any receipt-to-authorization relationship.
+
+The existing Issue #59 root export, import-isolation, public-signature,
+consumer, dynamic-capability, real-lock, Windows-gating, and leakage guards remain
+unchanged. Adding these pure contract files does not authorize a process, host
+adapter, signer, issuer, path selector, or executable test binder.
+
 ## 14. 修改规则
 
 如果新增或修改 linter 规则，必须同步更新：
