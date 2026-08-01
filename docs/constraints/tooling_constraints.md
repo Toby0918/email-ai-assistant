@@ -1161,6 +1161,32 @@ allowlisted counts, and cannot be accepted by any authorization validator.
 Tests are portable pure-contract tests and make no NTFS, Windows ACL, TTY,
 process-isolation, or real-host claim.
 
+## Issue #71 preflight process tooling boundary
+
+The dedicated preflight executable is only
+`python -B -m backend.r2_preflight_process <fixed-verb>`. Its one positional
+value is selected from the six code-fixed preflight verbs; no option parser,
+shell, PowerShell, path lookup, Profile input, journal location, recovery flag,
+force flag, vararg, or free-form command exists. It reads no environment value
+and no authorization file. Evidence and transaction entrypoints are different
+future packages and cannot be selected here.
+
+The shared authorization package uses the already pinned `cryptography`
+Ed25519 verifier only. Repository production code contains no private key,
+signing call, key generation, issuer, network client, provider, mailbox, vault,
+credential, or private-store consumer. Hidden input is capped at 65,536 base64
+characters and is read exactly once after all three standard streams prove
+Windows TTY status and the exact acknowledgement succeeds.
+
+Portable tests cover canonical parsing, signatures, bindings, expiry, replay,
+cross-domain rejection, command closure, output closure, and redirected stream
+failure without claiming TTY evidence. A Windows-only test starts a test-only
+child around the production preflight runner in a fresh hidden local console
+owned by a detached test host, injects only synthetic input into that console,
+and proves the runner returns the pre-#39 locked result with zero host
+operations. The host and its output file live only in a test-owned temporary
+directory.
+
 ## 14. 执行后检查
 
 Agent 每次完成任务后，必须确认：

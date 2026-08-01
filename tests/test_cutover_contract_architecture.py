@@ -110,6 +110,15 @@ PACKAGE_MODULES = {
     for name in EXPECTED_FILES
 }
 ALLOWED_CONSUMERS = {
+    "backend/r2_operator_process/envelope.py": {
+        "AuthorizationValidationStatus",
+        "CutoverProfileV1",
+        "RealPreflightAuthorizationV1",
+        "validate_real_host_authorization",
+    },
+    "backend/r2_preflight_process/testing.py": {
+        "CutoverProfileV1",
+    },
     "backend/cutover_composition_contracts/approved_binding.py": {
         "CutoverProfileV1",
     },

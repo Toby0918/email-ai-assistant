@@ -968,6 +968,30 @@ consumer, dynamic-capability, real-lock, Windows-gating, and leakage guards rema
 unchanged. Adding these pure contract files does not authorize a process, host
 adapter, signer, issuer, path selector, or executable test binder.
 
+## Issue #71 static process and authorization rules
+
+Static checks pin the dedicated preflight package, exact six-verb mapping,
+one-argument command signature, fixed acknowledgement and result fields, and
+the absence of an option parser, umbrella selector, arbitrary subprocess,
+shell, PowerShell, filesystem selector, environment authorization reader, or
+authorization-file reader. The executable root must not import the future
+evidence or transaction roots, and normal runtime, frontend, scripts, cleanup,
+scheduler, and workflows must not consume it.
+
+The shared operator-envelope package may import only canonical helpers, pure
+cutover authorization contracts, base64, and the pinned Ed25519 public
+verifier. Static guards reject private-key imports, signing or key-generation
+calls, durable authorization storage, key files, issuer code, network/provider/
+mailbox/vault/private-store consumers, and dynamic loading. The preflight
+consumer is allowlisted explicitly in the cutover-contract architecture guard.
+
+Focused tests pin wrong/extra argv rejection before TTY access, all three TTY
+checks before acknowledgement, exact acknowledgement before one bounded hidden
+read, canonical signature and domain validation, binding/lifetime drift,
+single-use replay, cross-domain rejection, fixed public fields, redirected
+stream rejection, and the unchanged pre-#39 lock. Only the win32-gated fresh
+console test may claim real TTY evidence; portable tests make no such claim.
+
 ## 14. 修改规则
 
 如果新增或修改 linter 规则，必须同步更新：

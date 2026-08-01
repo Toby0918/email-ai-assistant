@@ -652,6 +652,40 @@ boundary. The receipt has no inheritance or conversion path to any authorization
 type. Issue #70 adds no executable behavior: all Issue #59 entries and
 constructors retain their existing pre-#39 `BLOCKED_NO_APPROVED_COMMAND` result.
 
+## Issue #71 fixed preflight process and authorization ingress
+
+Issue #71 adds one dedicated `backend.r2_preflight_process` executable root.
+Its argv is exactly one of six code-fixed read-only preflight verbs. It accepts
+no path, Profile, authorization, journal, recovery, force, vararg, or free-form
+command value, and it is physically separate from evidence publication and the
+transaction process. Normal runtime, frontend, scripts, cleanup, schedulers,
+and workflows cannot import this root.
+
+Before any acknowledgement or hidden read, the production terminal adapter
+requires stdin, stdout, and stderr to be Windows TTYs. The acknowledgement is
+exact and the following base64 value is read once without echo under a 65,536
+character ceiling. Redirected standard streams, extra argv, and wrong
+acknowledgement fail closed. The executable does not inspect environment
+variables or authorization files and has no alternate pipe ingress.
+
+`backend.r2_operator_process` is verification-only. It canonicalizes one
+domain-tagged envelope, verifies an external Ed25519 signature with a public
+key, reconstructs the nominal real preflight authorization, and binds its
+type, domain, phase, Profile, governing master, operator, operation, lifetime,
+and single-use nonce before the preflight lock is invoked. It contains no
+private key, signing function, issuer, target reader, or mutation capability.
+Wrong and cross-domain values are rejected before any reader acquisition.
+
+The real preflight process remains dormant before separately approved Issue
+#39. Even a valid real authorization reaches only
+`BLOCKED_NO_APPROVED_COMMAND`, with one accepted authorization, zero rejected
+authorizations, and zero host operations. Public results expose only fixed
+status values and the allowlisted aggregate counts `accepted`, `rejected`, and
+`host_operations`; prompts are fixed text. Synthetic authorization tests use
+test-owned keys and state, and the Windows integration test uses one fresh
+hidden local console owned by a detached test host. Neither proof authorizes or
+observes the real cutover host.
+
 ## Security review checklist
 
 - [ ] Values remain pathless, immutable, repr-redacted, and content-free.

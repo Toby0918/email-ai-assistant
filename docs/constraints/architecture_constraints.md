@@ -1136,6 +1136,40 @@ and unapproved consumers remain unable to consume the operator roots. Later
 Issues #71-#83 may use these pure values only within their separately approved
 scopes; Issue #70 itself performs no process, audit, journal, or host action.
 
+## Issue #71 preflight process architecture
+
+Issue #71 introduces exactly two new roots:
+
+```text
+backend.r2_preflight_process -> fixed argv + SystemTerminal + existing locked preflight entries
+backend.r2_operator_process -> canonical envelope + Ed25519 public verification + pure authorization validation
+```
+
+`backend.r2_preflight_process` is a physically dedicated executable package.
+It has no evidence-publication or transaction import, umbrella selector,
+filesystem selector, arbitrary process launcher, Git, SQLite, ACL, service,
+provider, mailbox, vault, private-store, cleanup, or mutation capability. Its
+production `entry.main()` validates one exact verb and three actual standard
+TTY streams before reading the exact acknowledgement and one hidden bounded
+value. Before #39, its only valid terminal result remains
+`BLOCKED_NO_APPROVED_COMMAND` and zero host operations.
+
+`backend.r2_operator_process` is a shared verification-only deep module for the
+four nominal authorization domains. Issue #71 consumes only the preflight
+domain and `RealPreflightAuthorizationV1`. The verifier checks the exact
+canonical outer shape, domain-separated Ed25519 signature, exact nominal inner
+type, phase, Profile, master, operator, operation, validity window, and nonce
+claim before the existing locked entry is reachable. It cannot sign, generate
+keys, acquire readers, or import any operator composition root.
+
+The synthetic binder is isolated in
+`backend.r2_preflight_process.testing`. No normal runtime consumer may import
+it. It binds a validated `ApprovedCutoverBindingV1`, a test-owned public key,
+an injected clock, and an in-memory single-use nonce claim; it has no host
+reader. Wrong authorization always fails before its reader-acquisition counter
+can change. The Windows real-TTY host is test-only and runs from a fresh
+temporary directory; portable tests make no Windows TTY claim.
+
 ## 7. 修改规则
 
 如果需要改变架构边界，必须同时修改：
