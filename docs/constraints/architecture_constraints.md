@@ -1235,6 +1235,34 @@ restores the original legacy anchor, reapplies only the captured original
 DACLs, and proves every original identity and security observation exactly. It
 has no copy, overwrite, delete, cleanup, or reparse traversal.
 
+## Issue #75 complete repository-manifest architecture
+
+`backend.r2_repository_manifest` composes only the existing reviewed #52/#55/
+#56 host, ACL, Git-runner, worktree, and identity seams plus the #74 inherited
+DACL projection. The package's public root exports closed pathless manifest,
+receipt, category, boundary, gap, and selector values. Only `testing.py` binds
+the fixed `Container`, `LegacySourceAnchorV1`, `FailedContainerV1`, `main`,
+preservation, and eleven-worktree paths inside the validated caller-owned
+temporary scope. No real operator or normal mail runtime imports it.
+
+The manifest review has exactly three positive categories: `.git`, tracked,
+and individually approved untracked. Unapproved untracked content fails;
+ignored and private/runtime/database/log/cache material is bound as retained
+residue, never selected. Embedded linked-worktree roots and their opaque admin
+records remain topology units rather than repository-content units. Complete
+subtrees can move whole only when every leaf is selected; mixed subtrees use
+create-only skeletons and leaf moves.
+
+Forward publication preserves all eleven original physical and administrative
+identities, renames the original root to the legacy anchor, creates and protects
+a fresh Container/main, relocates the exact manifest, applies #74 whole-tree
+DACL conformance, then reconstructs eight embedded-sibling and three external
+worktrees outside Repository Root. Reverse first preserves the failed
+Container and all new admin/external objects, moves selected units back into
+the residue-bearing anchor, restores the anchor and all 22 original identities,
+restores exact DACL observations, and ends only at
+`LEGACY_FLAT_LAYOUT_RESTORED`.
+
 ## 7. 修改规则
 
 如果需要改变架构边界，必须同时修改：

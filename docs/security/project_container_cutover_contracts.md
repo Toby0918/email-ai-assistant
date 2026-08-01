@@ -766,6 +766,34 @@ preserves the failed main, and restores the original anchor and every selected
 identity/security observation without copy, overwrite, delete, cleanup, or
 reparse traversal.
 
+## Issue #75 complete repository manifest and worktree topology
+
+`RepositoryContentManifestV1` is a closed content-free review of `.git`,
+tracked content, and individually approved untracked content. It cannot select
+ignored data or any private, Runtime, database, log, cache, reparse, linked-
+worktree, or opaque-admin residue. Every selected leaf and whole directory has
+a stable native identity and path fingerprint; every residue leaf is separately
+identity-bound under `LegacySourceAnchorV1`. A whole directory is eligible only
+when its complete subtree is selected and ACL-compatible. Otherwise the new
+main receives only a create-only skeleton plus exact leaf moves.
+
+Before repository relocation, exactly eleven original linked-worktree physical
+identities and their opaque administrative identities/content fingerprints are
+moved into fixed preservation roles. The fresh protected Container and main
+receive only the manifest; all excluded residue remains under the original
+legacy anchor. Exactly eight reconstructed worktrees are siblings under
+Container `Worktrees` and three use reviewed external targets; all eleven are
+outside Repository Root and bind the reviewed refs and commits through the
+fixed #56 runner.
+
+Rollback never invokes a removal command. It first preserves the failed
+Container, new admin directories, and external worktrees, then reverses fixed
+manifest moves, restores the original anchor, reattaches all original physical
+and admin identities, restores their DACL observations, and independently
+verifies the twelve-entry Git worktree relationship. Its only success status is
+`LEGACY_FLAT_LAYOUT_RESTORED`; collision or ambiguous identity cannot be
+overwritten or cleaned.
+
 ## Security review checklist
 
 - [ ] Values remain pathless, immutable, repr-redacted, and content-free.

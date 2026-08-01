@@ -1256,6 +1256,33 @@ content-free high-level journal is create-only, hash-chained, flushed and
 physically inject all five gaps at every fixed main-publication boundary and
 make no claim about any real host.
 
+## Issue #75 full manifest and eleven-worktree tooling boundary
+
+`backend.r2_repository_manifest` is another test-binder-only Windows slice; it
+has no executable entry, caller path, Git arguments, remote, shell, subprocess,
+or normal-runtime consumer. Its three Git observations are code-fixed
+`ls-files` forms executed only through the already bound and sanitized #56 Git
+runner. Worktree creation reuses only the reviewed `worktree add
+--no-guess-remote -- <reserved-target> <reviewed-branch>` capability. No clone,
+copy, network fetch, history rewrite, stash, pruning, repair, removal, deletion,
+replacement, alternate target, or remote-dependent recovery verb exists.
+
+The test fixture contains synthetic tracked files, one exactly approved
+untracked file, ignored private/runtime/database/log/cache residue, a complete
+selected directory, a mixed directory, and eleven linked worktrees. Complete
+directories move only after full leaf selection and reparse-free ACL review;
+mixed directories receive create-only inherited skeletons and only their
+selected leaves move. The original linked-worktree physical directories and
+opaque administrative directories move no-replace into fixed preservation
+roles before the legacy-anchor rename.
+
+Forward and reverse high-level facts carry an explicit direction in a
+create-only, `fsync`-committed hash chain. Every effect still consumes the
+existing #52 durable host permit. Native gap tests cover the first and last
+manifest and worktree units across intent, effect, scan, observation, and
+commit, while the existing #56 exhaustive worktree suites remain authoritative
+for all eleven low-level Git/NTFS boundary positions.
+
 ## 14. 执行后检查
 
 Agent 每次完成任务后，必须确认：

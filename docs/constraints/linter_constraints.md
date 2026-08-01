@@ -1043,6 +1043,23 @@ authoritative whole-tree conformance, exact Owner/Group equality, committed
 rollback, collision incident stop, reparse rejection, and the unchanged real
 operator locks.
 
+## Issue #75 static manifest/worktree rules
+
+Static guards allow the new package to consume only exact reviewed files from
+the cutover host-mutation and repository-transaction packages. They reject an
+executable entry, operator-process imports, subprocess, shell, arbitrary Git,
+clone/copy/fetch/history-rewrite/stash/prune/repair/remove/delete/replace
+markers, dynamic import, and any normal-runtime consumer. Existing #51/#52/#55/
+#56 consumer allowlists are extended only for the named test-binder modules.
+
+Contract tests pin the three positive manifest categories and closed directional
+boundary/gap vocabulary. Windows behavior tests require exact selected/residue
+partitioning, whole-versus-mixed directory handling, one Repository Root,
+exactly eleven outside-root linked worktrees, preserved original physical/admin
+identities, forward and reverse durable facts, failed-Container preservation,
+all five crash gaps at manifest/worktree endpoints, resumable reverse gaps, and
+the sole terminal reverse status `LEGACY_FLAT_LAYOUT_RESTORED`.
+
 ## 14. 修改规则
 
 如果新增或修改 linter 规则，必须同步更新：
