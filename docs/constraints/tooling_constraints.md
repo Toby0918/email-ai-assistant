@@ -1283,6 +1283,21 @@ manifest and worktree units across intent, effect, scan, observation, and
 commit, while the existing #56 exhaustive worktree suites remain authoritative
 for all eleven low-level Git/NTFS boundary positions.
 
+## Issue #76 database-publication tooling boundary
+
+The #76 package is not executable and accepts no command-line, environment,
+Profile, path-selector, journal-selector, service-selector, force, shell,
+PowerShell, or arbitrary process input. Its only native source capability is a
+fixed `CreateFileW` disk handle opened with `FILE_SHARE_READ` and without write
+or delete sharing. Target staging uses create-only file creation; publication
+and exact recovery use fixed no-replace renames inside the test-owned sandbox.
+
+Tests use a synthetic state-file service and synthetic SQLite database in a
+fresh temporary NTFS directory. Faults are closed enums rather than callbacks.
+The package performs no real service operation, source checkpoint/truncation,
+cleanup, deletion, provider call, mailbox access, vault access, or private-data
+read.
+
 ## 14. 执行后检查
 
 Agent 每次完成任务后，必须确认：

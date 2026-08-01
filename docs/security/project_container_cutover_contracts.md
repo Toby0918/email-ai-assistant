@@ -794,6 +794,30 @@ verifies the twelve-entry Git worktree relationship. Its only success status is
 `LEGACY_FLAT_LAYOUT_RESTORED`; collision or ambiguous identity cannot be
 overwritten or cleaned.
 
+## Issue #76 quiescence and leased database publication
+
+The database slice accepts three distinct content-free prerequisites for the
+completed preflight, evidence publication, and fresh pre-mutation gate. It
+durably records quiescence intent before the synthetic service-controller role
+performs the first mutation. Only that module-owned role can issue an accepted
+`StoppedServiceReceiptV1`; the receipt has no public constructor, parser, or
+factory and is checked against the in-process issuer registry.
+
+`LegacyDatabaseCopyLeaseV1` is likewise module-owned and single-use. Its
+Windows `CreateFileW` handle requests only read sharing, thereby denying write
+and delete sharing, and that same handle supplies both the copy bytes and the
+post-publish verification bytes. `POST_STOP_BASELINE`, `PRE_COPY_LEASE`,
+`COPY_POSTVERIFY`, and `FINAL_OR_RECOVERY_VERIFY` all reject any fixed SQLite
+sidecar without checkpointing, truncating, deleting, cleaning, or otherwise
+mutating the source.
+
+Database prepare and publish are separate create-only durable journal
+boundaries with intent, effect-observed, stable-verified, and committed facts.
+Collision, source drift, crash, and partial staging remain in the caller-owned
+synthetic sandbox. Recovery classifies them without cleanup, restores an exact
+published target back to its retained staging role when safe, and returns
+`INCIDENT_STOP` for ambiguity.
+
 ## Security review checklist
 
 - [ ] Values remain pathless, immutable, repr-redacted, and content-free.

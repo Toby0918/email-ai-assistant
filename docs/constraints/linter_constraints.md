@@ -1060,6 +1060,16 @@ identities, forward and reverse durable facts, failed-Container preservation,
 all five crash gaps at manifest/worktree endpoints, resumable reverse gaps, and
 the sole terminal reverse status `LEGACY_FLAT_LAYOUT_RESTORED`.
 
+## Issue #76 static quiescence/database rules
+
+Static guards pin the closed pathless exports, absence of a real entry and
+normal-runtime consumer, exact four sidecar checkpoint names, and nominal
+non-constructible stopped receipt and copy lease. They reject subprocess,
+shell, PowerShell, SQLite checkpoint/truncation, cleanup/deletion, and adjacent
+mail/private capabilities. Native inspection requires `FILE_SHARE_READ` and
+forbids write/delete sharing constants. Backend module and function size limits
+continue to apply.
+
 ## 14. 修改规则
 
 如果新增或修改 linter 规则，必须同步更新：

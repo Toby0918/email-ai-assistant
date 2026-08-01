@@ -1263,6 +1263,22 @@ the residue-bearing anchor, restores the anchor and all 22 original identities,
 restores exact DACL observations, and ends only at
 `LEGACY_FLAT_LAYOUT_RESTORED`.
 
+## Issue #76 quiescence/database architecture
+
+`backend.r2_database_publication` is a dormant internal Windows slice with a
+closed, pathless package root. Path-bearing service and database binding exists
+only in `testing.py` for a fresh caller-owned sandbox. No operator process,
+normal mail runtime, frontend, script, scheduler, or workflow imports it.
+
+The module-owned service-controller role is the only stopped-receipt issuer;
+generic callbacks and fixture mappings are not an issuance surface. The
+module-owned database lease wraps one read-only-sharing native source handle,
+is consumed once, and remains open across prepare copy and publish
+verification. Source sidecars are only observed. Recovery may rename an exact
+new target back to fixed retained staging, but has no source cleanup, SQLite
+checkpoint, delete, replace, repair, provider, mailbox, or private-data
+capability.
+
 ## 7. 修改规则
 
 如果需要改变架构边界，必须同时修改：
