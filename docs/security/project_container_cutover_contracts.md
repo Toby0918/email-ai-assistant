@@ -818,6 +818,29 @@ synthetic sandbox. Recovery classifies them without cleanup, restores an exact
 published target back to its retained staging role when safe, and returns
 `INCIDENT_STOP` for ambiguity.
 
+## Issue #77 independent Runtime unit
+
+Runtime publication starts only after the quiescence receipt fingerprint. Its
+fixed staging identity is `managed-runtime.prepare` beside the fixed final
+`managed-runtime`; one durable PREPARE intent precedes create-only staging and
+one durable PUBLISH intent precedes the no-replace same-volume rename. Both
+boundaries record effect, stable verification, and commit facts separately.
+
+The existing canonical dependency lock remains the sole dependency authority.
+It proves Python 3.12.13, SQLite 3.50.4, the complete fixed dependency closure,
+wheel hashes, import-file hashes, and exact isolated startup archive. The new
+Runtime performs the existing isolated self-verifier, which imports only frozen
+Python helpers and reads package metadata/import bytes; it never imports or
+executes installed package code. No stale R1 `pip check` statement is an
+authority source.
+
+Input capture, construction, and verification are offline and create-only.
+Network, package indexes, caches, system Python, user site, legacy environment,
+live resolution, replacement, retry, cleanup, and second-generation staging
+are unavailable. Exact or partial staging is retained after crashes, collision,
+drift, reparse, or verification failure; recovery classifies it content-free
+and never deletes it.
+
 ## Security review checklist
 
 - [ ] Values remain pathless, immutable, repr-redacted, and content-free.

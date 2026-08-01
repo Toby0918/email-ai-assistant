@@ -1279,6 +1279,22 @@ new target back to fixed retained staging, but has no source cleanup, SQLite
 checkpoint, delete, replace, repair, provider, mailbox, or private-data
 capability.
 
+## Issue #77 independent Runtime architecture
+
+`backend.r2_runtime_publication` is a dormant internal unit whose package root
+exports only pathless versions, prerequisite/fault vocabularies, pending-state
+classification, status, verification authority, and receipt. The path-bearing
+binder exists only in `testing.py`; no operator root or normal runtime imports
+it.
+
+The builder reuses only the reviewed #57 immutable source capture, canonical
+lock review, create-only Runtime tree, offline wheel extraction, and isolated
+self-verification modules. It does not reuse the #57 combined publication
+phase or its target window. PREPARE owns the complete stage and identity;
+PUBLISH owns the fixed no-replace rename and new authoritative verification.
+Recovery has no removal, replacement, cleanup, network, provider, mailbox,
+vault, private-data, or second-stage capability.
+
 ## 7. 修改规则
 
 如果需要改变架构边界，必须同时修改：

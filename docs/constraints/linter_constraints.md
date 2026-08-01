@@ -1070,6 +1070,16 @@ mail/private capabilities. Native inspection requires `FILE_SHARE_READ` and
 forbids write/delete sharing constants. Backend module and function size limits
 continue to apply.
 
+## Issue #77 static Runtime-unit rules
+
+Static guards pin the closed pathless exports and exact allowlist of reused #57
+modules. They reject `pip check` as a second authority, network/index/cache,
+system-Python/user-site/legacy-environment fallbacks, retry, cleanup, replace,
+arbitrary process inputs, real entries, and normal-runtime test-binder
+consumers. Module/function size rules continue to apply. Behavior tests cover
+all eight PREPARE/PUBLISH gaps plus collision, source/dependency drift, reparse,
+self-verification failure, content-free classifications, and exact recovery.
+
 ## 14. 修改规则
 
 如果新增或修改 linter 规则，必须同步更新：

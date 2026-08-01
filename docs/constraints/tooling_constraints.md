@@ -1298,6 +1298,21 @@ The package performs no real service operation, source checkpoint/truncation,
 cleanup, deletion, provider call, mailbox access, vault access, or private-data
 read.
 
+## Issue #77 Runtime tooling boundary
+
+The Runtime unit accepts no command line, environment selector, arbitrary
+path, package name, wheel, index, cache, resolver, system-Python fallback,
+retry, cleanup, or alternate staging target. Fixed offline inputs are captured
+before construction. Existing create-only handle-relative tree primitives
+flush every file and re-read exact hashes; the stage and target are on the same
+volume and publication is a fixed no-replace rename.
+
+The authoritative self-verifier starts only the newly built fixed Python with
+`-X frozen_modules=on -I -B -S`, a minimal provider-free environment, no stdin,
+no shell, a bounded timeout, and bounded output. Its script imports no installed
+dependency module. Windows executable tests use only fresh synthetic sandboxes;
+portable tests make no Runtime execution or NTFS claim.
+
 ## 14. 执行后检查
 
 Agent 每次完成任务后，必须确认：
