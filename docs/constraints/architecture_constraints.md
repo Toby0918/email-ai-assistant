@@ -1192,6 +1192,22 @@ not verify that object; the existing `backend.migration_evidence_verifier`
 retains independent read-only process ownership. No normal runtime consumer can
 import the synthetic binder or either operator executable.
 
+## Issue #73 transaction process architecture
+
+`backend.r2_transaction_process` is physically disjoint from the preflight and
+evidence packages. Its production root owns only the three fixed verbs,
+transaction-specific TTY adapter, fixed aggregate result, and default lock. It
+has no umbrella, arbitrary filesystem/process/Git/service/ACL/provider/mailbox/
+vault/private-store, cleanup, repair, or verification capability.
+
+The test-only binder owns two public verification keys, exact immutable
+binding and journal-owner fingerprints, callbacks for current head, remaining
+reverse plan and boundary time, three narrow one-action roles, and in-memory
+claims for both envelope and crash nonces. Resume re-reads the current head;
+rollback re-reads both head and reverse-plan fingerprint. Any mismatch rejects
+before `action_acquisitions` increments. Normal runtime cannot consume this
+binder.
+
 ## 7. 修改规则
 
 如果需要改变架构边界，必须同时修改：

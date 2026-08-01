@@ -1009,6 +1009,19 @@ rejection, and the unchanged real lock. The only real-TTY and OS-process claim
 comes from the win32-gated fresh-console test; portable cases remain pure
 contract and injected-callback evidence.
 
+## Issue #73 static transaction-process rules
+
+Static guards pin the exact third package and its `execute`, `resume`, and
+`rollback` verbs, reject all path/Profile/journal/recovery-target/force/shell/
+PowerShell/Git inputs, and prove no preflight/evidence root import or normal
+synthetic-binder consumer exists. The signed context must name approved
+binding, owner, current head, remaining plan, boundary epoch, and crash nonce.
+
+Behavior tests cover execution/recovery domain separation, wrong phase,
+head/plan/clock drift, expiry, envelope replay, crash-nonce reuse, exactly one
+action acquisition, fixed public counts, redirected streams, fresh-console
+process execution, and the unchanged pre-#39 real lock.
+
 ## 14. 修改规则
 
 如果新增或修改 linter 规则，必须同步更新：

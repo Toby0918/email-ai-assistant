@@ -123,6 +123,11 @@ ALLOWED_CONSUMERS = {
         "CutoverProfileV1",
         "EvidencePublicationAuthorizationV1",
     },
+    "backend/r2_transaction_process/testing.py": {
+        "CutoverExecutionAuthorizationV1",
+        "CutoverProfileV1",
+        "RecoveryAuthorizationV1",
+    },
     "backend/r2_preflight_process/testing.py": {
         "CutoverProfileV1",
     },

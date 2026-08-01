@@ -29,7 +29,7 @@ _ERROR = "R2_AUTHORIZATION_ENVELOPE_REJECTED"
 _REPLAY = "R2_AUTHORIZATION_ENVELOPE_REPLAYED"
 _TYPE = "R2OperatorAuthorizationEnvelopeV1"
 _MAX_ENCODED_BYTES = 65_536
-_BODY_KEYS = ("envelope_type", "domain", "nonce", "authorization")
+_BASE_BODY_KEYS = ("envelope_type", "domain", "nonce", "authorization")
 
 
 class AuthorizationEnvelopeDomain(str, Enum):
@@ -80,6 +80,19 @@ def authorization_envelope_message(body: object) -> bytes:
     return b"r2-operator-authorization-envelope-v1\0" + canonical_json(source)
 
 
+def decode_authorization_envelope_context(encoded: object) -> dict[str, object]:
+    try:
+        source = _decode_envelope(encoded)
+        context = source.get("context")
+        if type(context) is not dict:
+            raise AuthorizationEnvelopeError
+        return dict(context)
+    except AuthorizationEnvelopeError:
+        raise
+    except Exception:
+        raise AuthorizationEnvelopeError from None
+
+
 def verify_authorization_envelope(
     encoded: object,
     *,
@@ -92,40 +105,61 @@ def verify_authorization_envelope(
     claim_nonce: Callable[[str], bool],
     authorization_type: type = RealPreflightAuthorizationV1,
     expected_operation: str = "real_preflight",
+    expected_context: dict[str, object] | None = None,
 ) -> object:
     try:
-        source = _decode_envelope(encoded)
-        body = {name: source[name] for name in _BODY_KEYS}
-        _require_domain_and_signature(
-            source,
-            body,
+        return _verify_authorization(
+            encoded,
             expected_domain,
             verification_public_key,
-        )
-        _require_domain_authorization_type(
-            expected_domain,
-            authorization_type,
-            expected_operation,
-        )
-        authorization = authorization_type.from_mapping(
-            body["authorization"]
-        )
-        _require_authorization_binding(
-            authorization,
             profile,
             operation_fingerprint,
             expected_phase,
             observed_at_epoch,
+            claim_nonce,
+            authorization_type,
             expected_operation,
+            expected_context,
         )
-        nonce = body["nonce"]
-        if claim_nonce(nonce) is not True:
-            raise AuthorizationEnvelopeReplay
-        return authorization
     except AuthorizationEnvelopeReplay:
         raise
     except Exception:
         raise AuthorizationEnvelopeError from None
+
+
+def _verify_authorization(
+    encoded,
+    domain,
+    public_key,
+    profile,
+    operation_fingerprint,
+    phase,
+    observed,
+    claim_nonce,
+    authorization_type,
+    operation,
+    expected_context,
+):
+    source = _decode_envelope(encoded)
+    body = {
+        name: source[name] for name in source if name != "signature"
+    }
+    if body.get("context") != expected_context:
+        raise AuthorizationEnvelopeError
+    _require_domain_and_signature(source, body, domain, public_key)
+    _require_domain_authorization_type(domain, authorization_type, operation)
+    authorization = authorization_type.from_mapping(body["authorization"])
+    _require_authorization_binding(
+        authorization,
+        profile,
+        operation_fingerprint,
+        phase,
+        observed,
+        operation,
+    )
+    if claim_nonce(body["nonce"]) is not True:
+        raise AuthorizationEnvelopeReplay
+    return authorization
 
 
 def _decode_envelope(encoded: object) -> dict[str, object]:
@@ -138,14 +172,23 @@ def _decode_envelope(encoded: object) -> dict[str, object]:
     source = strict_json_object(payload, code=_ERROR)
     if canonical_json(source) != payload:
         raise AuthorizationEnvelopeError
-    if set(source) != {*_BODY_KEYS, "signature"}:
+    if "signature" not in source:
         raise AuthorizationEnvelopeError
-    _exact_body({name: source[name] for name in _BODY_KEYS})
+    _exact_body(
+        {name: source[name] for name in source if name != "signature"}
+    )
     return source
 
 
 def _exact_body(value: object) -> dict[str, object]:
-    if type(value) is not dict or set(value) != set(_BODY_KEYS):
+    if type(value) is not dict:
+        raise AuthorizationEnvelopeError
+    keys = set(value)
+    valid_keys = (
+        keys == set(_BASE_BODY_KEYS)
+        or keys == {*_BASE_BODY_KEYS, "context"}
+    )
+    if not valid_keys:
         raise AuthorizationEnvelopeError
     domain = value["domain"]
     if (
@@ -154,6 +197,7 @@ def _exact_body(value: object) -> dict[str, object]:
         or domain not in {item.value for item in AuthorizationEnvelopeDomain}
         or not is_fingerprint(value["nonce"])
         or type(value["authorization"]) is not dict
+        or ("context" in value and type(value["context"]) is not dict)
     ):
         raise AuthorizationEnvelopeError
     return value

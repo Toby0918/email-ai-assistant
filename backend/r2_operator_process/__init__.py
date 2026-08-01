@@ -5,6 +5,7 @@ from .envelope import (
     AuthorizationEnvelopeError,
     AuthorizationEnvelopeReplay,
     authorization_envelope_message,
+    decode_authorization_envelope_context,
     verify_authorization_envelope,
 )
 
@@ -13,5 +14,6 @@ __all__ = [
     "AuthorizationEnvelopeError",
     "AuthorizationEnvelopeReplay",
     "authorization_envelope_message",
+    "decode_authorization_envelope_context",
     "verify_authorization_envelope",
 ]

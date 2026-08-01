@@ -716,6 +716,28 @@ capability. Tests use only synthetic package bytes and test-owned Ed25519 keys;
 they do not access a real evidence package, Repository Root, provider, mailbox,
 vault, credential, private store, or private content.
 
+## Issue #73 fixed transaction process
+
+Issue #73 adds the third and final operator executable root,
+`backend.r2_transaction_process`. It accepts only `execute`, `resume`, or
+`rollback`; it cannot import or select the preflight or evidence roots and has
+no umbrella, path, Profile, journal-path, recovery-target, force, shell,
+PowerShell, Git-command, vararg, or free-form surface.
+
+Every signed transaction envelope includes an exact
+`R2TransactionAuthorizationContextV1`: the approved binding fingerprint,
+journal owner, current durable journal head, remaining reverse-plan
+fingerprint, boundary epoch, and a separately single-use crash nonce. Execute
+and resume require `CutoverExecutionAuthorizationV1` under the execution key;
+rollback requires `RecoveryAuthorizationV1` under the recovery key. Domain,
+type, operation, phase, Profile/master/operator, head, plan, clock, expiry,
+envelope nonce, and crash nonce are verified before an action callback exists.
+
+One invocation acquires at most one exact action callback and reports only
+fixed status plus `accepted`, `rejected`, and `mutations` counts. Synthetic
+tests can execute one injected action with no host capability. The real entry
+remains `BLOCKED_NO_APPROVED_COMMAND` with zero mutations before #39.
+
 ## Security review checklist
 
 - [ ] Values remain pathless, immutable, repr-redacted, and content-free.

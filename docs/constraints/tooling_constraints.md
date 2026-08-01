@@ -1210,6 +1210,26 @@ console, and accepts exit zero only after the child observes one exact
 publication. The real production entry stays locked and performs no real
 publication before #39.
 
+## Issue #73 transaction process tooling boundary
+
+The third executable is only
+`python -B -m backend.r2_transaction_process <execute|resume|rollback>`. It has
+no option parser, umbrella selector, shell, PowerShell, arbitrary Git or
+subprocess command, caller path, Profile, journal path, recovery target, or
+force input. The process imports neither other operator root.
+
+The canonical envelope codec permits the transaction context only as a signed
+exact mapping. Preflight and evidence envelopes continue to reject a context.
+Execution and recovery select different existing nominal authorization types
+and different public keys. Tests sign only synthetic values; production code
+still has no signing or private-key capability.
+
+Portable tests inject current-head, reverse-plan, boundary-clock, and one-action
+callbacks. A Windows-only detached host drives one signed execution through a
+fresh hidden console. No test reads or mutates the real journal, repository,
+service, Runtime, database, ACL, evidence, provider, mailbox, vault, credential,
+private store, or private data.
+
 ## 14. 执行后检查
 
 Agent 每次完成任务后，必须确认：
