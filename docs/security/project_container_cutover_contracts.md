@@ -932,6 +932,33 @@ classification. Crash and deterministic mismatch require rollback; ambiguous
 types, process reuse, stale attestations, and adapter exceptions incident-stop.
 The slice is single-use, dormant, synthetic-only, and adds no real entry.
 
+## Issue #82 cross-stage recovery and final success seal
+
+Restart inspection performs exactly two independent content-free observations
+for every pending or committed boundary state. Only two identical ABSENT reads
+produce `EFFECT_ABSENT_EXACT`; only two identical PRESENT reads produce
+`EFFECT_PRESENT_EXACT`; drift or explicit ambiguity produces
+`EFFECT_AMBIGUOUS`. Inspection is read-only and cannot call reverse authority,
+repeat an effect, or append a success record. Durable committed facts must
+agree with PRESENT host observation before recovery.
+
+Recovery first preserves the failed Container, retains all new/partial objects,
+then restores the Repository Root, Git, eleven worktrees, ACL, database, and
+legacy service in one fixed order. Every non-observed reverse effect requires a
+fresh exact authority binding the current journal head, current remaining-plan
+fingerprint, boundary, unexpired interval, and never-reused crash nonce. An
+already observed exact reverse effect is skipped, never blindly repeated.
+There is no cleanup. The only completed reverse status is
+`LEGACY_FLAT_LAYOUT_RESTORED`; ambiguity, head drift, receipt-chain drift, stale
+authority, replay, or failed legacy recovery incident-stops.
+
+Final seal requires no pending intent or remaining reverse step. It binds the
+validated #81 result, both independent audit completions, current head, nonce
+B, approved identity set, audit-specific identity bindings, distinct audit
+processes, and exact 300-second windows. One minimal freshness observation is
+followed only by one `CUTOVER_SUCCESS` journal append. No host mutation or
+second invocation is permitted.
+
 ## Security review checklist
 
 - [ ] Values remain pathless, immutable, repr-redacted, and content-free.

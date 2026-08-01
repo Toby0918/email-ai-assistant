@@ -1125,6 +1125,22 @@ write/row, exact stop and final database proof, two distinct service starts,
 two distinct fresh audit processes, no Start B analysis/write, and all 33
 boundary fault classifications. Module/function size rules continue to apply.
 
+## Issue #82 static cross-stage recovery rules
+
+Static guards pin the four-file dormant package, the read-only inspection
+method, fixed seven-boundary reverse order, exact five-callback adapter, no-
+cleanup result, and #80/#81 contract dependencies. They reject subprocess,
+filesystem, SQLite, environment, network, arbitrary journal, delete/replace/
+cleanup, real entry, provider, mailbox, vault, and private-data capabilities.
+
+Behavior tests pin double-read tri-state classification for pending and
+committed facts, receipt predecessor/head validation, failed-Container-first
+order, exact fresh authority and unique crash nonce at each boundary, skipped
+already-observed reverse effects, all reverse crash positions, failed legacy
+recovery incident-stop, sole rollback success status, audit/head/nonce/identity
+freshness, one `CUTOVER_SUCCESS` append, zero final host mutations, and single-
+use invocation. Module/function size rules continue to apply.
+
 ## 14. 修改规则
 
 如果新增或修改 linter 规则，必须同步更新：

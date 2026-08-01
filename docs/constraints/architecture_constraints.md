@@ -1360,6 +1360,23 @@ file, and two fresh audit workers; it is not imported by backend, frontend,
 scripts, or workflows. No production executable or Issue #39 authority is
 added.
 
+## Issue #82 cross-stage state-machine architecture
+
+`backend.r2_cross_stage_recovery` is a dormant, content-free state machine over
+the exact #81 validation and #80 audit contracts. Its five injected callbacks
+are limited to stable intent observation, current-head observation, one exact
+reverse boundary, one minimal final-freshness observation, and one fixed
+success append. The package cannot select paths, open journal storage, launch
+processes, acquire host adapters, or perform cleanup.
+
+Restart inspection and mutation recovery are separate single-use modes. The
+inspection method has no reverse, authority, append, or retry reference.
+Recovery owns the fixed preservation/restore order and checks authority plus
+head on every boundary. Final seal is unavailable while any pending intent or
+remaining plan exists and has no reverse callback. No normal runtime,
+frontend, script, workflow, provider, mailbox, vault, or private-data consumer
+is introduced, and there is no executable entry.
+
 ## 7. 修改规则
 
 如果需要改变架构边界，必须同时修改：

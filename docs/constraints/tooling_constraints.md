@@ -1371,6 +1371,21 @@ counts unchanged. Two test workers execute the stopped and running audits in
 separate fresh processes. All inputs are opaque fingerprints or fixed public
 synthetic values; providers remain disabled and real entries remain locked.
 
+## Issue #82 recovery/seal tooling boundary
+
+The state machine accepts no argv, environment, path, journal location, host
+selector, force, retry, cleanup, shell, process, database, network, provider,
+mailbox, vault, or private-data input. Tests inject only opaque receipt/head/
+intent/identity fingerprints, fixed epochs, closed enums, and exact callable
+roles. Stable classification always calls the same pre-bound observer twice.
+
+Recovery tests simulate all reverse boundaries in memory, retain a fixed count
+of new objects, require zero cleanup operations, refresh exact authority per
+boundary, and cover crashes, expiry, nonce replay, head drift, failed legacy
+recovery, and already-observed reverse effects. Final-seal tests supply only
+content-free audit completions, make one freshness call and one fixed append,
+and assert zero host mutations. No real host or journal is accessed.
+
 ## 14. 执行后检查
 
 Agent 每次完成任务后，必须确认：
