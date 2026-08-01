@@ -1208,6 +1208,33 @@ rollback re-reads both head and reverse-plan fingerprint. Any mismatch rejects
 before `action_acquisitions` increments. Normal runtime cannot consume this
 binder.
 
+## Issue #74 representative main-publication architecture
+
+`backend.r2_main_publication` is an internal synthetic-Windows deep module. Its
+public package exports only closed content-free readiness, DACL projection,
+post-move receipt, crash-gap, boundary, selector, and restart-outcome values.
+The path-bearing binder lives only in `testing.py`, accepts the one fixed
+caller-owned fixture topology, and is not imported by any real operator root,
+normal runtime, frontend, script, cleanup task, scheduler, or workflow.
+
+The fixed flow is
+`double-stable readiness -> legacy no-replace rename -> create-only inherited
+main -> projection probes -> three selected no-replace relocations -> preserved
+DACL detection -> DACL-only whole-tree projection -> authoritative rescan ->
+MAIN_PUBLISHED commit`. The selected directory, its descendants and files, the
+standalone file, and repository-like hierarchy retain native object identity,
+Owner, and Group. The projection, never a pre-move observation, is the only
+source of expected post-move DACL fingerprints and bound bytes.
+
+The hash-chained tracer journal records only enums, counts, and fingerprints.
+At restart, exact initial topology is `SAFE_ABORT`, a recognized partial
+topology is `ROLLBACK_REQUIRED`, and collision, identity drift, reparse, journal
+drift, or any other ambiguity is `INCIDENT_STOP`. Rollback moves fixed units
+back no-replace, preserves the new main under the fixed failed-main identity,
+restores the original legacy anchor, reapplies only the captured original
+DACLs, and proves every original identity and security observation exactly. It
+has no copy, overwrite, delete, cleanup, or reparse traversal.
+
 ## 7. 修改规则
 
 如果需要改变架构边界，必须同时修改：

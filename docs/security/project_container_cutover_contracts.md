@@ -738,6 +738,34 @@ fixed status plus `accepted`, `rejected`, and `mutations` counts. Synthetic
 tests can execute one injected action with no host capability. The real entry
 remains `BLOCKED_NO_APPROVED_COMMAND` with zero mutations before #39.
 
+## Issue #74 create-only main and whole-tree DACL proof
+
+The representative R2 tracer renames the fixed synthetic flat root to
+`LegacySourceAnchorV1`, creates `ManagedMainRootV1` without replacement under
+the already protected Container, and moves only the fixed selected directory,
+descendant/file hierarchy, standalone file, and repository-like hierarchy by
+same-volume handle-relative rename. A double-identical pre-move observation is
+valid for at most 20 synthetic seconds and is consumed exactly once. It is
+readiness evidence only and can never provide the post-move expected values.
+
+`ExpectedInheritedDaclProjectionV1` is derived from create-only objects that
+actually inherit the approved Container DACL. A scan immediately after the
+same-volume moves must detect their preserved old descriptors. The tracer then
+sets only the projection-bound DACL on every main-tree object and performs a
+new authoritative reparse-free scan. Native object identity, Owner, and Group
+must remain byte-derived fingerprint equal; the native call exposes no
+system-audit ACL mutation flag or pointer.
+
+Only after every root and selected descendant matches the projection can a
+closed, content-free `PostMoveMainAclConformanceReceiptV1` be bound to the
+current journal head and committed as `MAIN_PUBLISHED`. Intent, effect, scan,
+observation, and commit gaps are independently injected at every fixed
+boundary. Exact recognized partials require rollback; ambiguity stops as an
+incident. Rollback uses only fixed no-replace moves and DACL restoration,
+preserves the failed main, and restores the original anchor and every selected
+identity/security observation without copy, overwrite, delete, cleanup, or
+reparse traversal.
+
 ## Security review checklist
 
 - [ ] Values remain pathless, immutable, repr-redacted, and content-free.

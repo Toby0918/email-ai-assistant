@@ -1022,6 +1022,27 @@ head/plan/clock drift, expiry, envelope replay, crash-nonce reuse, exactly one
 action acquisition, fixed public counts, redirected streams, fresh-console
 process execution, and the unchanged pre-#39 real lock.
 
+## Issue #74 static main-publication rules
+
+Static guards pin the absence of a real entry, argv, subprocess, shell,
+PowerShell, copy, replace, delete, cleanup, and any import from the three
+operator roots. They permit the existing cutover contract, journal, and host
+mutation packages only through exact reviewed files and keep the new testing
+binder out of normal consumers.
+
+AST inspection permits exactly one native DACL setter. Its Owner, Group, and
+final arguments must be literal null values; source text may not name a
+system-audit ACL information constant, named/tree security setter, or command
+ACL tool. Backend module and function size checks continue to apply.
+
+Behavior checks pin nominal construction, repr redaction, double-stable and
+short-lived single-use readiness, closed restart/gap vocabularies, inherited
+projection provenance, detection of preserved same-volume descriptors,
+authoritative whole-tree conformance, exact Owner/Group equality, committed
+`MAIN_PUBLISHED`, all 45 physical boundary/gap combinations, no-replace exact
+rollback, collision incident stop, reparse rejection, and the unchanged real
+operator locks.
+
 ## 14. 修改规则
 
 如果新增或修改 linter 规则，必须同步更新：

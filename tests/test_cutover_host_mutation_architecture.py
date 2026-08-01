@@ -145,6 +145,10 @@ class CutoverHostMutationArchitectureTests(unittest.TestCase):
             "backend/cutover_repository_transaction/real_lock.py",
             "backend/cutover_repository_transaction/stable_observation.py",
             "backend/cutover_repository_transaction/windows_identity.py",
+            "backend/r2_main_publication/host_effects.py",
+            "backend/r2_main_publication/permit.py",
+            "backend/r2_main_publication/testing.py",
+            "backend/r2_main_publication/windows_dacl.py",
         }
         violations = []
         roots = (

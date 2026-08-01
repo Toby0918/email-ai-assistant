@@ -131,6 +131,10 @@ ALLOWED_CONSUMERS = {
     "backend/r2_preflight_process/testing.py": {
         "CutoverProfileV1",
     },
+    "backend/r2_main_publication/testing.py": {
+        "CutoverProfileV1",
+        "TestSandboxAuthorizationV1",
+    },
     "backend/cutover_composition_contracts/approved_binding.py": {
         "CutoverProfileV1",
     },

@@ -1230,6 +1230,32 @@ fresh hidden console. No test reads or mutates the real journal, repository,
 service, Runtime, database, ACL, evidence, provider, mailbox, vault, credential,
 private store, or private data.
 
+## Issue #74 representative main-publication tooling boundary
+
+`backend.r2_main_publication` is a fixed synthetic Windows tracer, not an
+operator executable. It has no `main()`, argv, shell, PowerShell, subprocess,
+environment, path selector, Profile selector, real authorization reader, Git,
+provider, mailbox, vault, private-store, cleanup, copy, delete, overwrite, or
+repair surface. The three real operator roots do not import it and remain
+locked before #39.
+
+The tracer reuses the existing handle-relative NTFS create-only and
+same-identity no-replace primitives. Its only additional native write is one
+handle-bound `SetSecurityInfo` call whose information mask contains DACL plus
+the protected/unprotected DACL control bit. Owner, Group, and the final
+security-information argument are fixed null pointers; no system-audit ACL
+information constant or mutation argument exists. Every changed object is
+captured before and after and must retain the same identity, Owner, and Group.
+
+Expected inherited DACL bytes are bound privately to the content-free
+`ExpectedInheritedDaclProjectionV1` after observing create-only directory and
+file probes under the newly inherited main. The probes and any failed main are
+preserved in the caller-owned sandbox; the tracer never removes them. The
+content-free high-level journal is create-only, hash-chained, flushed and
+`fsync`-committed for every intent, observation, and commit. Windows tests
+physically inject all five gaps at every fixed main-publication boundary and
+make no claim about any real host.
+
 ## 14. 执行后检查
 
 Agent 每次完成任务后，必须确认：
