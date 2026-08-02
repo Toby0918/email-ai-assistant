@@ -8,6 +8,25 @@ source_type: operation_guide
 
 # 项目结构
 
+## Issue #100 Git-object CI provenance V2
+
+- `backend/r2_ci_provenance_v2/source_package.py`: immutable Git blob entries
+  and the exact final commit/tree source package.
+- `backend/r2_ci_provenance_v2/workflow_lock.py`: exact workflow set, pinned
+  action, fixed runner, and no-skip/bypass validation.
+- `backend/r2_ci_provenance_v2/suites.py`: closed portable, Windows-native, and
+  independent-Windows test registries.
+- `backend/r2_ci_provenance_v2/receipts.py`: one receipt per runner kind and the
+  exact three-of-three same-package reconciliation bundle.
+- `scripts/r2_ci_provenance_support.py`: fixed Git-plumbing/test/leakage adapter;
+  the two no-argument entry scripts verify and reconcile content-free receipts.
+- `.github/workflows/r2_provenance.yml`: pinned four-job provenance workflow;
+  existing workflows also use fixed images and full action commit hashes.
+- The backend package has no host reader or executable capability. The adapter
+  reads only tracked `HEAD` Git objects for package construction and never
+  expands into ignored, untracked, private, mailbox, provider, or live-host
+  content.
+
 ## Issue #99 generated final R2 operator runbook
 
 - `backend/r2_production_binding/catalog.py`: single executable command catalog

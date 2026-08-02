@@ -8,6 +8,29 @@ source_type: security_policy
 
 # Project Container cutover contract security boundary
 
+## Issue #100 frozen Git-object package and CI provenance
+
+The CI source package is constructed from the candidate commit's Git object
+database, never from mutable checkout bytes. It binds the exact final commit
+and tree, every selected blob OID and byte digest, selected counts, the
+generated runbook digest, and the workflow/action lock. A commit/tree change
+during collection, a malformed blob frame, an omitted or duplicate entry, or a
+historical package fails closed. Untracked and ignored content, including any
+private dataset or local credential artifact, is neither enumerated nor read.
+
+Every workflow action is pinned to a full commit hash and every runner uses a
+fixed image label. Portable, Windows-native, and independent-Windows jobs each
+run a closed suite with zero required skips, then require zero repository
+leakage findings. Reconciliation requires one receipt per kind, exact agreement
+on final commit/tree, source package, workflow lock and runbook, and three
+distinct runner fingerprints. Missing, mixed, stale, duplicate, self-replaced,
+skipped, divergent, failed, or leaking evidence cannot become a bundle.
+
+The package and receipts contain fingerprints and aggregate counts only. They
+do not expose paths or bytes, issue authority, access a live host, call a
+provider, read mailbox/vault/private data, perform cleanup, or authorize #38 or
+#39. CI success remains synthetic/offline evidence for later human review.
+
 ## Issue #99 generated final R2 operator runbook
 
 The executable vocabulary has one source:

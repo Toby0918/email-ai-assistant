@@ -8,6 +8,25 @@ source_type: operation_guide
 
 # Mechanical Rule Translation
 
+## Issue #100 Git-object and CI provenance rules
+
+1. Resolve `HEAD^{commit}` and `HEAD^{tree}`, enumerate `HEAD` with `ls-tree`,
+   and read every selected byte with `cat-file blob`; verify every SHA-1 blob
+   frame and reread commit/tree after collection.
+2. Hash only content-free path identities and Git-object bytes into the V2
+   package; fix historical, ignored-content, and private-content counts at zero.
+3. Require exactly the three reviewed workflow files, fixed runner images,
+   every external `uses:` reference at a full 40-hex commit, and no conditional
+   missing-file skip or `continue-on-error` bypass.
+4. Run the closed portable, Windows-native, and independent-Windows suite
+   registries with zero failed tests and zero skips; run repository leakage and
+   reject any finding before a receipt can be created.
+5. Bind every receipt to the exact final commit/tree, selected-entry and byte
+   counts, source-package, workflow lock, runbook, fixed suite, and runner.
+6. Reconcile exactly one receipt per platform kind, three distinct runner
+   fingerprints, and exact same-package inputs; reject missing, duplicate,
+   stale, mixed, shared-runner, divergent, leaking, failed, or skipped evidence.
+
 ## Issue #99 generated-runbook rules
 
 1. Enumerate all ten `ProductionCommandV2` values once in the catalog with

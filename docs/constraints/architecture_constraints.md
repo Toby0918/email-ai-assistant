@@ -8,6 +8,27 @@ source_type: operation_guide
 
 # Executable Architecture Constraints
 
+## Issue #100 Git-object CI provenance architecture
+
+`backend.r2_ci_provenance_v2` owns only immutable content-free contracts: exact
+Git blob observations, the final commit/tree source package, workflow/action
+lock state, the closed platform-suite registry, three provenance receipts, and
+their same-package reconciliation bundle. It has no path, environment,
+process, filesystem, network, test runner, host adapter, issuer, or mutation
+capability.
+
+The only repository reader is the fixed no-argument
+`scripts/r2_ci_provenance_support.py` adapter. It enumerates `HEAD` with Git
+plumbing, reads every selected blob from the object database, verifies each
+blob OID, and rereads the commit/tree after collection. It never enumerates or
+packages ignored or untracked content. The verify and reconcile entry scripts
+accept no path, command, suite, workflow, receipt-file, or host selector.
+
+The three runner jobs are independent. Portable claims contain no native test;
+Windows native and Windows process-isolation claims run only on fixed Windows
+runner images. Their receipts are evidence, never authority, and no package in
+this module is consumed by normal runtime or the #39 cutover surface.
+
 ## Issue #99 generated operator-runbook architecture
 
 The exact ten-command catalog lives in

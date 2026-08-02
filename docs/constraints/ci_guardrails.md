@@ -8,6 +8,27 @@ source_type: operation_guide
 
 # CI Guardrails
 
+## Issue #100 reproducible provenance gate
+
+All workflow actions use full 40-hex commit pins, and runner images use fixed
+labels (`ubuntu-24.04` or `windows-2022`). Missing required files and suites are
+failures; workflows do not conditionally skip a required guardrail and do not
+use `continue-on-error` for closure evidence.
+
+`.github/workflows/r2_provenance.yml` runs four jobs: one portable verifier,
+one Windows-native verifier, one independent Windows process verifier, and a
+final reconciliation job. Each verifier rebuilds the V2 source package from
+the exact checked-out commit's Git-object bytes, runs its code-fixed suite with
+zero skips, runs the repository leakage scanner, and emits a content-free
+receipt. Reconciliation requires all three distinct runner receipts to bind the
+same final commit/tree, source package, workflow/action lock, and generated
+runbook, with zero failure, skip, divergence, or leakage counts.
+
+Portable success makes no NTFS, ACL, real-console, process-isolation, or native
+durability claim. Windows jobs operate only inside test-owned sandboxes. These
+receipts are non-authorizing CI evidence and cannot approve #38, execute #39,
+or access a live host, provider, mailbox, vault, credential, or private data.
+
 本文件定义项目的 CI 护栏策略。  
 CI 的目标不是替代人工 review，而是把已经明确的工程规则变成自动检查。
 
