@@ -8,6 +8,18 @@ source_type: operation_guide
 
 # Static Linter Constraints
 
+## R2 foundation publication guards
+
+- The plan must contain exactly 17 transitions, exactly eleven worktree
+  instances, the fixed owner sequence, unique instance fingerprints, and no
+  caller-controlled selector.
+- Only the next transition in the committed prefix may begin. Every authority,
+  intent, effect, observation, and commit binds the same transition.
+- PRE restart requires fresh resume authority and a new intent; POST restart
+  permits a recovered commit without effect replay; ambiguity incident-stops.
+- The package must remain pathless and content-free, with no filesystem,
+  process, database, signer, issuer, cleanup, or private-data capability.
+
 ## R2 unified-journal guards
 
 - The journal package must retain its exact closed record and effect vocabulary,

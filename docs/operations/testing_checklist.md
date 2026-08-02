@@ -8,6 +8,14 @@ source_type: operation_guide
 
 # 测试检查清单
 
+## Issue #94 foundation publication checks
+
+Run `tests/test_r2_foundation_publication_v2.py` and its architecture companion.
+Prove all 17 foundation transitions progress only in order with fresh authority
+and one effect each, including eleven unique worktrees. Restart from intent,
+classification, effect, and commit bytes; PRE must require a new intent, POST
+must commit without replay, and AMBIGUOUS must incident-stop.
+
 ## Issue #93 unified journal checks
 
 Run `tests/test_r2_transaction_journal_v2.py` and its architecture companion.

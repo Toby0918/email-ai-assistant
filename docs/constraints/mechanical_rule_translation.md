@@ -8,6 +8,20 @@ source_type: operation_guide
 
 # Mechanical Rule Translation
 
+## Issue #94 foundation rules
+
+1. Derive six scalar foundation transitions plus eleven ordered worktree
+   transitions from one reviewed binding and exact immutable pre/post states.
+2. Accept only the plan-derived next transition and an exact execute/resume
+   authority bound to its current unified-journal head.
+3. Count one accepted action completion as exactly one host effect and append
+   effect observation plus commit for that same transition.
+4. Map PRE to fresh-authority new intent, POST to
+   `FOUNDATION_RECOVERED_COMMIT` with zero replayed effect, and ambiguity to
+   one durable classification followed by incident stop.
+5. Reconstruct the journal after every cut; no stage-local head or lifecycle
+   batch may substitute for committed-prefix derivation.
+
 ## Issue #93 journal rules
 
 1. Frame genesis and every later canonical record as exact lowercase

@@ -8,6 +8,19 @@ source_type: operation_guide
 
 # Executable Architecture Constraints
 
+## Issue #94 foundation publication architecture
+
+`R2FoundationPlanV2` is the fixed owner/order projection for six scalar
+foundation boundaries and eleven worktree instances. Every transition binds
+its exact pre/post state, predecessor transition, production role, reviewed
+binding, and unique transition fingerprint.
+
+Foundation progress appends only to `R2TransactionJournalV2`; it cannot own a
+parallel head. Begin appends authority plus intent, an exact one-effect
+completion appends observation plus commit, and classified restart requires a
+new authority. Progress values remain content-free evidence outside every real
+authorization type.
+
 ## Issue #93 unified journal architecture
 
 `R2TransactionJournalV2` has one genesis and one ordered record tuple. Its last

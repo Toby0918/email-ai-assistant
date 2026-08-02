@@ -8,6 +8,22 @@ source_type: security_policy
 
 # Project Container cutover contract security boundary
 
+## Issue #94 foundation single-actions
+
+`R2FoundationPlanV2` binds exactly seventeen foundation transitions to the
+reviewed final master: service quiescence, legacy anchor rename, Container and
+main publication, whole-tree ACL conformance, Repository Root relocation, and
+eleven independently owned worktree reconstructions. The next transition is
+derived from the committed journal prefix; callers cannot select, omit,
+duplicate, or reorder an effect.
+
+Each execution authority starts at most one transition and each accepted
+completion records exactly one host mutation. After interruption, exact PRE
+requires new resume authority before a new intent; exact POST requires new
+resume authority and appends only a recovered commit. Ambiguity appends one
+content-free recovery classification and incident-stops. All tests are pure
+and synthetic; no foundation role owns a real host or issuer.
+
 ## Issue #93 unified transaction journal
 
 `R2TransactionJournalV2` is the only append-only chain for all later R2

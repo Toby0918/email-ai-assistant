@@ -8,6 +8,15 @@ source_type: operation_guide
 
 # 项目结构
 
+## Issue #94 foundation publication V2
+
+- `backend/r2_foundation_publication_v2/plan.py`: exact 17-transition binding,
+  owners, pre/post identities, ordering, and committed-prefix projection.
+- `backend/r2_foundation_publication_v2/progress.py`: fixed next-action begin,
+  one-effect commit, tri-state classification, and fresh-authority resume.
+- The `r2_foundation_publication_v2/` package adds no host reader, path,
+  selector, process, signer, issuer, or independent journal.
+
 ## Issue #93 unified transaction journal V2
 
 - `backend/r2_transaction_journal_v2/journal.py`: immutable framed chain,
