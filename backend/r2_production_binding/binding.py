@@ -8,6 +8,7 @@ from ._canonical import (
     canonical_json,
     fingerprint,
     fingerprint_entries,
+    is_fingerprint,
     parse_fingerprint_entries,
     parse_public_key_entries,
     strict_json_object,
@@ -166,20 +167,29 @@ class ApprovedCutoverBindingV2:
 def production_action_fingerprint_v2(
     binding: object,
     command: object,
+    *,
+    subject_fingerprint: object = None,
 ) -> str:
     if (
         type(binding) is not ApprovedCutoverBindingV2
         or type(command) is not ProductionCommandV2
+        or not (
+            subject_fingerprint is None
+            or is_fingerprint(subject_fingerprint)
+        )
     ):
         raise ProductionBindingError()
+    body = {
+        "binding_fingerprint": binding.binding_fingerprint,
+        "command": command.value,
+        "domain": dict(binding.command_domains)[command].value,
+        "operation_fingerprint": binding.operation_fingerprint,
+    }
+    if subject_fingerprint is not None:
+        body["subject_fingerprint"] = subject_fingerprint
     return fingerprint(
         "r2-production-action-v2",
-        {
-            "binding_fingerprint": binding.binding_fingerprint,
-            "command": command.value,
-            "domain": dict(binding.command_domains)[command].value,
-            "operation_fingerprint": binding.operation_fingerprint,
-        },
+        body,
     )
 
 

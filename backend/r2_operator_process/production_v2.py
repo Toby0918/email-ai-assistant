@@ -90,11 +90,17 @@ def verify_production_authority_v2(
     durable_claims: object,
     expected_prior_journal_head_fingerprint: object,
     observed_at_epoch: object,
+    expected_action_fingerprint: object = None,
 ) -> DurableAuthorityClaimV2:
     try:
         source = _decode_envelope(encoded)
         body = {name: source[name] for name in _BODY_FIELDS}
-        command = _require_binding(body, binding, expected_command)
+        command = _require_binding(
+            body,
+            binding,
+            expected_command,
+            expected_action_fingerprint,
+        )
         _require_signature(source["signature"], body, binding, command)
         claim = _claim_from_body(body, binding, command, observed_at_epoch)
         return validate_new_authority_claim(
@@ -156,7 +162,7 @@ def _exact_body(value):
     return value
 
 
-def _require_binding(body, binding, expected_command):
+def _require_binding(body, binding, expected_command, expected_action):
     if (
         type(binding) is not ApprovedCutoverBindingV2
         or type(expected_command) is not ProductionCommandV2
@@ -165,6 +171,12 @@ def _require_binding(body, binding, expected_command):
         raise ProductionAuthorityEnvelopeError()
     domain = authority_domain_for_command_v2(expected_command)
     operator_role, key_role = _DOMAIN_ROLES[domain]
+    if expected_action is None:
+        expected_action = production_action_fingerprint_v2(
+            binding, expected_command
+        )
+    if not is_fingerprint(expected_action):
+        raise ProductionAuthorityEnvelopeError()
     expected = {
         "binding_fingerprint": binding.binding_fingerprint,
         "final_master_binding_fingerprint": binding.final_master_binding_fingerprint,
@@ -173,9 +185,7 @@ def _require_binding(body, binding, expected_command):
         "operator_role": operator_role.value,
         "operator_fingerprint": dict(binding.operator_role_fingerprints)[operator_role],
         "public_key_role": key_role.value,
-        "action_fingerprint": production_action_fingerprint_v2(
-            binding, expected_command
-        ),
+        "action_fingerprint": expected_action,
     }
     if any(body[name] != value for name, value in expected.items()):
         raise ProductionAuthorityEnvelopeError()

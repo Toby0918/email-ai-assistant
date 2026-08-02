@@ -8,6 +8,21 @@ source_type: operation_guide
 
 # Mechanical Rule Translation
 
+## Issue #89 evidence/genesis rules
+
+1. Accept exactly one `publish` argv value and read authority only through the
+   existing bounded real-TTY ingress.
+2. Bind the authority action to the exact reviewed-evidence fingerprint and
+   assert wrong review/domain/binding/time reaches zero publication calls.
+3. Assert one create-only call returns one exact evidence identity, package,
+   manifest, review, and claim binding.
+4. Build one canonical genesis from that completion and assert strict fresh-
+   process reconstruction yields the same final-master and evidence identity.
+5. Restart from reconstructed genesis and prove the same authority performs
+   zero publication calls; no process-local claimed set is authoritative.
+6. Reject issuer, private-key, path, selector, mutation, deletion, cleanup, and
+   cross-process-root capability in the production graph.
+
 ## Issue #88 production preflight reachability rules
 
 1. Enumerate the exact six fixed argv verbs and map them one-to-one to the six

@@ -8,6 +8,27 @@ source_type: security_policy
 
 # Project Container cutover contract security boundary
 
+## Issue #89 production evidence V2 and journal genesis
+
+The evidence root exposes only the fixed `publish` verb. Its V2 envelope must
+bind the reviewed final-master binding, evidence domain/operator/public key,
+and an action fingerprint derived from the exact reviewed-evidence fingerprint.
+Wrong review, binding, command, domain, action, prior head, sequence, signature,
+or freshness fails before the create-only publication role is acquired.
+
+A successful role returns one exact `ReviewedEvidencePublicationV2` binding the
+authority claim, reviewed evidence, evidence object identity, package bytes,
+and manifest bytes. The dispatcher immediately constructs one
+`R2JournalGenesisV2`. Genesis binds the final commit/tree, binding and role/key
+registries, operation, evidence/review/package/manifest identities, journal
+owner, pre-genesis head, nonce, and the first durable authority claim.
+
+Canonical genesis parsing reconstructs and revalidates that claim in a fresh
+process. Reusing its authority, envelope nonce, sequence, or old prior head
+cannot reacquire publication. Genesis and publication receipts are evidence,
+not authorization. The dormant entry has no issuer or binding and returns only
+`DORMANT_NO_EXTERNAL_ISSUER`; no private key or post-verification lock exists.
+
 ## Issue #88 production preflight V2 dispatcher
 
 The dedicated preflight root maps exactly six fixed CLI verbs to the six V2

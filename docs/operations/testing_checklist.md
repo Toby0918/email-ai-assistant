@@ -8,6 +8,22 @@ source_type: operation_guide
 
 # 测试检查清单
 
+## Issue #89 evidence publication V2 and genesis checks
+
+Run `tests/test_r2_evidence_production_v2.py` and
+`tests/test_r2_evidence_production_v2_architecture.py`. The behavior suite must
+prove one create-only reviewed publication, exact evidence/package/manifest
+identity binding, strict `R2JournalGenesisV2` round-trip, fresh-process replay
+rejection, review/domain/binding/freshness negatives, and no-issuer dormancy.
+The architecture suite must prove physical root separation, pure genesis,
+receipt/authority separation, and absence of paths, private keys, issuer,
+mutation, deletion, cleanup, provider, mailbox, vault, or private data.
+
+```powershell
+python -m unittest tests.test_r2_evidence_production_v2
+python -m unittest tests.test_r2_evidence_production_v2_architecture
+```
+
 ## Issue #88 production preflight V2 checks
 
 Run `tests/test_r2_preflight_production_v2.py` and

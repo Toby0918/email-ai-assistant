@@ -8,6 +8,19 @@ source_type: operation_guide
 
 # 项目结构
 
+## Issue #89 evidence publication V2 and genesis
+
+- `backend/r2_evidence_process/production_v2.py`: exact single-verb V2
+  dispatcher, reviewed create-only publication role, aggregate result, and
+  final-master-bound genesis handoff.
+- `backend/r2_evidence_process/testing.py`: test-only create callback binder and
+  fresh-process reconstructed-genesis fixture.
+- `backend/r2_transaction_journal_v2/`: pure strict-canonical journal package;
+  Issue #89 owns `R2JournalGenesisV2`, its fixed error, and canonical codec.
+- `tests/test_r2_evidence_production_v2.py` and
+  `tests/test_r2_evidence_production_v2_architecture.py`: publication,
+  restart/replay, binding, capability, and documentation guards.
+
 ## Issue #88 production preflight V2
 
 - `backend/r2_operator_process/production_v2.py`: shared verification-only V2

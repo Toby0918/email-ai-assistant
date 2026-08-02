@@ -8,6 +8,20 @@ source_type: operation_guide
 
 # Static Linter Constraints
 
+## R2 V2 evidence and genesis guards
+
+- The evidence production root accepts only `publish`; it has no path, target,
+  profile, selector, force, shell, or arbitrary payload input.
+- Verification must compare the reviewed-evidence action fingerprint before
+  acquiring the create-only role.
+- The exact publication completion must bind claim, review, evidence identity,
+  package, and manifest before canonical genesis construction.
+- Genesis must reconstruct its embedded durable claim from canonical bytes and
+  reject mixed binding, final master, identity, prior head, sequence, replay,
+  duplicate key, or fingerprint drift.
+- Production modules contain no private key, issuer, deletion, overwrite,
+  cleanup, provider, mailbox, vault, credential, or private-data capability.
+
 ## R2 V2 preflight dispatcher guards
 
 - The production dispatcher must expose exactly six fixed preflight verbs and

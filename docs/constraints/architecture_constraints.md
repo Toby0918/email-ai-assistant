@@ -8,6 +8,22 @@ source_type: operation_guide
 
 # Executable Architecture Constraints
 
+## Issue #89 evidence production and genesis architecture
+
+The single V2 evidence-publication verb lives only in the physically separate
+`backend.r2_evidence_process.production_v2` root. It composes one reviewed
+create-only publication role after exact V2 verification and cannot import the
+preflight or transaction process roots. Its action fingerprint includes the
+reviewed-evidence fingerprint so a valid signature for a different review is
+not reusable.
+
+`backend.r2_transaction_journal_v2` begins as a pure canonical genesis module.
+fresh-process genesis reconstruction validates the exact final master, evidence
+identity, package/manifest identities, journal owner and first durable claim.
+It has no path, file, SQLite, process, clock, random, signer, issuer, mutation,
+cleanup, provider, mailbox, vault, or private-data capability. Later journal
+tickets deepen this same package; stage-local current-head owners are forbidden.
+
 ## Issue #88 preflight production composition
 
 The six V2 preflight verbs are implemented only by the physically dedicated

@@ -14,6 +14,14 @@ from .contracts import (
     result,
 )
 from .entry import run_authorization_gate
+from .production_v2 import (
+    EvidenceProductionRoleV2,
+    EvidenceProductionStatusV2,
+    complete_reviewed_evidence_publication_v2,
+    run_evidence_production_v2,
+)
+from backend.r2_production_binding import ApprovedCutoverBindingV2
+from backend.r2_transaction_journal_v2 import R2JournalGenesisV2
 
 
 class SyntheticEvidenceProcess:
@@ -132,3 +140,124 @@ def _require_context(values) -> None:
         or type(values["real_locked"]) is not bool
     ):
         raise ValueError("R2_EVIDENCE_SYNTHETIC_BINDING_INVALID")
+
+
+class SyntheticEvidenceProductionV2:
+    __slots__ = (
+        "_attempted",
+        "_binding",
+        "_create",
+        "_durable_claims",
+        "_evidence",
+        "_genesis",
+        "_head",
+        "_manifest",
+        "_nonce",
+        "_now",
+        "_owner",
+        "_package",
+        "_review",
+        "_role",
+    )
+
+    def __init__(self, *args, **kwargs):
+        raise TypeError("SyntheticEvidenceProductionV2 requires create()")
+
+    @classmethod
+    def create(cls, **values):
+        _require_v2_context(values)
+        process = object.__new__(cls)
+        for slot, key in (
+            ("_binding", "binding"),
+            ("_review", "reviewed_evidence_fingerprint"),
+            ("_evidence", "evidence_identity_fingerprint"),
+            ("_package", "package_fingerprint"),
+            ("_manifest", "manifest_fingerprint"),
+            ("_owner", "journal_owner_fingerprint"),
+            ("_nonce", "genesis_nonce"),
+            ("_head", "pre_genesis_head_fingerprint"),
+            ("_now", "observed_at_epoch"),
+            ("_create", "create_only_publish"),
+            ("_genesis", "reconstructed_genesis"),
+        ):
+            setattr(process, slot, values[key])
+        process._attempted = False
+        process._durable_claims = (
+            ()
+            if process._genesis is None
+            else (process._genesis.authority_claim,)
+        )
+        if process._genesis is not None:
+            process._head = process._genesis.head_fingerprint
+        process._role = EvidenceProductionRoleV2(process._publish_once)
+        return process
+
+    @property
+    def genesis(self):
+        return self._genesis
+
+    def run(self, *, argv, terminal):
+        result = run_evidence_production_v2(
+            argv=argv,
+            terminal=terminal,
+            binding=self._binding,
+            role=self._role,
+            reviewed_evidence_fingerprint=self._review,
+            durable_claims=self._durable_claims,
+            expected_prior_journal_head_fingerprint=self._head,
+            observed_at_epoch=self._now,
+            journal_owner_fingerprint=self._owner,
+            genesis_nonce=self._nonce,
+        )
+        if result.status is EvidenceProductionStatusV2.PUBLISHED:
+            self._genesis = result.genesis
+            self._durable_claims = (self._genesis.authority_claim,)
+            self._head = self._genesis.head_fingerprint
+        return result
+
+    def _publish_once(self, binding, claim):
+        if self._attempted:
+            raise ValueError("R2_EVIDENCE_CREATE_ONLY_ALREADY_ATTEMPTED")
+        self._attempted = True
+        if self._create() != 1:
+            raise ValueError("R2_EVIDENCE_CREATE_ONLY_FAILED")
+        return complete_reviewed_evidence_publication_v2(
+            binding=binding,
+            claim=claim,
+            reviewed_evidence_fingerprint=self._review,
+            evidence_identity_fingerprint=self._evidence,
+            package_fingerprint=self._package,
+            manifest_fingerprint=self._manifest,
+        )
+
+
+def _require_v2_context(values):
+    expected = {
+        "binding",
+        "reviewed_evidence_fingerprint",
+        "evidence_identity_fingerprint",
+        "package_fingerprint",
+        "manifest_fingerprint",
+        "journal_owner_fingerprint",
+        "genesis_nonce",
+        "pre_genesis_head_fingerprint",
+        "observed_at_epoch",
+        "create_only_publish",
+        "reconstructed_genesis",
+    }
+    fingerprints = tuple(
+        values.get(name)
+        for name in expected
+        if name.endswith("fingerprint")
+    ) if type(values) is dict else ()
+    genesis = values.get("reconstructed_genesis") if type(values) is dict else None
+    if (
+        type(values) is not dict
+        or set(values) != expected
+        or type(values["binding"]) is not ApprovedCutoverBindingV2
+        or not all(is_fingerprint(value) for value in fingerprints)
+        or not callable(values["observed_at_epoch"])
+        or not callable(values["create_only_publish"])
+        or not (genesis is None or type(genesis) is R2JournalGenesisV2)
+    ):
+        raise ValueError("R2_EVIDENCE_SYNTHETIC_V2_BINDING_INVALID")
