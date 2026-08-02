@@ -8,6 +8,19 @@ source_type: operation_guide
 
 # 测试检查清单
 
+## Issue #101 global-gate coordinator checks
+
+Run `tests/test_r2_global_gates_v1.py` with the existing final-master closure
+contract and architecture suites. Require all fourteen gates and all seven
+review domains. The gate requires fourteen unique producers. Reconstruct the coordinator from
+canonical bytes and verify it derives exactly fourteen same-binding,
+non-self-certified receipts.
+
+Reject missing, duplicate, stale, mixed-binding, shared-producer, coordinator-
+self-certified, unknown-field, skipped, divergent, leaking, private-data,
+live-host, provider, and #39-change evidence. The operator-review domain proves
+only runbook/maintenance review and cannot satisfy the human #102 review.
+
 ## Issue #99 generated-runbook checks
 
 Run `tests/test_r2_operator_runbook_v2.py` and its architecture companion.

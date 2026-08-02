@@ -8,6 +8,21 @@ source_type: operation_guide
 
 # Static Linter Constraints
 
+## R2 Issue #101 global-gate guards
+
+- Require exactly fourteen gate registrations, fourteen unique producer roles,
+  and complete seven-domain Standards/Spec/security/documentation/mechanical/
+  leakage/operator-review coverage.
+- Require the evidence tuple to follow the closed gate order and every record
+  to bind the same final master; missing, duplicate, stale, mixed, or shared-
+  producer evidence is invalid.
+- Require coordinator, producer, evidence, and binding fingerprints to remain
+  distinct, and derive every receipt from evidence inside the coordinator.
+- Reject any nonzero self-certified, required/unclassified skip, divergence,
+  leakage, private-data, host-operation, provider-attempt, or #39-change count.
+- Keep the package pure and below file/function limits; no host, process,
+  network, path, provider, mailbox, vault, private-data, or authority import.
+
 ## R2 generated-runbook guards
 
 - Require exactly ten unique catalog verbs covering every

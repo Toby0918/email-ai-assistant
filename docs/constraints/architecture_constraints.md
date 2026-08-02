@@ -8,6 +8,25 @@ source_type: operation_guide
 
 # Executable Architecture Constraints
 
+## Issue #101 same-binding global-gate architecture
+
+`backend.r2_final_master_closure` retains the only public closure interface.
+Its global-gate registry maps each of the fourteen closed gate kinds to one
+unique producer role and one of seven required review domains: Standards,
+Spec, security, documentation, mechanical, leakage, or operator review.
+
+Each `R2GlobalGateEvidenceV1` is immutable, content-free, same-binding, and
+fixed to zero skips, divergence, leakage, private-data access, host operations,
+provider attempts, and #39 changes. `R2GlobalGateCoordinatorV1` accepts only
+the exact ordered evidence set, requires fourteen distinct producers and all
+seven domains, and derives the existing `R2ClosureGateReceiptV1` values itself.
+It accepts no supplied receipt, authority, callback, path, process, host,
+network, mailbox, vault, provider, credential, private payload, or command.
+
+Operator-review evidence covers generated-runbook semantics and maintenance
+scope only. It cannot represent the human final-master review reserved for
+#102, and neither evidence nor coordinator has a receipt-to-authority path.
+
 ## Issue #100 Git-object CI provenance architecture
 
 `backend.r2_ci_provenance_v2` owns only immutable content-free contracts: exact

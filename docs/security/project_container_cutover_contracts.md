@@ -8,6 +8,27 @@ source_type: security_policy
 
 # Project Container cutover contract security boundary
 
+## Issue #101 independent global-gate coordinator
+
+The global coordinator consumes exactly one same-binding evidence record for
+each of the fourteen closure gates. The registry fixes a unique producer role
+and review domain for every gate and collectively requires Standards, Spec,
+security, documentation, mechanical, leakage, and operator-review evidence.
+Fourteen distinct producer fingerprints and evidence records are mandatory;
+the coordinator derives receipts internally and never accepts nominal receipts
+as an input or permits the coordinator to certify itself.
+
+Every evidence and coordinator counter for missing/duplicate/stale/self-
+certified evidence, required or unclassified skips, platform divergence,
+leakage, private-data access, live-host operations, provider attempts, and #39
+changes is fixed at zero. Canonical reconstruction rejects unknown fields and
+any altered count, binding, producer, domain, or receipt-set identity.
+
+The resulting `GLOBAL_GATES_VERIFIED` state is evidence only. Operator-review
+means runbook and maintenance review, not the human final-master approval in
+#102. No gate receipt can issue authority, approve #38, execute #39, access a
+host/provider/mailbox/vault/credential/private data, or authorize cutover.
+
 ## Issue #100 frozen Git-object package and CI provenance
 
 The CI source package is constructed from the candidate commit's Git object

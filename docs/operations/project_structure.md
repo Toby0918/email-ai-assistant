@@ -8,6 +8,18 @@ source_type: operation_guide
 
 # 项目结构
 
+## Issue #101 same-binding global gates
+
+- `backend/r2_final_master_closure/global_gate_registry.py`: exact fourteen
+  gate-to-producer mappings and seven closed review domains.
+- `backend/r2_final_master_closure/global_gate_evidence.py`: immutable
+  content-free same-binding evidence with fixed zero unsafe counters.
+- `backend/r2_final_master_closure/global_gates.py`: exact ordered coordinator
+  that derives fourteen non-self-certified gate receipts from fourteen unique
+  producers and exposes no authority or execution surface.
+- `tests/test_r2_global_gates_v1.py`: registry, round-trip, same-binding,
+  independence, missing/duplicate/stale/mixed, skip/leakage, and boundary tests.
+
 ## Issue #100 Git-object CI provenance V2
 
 - `backend/r2_ci_provenance_v2/source_package.py`: immutable Git blob entries

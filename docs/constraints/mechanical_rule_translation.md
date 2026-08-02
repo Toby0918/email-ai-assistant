@@ -8,6 +8,22 @@ source_type: operation_guide
 
 # Mechanical Rule Translation
 
+## Issue #101 fourteen same-binding global-gate rules
+
+1. Enumerate the fourteen existing `ClosureGate` values once and map each to a
+   unique producer role plus a fixed review domain.
+2. Cover exactly Standards, Spec, security, documentation, mechanical,
+   leakage, and operator-review domains; omitted or unknown domains fail.
+3. Bind every evidence record to the exact frozen final-master binding and
+   require distinct evidence, producer, binding, and coordinator fingerprints.
+4. Fix verified to one and self-certified, skips, divergence, leakage,
+   private-data, host-operation, provider-attempt, and #39-change counts to zero.
+5. Accept the exact ordered fourteen evidence records, reject missing,
+   duplicate, stale, mixed, shared-producer, or self-certified inputs, and
+   derive gate receipts rather than accepting caller-supplied receipts.
+6. Canonically reconstruct the coordinator and its evidence/receipt sets;
+   unknown fields or any nonzero injected counter fail closed.
+
 ## Issue #100 Git-object and CI provenance rules
 
 1. Resolve `HEAD^{commit}` and `HEAD^{tree}`, enumerate `HEAD` with `ls-tree`,
