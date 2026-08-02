@@ -8,6 +8,18 @@ source_type: operation_guide
 
 # Static Linter Constraints
 
+## R2 Git-byte state guards
+
+- Selected bytes must match the exact Git blob OID, checkout bytes, index OID,
+  mode, stage zero, and false assume-unchanged/skip-worktree flags.
+- Changes including same-size edits, EOL/filter drift, index-only or staged changes, ref drift,
+  stable-common-state drift, and original/reconstructed administrative drift
+  fail before a receipt exists.
+- Counts are exact: fourteen refs, five stable common roles, eleven original
+  and eleven reconstructed worktrees with eight embedded and three external.
+- The pure package must not gain path, filesystem, Git runner, process,
+  ignored/private content, cleanup, or authority capability.
+
 ## R2 V2 single-action transaction guards
 
 - The fixed command map is exactly execute, resume, and rollback; no umbrella,

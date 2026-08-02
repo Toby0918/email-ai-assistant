@@ -8,6 +8,20 @@ source_type: operation_guide
 
 # Mechanical Rule Translation
 
+## Issue #92 Git-byte rules
+
+1. Compare every selected checkout byte string to its exact Git blob bytes and
+   recomputed object OID; reject same-size, EOL/filter, mode, index, flag, or
+   stage drift.
+2. Require exactly fourteen local refs, five stable common-state roles, eleven
+   original worktree records, and eleven reconstructed worktree records.
+3. Bind Repository Root identity, refs, stable common state, original records,
+   reconstructed records, final commit/tree, and source package separately.
+4. Reconstruct snapshot and receipt in a fresh process and reject any omitted,
+   duplicated, noncanonical, mixed-binding, or changed segment.
+5. Static guards require zero filesystem/Git/process reader capability and zero
+   ignored/private content reads in this pure contract.
+
 ## Issue #90 transaction reachability rules
 
 1. Assert the exact three fixed verbs and execution/execution/recovery domain

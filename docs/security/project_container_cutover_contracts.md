@@ -8,6 +8,21 @@ source_type: security_policy
 
 # Project Container cutover contract security boundary
 
+## Issue #92 Git-byte state
+
+`GitByteSnapshotV2` proves selected checkout bytes against exact Git blob-object
+bytes and OIDs, clean stage-zero index entries, the Repository Root identity,
+fourteen local refs, five closed stable-common-state roles, and both eleven
+original and eleven deterministically reconstructed worktree records. Stable
+Git common state is fingerprinted separately from worktree administrative state
+that is intentionally reconstructed.
+
+The contract is pure and receives bounded bytes from a later fixed adapter; it
+owns no path, Git command, filesystem reader, process, or mutation capability.
+It therefore cannot enumerate or read ignored or private content. Public JSON
+contains only fixed types, counts, object IDs, and fingerprints. The final
+`R2GitByteStateReceiptV1` is final-master-bound evidence, never authority.
+
 ## Issue #91 production composition closure
 
 The three executable V2 process roots now boot only their corresponding

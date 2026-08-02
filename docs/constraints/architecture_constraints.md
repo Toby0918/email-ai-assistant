@@ -8,6 +8,19 @@ source_type: operation_guide
 
 # Executable Architecture Constraints
 
+## Issue #92 Git-object byte conformance
+
+`backend.r2_repository_manifest` contains a pure V2 snapshot layer for selected
+Git blob bytes, exact index state, fourteen local refs, Repository Root identity,
+and eleven original plus eleven reconstructed worktrees. The five-role
+stable common state is a distinct segment from intentionally reconstructed worktree
+administrative records.
+
+The module accepts already bounded byte observations and has no filesystem,
+path, Git runner, process, ignored-file enumeration, private-data reader, or
+mutation capability. Fresh-process canonical reconstruction revalidates the
+same final-master binding and all segment fingerprints.
+
 ## Issue #90 transaction production architecture
 
 The three V2 transaction verbs live only in

@@ -8,6 +8,15 @@ source_type: operation_guide
 
 # 测试检查清单
 
+## Issue #92 Git-byte state checks
+
+Run `tests/test_r2_git_byte_state_v2.py` and its architecture companion. Prove
+exact blob/checkout/index agreement; reject same-size edits, EOL/filter drift,
+index-only/staged state, ref/common-state changes, original admin changes, and
+reconstructed checkout changes. Require fourteen refs, five stable common
+roles, eleven original and eleven reconstructed worktrees, fresh-process exact
+receipt reconstruction, and zero ignored/private content reads.
+
 ## Issue #90 V2 transaction single-action checks
 
 Run `tests/test_r2_transaction_production_v2.py` and

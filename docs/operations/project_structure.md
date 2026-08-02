@@ -8,6 +8,19 @@ source_type: operation_guide
 
 # 项目结构
 
+## Issue #92 Git-byte state V2
+
+- `backend/r2_repository_manifest/git_byte_types_v2.py`: nominal selected-byte,
+  stable-common-state, and original/reconstructed worktree observations.
+- `backend/r2_repository_manifest/git_byte_state_v2.py`: exact fourteen-ref,
+  Repository Root, five-common-role, and 11+11 worktree snapshot with canonical
+  fresh-process reconstruction.
+- `backend/r2_repository_manifest/git_byte_receipt_v2.py`: same-binding
+  `R2GitByteStateReceiptV1`; the internal validation helper owns only scalar
+  hashing and validation.
+- These modules have no host reader. A later #100 fixed CI adapter supplies
+  selected Git-object bytes without expanding into ignored/private residue.
+
 ## Issue #90 transaction process V2
 
 - `backend/r2_transaction_process/production_v2.py`: exact three-verb V2
