@@ -8,6 +8,21 @@ source_type: operation_guide
 
 # Mechanical Rule Translation
 
+## Issue #98 retention-ledger rules
+
+1. Select the exact durable forward COMMIT prefix and every current rollback
+   COMMIT from the linked plans and journal; reject unknown journal extensions.
+2. Project three object duties for every forward commit: original state, new
+   state, and retained partial state; project one failed-Container duty.
+3. Add one evidence entry for every forward/reverse COMMIT and one journal-
+   artifact entry for genesis plus every current record.
+4. Derive the ledger stage from the rollback base index, current record kind,
+   completed reverse prefix, and sole legacy-restored terminal.
+5. Recompute canonical entries/counts during parse and proof construction;
+   reject injection, omission, duplication, reorder, mixed binding, or drift.
+6. Scan the complete #93-#98 production graph and require zero destructive or
+   automatic-expiry call paths and zero normal-runtime consumers.
+
 ## Issue #97 rollback recovery rules
 
 1. Enumerate the durable #94-#96 COMMIT prefix and reject unknown, omitted,

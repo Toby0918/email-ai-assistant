@@ -8,6 +8,16 @@ source_type: operation_guide
 
 # 项目结构
 
+## Issue #98 retention ledger V2
+
+- `backend/r2_retention_ledger_v2/ledger.py`: deterministic object-level
+  projection, closed object classes, journal-derived lifecycle stage, and
+  canonical bounded reconstruction.
+- `backend/r2_retention_ledger_v2/proof.py`: exact all-entry reconciliation and
+  zero-capability/private-payload proof.
+- The package owns no path, host reader, timer, process, mutation adapter,
+  issuer, cleanup policy, automatic expiry, independent journal, or executable.
+
 ## Issue #97 rollback recovery V2
 
 - `backend/r2_rollback_recovery_v2/plan.py`: journal-derived failed-Container-

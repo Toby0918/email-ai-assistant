@@ -8,6 +8,22 @@ source_type: security_policy
 
 # Project Container cutover contract security boundary
 
+## Issue #98 object-level retention ledger
+
+The retention ledger is computed only from the reviewed binding, linked
+#94-#97 plans, and current unified journal. It separately accounts for every
+original state, new state, partial-state preservation duty, failed Container,
+forward/reverse commit evidence, journal genesis, and journal record. Entries
+contain only roles, ordinals, counts, booleans, and fingerprints; no path,
+object bytes, private payload, timer, or operator-selected artifact is accepted.
+
+Every forward, recovery-required, rollback-pending, classified, resumed,
+rollback-complete, and legacy-restored projection is reconciled against the
+same journal head. The proof requires zero untracked artifacts and zero
+deletion, overwrite, prune, automatic-expiry, destructive, or private-payload
+capability. Static reachability scans independently require the complete
+#93-#98 production graph to contain no such operation or normal-runtime entry.
+
 ## Issue #97 journal-derived rollback and legacy recovery
 
 Rollback begins only from the exact same-binding durable forward COMMIT prefix.

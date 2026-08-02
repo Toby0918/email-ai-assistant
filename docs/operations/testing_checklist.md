@@ -8,6 +8,16 @@ source_type: operation_guide
 
 # 测试检查清单
 
+## Issue #98 retention-ledger checks
+
+Run `tests/test_r2_retention_ledger_v2.py` and its architecture companion.
+Require exact counts and unique entries for all six object classes, canonical
+fresh-process reconstruction, and correct forward/pending/classified/resumed/
+rollback/terminal stage projection. Reconcile every entry and journal record;
+reject mixed inputs and injected artifacts. Scan the #93-#98 graph for
+filesystem/process mutation and removal/replacement/prune/expiry calls, and
+prove all destructive, untracked, and private-payload counts remain zero.
+
 ## Issue #97 rollback recovery checks
 
 Run `tests/test_r2_rollback_recovery_v2.py`, its crash-matrix module, and its

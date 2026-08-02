@@ -8,6 +8,19 @@ source_type: operation_guide
 
 # Executable Architecture Constraints
 
+## Issue #98 retention-ledger architecture
+
+`R2RetentionLedgerV2` is a deterministic in-process projection of one exact
+reviewed binding, the linked #94-#97 plans, and the unified journal. Callers
+cannot supply entries or counts. The projection accounts separately for every
+original, new, partial, failed-Container, evidence, and journal-artifact object
+and binds each entry to its plan transition or durable record head.
+
+The ledger and reconciliation proof are immutable, content-free values. Their
+untracked-artifact, deletion, overwrite, prune, automatic-expiry, destructive,
+and private-payload counts are fixed at zero. The package has no path, host,
+clock, timer, process, issuer, callback, or object-mutation capability.
+
 ## Issue #97 rollback recovery architecture
 
 `R2RollbackPlanV2` accepts only the exact reviewed binding, the #94-#96 plans,

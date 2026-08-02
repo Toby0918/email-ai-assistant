@@ -8,6 +8,20 @@ source_type: operation_guide
 
 # Static Linter Constraints
 
+## R2 retention-ledger guards
+
+- Require exact same-binding #94-#97 plan links and a journal extension of the
+  rollback plan; reject caller-provided entries, counts, or artifact selectors.
+- Track original, new, partial, failed Container, commit evidence, and every
+  genesis/record journal artifact as unique content-free entries.
+- Reconcile forward-committed, forward-recovery-required, rollback-pending,
+  rollback-classified, rollback-in-progress, rollback-complete, and legacy-
+  restored states without adding a parallel lifecycle head.
+- Production-graph AST guards reject filesystem/process mutation imports and
+  removal, unlink, directory removal, replacement, pruning, or expiry calls.
+- Ledger and proof must report zero untracked artifacts, destructive/deletion/
+  overwrite/prune/automatic-expiry capabilities, and private payload fields.
+
 ## R2 rollback recovery guards
 
 - Derive the reverse plan only from the same-binding #94-#96 plan chain and
