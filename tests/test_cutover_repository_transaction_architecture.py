@@ -172,6 +172,14 @@ class RepositoryTransactionArchitectureTests(unittest.TestCase):
         self.assertEqual(importers, {"container_audit_bridge.py"})
 
     def test_no_normal_runtime_script_frontend_or_workflow_consumer(self):
+        allowed_consumers = {
+            "backend/r2_repository_manifest/host.py",
+            "backend/r2_repository_manifest/recovery.py",
+            "backend/r2_repository_manifest/review.py",
+            "backend/r2_repository_manifest/testing.py",
+            "backend/r2_repository_manifest/verification.py",
+            "scripts/r2_shared_topology_support.py",
+        }
         violations = []
         for root in (
             ROOT / "backend",
@@ -196,7 +204,7 @@ class RepositoryTransactionArchitectureTests(unittest.TestCase):
                 )
                 if "cutover_repository_transaction" in source:
                     violations.append(path.relative_to(ROOT).as_posix())
-        self.assertEqual(violations, [])
+        self.assertEqual(set(violations), allowed_consumers)
 
     def test_subprocess_is_one_fixed_sanitized_git_runner(self):
         importers = []

@@ -1145,6 +1145,278 @@ entries, not a launcher. The Windows forward path passes through transaction
 authorizations still produce `BLOCKED_NO_APPROVED_COMMAND`; no command string,
 path, or adapter can be supplied to change that result.
 
+## Issue #70 R2 vocabulary tooling boundary
+
+Issue #70 adds no dependency, command, CLI, process launcher, environment option,
+host adapter, or normal-runtime consumer. The additive R2 contracts use only
+frozen dataclasses, enums, SHA-256, strict bounded canonical JSON, the existing
+closed `CutoverProfileV1`, and the existing `AuthorizationSequenceV1`.
+
+All binding selections are re-derived from the reviewed Profile and exact
+authorization sequence; the API exposes no path, Profile field override,
+runtime discovery, fallback, or arbitrary phase. The four managed units are
+represented by separate PREPARE and PUBLISH enum values rather than one batch.
+Receipts expose only fixed enums, opaque fingerprints, and non-negative
+allowlisted counts, and cannot be accepted by any authorization validator.
+Tests are portable pure-contract tests and make no NTFS, Windows ACL, TTY,
+process-isolation, or real-host claim.
+
+## Issue #71 preflight process tooling boundary
+
+The dedicated preflight executable is only
+`python -B -m backend.r2_preflight_process <fixed-verb>`. Its one positional
+value is selected from the six code-fixed preflight verbs; no option parser,
+shell, PowerShell, path lookup, Profile input, journal location, recovery flag,
+force flag, vararg, or free-form command exists. It reads no environment value
+and no authorization file. Evidence and transaction entrypoints are different
+future packages and cannot be selected here.
+
+The shared authorization package uses the already pinned `cryptography`
+Ed25519 verifier only. Repository production code contains no private key,
+signing call, key generation, issuer, network client, provider, mailbox, vault,
+credential, or private-store consumer. Hidden input is capped at 65,536 base64
+characters and is read exactly once after all three standard streams prove
+Windows TTY status and the exact acknowledgement succeeds.
+
+Portable tests cover canonical parsing, signatures, bindings, expiry, replay,
+cross-domain rejection, command closure, output closure, and redirected stream
+failure without claiming TTY evidence. A Windows-only test starts a test-only
+child around the production preflight runner in a fresh hidden local console
+owned by a detached test host, injects only synthetic input into that console,
+and proves the runner returns the pre-#39 locked result with zero host
+operations. The host and its output file live only in a test-owned temporary
+directory.
+
+## Issue #72 evidence process tooling boundary
+
+The second production module is only
+`python -B -m backend.r2_evidence_process publish`. It has no option parser,
+shell, PowerShell, arbitrary subprocess, path lookup, target/source/Profile/
+review/journal selector, recovery switch, force flag, or verification verb. It
+does not import either other operator root or the independent verifier.
+
+The shared authorization verifier now selects the exact nominal authorization
+class and operation from the Ed25519 domain: preflight uses
+`RealPreflightAuthorizationV1`, while evidence uses
+`EvidencePublicationAuthorizationV1`. Domain/type/operation disagreement fails
+closed. No signer, key generator, private key, issuer, file authorization,
+environment authorization, or durable envelope store is added.
+
+Portable tests own the publication callback and temporary target, prove
+create-only single publication, and make no TTY or process-isolation claim. A
+win32-only detached test host starts a dedicated evidence child in a fresh
+hidden local console, supplies one synthetic signed envelope through the
+console, and accepts exit zero only after the child observes one exact
+publication. The real production entry stays locked and performs no real
+publication before #39.
+
+## Issue #73 transaction process tooling boundary
+
+The third executable is only
+`python -B -m backend.r2_transaction_process <execute|resume|rollback>`. It has
+no option parser, umbrella selector, shell, PowerShell, arbitrary Git or
+subprocess command, caller path, Profile, journal path, recovery target, or
+force input. The process imports neither other operator root.
+
+The canonical envelope codec permits the transaction context only as a signed
+exact mapping. Preflight and evidence envelopes continue to reject a context.
+Execution and recovery select different existing nominal authorization types
+and different public keys. Tests sign only synthetic values; production code
+still has no signing or private-key capability.
+
+Portable tests inject current-head, reverse-plan, boundary-clock, and one-action
+callbacks. A Windows-only detached host drives one signed execution through a
+fresh hidden console. No test reads or mutates the real journal, repository,
+service, Runtime, database, ACL, evidence, provider, mailbox, vault, credential,
+private store, or private data.
+
+## Issue #74 representative main-publication tooling boundary
+
+`backend.r2_main_publication` is a fixed synthetic Windows tracer, not an
+operator executable. It has no `main()`, argv, shell, PowerShell, subprocess,
+environment, path selector, Profile selector, real authorization reader, Git,
+provider, mailbox, vault, private-store, cleanup, copy, delete, overwrite, or
+repair surface. The three real operator roots do not import it and remain
+locked before #39.
+
+The tracer reuses the existing handle-relative NTFS create-only and
+same-identity no-replace primitives. Its only additional native write is one
+handle-bound `SetSecurityInfo` call whose information mask contains DACL plus
+the protected/unprotected DACL control bit. Owner, Group, and the final
+security-information argument are fixed null pointers; no system-audit ACL
+information constant or mutation argument exists. Every changed object is
+captured before and after and must retain the same identity, Owner, and Group.
+
+Expected inherited DACL bytes are bound privately to the content-free
+`ExpectedInheritedDaclProjectionV1` after observing create-only directory and
+file probes under the newly inherited main. The probes and any failed main are
+preserved in the caller-owned sandbox; the tracer never removes them. The
+content-free high-level journal is create-only, hash-chained, flushed and
+`fsync`-committed for every intent, observation, and commit. Windows tests
+physically inject all five gaps at every fixed main-publication boundary and
+make no claim about any real host.
+
+## Issue #75 full manifest and eleven-worktree tooling boundary
+
+`backend.r2_repository_manifest` is another test-binder-only Windows slice; it
+has no executable entry, caller path, Git arguments, remote, shell, subprocess,
+or normal-runtime consumer. Its three Git observations are code-fixed
+`ls-files` forms executed only through the already bound and sanitized #56 Git
+runner. Worktree creation reuses only the reviewed `worktree add
+--no-guess-remote -- <reserved-target> <reviewed-branch>` capability. No clone,
+copy, network fetch, history rewrite, stash, pruning, repair, removal, deletion,
+replacement, alternate target, or remote-dependent recovery verb exists.
+
+The test fixture contains synthetic tracked files, one exactly approved
+untracked file, ignored private/runtime/database/log/cache residue, a complete
+selected directory, a mixed directory, and eleven linked worktrees. Complete
+directories move only after full leaf selection and reparse-free ACL review;
+mixed directories receive create-only inherited skeletons and only their
+selected leaves move. The original linked-worktree physical directories and
+opaque administrative directories move no-replace into fixed preservation
+roles before the legacy-anchor rename.
+
+Forward and reverse high-level facts carry an explicit direction in a
+create-only, `fsync`-committed hash chain. Every effect still consumes the
+existing #52 durable host permit. Native gap tests cover the first and last
+manifest and worktree units across intent, effect, scan, observation, and
+commit, while the existing #56 exhaustive worktree suites remain authoritative
+for all eleven low-level Git/NTFS boundary positions.
+
+## Issue #76 database-publication tooling boundary
+
+The #76 package is not executable and accepts no command-line, environment,
+Profile, path-selector, journal-selector, service-selector, force, shell,
+PowerShell, or arbitrary process input. Its only native source capability is a
+fixed `CreateFileW` disk handle opened with `FILE_SHARE_READ` and without write
+or delete sharing. Target staging uses create-only file creation; publication
+and exact recovery use fixed no-replace renames inside the test-owned sandbox.
+
+Tests use a synthetic state-file service and synthetic SQLite database in a
+fresh temporary NTFS directory. Faults are closed enums rather than callbacks.
+The package performs no real service operation, source checkpoint/truncation,
+cleanup, deletion, provider call, mailbox access, vault access, or private-data
+read.
+
+## Issue #77 Runtime tooling boundary
+
+The Runtime unit accepts no command line, environment selector, arbitrary
+path, package name, wheel, index, cache, resolver, system-Python fallback,
+retry, cleanup, or alternate staging target. Fixed offline inputs are captured
+before construction. Existing create-only handle-relative tree primitives
+flush every file and re-read exact hashes; the stage and target are on the same
+volume and publication is a fixed no-replace rename.
+
+The authoritative self-verifier starts only the newly built fixed Python with
+`-X frozen_modules=on -I -B -S`, a minimal provider-free environment, no stdin,
+no shell, a bounded timeout, and bounded output. Its script imports no installed
+dependency module. Windows executable tests use only fresh synthetic sandboxes;
+portable tests make no Runtime execution or NTFS claim.
+
+## Issue #78 CRX tooling boundary
+
+CRX publication is not executable and accepts no argv, environment, Profile,
+source/target selector, signing key, browser path, extension command, force,
+shell, or retry. The fixed source and final target use native handles opened
+with read sharing only. Stage bytes are create-only and `fsync`-flushed; the
+fixed publication and exact recovery moves are same-parent no-replace renames.
+
+Tests physically attempt source replacement and a final-target write while the
+corresponding handle is live, and require Windows sharing denial. They also
+exercise all eight PREPARE/PUBLISH gaps and fixed collision/race/reparse/drift/
+partial/verification faults in fresh synthetic sandboxes. No test grants real
+artifact, signing, installation, browser, or host authority.
+
+## Issue #79 Config tooling boundary
+
+The Config unit is not executable and accepts no environment, dotenv path,
+registry, clipboard, credential-store, hidden, legacy, provider, private,
+arbitrary path, force, shell, or retry input. Only the test binder supplies the
+fixed stage/target and synthetic absolute operational paths. The document is
+written create-only, fully flushed, byte-compared, renamed no-replace, held,
+and byte-compared again around the independent Managed loader call.
+
+Windows tests use fresh synthetic directories, patch hostile environment
+values without exposing them to the publisher, and cover all eight journal
+gaps plus collision, partial stage, replacement denial, BOM, CRLF, loader
+mismatch, and pending-generation rejection. No real Config, credential,
+provider, private store, or private data is read.
+
+## Issue #80 independent-audit tooling boundary
+
+The audit capability has no executable transaction command, argv, environment,
+path, journal, host, service, provider, mailbox, vault, private-data, force,
+shell, retry, or cleanup selector. A pre-bound sink accepts exactly one typed
+observation and invokes exactly one fixed append callback with five
+content-free fields. It cannot open, read, list, create, truncate, replace,
+delete, or arbitrarily append journal records.
+
+Synthetic tests run the stopped-layout and final-running-health invocations in
+separate fresh Python processes and observe only PID, kind, aggregate journal
+entry count, and fixed status. Other tests inject only opaque fingerprints and
+a fixed clock; no real host state or approved cutover receipt is consumed.
+
+## Issue #81 validation-lifecycle tooling boundary
+
+The lifecycle has no command line, environment, path, port selector, process
+launcher, database handle, provider client, force, retry, recovery, cleanup, or
+real operator entry. Its eight exact callbacks are pre-bound by the synthetic
+test harness. Production modules cannot import subprocess, SQLite, filesystem,
+network, provider, mailbox, vault, or private-data libraries.
+
+Windows behavior uses a fresh temporary sandbox and two actual long-lived test
+service processes. Start A performs the one fixed provider-disabled public
+rule-fallback analysis and writes exactly one opaque result fingerprint to the
+synthetic SQLite table; it is stopped by exact PID/start evidence. Start B is a
+new PID/start time, performs health only, and is proven to leave analysis and
+write counts at zero. Two additional test workers independently read the
+durable service journals and SQLite state, derive the stopped/running
+observations, execute their exact audit kind, and append a create-only flushed
+attestation which the parent re-opens and verifies. All inputs are opaque
+fingerprints or fixed public synthetic values; providers remain disabled and
+real entries remain locked.
+
+## Issue #82 recovery/seal tooling boundary
+
+The state machine accepts no argv, environment, path, journal location, host
+selector, force, retry, cleanup, shell, process, database, network, provider,
+mailbox, vault, or private-data input. Tests inject only opaque receipt/head/
+intent/identity fingerprints, fixed epochs, closed enums, and exact callable
+roles. Stable classification always calls the same pre-bound observer twice.
+
+Recovery tests simulate all reverse boundaries in memory, retain a fixed count
+of new objects, require zero cleanup operations, refresh exact authority per
+boundary, and cover crashes, expiry, nonce replay, head drift, failed legacy
+recovery, and already-observed reverse effects. Final-seal tests supply only
+content-free audit completions, make one freshness call and one fixed append,
+and assert zero host mutations. No real host or journal is accessed.
+
+## Issue #83 full-verification tooling boundary
+
+`scripts/verify_r2_synthetic_topology.py` accepts no arguments and creates its
+own `TemporaryDirectory`. On Windows it first requires NTFS, then uses fixed
+test-only TTY success workers, fixed synthetic authorization envelopes, actual #74-#79
+publication binders, actual local SQLite, fixed ACL descriptor observations,
+two long-lived provider-disabled service processes, two independent audit
+workers, all 70 dispatched semantic-gap cases, and the exact #82 final seal.
+The TTY workers durably return a read-only synthetic preflight receipt, one
+evidence publication proof, and one-action execute/rollback proofs; separately
+tested production entries remain locked and cannot satisfy these prerequisites.
+The exact proofs gate one stable service stop before main/repository mutation.
+The complete type-tagged publication mappings and receipt/predecessor/head chain
+use a create-only, flushed verifier journal. They are closed, re-opened, and
+fully recomputed before Start A; the final success head is re-opened again after
+append. Public output is one aggregate JSON object with six
+SHA-256 fingerprints and contains no path, transcript, authorization value,
+host identity, repository name, row, provider value, or exception detail.
+
+The verifier performs no network access and no provider, mailbox, vault,
+private-store, credential, real-host service, real repository, or real-host
+ACL operation. Its service, TTY, filesystem, and Windows helpers are
+test-owned evidence adapters, not production authority. Non-Windows execution
+must fail or skip without making
+an NTFS, ACL, TTY, process-isolation, or native-durability claim.
+
 ## 14. 执行后检查
 
 Agent 每次完成任务后，必须确认：

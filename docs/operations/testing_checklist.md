@@ -657,6 +657,39 @@ source_type: operation_guide
    invalidates old R1, and requires all fourteen #38 approval items plus a new
    R2 against the exact final master before #39 can be considered.
 
+## Issues #70-#83 R2 remediation acceptance
+
+1. Run every issue-focused contract, architecture, static, process, Windows,
+   journal-gap, recovery, audit, lifecycle, and leakage suite before its
+   independent Conventional Commit.
+2. Run `python -B scripts/verify_r2_synthetic_topology.py` on Windows. Require
+   exact status `R2_SYNTHETIC_VERIFICATION_COMPLETE`, terminal
+   `CUTOVER_SUCCESS`, counts 3 process types, 4 authorization domains, 9 zones,
+   1 repository, 11 worktrees, 4 managed units, 2 independent audits, and 70
+   semantic gap cases, with zero provider attempts, leakage, and real-host
+   operations.
+3. Confirm Start A performs one code-fixed `rule_fallback` analysis and one
+   synthetic database write, then stops and passes the stopped audit. Confirm
+   Start B uses a fresh process/nonce, performs no analysis or write, and passes
+   a fresh final-running audit before final seal.
+4. Confirm every forward and reverse semantic gap uses a fresh sandbox and
+   enforces exact absent/present/ambiguous classification with no blind replay.
+5. Confirm the three operator process types use real local stdin/stdout/stderr
+   TTYs, execution and recovery use different fixed verbs, and all four
+   authorization domains are nominally distinct. Public output must remain
+   aggregate-only and content-free.
+6. Confirm portable tests make no NTFS, ACL, TTY, process-isolation, or native-
+   durability claim. Windows claims require the fresh physical NTFS run.
+7. Confirm obsolete batched publication, R1 verification, in-process operator
+   substitute, self-certified audit, and legacy R2 success are unreachable.
+8. Record fresh criteria, matrix, script, bundle, complete-surface, and package
+   fingerprints. The prototype fingerprint remains non-authorizing prior art.
+9. Run `python -m unittest discover -s tests`, maintenance scan, repository
+   leakage scan, generated-status check, and Standards/Spec dual review. Fix
+   every P1/P2 finding and re-review before handoff.
+10. Confirm #38, #50, and #39 remain unchanged, every real entry remains
+    `BLOCKED_NO_APPROVED_COMMAND`, and no real command or host operation ran.
+
 ## Option C 多模态离线门
 
 - all providers disabled by default；自动化只使用 synthetic DOM/media fixtures、fake provider 和 injected clock，不读取邮箱、不访问网络、不读取 `.env` 或 key。

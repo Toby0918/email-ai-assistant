@@ -224,10 +224,13 @@ class ServiceLifecycleArchitectureTests(unittest.TestCase):
 
     def test_every_non_test_consumer_is_rejected(self):
         consumers = (ROOT / "backend", ROOT / "frontend", ROOT / "scripts")
+        approved_composition = ROOT / "backend" / "r2_validation_lifecycle"
         findings = []
         for root in consumers:
             for path in root.rglob("*"):
                 if PACKAGE in path.parents or path == PACKAGE:
+                    continue
+                if approved_composition in path.parents:
                     continue
                 if path.suffix in {".py", ".js", ".html"}:
                     text = path.read_text("utf-8")

@@ -23,7 +23,7 @@ OBSERVED_AT = 1_900_000_000
 
 @dataclass(slots=True)
 class SyntheticRepositoryScenario:
-    owner: tempfile.TemporaryDirectory[str]
+    owner: tempfile.TemporaryDirectory[str] | None
     root: Path
     marker: Path
     source: Path
@@ -37,7 +37,8 @@ class SyntheticRepositoryScenario:
     worktrees: tuple[_SyntheticWorktreePaths, ...]
 
     def close(self) -> None:
-        self.owner.cleanup()
+        if self.owner is not None:
+            self.owner.cleanup()
 
 
 def build_synthetic_repository_scenario() -> SyntheticRepositoryScenario:

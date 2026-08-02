@@ -671,6 +671,39 @@ class GenerateProjectStatusTests(unittest.TestCase):
             with self.subTest(marker=marker):
                 self.assertIn(marker, report)
 
+    def test_issues70_83_r2_remediation_is_synthetic_and_locked(self) -> None:
+        module = load_script_module(
+            SCRIPT,
+            "generate_project_status_issues70_83_r2_remediation",
+        )
+        report = module.build_project_status()
+
+        for marker in (
+            "Issues #70-#83 dormant R2 cutover remediation",
+            "`scripts/verify_r2_synthetic_topology.py`",
+            "fresh physical NTFS sandbox",
+            "all eleven reviewed worktrees",
+            "four managed units",
+            "one `rule_fallback` result and one row",
+            "independent stopped audit",
+            "independent final-running audit",
+            "terminal `CUTOVER_SUCCESS`",
+            "distinct real local TTY processes",
+            "all four authorization domains",
+            "70 fresh scopes",
+            "Obsolete batched managed publication",
+            "six deterministic evidence fingerprints",
+            "non-authorizing prior art",
+            "Portable tests make no NTFS, ACL, TTY",
+            "`BLOCKED_NO_APPROVED_COMMAND`",
+            "#38/#50/#39 remain unchanged",
+            "`docs/operations/issues70_83_r2_cutover_remediation_task_brief.md`",
+            "`docs/operations/r2_synthetic_verification_evidence.md`",
+            "`tests/test_r2_full_topology_windows.py`",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, report)
+
     def test_browser_extension_files_are_reported_as_key_files(self) -> None:
         module = load_script_module(SCRIPT, "generate_project_status")
         report = module.build_project_status()

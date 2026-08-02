@@ -1111,6 +1111,314 @@ guards only and makes no Windows ACL, NTFS, native-handle, service, or
 durability claim. No Issue #59 package is a real command or production
 consumer.
 
+## Issue #70 additive R2 contract architecture
+
+Issue #70 expands only the pure `backend.cutover_composition_contracts` package.
+`approved_binding.py`, `r2_types.py`, and `r2_receipt.py` may import only pure
+standard-library value helpers, existing Issue #51 Profile values, and the
+existing Issue #59 authorization-sequence and canonical helpers. They own no
+filesystem/path, process, environment, clock, random source, signing key,
+issuer, SQLite, service, Git, ACL mutation, provider, mailbox, vault, credential,
+private-store, cleanup, dynamic-import, or host capability.
+
+`ApprovedCutoverBindingV1` is derived from an exact immutable Profile and
+authorization sequence. Parsing re-derives and compares the complete body, so a
+caller cannot redirect legacy-anchor, managed-main, ACL, manifest, worktree, or
+managed-unit selection. `AuthorizationDomain` contains exactly four nominal
+domains with a closed phase mapping. `R2CutoverReceiptV1` is canonical evidence,
+never authorization, and binds exactly one independently named boundary; Runtime,
+database, CRX, and Config each retain separate PREPARE and PUBLISH stages.
+
+The additive vocabulary does not change the existing Issue #59 composition
+roots, receipt chain, roles, constructors, operator signatures, imports, or
+default locks. Normal runtime, frontend, scripts, cleanup, schedulers, workflows,
+and unapproved consumers remain unable to consume the operator roots. Later
+Issues #71-#83 may use these pure values only within their separately approved
+scopes; Issue #70 itself performs no process, audit, journal, or host action.
+
+## Issue #71 preflight process architecture
+
+Issue #71 introduces exactly two new roots:
+
+```text
+backend.r2_preflight_process -> fixed argv + SystemTerminal + existing locked preflight entries
+backend.r2_operator_process -> canonical envelope + Ed25519 public verification + pure authorization validation
+```
+
+`backend.r2_preflight_process` is a physically dedicated executable package.
+It has no evidence-publication or transaction import, umbrella selector,
+filesystem selector, arbitrary process launcher, Git, SQLite, ACL, service,
+provider, mailbox, vault, private-store, cleanup, or mutation capability. Its
+production `entry.main()` validates one exact verb and three actual standard
+TTY streams before reading the exact acknowledgement and one hidden bounded
+value. Before #39, its only valid terminal result remains
+`BLOCKED_NO_APPROVED_COMMAND` and zero host operations. The production entry
+owns the canonical envelope verification call and supplies a code-fixed,
+public, dormant validation context: exact Profile binding, public keys,
+operation, clock, and in-memory single-use nonce claim. It contains no private
+issuer or host capability. A correctly signed synthetic envelope can therefore
+exercise the production verification path, but still terminates locked before
+any Issue #39 or host operation.
+
+`backend.r2_operator_process` is a shared verification-only deep module for the
+four nominal authorization domains. Issue #71 consumes only the preflight
+domain and `RealPreflightAuthorizationV1`. The verifier checks the exact
+canonical outer shape, domain-separated Ed25519 signature, exact nominal inner
+type, phase, Profile, master, operator, operation, validity window, and nonce
+claim before the existing locked entry is reachable. It cannot sign, generate
+keys, acquire readers, or import any operator composition root.
+
+The synthetic binder is isolated in
+`backend.r2_preflight_process.testing`. No normal runtime consumer may import
+it. It binds a validated `ApprovedCutoverBindingV1`, a test-owned public key,
+an injected clock, and an in-memory single-use nonce claim; it has no host
+reader. Wrong authorization always fails before its reader-acquisition counter
+can change. The Windows real-TTY host is test-only and runs from a fresh
+temporary directory; portable tests make no Windows TTY claim.
+
+## Issue #72 evidence process architecture
+
+`backend.r2_evidence_process` is a new physical root beside, never beneath,
+`backend.r2_preflight_process`. Its production modules contain only the exact
+`publish` command check, evidence-specific TTY adapter, closed public result,
+and pre-#39 lock. They import neither preflight nor transaction process roots,
+and they have no verification, arbitrary filesystem, process, Git, SQLite,
+service, ACL, provider, mailbox, vault, private-store, cleanup, or repair
+capability.
+
+The `testing` module binds `ApprovedCutoverBindingV1`, exact confirmed-review
+fingerprints, the evidence-domain public key, an injected clock, an in-memory
+single-use nonce claim, and one narrow no-argument publication callback. The
+callback is not acquired until TTY, acknowledgement, canonical envelope,
+signature, nominal evidence authorization, immutable binding, expiry, replay,
+and confirmed-review gates pass. The real-locked branch never acquires it.
+
+Synthetic publication creates one caller-owned object exactly once. It does
+not verify that object; the existing `backend.migration_evidence_verifier`
+retains independent read-only process ownership. No normal runtime consumer can
+import the synthetic binder or either operator executable.
+
+## Issue #73 transaction process architecture
+
+`backend.r2_transaction_process` is physically disjoint from the preflight and
+evidence packages. Its production root owns only the three fixed verbs,
+transaction-specific TTY adapter, fixed aggregate result, and default lock. It
+has no umbrella, arbitrary filesystem/process/Git/service/ACL/provider/mailbox/
+vault/private-store, cleanup, repair, or verification capability.
+
+The test-only binder owns two public verification keys, exact immutable
+binding and journal-owner fingerprints, callbacks for current head, remaining
+reverse plan and boundary time, three narrow one-action roles, and in-memory
+claims for both envelope and crash nonces. Resume re-reads the current head;
+rollback re-reads both head and reverse-plan fingerprint. Any mismatch rejects
+before `action_acquisitions` increments. Normal runtime cannot consume this
+binder.
+
+## Issue #74 representative main-publication architecture
+
+`backend.r2_main_publication` is an internal synthetic-Windows deep module. Its
+public package exports only closed content-free readiness, DACL projection,
+post-move receipt, crash-gap, boundary, selector, and restart-outcome values.
+The path-bearing binder lives only in `testing.py`, accepts the one fixed
+caller-owned fixture topology, and is not imported by any real operator root,
+normal runtime, frontend, script, cleanup task, scheduler, or workflow.
+
+The fixed flow is
+`double-stable readiness -> legacy no-replace rename -> create-only inherited
+main -> projection probes -> three selected no-replace relocations -> preserved
+DACL detection -> DACL-only whole-tree projection -> authoritative rescan ->
+MAIN_PUBLISHED commit`. The selected directory, its descendants and files, the
+standalone file, and repository-like hierarchy retain native object identity,
+Owner, and Group. The projection, never a pre-move observation, is the only
+source of expected post-move DACL fingerprints and bound bytes.
+
+The hash-chained tracer journal records only enums, counts, and fingerprints.
+At restart, exact initial topology is `SAFE_ABORT`, a recognized partial
+topology is `ROLLBACK_REQUIRED`, and collision, identity drift, reparse, journal
+drift, or any other ambiguity is `INCIDENT_STOP`. Rollback moves fixed units
+back no-replace, preserves the new main under the fixed failed-main identity,
+restores the original legacy anchor, reapplies only the captured original
+DACLs, and proves every original identity and security observation exactly. It
+has no copy, overwrite, delete, cleanup, or reparse traversal.
+
+## Issue #75 complete repository-manifest architecture
+
+`backend.r2_repository_manifest` composes only the existing reviewed #52/#55/
+#56 host, ACL, Git-runner, worktree, and identity seams plus the #74 inherited
+DACL projection. The package's public root exports closed pathless manifest,
+receipt, category, boundary, gap, and selector values. Only `testing.py` binds
+the fixed `Container`, `LegacySourceAnchorV1`, `FailedContainerV1`, `main`,
+preservation, and eleven-worktree paths inside the validated caller-owned
+temporary scope. No real operator or normal mail runtime imports it.
+
+The manifest review has exactly three positive categories: `.git`, tracked,
+and individually approved untracked. Unapproved untracked content fails;
+ignored and private/runtime/database/log/cache material is bound as retained
+residue, never selected. Embedded linked-worktree roots and their opaque admin
+records remain topology units rather than repository-content units. Complete
+subtrees can move whole only when every leaf is selected; mixed subtrees use
+create-only skeletons and leaf moves.
+
+Forward publication preserves all eleven original physical and administrative
+identities, renames the original root to the legacy anchor, creates and protects
+a fresh Container/main, relocates the exact manifest, applies #74 whole-tree
+DACL conformance, then reconstructs eight embedded-sibling and three external
+worktrees outside Repository Root. Reverse first preserves the failed
+Container and all new admin/external objects, moves selected units back into
+the residue-bearing anchor, restores the anchor and all 22 original identities,
+restores exact DACL observations, and ends only at
+`LEGACY_FLAT_LAYOUT_RESTORED`.
+
+## Issue #76 quiescence/database architecture
+
+`backend.r2_database_publication` is a dormant internal Windows slice with a
+closed, pathless package root. Path-bearing service and database binding exists
+only in `testing.py` for a fresh caller-owned sandbox. No operator process,
+normal mail runtime, frontend, script, scheduler, or workflow imports it.
+
+The module-owned service-controller role is the only stopped-receipt issuer;
+generic callbacks and fixture mappings are not an issuance surface. The
+module-owned database lease wraps one read-only-sharing native source handle,
+is consumed once, and remains open across prepare copy and publish
+verification. Source sidecars are only observed. Recovery may rename an exact
+new target back to fixed retained staging, but has no source cleanup, SQLite
+checkpoint, delete, replace, repair, provider, mailbox, or private-data
+capability.
+
+## Issue #77 independent Runtime architecture
+
+`backend.r2_runtime_publication` is a dormant internal unit whose package root
+exports only pathless versions, prerequisite/fault vocabularies, pending-state
+classification, status, verification authority, and receipt. The path-bearing
+binder exists only in `testing.py`; no operator root or normal runtime imports
+it.
+
+The builder reuses only the reviewed #57 immutable source capture, canonical
+lock review, create-only Runtime tree, offline wheel extraction, and isolated
+self-verification modules. It does not reuse the #57 combined publication
+phase or its target window. PREPARE owns the complete stage and identity;
+PUBLISH owns the fixed no-replace rename and new authoritative verification.
+Recovery has no removal, replacement, cleanup, network, provider, mailbox,
+vault, private-data, or second-stage capability.
+
+## Issue #78 independent CRX architecture
+
+`backend.r2_crx_publication` is a dormant pathless CRX contract root plus one
+test-only path binder. Its only adjacent capability is the fixed read-only-
+sharing native handle from the #76 database unit. The unit never imports the
+browser extension, normal runtime, artifact builder, signer, installer,
+operator roots, provider, mailbox, vault, or private stores.
+
+The source handle stays open across both journal boundaries. Staging is a
+single fixed create-only generation; final publication closes the staging
+writer, performs one same-parent no-replace rename, and immediately holds the
+final target through authoritative verification. Recovery can reverse only an
+exact target to its fixed staging name and has no remove, replace, cleanup, or
+alternate target/source surface.
+
+## Issue #79 independent Config architecture
+
+`backend.r2_config_publication` exposes only closed pathless selection,
+prerequisite, fault, pending-state, status, and receipt contracts. Path binding
+is test-only. The unit reuses exactly the existing Managed settings reader,
+provider-disabled Config builder, and the fixed read-only-sharing handle; it
+does not import normal `load_config`, dotenv loading, provider clients, private
+knowledge, mailbox, vault, registry, clipboard, credential, or hidden-input
+surfaces.
+
+The publisher owns one fixed stage and final target. PREPARE creates and seals
+the deterministic dotenv bytes. PUBLISH renames no-replace, holds the exact
+target while the existing loader rereads it, and compares the reconstructed
+configuration against the selection and fixed operational paths. Recovery has
+no replace, delete, cleanup, or alternate-generation capability.
+
+## Issue #80 independent audit architecture
+
+`backend.r2_independent_audits` is a dormant, pathless capability package. Its
+process accepts exactly one `IndependentAuditAttestationSinkV1` and one closed
+content-free observation. The stopped-layout and final-running receipt classes
+are nominal values created only inside that sink after a successful append;
+the process, transaction packages, normal runtime, frontend, scripts, and
+workflows cannot construct, import, reset, serialize, or self-certify them.
+
+The test-only binder fixes the audit kind, operation, approved binding, journal
+head, approved identities, applicable health fingerprint, process ID, clock,
+and append callback before invocation. Synthetic subprocess tests start both
+audit kinds concurrently and require distinct live process IDs. No audit
+package module imports the transaction process, mutation implementation,
+ContainerAudit I/O adapters, provider, mailbox, vault, private knowledge, or
+migration-evidence surfaces.
+
+## Issue #81 complete validation-lifecycle architecture
+
+`backend.r2_validation_lifecycle` is a dormant composition root over exact
+content-free contracts from the evidence process, repository manifest,
+independent Runtime/CRX/Config/database units, existing service evidence, and
+independent audits. It owns only closed validation state and an exact injected
+adapter bundle. It cannot publish, mutate host layout, open a database, launch
+a process, select a path, call a provider, or acquire mailbox/private data.
+
+The composition is single-use and orders eleven fixed boundaries from Start A
+through final-running audit. Start A alone can call analysis, confirmation,
+row, stop, and database proof. Start B has only start, health, and final audit.
+The Windows test-owned binder supplies synthetic callbacks, one local SQLite
+file, and two fresh audit workers; it is not imported by backend, frontend,
+scripts, or workflows. No production executable or Issue #39 authority is
+added.
+
+## Issue #82 cross-stage state-machine architecture
+
+`backend.r2_cross_stage_recovery` is a dormant, content-free state machine over
+the exact #81 validation and #80 audit contracts. Its five injected callbacks
+are limited to stable intent observation, current-head observation, one exact
+reverse boundary, one minimal final-freshness observation, and one fixed
+success append. The package cannot select paths, open journal storage, launch
+processes, acquire host adapters, or perform cleanup.
+
+Restart inspection and mutation recovery are separate single-use modes. The
+inspection method has no reverse, authority, append, or retry reference.
+Recovery owns the fixed preservation/restore order and checks authority plus
+head on every boundary. Final seal is unavailable while any pending intent or
+remaining plan exists and has no reverse callback. No normal runtime,
+frontend, script, workflow, provider, mailbox, vault, or private-data consumer
+is introduced, and there is no executable entry.
+
+## Issue #83 full-verification architecture
+
+`backend.r2_verification_evidence` is a pure content-free contract package for
+the closed 70-case semantic-gap matrix, the exact aggregate bundle, and six
+deterministic evidence fingerprints. It has no executable, host, path,
+authorization, journal, mutation, process, network, provider, mailbox, vault,
+private-data, or cleanup capability.
+
+The fixed no-argument verifier script is the sole synthetic full-topology
+entry. Its test support composes the separately bounded #71-#82 public seams
+inside one verifier-owned fresh NTFS sandbox and cannot select an external
+root. It executes every canonical semantic-gap case through an owning R2 state
+machine using an exact create-only, flushed journal around each gap; runs the
+actual #74-#79 publication binders; and derives counts from their receipts.
+Fixed test-only workers, not the locked production entries, produce the exact
+preflight, evidence, execution, and recovery success proofs in distinct real-
+TTY children. One bound database transaction uses those exact proofs to
+quiesce its service controller before main/repository mutation, then carries
+the stopped receipt through every managed publication.
+
+Publication receipts are persisted as complete type-tagged canonical mappings.
+Before validation can start, a closed/re-opened journal must pass exact mapping,
+receipt fingerprint, predecessor, prior-head, and current-head recomputation;
+only its verified terminal head may enter the approved slice. Service
+observations, pre-bound independent audit attestations, semantic-case receipts,
+and the final success record are likewise re-read from verifier-owned durable
+files. Recovery and final-seal gap selectors cut inside the owning state
+machine, with zero pre-effect and exactly one post-effect mutation or append.
+The surface
+fingerprint walks every transitive local Python input under `backend/`,
+`scripts/`, and `tests/`, including dynamically launched workers. Production
+operator entries remain locked. Static guards reject every
+obsolete R2-reachable batch, R1, in-process operator, self-audit, and legacy-
+success consumer. Portable suites may validate only pure contracts; only the
+Windows verifier may claim physical NTFS, ACL, real TTY, or process isolation.
+
 ## 7. 修改规则
 
 如果需要改变架构边界，必须同时修改：

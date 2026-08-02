@@ -621,6 +621,370 @@ old R1 SHA. All fourteen #38 approval items must be re-reviewed against that
 exact final master and a new R2 published before any #39 authorization can be
 considered.
 
+## Issue #70 additive R2 contract vocabulary
+
+Issue #70 adds only canonical, pathless values beside the Issue #59 contracts.
+`ApprovedCutoverBindingV1` is derived from one exact `CutoverProfileV1` and one
+exact `AuthorizationSequenceV1`; it binds the operation, Profile, governing
+master, operator, authorization sequence and expiry, legacy-source-anchor and
+managed-main identities, policy-derived inherited-DACL projection, repository
+manifest, eleven-worktree topology, and the four managed units by opaque
+fingerprints. It has no caller-selected path, discovery, override, or fallback
+surface. Canonical JSON parsing rejects duplicate or unknown fields and any
+value that differs from the reviewed Profile-derived body.
+
+`AuthorizationDomain` keeps preflight, evidence, execution, and recovery
+nominally distinct and maps only the fixed approved phases. A receipt, mapping,
+test value, or unknown phase cannot become authorization. The R2 journal
+vocabulary names quiescence, anchor/main/whole-tree ACL and repository
+boundaries; independent Runtime, database, CRX, and Config PREPARE/PUBLISH
+boundaries; the two-start lifecycle and independent audits; exact pending-effect
+tri-state; preservation and reverse boundaries; and the only final success,
+legacy-restoration, or incident outcomes. There is no batched
+managed-publication stage.
+
+`R2CutoverReceiptV1` is immutable, content-free evidence bound to the approved
+binding and exactly one journal boundary/fact. Its canonical mapping contains
+only enums, opaque fingerprints, and allowlisted counts. Pending classification
+accepts only `EFFECT_ABSENT_EXACT`, `EFFECT_PRESENT_EXACT`, or
+`EFFECT_AMBIGUOUS`; terminal outcomes are accepted only at their exact terminal
+boundary. The receipt has no inheritance or conversion path to any authorization
+type. Issue #70 adds no executable behavior: all Issue #59 entries and
+constructors retain their existing pre-#39 `BLOCKED_NO_APPROVED_COMMAND` result.
+
+## Issue #71 fixed preflight process and authorization ingress
+
+Issue #71 adds one dedicated `backend.r2_preflight_process` executable root.
+Its argv is exactly one of six code-fixed read-only preflight verbs. It accepts
+no path, Profile, authorization, journal, recovery, force, vararg, or free-form
+command value, and it is physically separate from evidence publication and the
+transaction process. Normal runtime, frontend, scripts, cleanup, schedulers,
+and workflows cannot import this root.
+
+Before any acknowledgement or hidden read, the production terminal adapter
+requires stdin, stdout, and stderr to be Windows TTYs. The acknowledgement is
+exact and the following base64 value is read once without echo under a 65,536
+character ceiling. Redirected standard streams, extra argv, and wrong
+acknowledgement fail closed. The executable does not inspect environment
+variables or authorization files and has no alternate pipe ingress.
+
+`backend.r2_operator_process` is verification-only. It canonicalizes one
+domain-tagged envelope, verifies an external Ed25519 signature with a public
+key, reconstructs the nominal real preflight authorization, and binds its
+type, domain, phase, Profile, governing master, operator, operation, lifetime,
+and single-use nonce before the preflight lock is invoked. It contains no
+private key, signing function, issuer, target reader, or mutation capability.
+Wrong and cross-domain values are rejected before any reader acquisition.
+
+The real preflight process remains dormant before separately approved Issue
+#39. Even a valid real authorization reaches only
+`BLOCKED_NO_APPROVED_COMMAND`, with one accepted authorization, zero rejected
+authorizations, and zero host operations. Public results expose only fixed
+status values and the allowlisted aggregate counts `accepted`, `rejected`, and
+`host_operations`; prompts are fixed text. Synthetic authorization tests use
+test-owned keys and state, and the Windows integration test uses one fresh
+hidden local console owned by a detached test host. Neither proof authorizes or
+observes the real cutover host.
+
+## Issue #72 fixed evidence-publication process
+
+Issue #72 adds `backend.r2_evidence_process` as a second, physically separate
+operator executable. It accepts only the exact `publish` verb and cannot import
+or select preflight, transaction, recovery, or the independent evidence
+verifier. No target, source, path, Profile, review, authorization, journal,
+recovery, force, vararg, or free-form value appears in argv.
+
+All three standard streams must be real Windows TTYs before the exact evidence
+acknowledgement and one hidden bounded base64 envelope read. Evidence envelopes
+use the distinct evidence Ed25519 public-key domain and nominal
+`EvidencePublicationAuthorizationV1`. Wrong-domain, missing, malformed,
+expired, replayed, Profile/master/operator/operation drift, or a review that is
+not exactly the preconfirmed opaque review fingerprint fails before the
+publication capability is acquired.
+
+The synthetic process binder supplies one narrow create-only callback in a
+fresh test-owned directory. An accepted invocation calls it exactly once and
+returns `EVIDENCE_PUBLISHED` with only `accepted`, `rejected`, and `published`
+counts. Collision, callback failure, non-unit completion, or a repeated
+invocation cannot claim success. Evidence verification remains owned by the
+existing physically independent read-only verifier and is never called by this
+process.
+
+The real evidence entry remains dormant before #39. A valid real authorization
+still returns `BLOCKED_NO_APPROVED_COMMAND` and acquires no publication
+capability. Tests use only synthetic package bytes and test-owned Ed25519 keys;
+they do not access a real evidence package, Repository Root, provider, mailbox,
+vault, credential, private store, or private content.
+
+## Issue #73 fixed transaction process
+
+Issue #73 adds the third and final operator executable root,
+`backend.r2_transaction_process`. It accepts only `execute`, `resume`, or
+`rollback`; it cannot import or select the preflight or evidence roots and has
+no umbrella, path, Profile, journal-path, recovery-target, force, shell,
+PowerShell, Git-command, vararg, or free-form surface.
+
+Every signed transaction envelope includes an exact
+`R2TransactionAuthorizationContextV1`: the approved binding fingerprint,
+journal owner, current durable journal head, remaining reverse-plan
+fingerprint, boundary epoch, and a separately single-use crash nonce. Execute
+and resume require `CutoverExecutionAuthorizationV1` under the execution key;
+rollback requires `RecoveryAuthorizationV1` under the recovery key. Domain,
+type, operation, phase, Profile/master/operator, head, plan, clock, expiry,
+envelope nonce, and crash nonce are verified before an action callback exists.
+
+One invocation acquires at most one exact action callback and reports only
+fixed status plus `accepted`, `rejected`, and `mutations` counts. Synthetic
+tests can execute one injected action with no host capability. The real entry
+remains `BLOCKED_NO_APPROVED_COMMAND` with zero mutations before #39.
+
+## Issue #74 create-only main and whole-tree DACL proof
+
+The representative R2 tracer renames the fixed synthetic flat root to
+`LegacySourceAnchorV1`, creates `ManagedMainRootV1` without replacement under
+the already protected Container, and moves only the fixed selected directory,
+descendant/file hierarchy, standalone file, and repository-like hierarchy by
+same-volume handle-relative rename. A double-identical pre-move observation is
+valid for at most 20 synthetic seconds and is consumed exactly once. It is
+readiness evidence only and can never provide the post-move expected values.
+
+`ExpectedInheritedDaclProjectionV1` is derived from create-only objects that
+actually inherit the approved Container DACL. A scan immediately after the
+same-volume moves must detect their preserved old descriptors. The tracer then
+sets only the projection-bound DACL on every main-tree object and performs a
+new authoritative reparse-free scan. Native object identity, Owner, and Group
+must remain byte-derived fingerprint equal; the native call exposes no
+system-audit ACL mutation flag or pointer.
+
+Only after every root and selected descendant matches the projection can a
+closed, content-free `PostMoveMainAclConformanceReceiptV1` be bound to the
+current journal head and committed as `MAIN_PUBLISHED`. Intent, effect, scan,
+observation, and commit gaps are independently injected at every fixed
+boundary. Exact recognized partials require rollback; ambiguity stops as an
+incident. Rollback uses only fixed no-replace moves and DACL restoration,
+preserves the failed main, and restores the original anchor and every selected
+identity/security observation without copy, overwrite, delete, cleanup, or
+reparse traversal.
+
+## Issue #75 complete repository manifest and worktree topology
+
+`RepositoryContentManifestV1` is a closed content-free review of `.git`,
+tracked content, and individually approved untracked content. It cannot select
+ignored data or any private, Runtime, database, log, cache, reparse, linked-
+worktree, or opaque-admin residue. Every selected leaf and whole directory has
+a stable native identity and path fingerprint; every residue leaf is separately
+identity-bound under `LegacySourceAnchorV1`. A whole directory is eligible only
+when its complete subtree is selected and ACL-compatible. Otherwise the new
+main receives only a create-only skeleton plus exact leaf moves.
+
+Before repository relocation, exactly eleven original linked-worktree physical
+identities and their opaque administrative identities/content fingerprints are
+moved into fixed preservation roles. The fresh protected Container and main
+receive only the manifest; all excluded residue remains under the original
+legacy anchor. Exactly eight reconstructed worktrees are siblings under
+Container `Worktrees` and three use reviewed external targets; all eleven are
+outside Repository Root and bind the reviewed refs and commits through the
+fixed #56 runner.
+
+Rollback never invokes a removal command. It first preserves the failed
+Container, new admin directories, and external worktrees, then reverses fixed
+manifest moves, restores the original anchor, reattaches all original physical
+and admin identities, restores their DACL observations, and independently
+verifies the twelve-entry Git worktree relationship. Its only success status is
+`LEGACY_FLAT_LAYOUT_RESTORED`; collision or ambiguous identity cannot be
+overwritten or cleaned.
+
+## Issue #76 quiescence and leased database publication
+
+The database slice accepts three distinct content-free prerequisites for the
+completed preflight, evidence publication, and fresh pre-mutation gate. It
+durably records quiescence intent before the synthetic service-controller role
+performs the first mutation. Only that module-owned role can issue an accepted
+`StoppedServiceReceiptV1`; the receipt has no public constructor, parser, or
+factory and is checked against the in-process issuer registry.
+
+`LegacyDatabaseCopyLeaseV1` is likewise module-owned and single-use. Its
+Windows `CreateFileW` handle requests only read sharing, thereby denying write
+and delete sharing, and that same handle supplies both the copy bytes and the
+post-publish verification bytes. `POST_STOP_BASELINE`, `PRE_COPY_LEASE`,
+`COPY_POSTVERIFY`, and `FINAL_OR_RECOVERY_VERIFY` all reject any fixed SQLite
+sidecar without checkpointing, truncating, deleting, cleaning, or otherwise
+mutating the source.
+
+Database prepare and publish are separate create-only durable journal
+boundaries with intent, effect-observed, stable-verified, and committed facts.
+Collision, source drift, crash, and partial staging remain in the caller-owned
+synthetic sandbox. Recovery classifies them without cleanup, restores an exact
+published target back to its retained staging role when safe, and returns
+`INCIDENT_STOP` for ambiguity.
+
+## Issue #77 independent Runtime unit
+
+Runtime publication starts only after the quiescence receipt fingerprint. Its
+fixed staging identity is `managed-runtime.prepare` beside the fixed final
+`managed-runtime`; one durable PREPARE intent precedes create-only staging and
+one durable PUBLISH intent precedes the no-replace same-volume rename. Both
+boundaries record effect, stable verification, and commit facts separately.
+
+The existing canonical dependency lock remains the sole dependency authority.
+It proves Python 3.12.13, SQLite 3.50.4, the complete fixed dependency closure,
+wheel hashes, import-file hashes, and exact isolated startup archive. The new
+Runtime performs the existing isolated self-verifier, which imports only frozen
+Python helpers and reads package metadata/import bytes; it never imports or
+executes installed package code. No stale R1 `pip check` statement is an
+authority source.
+
+Input capture, construction, and verification are offline and create-only.
+Network, package indexes, caches, system Python, user site, legacy environment,
+live resolution, replacement, retry, cleanup, and second-generation staging
+are unavailable. Exact or partial staging is retained after crashes, collision,
+drift, reparse, or verification failure; recovery classifies it content-free
+and never deletes it.
+
+## Issue #78 independent reviewed-CRX unit
+
+The fixed reviewed CRX source is bound by native identity, CRX2/CRX3 format,
+size, and SHA-256 before a transaction exists. A read-only-sharing source
+handle denies write and delete sharing from pre-PREPARE review through the
+final target verification. PREPARE creates and flushes only the fixed
+`.crx.prepare` stage; PUBLISH performs only a same-parent no-replace rename,
+then opens the final target with the same write/delete denial through repeated
+identity, bytes, size, format, and hash verification.
+
+CRX PREPARE and PUBLISH each carry separate durable intent, effect-observed,
+stable-verified, and committed facts. Collision, target race, blocked source
+replacement, reparse target, hash/size drift, partial staging, crash, and
+blocked final-verification write remain retained and content-free. Recovery
+uses only `EFFECT_ABSENT_EXACT`, `EFFECT_PRESENT_EXACT`, or
+`EFFECT_AMBIGUOUS`; it can move an exact target back to retained staging but
+cannot overwrite or clean an ambiguous object.
+
+The unit has no CRX build, signing, installation, extension loading, browser
+profile, signing-material, alternate-source, overwrite, deletion, or cleanup
+capability. Any pending staging blocks a fresh generation. Tests use only
+synthetic CRX bytes in a fresh test-owned NTFS sandbox.
+
+## Issue #79 independent loader-compatible Config unit
+
+`ManagedConfigSelectionV1` accepts exactly the two approved non-secret keys:
+sorted unique internal domains and a fixed log-level enum. It rejects string or
+canonical-JSON input, pair lists (including duplicate-key representations),
+unknown keys, provider/secret/private fields, and malformed values. Its only
+document is deterministic UTF-8 without BOM, with the two keys in fixed order,
+one `=` per line, LF endings, and a final LF.
+
+Config PREPARE and PUBLISH each record durable intent, effect observation,
+stable verification, and commit. The fixed `.prepare` file is create-only and
+flushed; PUBLISH is a same-parent no-replace rename. A read-only-sharing final
+target handle remains live while the existing Managed loader reads the exact
+bytes and `build_managed_container_config` independently reconstructs the
+expected provider-disabled configuration. Hostile ambient provider/private
+environment values have no effect.
+
+Collision, partial stage, blocked target replacement, BOM/encoding drift, CRLF
+drift, loader mismatch, crash, and pending staging retain their objects and
+fail closed. Recovery is tri-state and may reverse only an exact target to
+fixed staging. There is no overwrite, deletion, cleanup, retry, hidden input,
+legacy Config, registry, clipboard, credential store, or second generation.
+Receipts contain only fingerprints, status, counts, and booleans, never Config
+values.
+
+## Issue #80 independent stopped-layout and final-running audits
+
+The stopped-layout and final-running-health audits are two distinct fresh
+OS-process invocations, separate from the mutation process and from each other.
+Each receives exactly one pre-bound `IndependentAuditAttestationSinkV1`; the
+sink is exact-type, single-use, non-resettable, and can append only one fixed,
+content-free journal attestation. It has no path selection or filesystem,
+journal-selection, replacement, deletion, cleanup, provider, mailbox, vault,
+or private-data capability.
+
+Each sink is bound to one operation, approved binding, current journal head,
+approved identity set, applicable health evidence, audit kind, process
+identity, and observation epoch. Success independently rechecks all bindings
+and appends within the fixed 300-second window. Deterministic head, identity,
+or health mismatch returns `ROLLBACK_REQUIRED`; ambiguity, kind/sink swap,
+append failure, or replay returns `INCIDENT_STOP`; expiry consumes the sink and
+requires a completely fresh process and sink. The two nominal receipt types
+cannot be directly constructed or serialized and expose only redacted,
+content-free evidence.
+
+## Issue #81 two-start provider-disabled validation lifecycle
+
+The approved validation slice exact-types and binds the published evidence,
+repository topology, Runtime, CRX, Config, and database results before any
+service callback is available. Start A and Start B use distinct UUIDv4 nonces,
+process identity and start time while matching the exact Runtime, Config,
+Profile, port, database role, and disabled primary/fallback provider identities.
+
+Start A proves health, performs exactly one fixed public synthetic analysis
+whose `analysis_engine.source` is `rule_fallback`, records zero provider
+attempts, binds one operator confirmation to that exact result, and observes
+exactly one matching database row from one write. It then stops the exact Start
+A process and requires `FINAL_OR_RECOVERY_VERIFY` with zero sidecars before the
+independent stopped-layout audit. Start B proves health without analysis or
+write and is followed by the independent final-running audit. Each audit
+completion binds the applicable service nonce/process, journal head, approved
+identities, health evidence, fresh 300-second window, and a distinct audit PID.
+
+Every boundary has closed crash, deterministic-failure, and ambiguous-failure
+classification. Crash and deterministic mismatch require rollback; ambiguous
+types, process reuse, stale attestations, and adapter exceptions incident-stop.
+The slice is single-use, dormant, synthetic-only, and adds no real entry.
+
+## Issue #82 cross-stage recovery and final success seal
+
+Restart inspection performs exactly two independent content-free observations
+for every pending or committed boundary state. Only two identical ABSENT reads
+produce `EFFECT_ABSENT_EXACT`; only two identical PRESENT reads produce
+`EFFECT_PRESENT_EXACT`; drift or explicit ambiguity produces
+`EFFECT_AMBIGUOUS`. Inspection is read-only and cannot call reverse authority,
+repeat an effect, or append a success record. Durable committed facts must
+agree with PRESENT host observation before recovery.
+
+Recovery first preserves the failed Container, retains all new/partial objects,
+then restores the Repository Root, Git, eleven worktrees, ACL, database, and
+legacy service in one fixed order. Every non-observed reverse effect requires a
+fresh exact authority binding the current journal head, current remaining-plan
+fingerprint, boundary, unexpired interval, and never-reused crash nonce. An
+already observed exact reverse effect is skipped, never blindly repeated.
+There is no cleanup. The only completed reverse status is
+`LEGACY_FLAT_LAYOUT_RESTORED`; ambiguity, head drift, receipt-chain drift, stale
+authority, replay, or failed legacy recovery incident-stops.
+
+Final seal requires no pending intent or remaining reverse step. It binds the
+validated #81 result, both independent audit completions, current head, nonce
+B, approved identity set, audit-specific identity bindings, distinct audit
+processes, and exact 300-second windows. One minimal freshness observation is
+followed only by one `CUTOVER_SUCCESS` journal append. No host mutation or
+second invocation is permitted.
+
+## Issue #83 full R2 synthetic verification and obsolete-path contraction
+
+The only R2 verification entry is the fixed, no-argument
+`scripts/verify_r2_synthetic_topology.py`. It owns one fresh physical NTFS
+sandbox and reports only fixed status, deterministic fingerprints, and
+allowlisted aggregate counts. It cannot accept a root, path, Profile, journal,
+target, command, force, retry, cleanup, provider, mailbox, vault, private-data,
+or real authorization input.
+
+The Windows run proves the complete preflight-through-final-seal topology in
+that one sandbox: three distinct TTY process types, four distinct authorization
+domains, nine Project Container zones, one repository with exactly eleven
+reviewed worktrees, four independent managed units, Start A with one
+`rule_fallback` result and one row, stopped audit, Start B with no analysis or
+write, final-running audit, and one terminal `CUTOVER_SUCCESS`. The fixed
+seven-semantics by two-directions by five-gaps matrix executes 70 distinct
+fresh subscopes. Portable tests validate only contracts and fingerprints and
+make no NTFS, ACL, TTY, or process-isolation claim.
+
+Architecture guards make obsolete batched managed publication, stale R1
+verification, an in-process operator substitute, self-certified audit, and a
+legacy R2 success path unreachable. The accepted prototype fingerprint remains
+non-authorizing feasibility prior art only. Fresh criteria, matrix, script,
+bundle, complete R2 surface, and package fingerprints are required for this
+evidence and authorize neither Issue #39 nor any real-host operation.
+
 ## Security review checklist
 
 - [ ] Values remain pathless, immutable, repr-redacted, and content-free.

@@ -1,0 +1,86 @@
+"""Synthetic-only binder for the public preflight process seam."""
+
+from __future__ import annotations
+
+from backend.cutover_composition_contracts import ApprovedCutoverBindingV1
+from backend.cutover_composition_contracts.canonical import fingerprint
+from backend.cutover_contracts import CutoverProfileV1
+from .entry import run_authorization_gate
+
+
+class SyntheticPreflightProcess:
+    __slots__ = (
+        "_binding",
+        "_claimed",
+        "_key",
+        "_now",
+        "_operation",
+        "_profile",
+        "reader_acquisitions",
+    )
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        raise TypeError("SyntheticPreflightProcess requires create()")
+
+    @classmethod
+    def create(
+        cls,
+        *,
+        profile: CutoverProfileV1,
+        binding: ApprovedCutoverBindingV1,
+        operation_fingerprint: str,
+        verification_public_key: bytes,
+        observed_at_epoch,
+    ) -> SyntheticPreflightProcess:
+        _require_context(
+            profile,
+            binding,
+            operation_fingerprint,
+            verification_public_key,
+            observed_at_epoch,
+        )
+        value = object.__new__(cls)
+        value._profile = profile
+        value._binding = binding
+        value._operation = operation_fingerprint
+        value._key = verification_public_key
+        value._now = observed_at_epoch
+        value._claimed = set()
+        value.reader_acquisitions = 0
+        return value
+
+    def run(self, *, argv: object, terminal: object):
+        return run_authorization_gate(
+            argv=argv,
+            terminal=terminal,
+            profile=self._profile,
+            operation_fingerprint=self._operation,
+            verification_public_key=self._key,
+            observed_at_epoch=self._now,
+            claim_nonce=self._claim_nonce,
+        )
+
+    def _claim_nonce(self, nonce: str) -> bool:
+        if nonce in self._claimed:
+            return False
+        self._claimed.add(nonce)
+        return True
+
+
+def _require_context(profile, binding, operation, key, now) -> None:
+    master = fingerprint(
+        "project-container-governing-master-v1",
+        profile.governing_master_commit,
+    )
+    if (
+        type(profile) is not CutoverProfileV1
+        or type(binding) is not ApprovedCutoverBindingV1
+        or binding.profile_fingerprint != profile.profile_fingerprint
+        or binding.governing_master_fingerprint != master
+        or binding.operator_fingerprint != profile.operator_fingerprint
+        or binding.operation_fingerprint != operation
+        or type(key) is not bytes
+        or len(key) != 32
+        or not callable(now)
+    ):
+        raise ValueError("R2_PREFLIGHT_SYNTHETIC_BINDING_INVALID")

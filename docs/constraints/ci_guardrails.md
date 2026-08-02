@@ -262,6 +262,24 @@ content-free output. Passing
 synthetic CI does not authorize real Runtime/SQLite/CRX/Config/service/browser
 work, Issues #58/#59, Issues #38/#39, merge, or parent Spec closure.
 
+### Issue #83 complete R2 synthetic verification gate
+
+Every platform runs the pure verification-contract, obsolete-surface,
+architecture, semantic-matrix, documentation, leakage, and status-generator
+tests. Windows additionally runs
+`python -B scripts/verify_r2_synthetic_topology.py` and the full-topology test.
+The run must report one fresh NTFS sandbox, three fixed real-TTY process types,
+four authorization domains, nine zones, one repository, eleven worktrees, four
+managed units, two independent audit processes, all 70 semantic gap cases,
+one rule result, one persisted row, zero provider attempts, zero public
+leakage, zero real-host operations, and terminal `CUTOVER_SUCCESS`.
+
+The gate must emit fresh distinct criteria, matrix, script, bundle, R2-surface,
+and package SHA-256 fingerprints. The prototype fingerprint is prior art only.
+Portable success makes no NTFS, ACL, TTY, process-isolation, or native-
+durability claim. Synthetic success does not authorize Issue #39, any real
+command, #38/#50 approval, merge, push, or a real host operation.
+
 ## 5. 失败处理原则
 
 如果 CI 失败，Agent 必须先阅读失败信息。  

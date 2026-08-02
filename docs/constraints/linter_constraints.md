@@ -953,6 +953,217 @@ barred from claiming
 NTFS or Windows ACL proof. Leakage tests cover receipt/chain JSON and repr,
 fixed exceptions, stdout, stderr, and logs.
 
+## Issue #70 static contract rules
+
+Static tests extend the exact `backend/cutover_composition_contracts` file
+allowlist with only `approved_binding.py`, `r2_types.py`, and `r2_receipt.py`.
+Focused behavior pins canonical round trips, duplicate/unknown-field rejection,
+Profile-derived immutable binding, four nominal authorization domains, separate
+managed PREPARE/PUBLISH boundaries, quiescence/audit/two-start/recovery vocabulary,
+the exact pending-effect tri-state, exact terminal outcomes, content-free receipt
+fields, and the absence of any receipt-to-authorization relationship.
+
+The existing Issue #59 root export, import-isolation, public-signature,
+consumer, dynamic-capability, real-lock, Windows-gating, and leakage guards remain
+unchanged. Adding these pure contract files does not authorize a process, host
+adapter, signer, issuer, path selector, or executable test binder.
+
+## Issue #71 static process and authorization rules
+
+Static checks pin the dedicated preflight package, exact six-verb mapping,
+one-argument command signature, fixed acknowledgement and result fields, and
+the absence of an option parser, umbrella selector, arbitrary subprocess,
+shell, PowerShell, filesystem selector, environment authorization reader, or
+authorization-file reader. The executable root must not import the future
+evidence or transaction roots, and normal runtime, frontend, scripts, cleanup,
+scheduler, and workflows must not consume it.
+
+The shared operator-envelope package may import only canonical helpers, pure
+cutover authorization contracts, base64, and the pinned Ed25519 public
+verifier. Static guards reject private-key imports, signing or key-generation
+calls, durable authorization storage, key files, issuer code, network/provider/
+mailbox/vault/private-store consumers, and dynamic loading. The preflight
+consumer is allowlisted explicitly in the cutover-contract architecture guard.
+
+Focused tests pin wrong/extra argv rejection before TTY access, all three TTY
+checks before acknowledgement, exact acknowledgement before one bounded hidden
+read, canonical signature and domain validation, binding/lifetime drift,
+single-use replay, cross-domain rejection, fixed public fields, redirected
+stream rejection, and the unchanged pre-#39 lock. Only the win32-gated fresh
+console test may claim real TTY evidence; portable tests make no such claim.
+
+## Issue #72 static evidence-process rules
+
+Static guards pin the exact evidence package file set, the sole `publish` verb,
+its one-argument signature, evidence-specific acknowledgement, fixed result
+fields, and disjoint imports from preflight, transaction, and the verifier.
+They reject target/source/path/Profile/review/journal/recovery/force selectors,
+option parsers, arbitrary subprocess or filesystem calls, environment/file
+authorization ingress, signing code, and any normal-runtime synthetic-binder
+consumer.
+
+Behavior tests require domain/type/operation agreement, confirmed-review
+agreement, expiry and replay rejection before capability acquisition,
+create-only one-shot publication, fixed public counts, redirected stream
+rejection, and the unchanged real lock. The only real-TTY and OS-process claim
+comes from the win32-gated fresh-console test; portable cases remain pure
+contract and injected-callback evidence.
+
+## Issue #73 static transaction-process rules
+
+Static guards pin the exact third package and its `execute`, `resume`, and
+`rollback` verbs, reject all path/Profile/journal/recovery-target/force/shell/
+PowerShell/Git inputs, and prove no preflight/evidence root import or normal
+synthetic-binder consumer exists. The signed context must name approved
+binding, owner, current head, remaining plan, boundary epoch, and crash nonce.
+
+Behavior tests cover execution/recovery domain separation, wrong phase,
+head/plan/clock drift, expiry, envelope replay, crash-nonce reuse, exactly one
+action acquisition, fixed public counts, redirected streams, fresh-console
+process execution, and the unchanged pre-#39 real lock.
+
+## Issue #74 static main-publication rules
+
+Static guards pin the absence of a real entry, argv, subprocess, shell,
+PowerShell, copy, replace, delete, cleanup, and any import from the three
+operator roots. They permit the existing cutover contract, journal, and host
+mutation packages only through exact reviewed files and keep the new testing
+binder out of normal consumers.
+
+AST inspection permits exactly one native DACL setter. Its Owner, Group, and
+final arguments must be literal null values; source text may not name a
+system-audit ACL information constant, named/tree security setter, or command
+ACL tool. Backend module and function size checks continue to apply.
+
+Behavior checks pin nominal construction, repr redaction, double-stable and
+short-lived single-use readiness, closed restart/gap vocabularies, inherited
+projection provenance, detection of preserved same-volume descriptors,
+authoritative whole-tree conformance, exact Owner/Group equality, committed
+`MAIN_PUBLISHED`, all 45 physical boundary/gap combinations, no-replace exact
+rollback, collision incident stop, reparse rejection, and the unchanged real
+operator locks.
+
+## Issue #75 static manifest/worktree rules
+
+Static guards allow the new package to consume only exact reviewed files from
+the cutover host-mutation and repository-transaction packages. They reject an
+executable entry, operator-process imports, subprocess, shell, arbitrary Git,
+clone/copy/fetch/history-rewrite/stash/prune/repair/remove/delete/replace
+markers, dynamic import, and any normal-runtime consumer. Existing #51/#52/#55/
+#56 consumer allowlists are extended only for the named test-binder modules.
+
+Contract tests pin the three positive manifest categories and closed directional
+boundary/gap vocabulary. Windows behavior tests require exact selected/residue
+partitioning, whole-versus-mixed directory handling, one Repository Root,
+exactly eleven outside-root linked worktrees, preserved original physical/admin
+identities, forward and reverse durable facts, failed-Container preservation,
+all five crash gaps at manifest/worktree endpoints, resumable reverse gaps, and
+the sole terminal reverse status `LEGACY_FLAT_LAYOUT_RESTORED`.
+
+## Issue #76 static quiescence/database rules
+
+Static guards pin the closed pathless exports, absence of a real entry and
+normal-runtime consumer, exact four sidecar checkpoint names, and nominal
+non-constructible stopped receipt and copy lease. They reject subprocess,
+shell, PowerShell, SQLite checkpoint/truncation, cleanup/deletion, and adjacent
+mail/private capabilities. Native inspection requires `FILE_SHARE_READ` and
+forbids write/delete sharing constants. Backend module and function size limits
+continue to apply.
+
+## Issue #77 static Runtime-unit rules
+
+Static guards pin the closed pathless exports and exact allowlist of reused #57
+modules. They reject `pip check` as a second authority, network/index/cache,
+system-Python/user-site/legacy-environment fallbacks, retry, cleanup, replace,
+arbitrary process inputs, real entries, and normal-runtime test-binder
+consumers. Module/function size rules continue to apply. Behavior tests cover
+all eight PREPARE/PUBLISH gaps plus collision, source/dependency drift, reparse,
+self-verification failure, content-free classifications, and exact recovery.
+
+## Issue #78 static CRX-unit rules
+
+Static guards pin the closed pathless package exports and its single reviewed
+native-handle dependency. They reject archive/build, browser/profile,
+signing/private-key, installer/loader, subprocess/shell, arbitrary entry,
+overwrite, deletion, replacement, cleanup, and normal-runtime binder
+consumers. Behavior tests pin exact CRX format/size/hash/identity, handle-held
+write/delete denial, the durable four-fact chains, tri-state recovery, pending-
+generation rejection, all crash gaps, and retained failure states.
+
+## Issue #79 static Config-unit rules
+
+Static guards pin the exact pathless exports and three reviewed dependencies:
+the Managed Config builder, Managed settings reader, and fixed native handle.
+They reject environment/`getenv`, dotenv loading, registry, clipboard,
+credential/keyring/getpass, legacy Config, direct secret assignment,
+subprocess/shell, arbitrary entry, replacement, deletion, cleanup, and normal-
+runtime test-binder consumers. Behavior tests pin the exact two-line UTF-8/LF
+document, hostile-environment independence, loader reconstruction, four-fact
+journal boundaries, tri-state recovery, all gaps, and retained faults.
+
+## Issue #80 static independent-audit rules
+
+Static guards pin the five-file pathless package, exact nominal receipt
+issuance inside the single-use sink, and absence of any transaction or normal-
+runtime consumer. They reject path and arbitrary I/O capabilities, receipt
+construction in the process, serialization/reset surfaces, subprocess/network,
+provider, mailbox, vault, private-knowledge, migration-evidence, registry,
+clipboard, credential, and database access. Behavior tests pin distinct fresh
+process IDs, exact kind binding, one append, 300-second freshness, replay and
+sink-swap incident stops, deterministic rollback classification, and complete
+fresh invocation after expiry. Module/function size rules continue to apply.
+
+## Issue #81 static validation-lifecycle rules
+
+Static guards pin the four-file dormant package, exact approved-slice imports,
+single-use eleven-boundary order, provider-disabled identities, and absence of
+normal-runtime consumers or a real entry. They reject subprocess, SQLite,
+filesystem, environment, network, provider, mailbox, vault, private-data,
+arbitrary command, and cleanup capabilities in production modules. Behavior
+tests pin exactly one `rule_fallback` result, one confirmation, one database
+write/row, exact stop and final database proof, two distinct service starts,
+two distinct fresh audit processes, no Start B analysis/write, and all 33
+boundary fault classifications. Module/function size rules continue to apply.
+
+## Issue #82 static cross-stage recovery rules
+
+Static guards pin the four-file dormant package, the read-only inspection
+method, fixed seven-boundary reverse order, exact five-callback adapter, no-
+cleanup result, and #80/#81 contract dependencies. They reject subprocess,
+filesystem, SQLite, environment, network, arbitrary journal, delete/replace/
+cleanup, real entry, provider, mailbox, vault, and private-data capabilities.
+
+Behavior tests pin double-read tri-state classification for pending and
+committed facts, receipt predecessor/head validation, failed-Container-first
+order, exact fresh authority and unique crash nonce at each boundary, skipped
+already-observed reverse effects, all reverse crash positions, failed legacy
+recovery incident-stop, sole rollback success status, audit/head/nonce/identity
+freshness, one `CUTOVER_SUCCESS` append, zero final host mutations, and single-
+use invocation. Module/function size rules continue to apply.
+
+## Issue #83 static full-verification rules
+
+Static guards pin the exact three-file `backend.r2_verification_evidence`
+package, the fixed 70-case vocabulary, closed bundle fields, six distinct
+fingerprints, and the no-argument verifier entry. They reject argv selectors,
+external roots, environment authority, arbitrary commands, network/provider/
+mailbox/vault/private-data access, cleanup/delete/replace, dynamic imports,
+normal-runtime consumers, and public output beyond fixed status, hashes, and
+allowlisted counts.
+
+Obsolete-surface tests recursively reject R2 reachability of batched managed
+publication, stale R1 verification, in-process-only operator substitution,
+self-certified audit receipts, and any legacy R2 success terminal. Windows
+behavior tests own every sandbox and require real TTY channels, distinct
+test-worker success proofs, separately locked production entries, quiescence
+before operational mutation, distinct service/audit processes, exact registered
+nominal receipts, complete canonical receipt mappings, pre-lifecycle
+predecessor/head recomputation, durable final-head re-observation, and transitive
+hashing of every local verifier input. The
+70-case count must be returned by executed semantic dispatch, never a verifier
+literal. Portable tests explicitly make no native evidence claim. Existing
+module/function bounds continue to apply.
+
 ## 14. 修改规则
 
 如果新增或修改 linter 规则，必须同步更新：
