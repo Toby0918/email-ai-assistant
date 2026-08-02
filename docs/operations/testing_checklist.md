@@ -8,6 +8,21 @@ source_type: operation_guide
 
 # 测试检查清单
 
+## Issue #87 production binding V2 checks
+
+Run `tests/test_r2_production_binding_contracts.py` and
+`tests/test_r2_production_binding_architecture.py`. They must prove the exact
+final-master-derived binding, ten commands, four authority domains, four
+operator roles, four public-key roles, eighteen production roles, canonical
+round-trip, durable claim freshness/order/head binding, fresh-process replay
+rejection, pure imports, exact exports, and the absence of private signing or
+operational capability.
+
+```powershell
+python -m unittest tests.test_r2_production_binding_contracts
+python -m unittest tests.test_r2_production_binding_architecture
+```
+
 ## Issue #86 final-master closure checks
 
 Run the two focused public-seam suites before any downstream closure ticket:

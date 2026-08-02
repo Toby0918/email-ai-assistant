@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-29
+last_update: 2026-08-02
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -7,6 +7,22 @@ source_type: operation_guide
 ---
 
 # Mechanical Rule Translation
+
+## Issue #87 reviewed production binding V2 rules
+
+1. Assert the exact ten command verbs map to exactly four authority domains and
+   that no unknown command/domain is constructible.
+2. Assert the exact operator, public verification-key, and production-role
+   registries are complete, unique, canonical, and bound to one exact final
+   master.
+3. Reject every private signing key, signer, issuer, path, callback, host,
+   process, filesystem, database, or network surface in the pure package.
+4. Reconstruct the durable claim ledger from canonical values in a fresh
+   process and reject missing sequence, wrong prior head, replayed authority or
+   envelope nonce, stale validity, and mixed binding.
+5. Treat binding and claim values as content-free contract facts only; later
+   journal composition must perform atomic persistence before any capability is
+   reachable.
 
 本文件定义如何把人工 code review 中反复出现的主观要求，翻译成可执行、可检测、可由 CI 阻止的机械规则。
 

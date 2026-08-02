@@ -8,6 +8,18 @@ source_type: operation_guide
 
 # Static Linter Constraints
 
+## R2 production binding V2 guards
+
+- The V2 binding package may import only the standard library and the pure
+  final-master closure package.
+- It must not contain private-key construction, signing, filesystem, database,
+  process, network, provider, mailbox, vault, or host capability.
+- Public signatures must not accept paths, shell commands, adapters, callbacks,
+  private keys, secrets, environment values, or arbitrary authority issuers.
+- A durable single-use authority claim must bind the exact prior journal head,
+  sequence, command/domain, operator/key roles, action nonce, and envelope
+  nonce; process-local claimed sets are forbidden.
+
 本文件定义项目的自定义静态检查规则。  
 它的目的不是替代单元测试，而是把容易被 Agent 忽略的工程边界变成可执行检查。
 

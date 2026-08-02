@@ -8,6 +8,19 @@ source_type: operation_guide
 
 # 项目结构
 
+## Issue #87 reviewed production binding
+
+- `backend/r2_production_binding/`: pure reviewed V2 binding and authority
+  vocabulary. It fixes the final master, operation, command/domain map,
+  operator-role fingerprints, public verification keys, and production-role
+  registry without exposing private signing or operational capability.
+- `DurableAuthorityClaimV2`: canonical journal-bound single-use claim value for
+  later persistence and fresh-process reconstruction.
+- `tests/test_r2_production_binding_contracts.py`: public-seam binding,
+  vocabulary, canonical round-trip, freshness, ordering, and replay tests.
+- `tests/test_r2_production_binding_architecture.py`: exact exports, purity,
+  authority separation, public-signature, and normative-document guards.
+
 ## Issue #86 final-master closure contracts
 
 - `backend/r2_final_master_closure/`: pure content-free deep module for the

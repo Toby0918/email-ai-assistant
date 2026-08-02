@@ -8,6 +8,28 @@ source_type: security_policy
 
 # Project Container cutover contract security boundary
 
+## Issue #87 reviewed production binding V2
+
+`ApprovedCutoverBindingV2` derives from one exact `FinalMasterBindingV1` and
+binds the fixed cutover operation, the four authority domains, all ten command
+verbs, the four operator roles, the four public verification-key roles, and
+the complete eighteen-role production registry. Missing roles, extra roles,
+mixed final-master values, duplicate fingerprints, noncanonical JSON, or an
+unknown command/domain assignment fail with fixed content-free errors.
+
+The binding contains verification material only: it has no private signing keys,
+signing methods, issuer capability, path, command runner, host adapter,
+or environment input in `backend.r2_production_binding`. A public-key role or
+binding fingerprint is not authority to run a production operation.
+
+`DurableAuthorityClaimV2` records the exact binding, command, authority domain,
+operator/key roles, action and envelope nonces, prior journal head, sequence,
+and bounded freshness window. `validate_new_authority_claim(...)` reconstructs
+all durable prior claims and rejects stale, replayed, reordered, wrong-head, or
+mixed-binding claims. The contract is pure; a later unified journal owns the
+durable append and atomic single-use boundary. The claim is evidence of that
+append decision, not a new authorization issuer.
+
 ## Issue #86 finite final-master closure contract
 
 `backend.r2_final_master_closure` fixes exactly eight closure gaps in one

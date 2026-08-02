@@ -8,6 +8,21 @@ source_type: operation_guide
 
 # Executable Architecture Constraints
 
+## Issue #87 production-binding boundary
+
+`backend/r2_production_binding` is a pure deep module layered only on the
+standard library and `backend.r2_final_master_closure`. Its public interface is
+the reviewed V2 binding, the four closed authority vocabularies, and a durable
+authority-claim validator. It has no filesystem, SQLite, network, process,
+clock, randomness, private-key, signing, provider, mailbox, vault, or host
+capability.
+
+Every authority claim carries its exact prior journal-head fingerprint and
+sequence. Validation performs fresh-process reconstruction from immutable
+durable claim values; process-local claimed sets or object identity cannot
+establish single use. Persistence and atomic append belong to the later unified
+journal composition, not this package.
+
 本文件定义本项目的可执行架构约束。这些约束不是普通建议，而是应通过测试或 CI 自动检查的工程边界。
 
 本项目采用以下结构：
