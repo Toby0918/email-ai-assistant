@@ -62,10 +62,16 @@ class SyntheticManagedActivationScenario:
         self.owner.cleanup()
 
 
-def build_runtime_scenario() -> SyntheticManagedActivationScenario:
+def build_runtime_scenario(
+    directory: Path | None = None,
+) -> SyntheticManagedActivationScenario:
     owner = tempfile.TemporaryDirectory(
         prefix="issue57-synthetic-",
-        dir=Path(sys._base_executable).anchor,
+        dir=(
+            str(directory)
+            if directory is not None
+            else Path(sys._base_executable).anchor
+        ),
     )
     root = Path(owner.name)
     marker = root / ".codex-managed-activation-test-sandbox"

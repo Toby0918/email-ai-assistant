@@ -79,7 +79,7 @@ def _run_operator(workdir=None) -> dict[str, object]:
             str(python),
             "-B",
             "-m",
-            "tests.r2_preflight_process_worker",
+            "backend.r2_preflight_process",
             "current-topology",
         ),
         cwd=workdir,

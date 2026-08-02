@@ -16,6 +16,7 @@ class RepositoryContentManifestV1:
     selected_unit_count: int
     skeleton_count: int
     retained_residue_count: int
+    inventory_fingerprint: str = field(repr=False)
     complete: bool
     content_observed: bool
     manifest_fingerprint: str = field(repr=False)
@@ -44,7 +45,7 @@ class RepositoryTopologyReceiptV1:
         raise TypeError("validated repository topology receipt required")
 
 
-def build_manifest(*, items, skeleton_count: int, residue_count: int):
+def build_manifest(*, items, inventory, skeleton_count: int, residue_count: int):
     categories = tuple(item.category for item in items)
     body = {
         "schema_version": 1,
@@ -54,6 +55,9 @@ def build_manifest(*, items, skeleton_count: int, residue_count: int):
         "selected_unit_count": len(items),
         "skeleton_count": skeleton_count,
         "retained_residue_count": residue_count,
+        "inventory_fingerprint": fingerprint(
+            "repository-content-inventory-v1", tuple(inventory)
+        ),
         "complete": True,
         "content_observed": False,
         "items": [item.contract_mapping() for item in items],
@@ -124,6 +128,7 @@ def _valid_manifest_body(body: dict[str, object]) -> bool:
         and body["skeleton_count"] >= 0
         and type(body["retained_residue_count"]) is int
         and body["retained_residue_count"] >= 1
+        and is_fingerprint(body["inventory_fingerprint"])
     )
 
 

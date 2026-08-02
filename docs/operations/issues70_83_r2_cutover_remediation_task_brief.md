@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-01
+last_update: 2026-08-02
 status: active
 owner: "@tobyWang"
 review_cycle: as_needed
@@ -164,7 +164,7 @@ Not applicable.
 
 ```text
 实际修改文件：
-- Issues #70-#82: fourteen independently committed dormant production slices,
+- Issues #70-#82: thirteen independently committed dormant production slices,
   their focused synthetic/Windows/architecture tests, and synchronized
   security/tooling/architecture/linter contracts.
 - Issue #83: `backend/r2_verification_evidence/`, fixed synthetic verifier and
@@ -177,16 +177,26 @@ Not applicable.
   70 semantic gaps, 11 worktrees, 4 managed units, 4 authorization domains,
   3 real-TTY process types, 2 independent audits, and zero provider attempts,
   leakage findings, or real-host operations.
-- Issue #83 focused/constraint set: 141 passed.
-- Complete R2 affected suite: 152 passed.
-- Final full suite: ran 2546, `OK (skipped=3)`.
-- Final status/architecture/static/mechanical/leakage gate: 128 passed.
-- Maintenance: 14 pre-existing low `stale_doc` findings, zero high findings.
+- Final evidence fingerprints: criteria
+  `66231770c6d8285f82fae279ce545ef9b60d65d6a398a4a84070e6837a697af7`,
+  surface `1f9608611e2454869792dfb4956c074a4d28d7b7e1136fae14970fa2435c9bd6`,
+  and package
+  `ae741bdd012bea76e2037b32a137ac26b8d96c79bcc734e8634f2095f97d55bc`.
+- Final actual-gate/evidence focused set: 26 passed.
+- Complete R2 affected suite: 163 passed in 686.776 seconds.
+- Final full suite: ran 2557 in 2470.624 seconds, `OK (skipped=3)`.
+- Architecture, static, mechanical, status, diff, and exact
+  consumer-allowlist gates passed on the final bytes.
+- Maintenance: 18 pre-existing low `stale_doc` findings, zero high findings.
 - Repository leakage scan: passed with zero findings.
 
 未完成事项：
-- No implementation item remains in #70-#83. Standards/Spec dual review and
-  any required P1/P2 repair remain the delivery review gate before handoff.
+- The initial Standards/Spec dual review found authorization-gate, audit
+  provenance, real-process lifecycle, durable-head, exact-manifest, semantic
+  matrix, transitive-surface, physical-topology, quiescence-order, durable
+  receipt, semantic-effect, and actual fresh-gate gaps. Those P1/P2 findings
+  were repaired. Final Standards and Spec re-reviews are both `CLEAN`.
+- No required work remains inside the authorized #70-#83 implementation slice.
 
 后续建议：
 - Re-review Issue #38 against the final merged master in a separate approval task. Do not start #39 from this work.

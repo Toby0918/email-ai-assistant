@@ -118,6 +118,47 @@ class R2CrossStageRecoveryTests(unittest.TestCase):
         self.assertIs(result.status, CrossStageStatus.INCIDENT_STOP)
         self.assertEqual(adapters.mutations, 0)
 
+    def test_duplicate_boundary_intents_are_rejected_before_recovery(self):
+        boundary = RecoveryBoundary.RESTORE_DATABASE
+        first = PendingIntentV1.create(
+            direction="forward",
+            boundary=boundary,
+            intent_fingerprint=opaque_fingerprint(8311),
+        )
+        duplicate = PendingIntentV1.create(
+            direction="committed",
+            boundary=boundary,
+            intent_fingerprint=opaque_fingerprint(8312),
+        )
+        with self.assertRaisesRegex(ValueError, "R2_RESTART_SNAPSHOT_INVALID"):
+            snapshot(
+                pending=(first, duplicate),
+                remaining=(boundary,),
+            )
+
+    def test_reverse_effect_must_advance_the_durable_head(self):
+        adapters = RecoveryAdapters()
+        original = adapters.reverse
+
+        def stale_head(boundary, authority):
+            value = original(boundary, authority)
+            adapters.head = value.prior_head_fingerprint
+            from backend.r2_cross_stage_recovery import ReverseEffectEvidenceV1
+            return ReverseEffectEvidenceV1.create(
+                boundary=boundary,
+                prior_head_fingerprint=value.prior_head_fingerprint,
+                journal_head_fingerprint=value.prior_head_fingerprint,
+                effect_fingerprint=value.effect_fingerprint,
+                retained_new_objects=value.retained_new_objects,
+                cleanup_operations=0,
+            )
+
+        adapters.reverse = stale_head
+        result = self._machine(adapters, snapshot()).recover(adapters.authority)
+        self.assertIs(result.status, CrossStageStatus.INCIDENT_STOP)
+        reverses = [item for item in adapters.calls if item.startswith("reverse:")]
+        self.assertEqual(reverses, ["reverse:preserve_failed_container"])
+
     def test_failed_legacy_recovery_is_an_incident_stop(self):
         adapters = RecoveryAdapters()
         original = adapters.reverse
@@ -156,11 +197,11 @@ class R2CrossStageRecoveryTests(unittest.TestCase):
                 self.assertEqual(result.cleanup_operations, 0)
 
     def test_receipt_predecessor_or_head_drift_incident_stops_before_mutation(self):
-        bad = ReceiptPredecessorLinkV1(
-            receipt_fingerprint=opaque_fingerprint(8330),
-            predecessor_fingerprint=opaque_fingerprint(8331),
-            prior_head_fingerprint=opaque_fingerprint(8332),
-            journal_head_fingerprint=opaque_fingerprint(8333),
+        bad = ReceiptPredecessorLinkV1.create(
+            record_type="PUBLICATION_RECEIPT",
+            material_fingerprint=opaque_fingerprint(8330),
+            predecessor_fingerprint="0" * 64,
+            prior_head_fingerprint="0" * 64,
         )
         adapters = RecoveryAdapters()
         result = self._machine(adapters, snapshot(links=(bad,))).recover(
@@ -168,6 +209,40 @@ class R2CrossStageRecoveryTests(unittest.TestCase):
         )
         self.assertIs(result.status, CrossStageStatus.INCIDENT_STOP)
         self.assertEqual(adapters.mutations, 0)
+
+    def test_single_unanchored_or_tampered_link_is_not_vacuously_valid(self):
+        unanchored = ReceiptPredecessorLinkV1.create(
+            record_type="PUBLICATION_RECEIPT",
+            material_fingerprint=opaque_fingerprint(8340),
+            predecessor_fingerprint=opaque_fingerprint(8341),
+            prior_head_fingerprint=opaque_fingerprint(8342),
+        )
+        valid = snapshot(remaining=()).receipt_links[0]
+        tampered = object.__new__(ReceiptPredecessorLinkV1)
+        for name in (
+            "record_type",
+            "material_fingerprint",
+            "receipt_fingerprint",
+            "predecessor_fingerprint",
+            "prior_head_fingerprint",
+            "journal_head_fingerprint",
+        ):
+            object.__setattr__(tampered, name, getattr(valid, name))
+        object.__setattr__(
+            tampered, "receipt_fingerprint", opaque_fingerprint(8343)
+        )
+        for link, head in (
+            (unanchored, unanchored.journal_head_fingerprint),
+            (tampered, valid.journal_head_fingerprint),
+        ):
+            with self.subTest(link=link):
+                adapters = RecoveryAdapters()
+                result = self._machine(
+                    adapters,
+                    snapshot(links=(link,), remaining=(), head=head),
+                ).inspect()
+                self.assertIs(result.status, CrossStageStatus.INCIDENT_STOP)
+                self.assertEqual(adapters.mutations, 0)
 
     def _machine(self, adapters, value, fault=None):
         return CrossStageRecoveryMachine.create(

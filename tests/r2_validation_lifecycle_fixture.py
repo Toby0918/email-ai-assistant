@@ -38,12 +38,17 @@ from backend.r2_runtime_publication.contracts import (
 from backend.r2_validation_lifecycle import (
     ApprovedValidationSliceV1,
     FinalDatabaseProofV1,
-    IndependentAuditCompletionV1,
     OperatorPublicConfirmationV1,
     PersistedPublicRowEvidenceV1,
     PublicRuleFallbackResultV1,
     ValidationAdaptersV1,
 )
+from backend.r2_cross_stage_recovery import (
+    INITIAL_JOURNAL_HEAD_FINGERPRINT,
+    INITIAL_RECEIPT_FINGERPRINT,
+    ReceiptPredecessorLinkV1,
+)
+from backend.r2_independent_audits.testing import issue_verified_test_receipt
 from tests.cutover_contract_fixtures import opaque_fingerprint
 
 
@@ -51,7 +56,14 @@ NOW = 1_900_000_000
 OPERATION = opaque_fingerprint(8100)
 PROFILE = opaque_fingerprint(8101)
 AUTHORIZATION = opaque_fingerprint(8102)
-HEAD = opaque_fingerprint(8103)
+PUBLICATION_MATERIAL = opaque_fingerprint(8103)
+_PUBLICATION_LINK = ReceiptPredecessorLinkV1.create(
+    record_type="PUBLICATION_RECEIPT",
+    material_fingerprint=PUBLICATION_MATERIAL,
+    predecessor_fingerprint=INITIAL_RECEIPT_FINGERPRINT,
+    prior_head_fingerprint=INITIAL_JOURNAL_HEAD_FINGERPRINT,
+)
+HEAD = _PUBLICATION_LINK.journal_head_fingerprint
 IDENTITIES = opaque_fingerprint(8104)
 EVIDENCE = opaque_fingerprint(8105)
 DATABASE_ROLE = opaque_fingerprint(8106)
@@ -95,6 +107,7 @@ def approved_slice() -> ApprovedValidationSliceV1:
     database = DatabaseTransactionResultV1(
         DatabaseTransactionStatus.PUBLISHED,
         DATABASE_ROLE,
+        opaque_fingerprint(8118),
         2,
         0,
         0,
@@ -102,7 +115,7 @@ def approved_slice() -> ApprovedValidationSliceV1:
     repository = repository_receipt(
         status="REPOSITORY_TOPOLOGY_PUBLISHED",
         manifest_fingerprint=opaque_fingerprint(8117),
-        journal_head_fingerprint=HEAD,
+        journal_head_fingerprint=opaque_fingerprint(8109),
         retained_residue_count=2,
     )
     return ApprovedValidationSliceV1.create(
@@ -111,6 +124,7 @@ def approved_slice() -> ApprovedValidationSliceV1:
         authorization_fingerprint=AUTHORIZATION,
         evidence=evidence_result(EvidenceProcessStatus.PUBLISHED),
         evidence_fingerprint=EVIDENCE,
+        journal_head_fingerprint=HEAD,
         repository=repository,
         runtime=runtime,
         crx=crx,
@@ -221,17 +235,11 @@ class SyntheticValidationAdapters:
 
     def audit(self, request):
         self.calls.append(f"audit_{request.audit_kind.value}")
-        return IndependentAuditCompletionV1.create(
-            audit_kind=request.audit_kind,
-            audit_process_id=next(self.audit_pids),
-            service_nonce=request.service_nonce,
-            service_process_id=request.service_process_id,
+        return issue_verified_test_receipt(
+            kind=request.audit_kind,
+            process_id=next(self.audit_pids),
             journal_head_fingerprint=request.journal_head_fingerprint,
-            approved_identities_fingerprint=(
-                request.approved_identities_fingerprint
-            ),
+            approved_identities_fingerprint=request.approved_identities_fingerprint,
             health_evidence_fingerprint=request.health_evidence_fingerprint,
             observed_at_epoch=NOW,
-            expires_at_epoch=NOW + 300,
-            attested=True,
         )

@@ -7,24 +7,14 @@ from backend.cutover_composition_contracts import (
     UNBOUND_FINGERPRINT,
 )
 from backend.cutover_composition_contracts.canonical import is_fingerprint
-from backend.cutover_contracts import (
-    CutoverExecutionAuthorizationV1,
-    CutoverProfileV1,
-    RecoveryAuthorizationV1,
-)
-from backend.r2_operator_process import (
-    AuthorizationEnvelopeDomain,
-    AuthorizationEnvelopeReplay,
-    decode_authorization_envelope_context,
-    verify_authorization_envelope,
-)
+from backend.cutover_contracts import CutoverProfileV1
 
 from .contracts import (
-    TRANSACTION_ACKNOWLEDGEMENT,
     TRANSACTION_VERBS,
     TransactionProcessStatus,
     result,
 )
+from .entry import run_authorization_gate
 
 
 class SyntheticTransactionProcess:
@@ -74,52 +64,23 @@ class SyntheticTransactionProcess:
         return process
 
     def run(self, *, argv: object, terminal: object):
-        if (
-            type(argv) is not tuple
-            or len(argv) != 1
-            or argv[0] not in TRANSACTION_VERBS
-        ):
-            return result(TransactionProcessStatus.BLOCKED_COMMAND)
-        if _tty_state(terminal) != (True, True, True):
-            return result(TransactionProcessStatus.BLOCKED_TTY)
-        try:
-            acknowledgement = terminal.read_acknowledgement()
-        except Exception:
-            return result(TransactionProcessStatus.BLOCKED_ACKNOWLEDGEMENT)
-        if acknowledgement != TRANSACTION_ACKNOWLEDGEMENT:
-            return result(TransactionProcessStatus.BLOCKED_ACKNOWLEDGEMENT)
-        return self._authorize(argv[0], terminal)
-
-    def _authorize(self, verb, terminal):
-        try:
-            envelope = terminal.read_hidden_envelope(65_536)
-            if type(envelope) is not str or not 1 <= len(envelope) <= 65_536:
-                return result(TransactionProcessStatus.BLOCKED_ENVELOPE)
-            context = decode_authorization_envelope_context(envelope)
-            expected = self._expected_context(verb, context)
-            domain, kind, operation, key = self._authorization_spec(verb)
-            verify_authorization_envelope(
-                envelope,
-                expected_domain=domain,
-                verification_public_key=key,
-                profile=self._profile,
-                operation_fingerprint=self._operation,
-                expected_phase=verb,
-                observed_at_epoch=self._now(),
-                claim_nonce=self._claim_envelope,
-                authorization_type=kind,
-                expected_operation=operation,
-                expected_context=expected,
-            )
-            if not self._claim_crash_nonce(context["crash_nonce"]):
-                raise AuthorizationEnvelopeReplay
-        except AuthorizationEnvelopeReplay:
-            return result(TransactionProcessStatus.BLOCKED_REPLAY)
-        except Exception:
-            return result(TransactionProcessStatus.BLOCKED_AUTHORIZATION)
+        authorized = run_authorization_gate(
+            argv=argv,
+            terminal=terminal,
+            profile=self._profile,
+            operation_fingerprint=self._operation,
+            execution_public_key=self._execution_key,
+            recovery_public_key=self._recovery_key,
+            observed_at_epoch=self._now,
+            claim_nonce=self._claim_envelope,
+            claim_crash_nonce=self._claim_crash_nonce,
+            expected_context=self._expected_context,
+        )
+        if authorized.status is not TransactionProcessStatus.BLOCKED_NO_APPROVED_COMMAND:
+            return authorized
         if self._locked:
-            return result(TransactionProcessStatus.BLOCKED_NO_APPROVED_COMMAND)
-        return self._perform(verb)
+            return authorized
+        return self._perform(argv[0])
 
     def _expected_context(self, verb, context):
         crash_nonce = context.get("crash_nonce")
@@ -137,21 +98,6 @@ class SyntheticTransactionProcess:
         if not is_fingerprint(crash_nonce) or context != expected:
             raise ValueError
         return expected
-
-    def _authorization_spec(self, verb):
-        if verb == "rollback":
-            return (
-                AuthorizationEnvelopeDomain.RECOVERY,
-                RecoveryAuthorizationV1,
-                "recovery",
-                self._recovery_key,
-            )
-        return (
-            AuthorizationEnvelopeDomain.EXECUTION,
-            CutoverExecutionAuthorizationV1,
-            "cutover_execution",
-            self._execution_key,
-        )
 
     def _perform(self, verb):
         self.action_acquisitions += 1
@@ -177,14 +123,6 @@ class SyntheticTransactionProcess:
             return False
         self._claimed_crash.add(nonce)
         return True
-
-
-def _tty_state(terminal):
-    try:
-        state = terminal.tty_state()
-    except Exception:
-        return None
-    return state if type(state) is tuple and len(state) == 3 else None
 
 
 def _require_context(values) -> None:

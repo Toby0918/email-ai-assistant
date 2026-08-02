@@ -21,6 +21,9 @@ _FORBIDDEN_APPROVED_PREFIXES = frozenset(
     {"private", "runtime", "database", "logs", "cache"}
 )
 _WORKTREE_ROOT = ".synthetic-worktrees"
+_FIXED_PROJECTION_OBJECTS = frozenset(
+    {"projection-directory", "projection-file.bin"}
+)
 
 
 @dataclass(frozen=True, slots=True, repr=False)
@@ -58,6 +61,7 @@ class BoundRepositoryManifest:
     moves: tuple[ManifestMove, ...] = field(repr=False)
     skeletons: tuple[str, ...] = field(repr=False)
     residue: tuple[ResidueItem, ...] = field(repr=False)
+    inventory: tuple[str, ...] = field(repr=False)
 
 
 def review_manifest(scope, approved_untracked: tuple[str, ...]):
@@ -73,9 +77,13 @@ def review_manifest(scope, approved_untracked: tuple[str, ...]):
         raise ValueError("repository_manifest_review_invalid")
     _require_safe_paths(source, tracked | approved | ignored)
     capture_tree(source)
-    moves, skeletons = _build_moves(source, tracked, approved, ignored)
+    moves, skeletons, whole = _build_moves(
+        source, tracked, approved, ignored
+    )
+    inventory = _selected_inventory(source, tracked | approved, whole)
     manifest = build_manifest(
         items=moves,
+        inventory=inventory,
         skeleton_count=len(skeletons),
         residue_count=len(ignored),
     )
@@ -88,6 +96,7 @@ def review_manifest(scope, approved_untracked: tuple[str, ...]):
             ResidueItem(relative, file_identity(source / relative))
             for relative in sorted(ignored, key=str.casefold)
         ),
+        inventory=inventory,
     )
 
 
@@ -105,7 +114,7 @@ def _build_moves(source, tracked, approved, ignored):
             continue
         category = "approved_untracked" if relative in approved else "tracked"
         values.append(_move(source, relative, category, False, False))
-    return tuple(values), skeletons
+    return tuple(values), skeletons, whole
 
 
 def _move(source, relative, category, directory, complete):
@@ -158,6 +167,24 @@ def _skeletons(selected, whole) -> tuple[str, ...]:
         while str(parent) != ".":
             values.add(parent.as_posix())
             parent = parent.parent
+    return tuple(sorted(values, key=lambda item: (item.count("/"), item.casefold())))
+
+
+def _selected_inventory(source, selected, whole) -> tuple[str, ...]:
+    values = {".git", *_FIXED_PROJECTION_OBJECTS}
+    for relative in selected:
+        path = PurePosixPath(relative)
+        values.add(path.as_posix())
+        parent = path.parent
+        while str(parent) != ".":
+            values.add(parent.as_posix())
+            parent = parent.parent
+    for directory in whole:
+        for raw_root, directories, _files in os.walk(
+            source / directory, followlinks=False
+        ):
+            root = Path(raw_root).relative_to(source)
+            values.update((root / name).as_posix() for name in directories)
     return tuple(sorted(values, key=lambda item: (item.count("/"), item.casefold())))
 
 

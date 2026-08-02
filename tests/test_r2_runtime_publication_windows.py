@@ -73,8 +73,9 @@ class R2RuntimePublicationWindowsTests(unittest.TestCase):
 
 
 class _World:
-    def __init__(self) -> None:
-        self.scenario = build_runtime_scenario()
+    def __init__(self, directory=None, quiescence="a" * 64) -> None:
+        self.scenario = build_runtime_scenario(directory)
+        self.quiescence = quiescence
         self.staging = self.scenario.runtime_target.with_name("managed-runtime.prepare")
         self.target = self.scenario.runtime_target
         self.journal = self.scenario.root / "runtime-unit.journal"
@@ -89,7 +90,7 @@ class _World:
             staging=self.staging,
             target=self.target,
             journal=self.journal,
-            quiescence_receipt_fingerprint="a" * 64,
+            quiescence_receipt_fingerprint=self.quiescence,
         )
         self._transactions.append(value)
         return value

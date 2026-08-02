@@ -32,7 +32,7 @@ from tests.cutover_host_mutation_fixtures import durable_intent
 
 @dataclass(slots=True)
 class MainPublicationScenario:
-    owner: tempfile.TemporaryDirectory[str]
+    owner: tempfile.TemporaryDirectory[str] | None
     root: Path
     marker: Path
     source: Path
@@ -45,18 +45,30 @@ class MainPublicationScenario:
     authorization: TestSandboxAuthorizationV1
 
     def close(self) -> None:
-        self.owner.cleanup()
+        if self.owner is not None:
+            self.owner.cleanup()
 
 
-def build_main_publication_scenario() -> MainPublicationScenario:
-    owner = tempfile.TemporaryDirectory(prefix="issue74-main-publication-")
-    root = Path(owner.name)
+def build_main_publication_scenario(
+    directory: Path | None = None,
+    *,
+    shared_root: Path | None = None,
+) -> MainPublicationScenario:
+    owner = None
+    if shared_root is None:
+        owner = tempfile.TemporaryDirectory(
+            prefix="issue74-main-publication-",
+            dir=str(directory) if directory is not None else None,
+        )
+        root = Path(owner.name)
+    else:
+        root = shared_root
     marker = root / ".codex-cutover-mutation-test-sandbox"
     marker.write_bytes(b"issue74-synthetic-marker-v1")
     source = root / "flat-root"
     _build_selected_tree(source)
     finance = root / "finance-synthetic"
-    finance.mkdir()
+    finance.mkdir(exist_ok=True)
     container = root / "Container"
     policy = AclCompatibilityPolicyV1.create(
         allowed_descriptor_fingerprints=(opaque_fingerprint(740),),

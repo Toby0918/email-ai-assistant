@@ -61,6 +61,10 @@ class R2ValidationLifecycleArchitectureTests(unittest.TestCase):
         needle = "backend.r2_validation_lifecycle"
         approved_recovery = ROOT / "backend" / "r2_cross_stage_recovery"
         approved_verifier = ROOT / "scripts" / "r2_synthetic_topology_support.py"
+        approved_matrix = {
+            ROOT / "scripts" / "r2_semantic_gap_support.py",
+            ROOT / "scripts" / "r2_semantic_owning_effects.py",
+        }
         consumers = []
         for root_name in ("backend", "frontend", "scripts", ".github"):
             root = ROOT / root_name
@@ -71,6 +75,7 @@ class R2ValidationLifecycleArchitectureTests(unittest.TestCase):
                     and PACKAGE not in item.parents
                     and approved_recovery not in item.parents
                     and item != approved_verifier
+                    and item not in approved_matrix
                     and needle in item.read_text(encoding="utf-8")
                 ):
                     consumers.append(item.relative_to(ROOT).as_posix())

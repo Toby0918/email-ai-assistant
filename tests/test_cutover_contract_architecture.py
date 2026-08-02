@@ -121,11 +121,15 @@ ALLOWED_CONSUMERS = {
     },
     "backend/r2_evidence_process/testing.py": {
         "CutoverProfileV1",
+    },
+    "backend/r2_evidence_process/entry.py": {
         "EvidencePublicationAuthorizationV1",
     },
     "backend/r2_transaction_process/testing.py": {
-        "CutoverExecutionAuthorizationV1",
         "CutoverProfileV1",
+    },
+    "backend/r2_transaction_process/entry.py": {
+        "CutoverExecutionAuthorizationV1",
         "RecoveryAuthorizationV1",
     },
     "backend/r2_preflight_process/testing.py": {
@@ -134,6 +138,9 @@ ALLOWED_CONSUMERS = {
     "backend/r2_main_publication/testing.py": {
         "CutoverProfileV1",
         "TestSandboxAuthorizationV1",
+    },
+    "scripts/r2_shared_topology_support.py": {
+        "CutoverProfileV1",
     },
     "backend/cutover_composition_contracts/approved_binding.py": {
         "CutoverProfileV1",

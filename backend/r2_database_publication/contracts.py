@@ -119,6 +119,7 @@ class DatabaseFaultSelectorV1:
 class DatabaseTransactionResultV1:
     status: DatabaseTransactionStatus
     receipt_fingerprint: str = field(repr=False)
+    journal_head_fingerprint: str = field(repr=False)
     lease_read_passes: int
     retained_artifact_count: int
     source_mutations: int

@@ -15,7 +15,13 @@ class R2CrossStageRecoveryArchitectureTests(unittest.TestCase):
     def test_exact_dormant_package_and_cross_stage_contract_dependencies(self):
         self.assertEqual(
             {item.name for item in PACKAGE.glob("*.py")},
-            {"__init__.py", "adapters.py", "contracts.py", "state_machine.py"},
+            {
+                "__init__.py",
+                "adapters.py",
+                "contracts.py",
+                "receipt_links.py",
+                "state_machine.py",
+            },
         )
         source = "\n".join(
             item.read_text(encoding="utf-8") for item in PACKAGE.glob("*.py")

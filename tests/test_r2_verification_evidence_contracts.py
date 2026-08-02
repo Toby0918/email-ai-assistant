@@ -77,12 +77,12 @@ class R2VerificationEvidenceContractTests(unittest.TestCase):
     def test_recorded_fingerprints_match_fresh_verifier_evidence(self):
         evidence = EVIDENCE.read_text(encoding="utf-8")
         expected = (
-            "82f7520f14b7ca6b88f2f5759edbe5c4a78ae1c5f7b346182320b660ad679d34",
+            "66231770c6d8285f82fae279ce545ef9b60d65d6a398a4a84070e6837a697af7",
             "627fa92e43112543f6721da25bea4a509b795f7bd01ec662d6c415c7c5280544",
             "5c595e2413163ba2d502b177775a9bd88a60255f96a84d57803890b6cbb20a8f",
             "5c82158257a4791ee472464f309264c12930fe01d68f243cf41653e8495d9a38",
-            "e6e911e6ead5b8cc4fffd84d22fe03961f64a3e50620050e7fa2066272b57063",
-            "7ef79199a1ca915548f2cbdc056ecb182e16f86c459ee367b5661d337e49f3d2",
+            "1f9608611e2454869792dfb4956c074a4d28d7b7e1136fae14970fa2435c9bd6",
+            "ae741bdd012bea76e2037b32a137ac26b8d96c79bcc734e8634f2095f97d55bc",
         )
         for fingerprint in expected:
             with self.subTest(fingerprint=fingerprint):

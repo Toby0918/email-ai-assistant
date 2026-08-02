@@ -39,6 +39,21 @@ One verifier-owned fresh physical NTFS sandbox must prove:
    without analysis/write, and one final `CUTOVER_SUCCESS` append.
 8. Fixed aggregate output, zero public leakage, zero real-host operation, and
    provider attempts equal to zero.
+9. The three real-TTY success proofs come from fixed test-only workers in the
+   same verifier sandbox. Preflight produces an actual synthetic read-only
+   topology receipt, evidence publishes exactly one create-only artifact, and
+   execute/rollback each complete one synthetic action. Production entries
+   remain separately proven `BLOCKED_NO_APPROVED_COMMAND` and cannot satisfy a
+   success prerequisite.
+10. Exact preflight, evidence, and fresh-gate proof fingerprints are bound into
+    one quiescence prerequisite. The same service controller commits stable
+    quiescence before the #74/#75 operational mutations, and the resulting
+    stopped receipt gates database, Runtime, CRX, and Config publication.
+11. Every publication receipt is durably stored as a type-tagged complete
+    canonical mapping. Before Start A, the verifier must close and re-read the
+    file, validate exact type/schema/status/internal receipt fingerprint, and
+    recompute every receipt/predecessor/prior-head/current-head link. Only the
+    verified terminal head may enter the approved validation slice.
 
 Windows-specific claims are valid only for the Windows-only verifier test.
 Portable contract tests validate vocabulary and hashing only and make no
@@ -50,12 +65,21 @@ The fixed matrix is the Cartesian product of seven semantics (`acl_scan`,
 `staging`, `publication`, `service`, `audit_append`, `recovery`, `final_seal`),
 two directions (`forward`, `reverse`), and five gaps (`before_intent`,
 `after_intent`, `after_effect`, `after_stable_observation`, `after_commit`).
-All 70 cases must execute in distinct fresh test-owned sandboxes.
+All 70 cases must execute in distinct fresh test-owned sub-sandboxes, persist
+the exact cut checkpoint in a create-only flushed case journal, and enter the
+owning publication, lifecycle, audit, recovery, or final-seal state machine
+only when the selected gap permits the effect. Constructing the matrix or
+creating generic marker files is not execution evidence, and the reported
+count must be derived from 70 unique durable executed-case receipts.
+For recovery and final seal, `before_intent` and `after_intent` must report zero
+owning effects, while `after_effect`, `after_stable_observation`, and
+`after_commit` must report exactly one owning effect before restart.
 
 ## Fingerprint package
 
 Fresh evidence must report distinct deterministic SHA-256 fingerprints for the
 criteria bytes, canonical 70-case matrix, fixed verifier script bytes, exact
 aggregate bundle, complete R2 surface, and the package binding all five inputs
-plus the surface. No path, secret, raw terminal transcript, message, customer,
+plus the surface. The surface must include the transitive local production,
+script, and test-driver inputs used by the verifier. No path, secret, raw terminal transcript, message, customer,
 provider payload, or private value may enter public output.

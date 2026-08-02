@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import sys
 import tempfile
+import hashlib
+import json
+import os
 from pathlib import Path
 
 from backend.r2_evidence_process import EvidenceProcessStatus
@@ -40,6 +43,17 @@ def main() -> int:
             and calls == 1
             and target.read_bytes() == b"SYNTHETIC_R2_EVIDENCE\n"
         )
+        if valid and (root / ".r2-full-topology-sandbox").is_file():
+            _write_proof(
+                root / "tty-evidence.proof.json",
+                {
+                    "proof_type": "SYNTHETIC_EVIDENCE_SUCCESS_V1",
+                    **result.to_mapping(),
+                    "artifact_fingerprint": hashlib.sha256(
+                        target.read_bytes()
+                    ).hexdigest(),
+                },
+            )
         sys.stdout.write(
             f"{result.status.value} accepted={result.accepted} "
             f"rejected={result.rejected} published={result.published}\n"
@@ -49,6 +63,14 @@ def main() -> int:
     finally:
         if owned is not None:
             owned.cleanup()
+
+
+def _write_proof(path, value):
+    payload = json.dumps(value, sort_keys=True, separators=(",", ":"))
+    with path.open("x", encoding="ascii", newline="\n") as stream:
+        stream.write(payload + "\n")
+        stream.flush()
+        os.fsync(stream.fileno())
 
 
 if __name__ == "__main__":

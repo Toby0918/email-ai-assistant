@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 from pathlib import Path
 
 from backend.cutover_repository_transaction.git_recreation import (
@@ -24,7 +25,10 @@ def manifest_exact(state) -> bool:
         target = state.main / item.relative
         if source.exists() or _identity(target, item.directory) != item.identity_fingerprint:
             return False
-    return all((state.main / relative).is_dir() for relative in state.manifest.skeletons)
+    return (
+        all((state.main / relative).is_dir() for relative in state.manifest.skeletons)
+        and _inventory(state.main) == set(state.manifest.inventory)
+    )
 
 
 def residue_exact(state) -> bool:
@@ -121,3 +125,20 @@ def topology_fingerprint(state) -> str:
 
 def _identity(path: Path, directory: bool) -> str:
     return directory_identity(path) if directory else file_identity(path)
+
+
+def _inventory(main: Path) -> set[str]:
+    values = set()
+    for raw_root, directories, files in os.walk(main, followlinks=False):
+        root = Path(raw_root)
+        relative_root = root.relative_to(main)
+        if relative_root == Path(".") and ".git" in directories:
+            directories[:] = [name for name in directories if name != ".git"]
+            values.add(".git")
+        directories.sort(key=str.casefold)
+        files.sort(key=str.casefold)
+        for name in directories:
+            values.add((relative_root / name).as_posix())
+        for name in files:
+            values.add((relative_root / name).as_posix())
+    return values

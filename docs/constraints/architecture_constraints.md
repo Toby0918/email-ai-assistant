@@ -1152,7 +1152,13 @@ provider, mailbox, vault, private-store, cleanup, or mutation capability. Its
 production `entry.main()` validates one exact verb and three actual standard
 TTY streams before reading the exact acknowledgement and one hidden bounded
 value. Before #39, its only valid terminal result remains
-`BLOCKED_NO_APPROVED_COMMAND` and zero host operations.
+`BLOCKED_NO_APPROVED_COMMAND` and zero host operations. The production entry
+owns the canonical envelope verification call and supplies a code-fixed,
+public, dormant validation context: exact Profile binding, public keys,
+operation, clock, and in-memory single-use nonce claim. It contains no private
+issuer or host capability. A correctly signed synthetic envelope can therefore
+exercise the production verification path, but still terminates locked before
+any Issue #39 or host operation.
 
 `backend.r2_operator_process` is a shared verification-only deep module for the
 four nominal authorization domains. Issue #71 consumes only the preflight
@@ -1388,7 +1394,27 @@ private-data, or cleanup capability.
 The fixed no-argument verifier script is the sole synthetic full-topology
 entry. Its test support composes the separately bounded #71-#82 public seams
 inside one verifier-owned fresh NTFS sandbox and cannot select an external
-root. Production operator entries remain locked. Static guards reject every
+root. It executes every canonical semantic-gap case through an owning R2 state
+machine using an exact create-only, flushed journal around each gap; runs the
+actual #74-#79 publication binders; and derives counts from their receipts.
+Fixed test-only workers, not the locked production entries, produce the exact
+preflight, evidence, execution, and recovery success proofs in distinct real-
+TTY children. One bound database transaction uses those exact proofs to
+quiesce its service controller before main/repository mutation, then carries
+the stopped receipt through every managed publication.
+
+Publication receipts are persisted as complete type-tagged canonical mappings.
+Before validation can start, a closed/re-opened journal must pass exact mapping,
+receipt fingerprint, predecessor, prior-head, and current-head recomputation;
+only its verified terminal head may enter the approved slice. Service
+observations, pre-bound independent audit attestations, semantic-case receipts,
+and the final success record are likewise re-read from verifier-owned durable
+files. Recovery and final-seal gap selectors cut inside the owning state
+machine, with zero pre-effect and exactly one post-effect mutation or append.
+The surface
+fingerprint walks every transitive local Python input under `backend/`,
+`scripts/`, and `tests/`, including dynamically launched workers. Production
+operator entries remain locked. Static guards reject every
 obsolete R2-reachable batch, R1, in-process operator, self-audit, and legacy-
 success consumer. Portable suites may validate only pure contracts; only the
 Windows verifier may claim physical NTFS, ACL, real TTY, or process isolation.

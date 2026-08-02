@@ -8,7 +8,10 @@ import json
 import os
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
+
+from backend.cutover_composition_contracts.canonical import fingerprint, is_fingerprint
 
 
 _ZONES = (
@@ -24,19 +27,33 @@ _ZONES = (
 )
 
 
-def run_tty_processes(repo_root: Path, sandbox: Path) -> set[str]:
+@dataclass(frozen=True, slots=True)
+class TtyProcessProofs:
+    process_types: frozenset[str]
+    preflight_fingerprint: str
+    evidence_fingerprint: str
+    execution_fingerprint: str
+    fresh_gate_fingerprint: str
+    recovery_fingerprint: str
+
+
+def run_tty_processes(repo_root: Path, sandbox: Path) -> TtyProcessProofs:
     pythonw = Path(sys.executable).with_name("pythonw.exe")
     cases = (
-        ("tests.windows_real_tty_host", "preflight", ()),
-        ("tests.windows_evidence_tty_host", "evidence", ()),
-        ("tests.windows_transaction_tty_host", "transaction", ("execute",)),
-        ("tests.windows_transaction_tty_host", "transaction", ("rollback",)),
+        ("preflight", ()),
+        ("evidence", ()),
+        ("transaction", ("execute",)),
+        ("transaction", ("rollback",)),
     )
     observed = set()
-    for index, (module, process_type, extra) in enumerate(cases):
+    proofs = {}
+    for index, (process_type, extra) in enumerate(cases):
         target = sandbox / f"tty-result-{index}.json"
         completed = subprocess.run(
-            (str(pythonw), "-B", "-m", module, str(target), *extra),
+            (
+                str(pythonw), "-B", "-m", "tests.windows_synthetic_tty_host",
+                str(target), process_type, *extra,
+            ),
             cwd=repo_root,
             timeout=20,
             check=False,
@@ -48,7 +65,81 @@ def run_tty_processes(repo_root: Path, sandbox: Path) -> set[str]:
         ):
             raise RuntimeError("R2_SYNTHETIC_TTY_PROCESS_FAILED")
         observed.add(process_type)
-    return observed
+        proof_name = (
+            "execution" if process_type == "transaction" and extra == ("execute",)
+            else "recovery" if process_type == "transaction"
+            else process_type
+        )
+        proof = _read_process_proof(sandbox, process_type, extra)
+        proofs[proof_name] = fingerprint(
+            "r2-executed-tty-process-proof-v1",
+            [process_type, list(extra), proof],
+        )
+        if process_type == "preflight":
+            proofs["fresh_gate"] = proof["fresh_gate_receipt_fingerprint"]
+    return TtyProcessProofs(
+        process_types=frozenset(observed),
+        preflight_fingerprint=proofs["preflight"],
+        evidence_fingerprint=proofs["evidence"],
+        execution_fingerprint=proofs["execution"],
+        fresh_gate_fingerprint=proofs["fresh_gate"],
+        recovery_fingerprint=proofs["recovery"],
+    )
+
+
+def _read_process_proof(sandbox, process_type, extra):
+    suffix = extra[0] if extra else process_type
+    path = (
+        sandbox / f"tty-transaction-{suffix}.proof.json"
+        if process_type == "transaction"
+        else sandbox / f"tty-{process_type}.proof.json"
+    )
+    first = path.read_bytes()
+    second = path.read_bytes()
+    if first != second or not first.endswith(b"\n"):
+        raise RuntimeError("R2_SYNTHETIC_TTY_PROOF_UNSTABLE")
+    value = json.loads(first.decode("ascii"))
+    if process_type == "preflight":
+        valid = (
+            set(value) == {
+                "proof_type", "status", "topology_receipt_fingerprint",
+                "fresh_gate_receipt_fingerprint",
+            }
+            and value["proof_type"] == "SYNTHETIC_PREFLIGHT_SUCCESS_V1"
+            and value["status"] == "PREFLIGHT_COMPLETE"
+            and is_fingerprint(value["topology_receipt_fingerprint"])
+            and is_fingerprint(value["fresh_gate_receipt_fingerprint"])
+            and value["topology_receipt_fingerprint"]
+            != value["fresh_gate_receipt_fingerprint"]
+        )
+    elif process_type == "evidence":
+        artifact = sandbox / "published.evidence"
+        valid = (
+            set(value) == {
+                "proof_type", "status", "accepted", "rejected", "published",
+                "artifact_fingerprint",
+            }
+            and value["proof_type"] == "SYNTHETIC_EVIDENCE_SUCCESS_V1"
+            and (value["status"], value["accepted"], value["rejected"], value["published"])
+            == ("EVIDENCE_PUBLISHED", 1, 0, 1)
+            and artifact.read_bytes() == b"SYNTHETIC_R2_EVIDENCE\n"
+            and value["artifact_fingerprint"]
+            == hashlib.sha256(artifact.read_bytes()).hexdigest()
+        )
+    else:
+        valid = (
+            set(value) == {
+                "proof_type", "verb", "status", "accepted", "rejected",
+                "mutations",
+            }
+            and value["proof_type"] == "SYNTHETIC_TRANSACTION_SUCCESS_V1"
+            and value["verb"] == suffix
+            and (value["status"], value["accepted"], value["rejected"], value["mutations"])
+            == ("TRANSACTION_ACTION_COMPLETE", 1, 0, 1)
+        )
+    if not valid:
+        raise RuntimeError("R2_SYNTHETIC_TTY_PROOF_INVALID")
+    return value
 
 
 def fixed_git(cwd: Path, *arguments: str) -> None:

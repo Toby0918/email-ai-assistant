@@ -178,6 +178,7 @@ class RepositoryTransactionArchitectureTests(unittest.TestCase):
             "backend/r2_repository_manifest/review.py",
             "backend/r2_repository_manifest/testing.py",
             "backend/r2_repository_manifest/verification.py",
+            "scripts/r2_shared_topology_support.py",
         }
         violations = []
         for root in (

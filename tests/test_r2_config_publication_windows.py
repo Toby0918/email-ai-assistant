@@ -86,10 +86,12 @@ class R2ConfigPublicationWindowsTests(unittest.TestCase):
 
 
 class _World:
-    def __init__(self) -> None:
+    def __init__(
+        self, directory: Path | None = None, quiescence: str = "a" * 64
+    ) -> None:
         self.owner = tempfile.TemporaryDirectory(
             prefix="issue79-synthetic-",
-            dir=Path(sys.executable).anchor,
+            dir=str(directory) if directory is not None else Path(sys.executable).anchor,
         )
         self.root = Path(self.owner.name)
         config = self.root / "Config"
@@ -111,6 +113,7 @@ class _World:
             }
         )
         self._transactions = []
+        self.quiescence = quiescence
 
     def transaction(self):
         value = bind_test_config_transaction(
@@ -120,7 +123,7 @@ class _World:
             journal=self.journal,
             sqlite_path=self.sqlite_path,
             attachment_temp_dir=self.attachment_temp,
-            quiescence_receipt_fingerprint="a" * 64,
+            quiescence_receipt_fingerprint=self.quiescence,
         )
         self._transactions.append(value)
         return value

@@ -1364,12 +1364,17 @@ real operator entry. Its eight exact callbacks are pre-bound by the synthetic
 test harness. Production modules cannot import subprocess, SQLite, filesystem,
 network, provider, mailbox, vault, or private-data libraries.
 
-Windows behavior uses a fresh temporary sandbox, creates one synthetic SQLite
-table, writes exactly one opaque result fingerprint during Start A, verifies
-one row and no sidecars, and confirms Start B leaves both analysis and write
-counts unchanged. Two test workers execute the stopped and running audits in
-separate fresh processes. All inputs are opaque fingerprints or fixed public
-synthetic values; providers remain disabled and real entries remain locked.
+Windows behavior uses a fresh temporary sandbox and two actual long-lived test
+service processes. Start A performs the one fixed provider-disabled public
+rule-fallback analysis and writes exactly one opaque result fingerprint to the
+synthetic SQLite table; it is stopped by exact PID/start evidence. Start B is a
+new PID/start time, performs health only, and is proven to leave analysis and
+write counts at zero. Two additional test workers independently read the
+durable service journals and SQLite state, derive the stopped/running
+observations, execute their exact audit kind, and append a create-only flushed
+attestation which the parent re-opens and verifies. All inputs are opaque
+fingerprints or fixed public synthetic values; providers remain disabled and
+real entries remain locked.
 
 ## Issue #82 recovery/seal tooling boundary
 
@@ -1389,17 +1394,27 @@ and assert zero host mutations. No real host or journal is accessed.
 ## Issue #83 full-verification tooling boundary
 
 `scripts/verify_r2_synthetic_topology.py` accepts no arguments and creates its
-own `TemporaryDirectory`. On Windows it first requires NTFS, then uses only the
-fixed Git verbs, fixed TTY process hosts, fixed synthetic authorization
-envelopes, actual local SQLite, fixed ACL descriptor observations, and exact
-#70-#82 composition seams. Public output is one aggregate JSON object with six
+own `TemporaryDirectory`. On Windows it first requires NTFS, then uses fixed
+test-only TTY success workers, fixed synthetic authorization envelopes, actual #74-#79
+publication binders, actual local SQLite, fixed ACL descriptor observations,
+two long-lived provider-disabled service processes, two independent audit
+workers, all 70 dispatched semantic-gap cases, and the exact #82 final seal.
+The TTY workers durably return a read-only synthetic preflight receipt, one
+evidence publication proof, and one-action execute/rollback proofs; separately
+tested production entries remain locked and cannot satisfy these prerequisites.
+The exact proofs gate one stable service stop before main/repository mutation.
+The complete type-tagged publication mappings and receipt/predecessor/head chain
+use a create-only, flushed verifier journal. They are closed, re-opened, and
+fully recomputed before Start A; the final success head is re-opened again after
+append. Public output is one aggregate JSON object with six
 SHA-256 fingerprints and contains no path, transcript, authorization value,
 host identity, repository name, row, provider value, or exception detail.
 
 The verifier performs no network access and no provider, mailbox, vault,
-private-store, credential, real service, real repository, or real ACL
-operation. Its TTY and Windows helpers are test-owned evidence adapters, not
-production authority. Non-Windows execution must fail or skip without making
+private-store, credential, real-host service, real repository, or real-host
+ACL operation. Its service, TTY, filesystem, and Windows helpers are
+test-owned evidence adapters, not production authority. Non-Windows execution
+must fail or skip without making
 an NTFS, ACL, TTY, process-isolation, or native-durability claim.
 
 ## 14. 执行后检查

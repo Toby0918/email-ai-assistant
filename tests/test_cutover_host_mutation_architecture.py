@@ -151,6 +151,7 @@ class CutoverHostMutationArchitectureTests(unittest.TestCase):
             "backend/r2_main_publication/windows_dacl.py",
             "backend/r2_repository_manifest/host.py",
             "backend/r2_repository_manifest/testing.py",
+            "scripts/r2_shared_topology_support.py",
         }
         violations = []
         roots = (

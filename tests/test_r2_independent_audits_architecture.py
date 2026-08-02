@@ -73,7 +73,8 @@ class R2IndependentAuditsArchitectureTests(unittest.TestCase):
         process = (PACKAGE / "process.py").read_text(encoding="utf-8")
         self.assertIn("init=False", contracts)
         self.assertIn("def __reduce__", contracts)
-        self.assertIn("object.__new__(receipt_type)", sink)
+        self.assertIn("_issue_receipt(receipt_type, values)", sink)
+        self.assertIn("object.__new__(receipt_type)", contracts)
         self.assertNotIn("object.__new__", process)
         self.assertNotIn("ReceiptV1(", process)
 
@@ -81,6 +82,10 @@ class R2IndependentAuditsArchitectureTests(unittest.TestCase):
         needle = "backend.r2_independent_audits"
         approved_composition = ROOT / "backend" / "r2_validation_lifecycle"
         approved_recovery = ROOT / "backend" / "r2_cross_stage_recovery"
+        approved_verifiers = {
+            ROOT / "scripts" / "r2_semantic_gap_support.py",
+            ROOT / "scripts" / "r2_semantic_owning_effects.py",
+        }
         consumers = []
         for root_name in ("backend", "frontend", "scripts", ".github"):
             root = ROOT / root_name
@@ -91,6 +96,7 @@ class R2IndependentAuditsArchitectureTests(unittest.TestCase):
                     and PACKAGE not in item.parents
                     and approved_composition not in item.parents
                     and approved_recovery not in item.parents
+                    and item not in approved_verifiers
                     and needle in item.read_text(encoding="utf-8")
                 ):
                     consumers.append(item.relative_to(ROOT).as_posix())

@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 from backend.cutover_composition_contracts.canonical import fingerprint, is_fingerprint
-from backend.r2_independent_audits import AuditKind
-from backend.r2_validation_lifecycle import IndependentAuditCompletionV1
+from backend.r2_independent_audits import (
+    IndependentFinalRunningHealthReceiptV1,
+    IndependentStoppedLayoutAuditReceiptV1,
+    is_issued_audit_receipt,
+)
 
 from .adapters import CrossStageAdaptersV1
-from .contracts import CrossStageResultV1, CrossStageStatus, CutoverSuccessAppendV1, EffectClassification, EffectObservation, FinalFreshnessObservationV1, FinalSealRequestV1, ReceiptPredecessorLinkV1, RecoveryBoundary, RecoveryFaultSelectorV1, RestartSnapshotV1, ReverseBoundaryAuthorityV1, ReverseEffectEvidenceV1, plan_fingerprint
+from .contracts import CrossStageResultV1, CrossStageStatus, CutoverSuccessAppendV1, EffectClassification, EffectObservation, FinalFreshnessObservationV1, FinalSealRequestV1, RecoveryBoundary, RecoveryCrashGap, RecoveryFaultSelectorV1, RestartSnapshotV1, ReverseBoundaryAuthorityV1, ReverseEffectEvidenceV1, plan_fingerprint
+from .receipt_links import INITIAL_JOURNAL_HEAD_FINGERPRINT, INITIAL_RECEIPT_FINGERPRINT, ReceiptPredecessorLinkV1, is_valid_receipt_link
 
 
 class CrossStageRecoveryMachine:
@@ -62,8 +66,12 @@ class CrossStageRecoveryMachine:
 
     def seal(self, request):
         self._begin()
+        if self._seal_cut(RecoveryCrashGap.BEFORE_INTENT):
+            return self._finish(CrossStageStatus.RECOVERY_RESTART_REQUIRED)
         if type(request) is not FinalSealRequestV1 or self._snapshot.pending_intents or self._snapshot.remaining_reverse_plan or not self._links_valid():
             return self._finish(CrossStageStatus.INCIDENT_STOP)
+        if self._seal_cut(RecoveryCrashGap.AFTER_INTENT):
+            return self._finish(CrossStageStatus.RECOVERY_RESTART_REQUIRED)
         try:
             freshness = self._adapters.minimal_final_freshness()
         except Exception:
@@ -77,7 +85,23 @@ class CrossStageRecoveryMachine:
             return self._finish(CrossStageStatus.INCIDENT_STOP)
         if type(appended) is not CutoverSuccessAppendV1 or appended.record_type != "CUTOVER_SUCCESS" or appended.prior_head_fingerprint != request.current_journal_head or appended.material_fingerprint != material:
             return self._finish(CrossStageStatus.INCIDENT_STOP)
+        if appended.journal_head_fingerprint == request.current_journal_head:
+            return self._finish(CrossStageStatus.INCIDENT_STOP)
+        if self._seal_cut(RecoveryCrashGap.AFTER_EFFECT):
+            self._journal_appends = 1
+            return self._finish(CrossStageStatus.RECOVERY_RESTART_REQUIRED)
+        try:
+            durable_head = self._adapters.current_journal_head()
+        except Exception:
+            return self._finish(CrossStageStatus.INCIDENT_STOP)
+        if durable_head != appended.journal_head_fingerprint:
+            return self._finish(CrossStageStatus.INCIDENT_STOP)
         self._journal_appends = 1
+        if self._seal_cut(RecoveryCrashGap.AFTER_STABLE_OBSERVATION):
+            return self._finish(CrossStageStatus.RECOVERY_RESTART_REQUIRED)
+        self._head = durable_head
+        if self._seal_cut(RecoveryCrashGap.AFTER_COMMIT):
+            return self._finish(CrossStageStatus.RECOVERY_RESTART_REQUIRED)
         return self._finish(CrossStageStatus.CUTOVER_SUCCESS)
 
     def _inspect_pending(self):
@@ -92,6 +116,8 @@ class CrossStageRecoveryMachine:
         return tuple(classifications)
 
     def _reverse_one(self, boundary, remaining, authority_factory):
+        if self._recovery_cut(boundary, RecoveryCrashGap.BEFORE_INTENT):
+            return CrossStageStatus.RECOVERY_RESTART_REQUIRED
         try:
             if self._adapters.current_journal_head() != self._head:
                 return CrossStageStatus.INCIDENT_STOP
@@ -99,19 +125,31 @@ class CrossStageRecoveryMachine:
             authority = authority_factory(boundary, self._head, plan)
             if not self._valid_authority(authority, boundary, plan):
                 return CrossStageStatus.INCIDENT_STOP
+            if self._recovery_cut(boundary, RecoveryCrashGap.AFTER_INTENT):
+                return CrossStageStatus.RECOVERY_RESTART_REQUIRED
             effect = self._adapters.reverse_boundary(boundary, authority)
             if not self._valid_effect(effect, boundary):
                 return CrossStageStatus.INCIDENT_STOP
+            self._host_mutations += 1
+            if self._recovery_cut(boundary, RecoveryCrashGap.AFTER_EFFECT):
+                return CrossStageStatus.RECOVERY_RESTART_REQUIRED
             if self._adapters.current_journal_head() != effect.journal_head_fingerprint:
                 return CrossStageStatus.INCIDENT_STOP
+            if self._recovery_cut(boundary, RecoveryCrashGap.AFTER_STABLE_OBSERVATION):
+                return CrossStageStatus.RECOVERY_RESTART_REQUIRED
         except Exception:
             return CrossStageStatus.INCIDENT_STOP
         self._head = effect.journal_head_fingerprint
         self._completed += 1
-        self._host_mutations += 1
-        if self._fault.kind == "crash_after_effect" and self._fault.boundary is boundary:
+        if self._recovery_cut(boundary, RecoveryCrashGap.AFTER_COMMIT):
             return CrossStageStatus.RECOVERY_RESTART_REQUIRED
         return None
+
+    def _recovery_cut(self, boundary, gap):
+        return self._fault.kind == "recovery_crash" and self._fault.boundary is boundary and self._fault.gap is gap
+
+    def _seal_cut(self, gap):
+        return self._fault.kind == "seal_crash" and self._fault.gap is gap
 
     def _valid_authority(self, value, boundary, plan):
         now = self._now()
@@ -124,23 +162,36 @@ class CrossStageRecoveryMachine:
         return True
 
     def _valid_effect(self, value, boundary):
-        return type(value) is ReverseEffectEvidenceV1 and value.boundary is boundary and value.prior_head_fingerprint == self._head and is_fingerprint(value.journal_head_fingerprint) and value.retained_new_objects == self._snapshot.retained_new_object_count and value.cleanup_operations == 0
+        return type(value) is ReverseEffectEvidenceV1 and value.boundary is boundary and value.prior_head_fingerprint == self._head and is_fingerprint(value.journal_head_fingerprint) and value.journal_head_fingerprint != self._head and value.retained_new_objects == self._snapshot.retained_new_object_count and value.cleanup_operations == 0
 
     def _valid_freshness(self, request, value):
         now = self._now()
         return type(value) is FinalFreshnessObservationV1 and type(now) is int and value.observed_at_epoch == now and value.journal_head_fingerprint == request.current_journal_head == self._snapshot.current_journal_head and value.nonce_b == request.nonce_b and value.approved_identities_fingerprint == request.approved_identities_fingerprint == self._snapshot.approved_identities_fingerprint
 
     def _valid_audits(self, request):
-        stopped, final, now = request.stopped_audit, request.final_audit, self._now()
-        if type(stopped) is not IndependentAuditCompletionV1 or type(final) is not IndependentAuditCompletionV1 or type(now) is not int:
+        stopped = request.validation.stopped_audit
+        final = request.validation.final_audit
+        now = self._now()
+        if type(stopped) is not IndependentStoppedLayoutAuditReceiptV1 or type(final) is not IndependentFinalRunningHealthReceiptV1 or not is_issued_audit_receipt(stopped) or not is_issued_audit_receipt(final) or type(now) is not int:
             return False
-        common = stopped.journal_head_fingerprint == final.journal_head_fingerprint == request.current_journal_head and stopped.approved_identities_fingerprint == request.stopped_identities_fingerprint and final.approved_identities_fingerprint == request.final_identities_fingerprint and stopped.audit_kind is AuditKind.STOPPED_LAYOUT and final.audit_kind is AuditKind.FINAL_RUNNING_HEALTH and final.service_nonce == request.nonce_b and stopped.service_nonce != request.nonce_b and stopped.audit_process_id != final.audit_process_id and stopped.attested and final.attested
+        common = stopped.journal_head_fingerprint == final.journal_head_fingerprint == request.current_journal_head and stopped.approved_identities_fingerprint == request.stopped_identities_fingerprint and final.approved_identities_fingerprint == request.final_identities_fingerprint and stopped.process_id != final.process_id
         fresh = all(item.observed_at_epoch <= now < item.expires_at_epoch and item.expires_at_epoch - item.observed_at_epoch == 300 for item in (stopped, final))
         return common and fresh
 
     def _links_valid(self):
         links = self._snapshot.receipt_links
-        if not links or any(type(item) is not ReceiptPredecessorLinkV1 for item in links) or links[-1].journal_head_fingerprint != self._snapshot.current_journal_head:
+        if not links or any(not is_valid_receipt_link(item) for item in links):
+            return False
+        first = links[0]
+        anchored = (
+            first.record_type == "PUBLICATION_RECEIPT"
+            and first.predecessor_fingerprint == INITIAL_RECEIPT_FINGERPRINT
+            and first.prior_head_fingerprint
+            == INITIAL_JOURNAL_HEAD_FINGERPRINT
+        )
+        if not anchored or links[-1].journal_head_fingerprint != self._snapshot.current_journal_head:
+            return False
+        if any(item.record_type != "PUBLICATION_RECEIPT" for item in links):
             return False
         return all(current.predecessor_fingerprint == prior.receipt_fingerprint and current.prior_head_fingerprint == prior.journal_head_fingerprint for prior, current in zip(links, links[1:]))
 
@@ -171,7 +222,7 @@ class CrossStageRecoveryMachine:
         return boundary is RecoveryBoundary.PRESERVE_FAILED_CONTAINER and self._snapshot.failed_container_preserved
 
     def _seal_material(self, request):
-        return fingerprint("r2-cutover-success-material-v1", {"validation": request.validation.receipt_fingerprint, "stopped_process": request.stopped_audit.audit_process_id, "final_process": request.final_audit.audit_process_id, "head": request.current_journal_head, "nonce_b": request.nonce_b, "identities": request.approved_identities_fingerprint})
+        return fingerprint("r2-cutover-success-material-v1", {"validation": request.validation.receipt_fingerprint, "stopped_process": request.validation.stopped_audit.process_id, "final_process": request.validation.final_audit.process_id, "head": request.current_journal_head, "nonce_b": request.nonce_b, "identities": request.approved_identities_fingerprint})
 
     def _classify(self, first, second):
         if first is second is EffectObservation.ABSENT:

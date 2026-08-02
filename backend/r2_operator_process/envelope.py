@@ -23,6 +23,7 @@ from backend.cutover_contracts import (
     RecoveryAuthorizationV1,
     validate_real_host_authorization,
 )
+from .dormant_context import DormantProfileBindingV1
 
 
 _ERROR = "R2_AUTHORIZATION_ENVELOPE_REJECTED"
@@ -245,6 +246,16 @@ def _require_authorization_binding(
     observed,
     operation,
 ) -> None:
+    if type(profile) is DormantProfileBindingV1:
+        _require_dormant_binding(
+            authorization,
+            profile,
+            operation_fingerprint,
+            phase,
+            observed,
+            operation,
+        )
+        return
     result = validate_real_host_authorization(
         authorization,
         profile=profile,
@@ -255,4 +266,22 @@ def _require_authorization_binding(
         observed_at_epoch=observed,
     )
     if result.status is not AuthorizationValidationStatus.AUTHORIZED:
+        raise AuthorizationEnvelopeError
+
+
+def _require_dormant_binding(
+    authorization, profile, operation_fingerprint, phase, observed, operation
+):
+    exact = (
+        authorization.operation == operation
+        and authorization.operation_fingerprint == operation_fingerprint
+        and authorization.profile_fingerprint == profile.profile_fingerprint
+        and authorization.governing_master_commit
+        == profile.governing_master_commit
+        and authorization.operator_fingerprint == profile.operator_fingerprint
+        and authorization.phase == phase
+        and authorization.not_before_epoch <= observed
+        and observed < authorization.expires_at_epoch
+    )
+    if not exact:
         raise AuthorizationEnvelopeError

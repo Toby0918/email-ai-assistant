@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import json
+import os
 import sys
+from pathlib import Path
 
 from backend.r2_transaction_process import TransactionProcessStatus
 from backend.r2_transaction_process.terminal import SystemTerminal
@@ -33,7 +36,24 @@ def main() -> int:
         and calls == 1
         and process.action_acquisitions == 1
     )
+    if valid and (Path.cwd() / ".r2-full-topology-sandbox").is_file():
+        _write_proof(
+            Path.cwd() / f"tty-transaction-{verb}.proof.json",
+            {
+                "proof_type": "SYNTHETIC_TRANSACTION_SUCCESS_V1",
+                "verb": verb,
+                **result.to_mapping(),
+            },
+        )
     return 0 if valid else 5
+
+
+def _write_proof(path, value):
+    payload = json.dumps(value, sort_keys=True, separators=(",", ":"))
+    with path.open("x", encoding="ascii", newline="\n") as stream:
+        stream.write(payload + "\n")
+        stream.flush()
+        os.fsync(stream.fileno())
 
 
 if __name__ == "__main__":

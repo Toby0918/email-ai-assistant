@@ -1,4 +1,4 @@
-"""Fresh-sandbox forward/reverse semantic gap matrix for Issue #83."""
+"""Portable resume-model checks; native execution belongs to the verifier."""
 
 from __future__ import annotations
 
@@ -10,7 +10,7 @@ from backend.r2_verification_evidence import semantic_gap_matrix
 
 
 class R2SemanticGapMatrixTests(unittest.TestCase):
-    def test_every_semantic_gap_runs_in_its_own_fresh_sandbox(self):
+    def test_portable_matrix_models_resume_without_native_evidence_claim(self):
         roots = []
         for index, case in enumerate(semantic_gap_matrix()):
             with self.subTest(index=index, case=case):

@@ -16,6 +16,7 @@ from .contracts import (
     IndependentAuditResult,
     IndependentFinalRunningHealthReceiptV1,
     IndependentStoppedLayoutAuditReceiptV1,
+    _issue_receipt,
 )
 
 
@@ -148,20 +149,16 @@ class IndependentAuditAttestationSinkV1:
             if self._kind is AuditKind.STOPPED_LAYOUT
             else IndependentFinalRunningHealthReceiptV1
         )
-        receipt = object.__new__(receipt_type)
         values = {
             "attestation_fingerprint": attestation_fingerprint,
             "journal_head_fingerprint": self._head,
             "approved_identities_fingerprint": self._identities,
+            "health_evidence_fingerprint": self._health,
             "observed_at_epoch": self._observed,
             "expires_at_epoch": self._observed + 300,
             "process_id": self._process_id,
         }
-        if self._kind is AuditKind.FINAL_RUNNING_HEALTH:
-            values["health_evidence_fingerprint"] = self._health
-        for name, value in values.items():
-            object.__setattr__(receipt, name, value)
-        return receipt
+        return _issue_receipt(receipt_type, values)
 
     def _attestation(self) -> dict[str, object]:
         material = json.dumps(

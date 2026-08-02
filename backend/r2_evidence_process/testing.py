@@ -7,25 +7,13 @@ from backend.cutover_composition_contracts.canonical import (
     fingerprint,
     is_fingerprint,
 )
-from backend.cutover_contracts import (
-    CutoverProfileV1,
-    EvidencePublicationAuthorizationV1,
-)
-from backend.r2_operator_process import (
-    AuthorizationEnvelopeDomain,
-    AuthorizationEnvelopeReplay,
-    verify_authorization_envelope,
-)
+from backend.cutover_contracts import CutoverProfileV1
 
 from .contracts import (
-    EVIDENCE_ACKNOWLEDGEMENT,
-    EVIDENCE_VERBS,
     EvidenceProcessStatus,
     result,
 )
-
-
-_MAX_ENVELOPE_CHARS = 65_536
+from .entry import run_authorization_gate
 
 
 class SyntheticEvidenceProcess:
@@ -68,43 +56,21 @@ class SyntheticEvidenceProcess:
         return process
 
     def run(self, *, argv: object, terminal: object):
-        if argv != ("publish",):
-            return result(EvidenceProcessStatus.BLOCKED_COMMAND)
-        if _tty_state(terminal) != (True, True, True):
-            return result(EvidenceProcessStatus.BLOCKED_TTY)
-        try:
-            acknowledgement = terminal.read_acknowledgement()
-        except Exception:
-            return result(EvidenceProcessStatus.BLOCKED_ACKNOWLEDGEMENT)
-        if acknowledgement != EVIDENCE_ACKNOWLEDGEMENT:
-            return result(EvidenceProcessStatus.BLOCKED_ACKNOWLEDGEMENT)
+        authorized = run_authorization_gate(
+            argv=argv,
+            terminal=terminal,
+            profile=self._profile,
+            operation_fingerprint=self._operation,
+            verification_public_key=self._key,
+            observed_at_epoch=self._now,
+            claim_nonce=self._claim_nonce,
+        )
+        if authorized.status is not EvidenceProcessStatus.BLOCKED_NO_APPROVED_COMMAND:
+            return authorized
         if self._confirmed_review != self._expected_review:
             return result(EvidenceProcessStatus.BLOCKED_AUTHORIZATION)
-        return self._authorize_and_publish(terminal)
-
-    def _authorize_and_publish(self, terminal):
-        try:
-            envelope = terminal.read_hidden_envelope(_MAX_ENVELOPE_CHARS)
-            if type(envelope) is not str or not 1 <= len(envelope) <= 65_536:
-                return result(EvidenceProcessStatus.BLOCKED_ENVELOPE)
-            verify_authorization_envelope(
-                envelope,
-                expected_domain=AuthorizationEnvelopeDomain.EVIDENCE,
-                verification_public_key=self._key,
-                profile=self._profile,
-                operation_fingerprint=self._operation,
-                expected_phase=EVIDENCE_VERBS["publish"],
-                observed_at_epoch=self._now(),
-                claim_nonce=self._claim_nonce,
-                authorization_type=EvidencePublicationAuthorizationV1,
-                expected_operation="evidence_publication",
-            )
-        except AuthorizationEnvelopeReplay:
-            return result(EvidenceProcessStatus.BLOCKED_REPLAY)
-        except Exception:
-            return result(EvidenceProcessStatus.BLOCKED_AUTHORIZATION)
         if self._locked:
-            return result(EvidenceProcessStatus.BLOCKED_NO_APPROVED_COMMAND)
+            return authorized
         return self._publish_once()
 
     def _publish_once(self):
@@ -126,14 +92,6 @@ class SyntheticEvidenceProcess:
             return False
         self._claimed.add(nonce)
         return True
-
-
-def _tty_state(terminal: object) -> object:
-    try:
-        state = terminal.tty_state()
-    except Exception:
-        return None
-    return state if type(state) is tuple and len(state) == 3 else None
 
 
 def _require_context(values) -> None:

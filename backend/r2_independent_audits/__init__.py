@@ -7,6 +7,7 @@ from .contracts import (
     IndependentAuditResult,
     IndependentFinalRunningHealthReceiptV1,
     IndependentStoppedLayoutAuditReceiptV1,
+    is_issued_audit_receipt,
 )
 from .sink import IndependentAuditAttestationSinkV1
 
@@ -18,4 +19,5 @@ __all__ = [
     "IndependentAuditResult",
     "IndependentFinalRunningHealthReceiptV1",
     "IndependentStoppedLayoutAuditReceiptV1",
+    "is_issued_audit_receipt",
 ]

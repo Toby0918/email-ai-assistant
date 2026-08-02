@@ -83,10 +83,12 @@ class R2CrxPublicationWindowsTests(unittest.TestCase):
 
 
 class _World:
-    def __init__(self) -> None:
+    def __init__(
+        self, directory: Path | None = None, quiescence: str = "a" * 64
+    ) -> None:
         self.owner = tempfile.TemporaryDirectory(
             prefix="issue78-synthetic-",
-            dir=Path(sys.executable).anchor,
+            dir=str(directory) if directory is not None else Path(sys.executable).anchor,
         )
         self.root = Path(self.owner.name)
         self.source = self.root / "reviewed-extension.crx"
@@ -105,6 +107,7 @@ class _World:
         self.target = artifacts / "email-ai-assistant.crx"
         self.journal = self.root / "crx-unit.journal"
         self._transactions = []
+        self.quiescence = quiescence
 
     def transaction(self):
         value = bind_test_crx_transaction(
@@ -112,7 +115,7 @@ class _World:
             staging=self.staging,
             target=self.target,
             journal=self.journal,
-            quiescence_receipt_fingerprint="a" * 64,
+            quiescence_receipt_fingerprint=self.quiescence,
         )
         self._transactions.append(value)
         return value

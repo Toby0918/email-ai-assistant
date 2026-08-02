@@ -6,8 +6,17 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from backend.cutover_composition_contracts.canonical import fingerprint, is_fingerprint
-from backend.r2_independent_audits import AuditKind
-from backend.r2_validation_lifecycle import IndependentAuditCompletionV1, ValidationLifecycleResultV1, ValidationStatus
+from backend.r2_independent_audits import (
+    IndependentFinalRunningHealthReceiptV1,
+    IndependentStoppedLayoutAuditReceiptV1,
+    is_issued_audit_receipt,
+)
+from backend.r2_validation_lifecycle import (
+    ValidationLifecycleResultV1,
+    ValidationStatus,
+    is_issued_validation_result,
+)
+from .receipt_links import ReceiptPredecessorLinkV1
 
 
 class EffectObservation(str, Enum):
@@ -32,20 +41,20 @@ class RecoveryBoundary(str, Enum):
     RECOVER_LEGACY_SERVICE = "recover_legacy_service"
 
 
+class RecoveryCrashGap(str, Enum):
+    BEFORE_INTENT = "before_intent"
+    AFTER_INTENT = "after_intent"
+    AFTER_EFFECT = "after_effect"
+    AFTER_STABLE_OBSERVATION = "after_stable_observation"
+    AFTER_COMMIT = "after_commit"
+
+
 class CrossStageStatus(str, Enum):
     INSPECTED = "RESTART_INSPECTED_READ_ONLY"
     RECOVERY_RESTART_REQUIRED = "RECOVERY_RESTART_REQUIRED"
     LEGACY_FLAT_LAYOUT_RESTORED = "LEGACY_FLAT_LAYOUT_RESTORED"
     INCIDENT_STOP = "INCIDENT_STOP"
     CUTOVER_SUCCESS = "CUTOVER_SUCCESS"
-
-
-@dataclass(frozen=True, slots=True)
-class ReceiptPredecessorLinkV1:
-    receipt_fingerprint: str = field(repr=False)
-    predecessor_fingerprint: str = field(repr=False)
-    prior_head_fingerprint: str = field(repr=False)
-    journal_head_fingerprint: str = field(repr=False)
 
 
 @dataclass(frozen=True, slots=True, repr=False, init=False)
@@ -94,19 +103,30 @@ class RestartSnapshotV1:
 class RecoveryFaultSelectorV1:
     kind: str
     boundary: RecoveryBoundary | None
+    gap: RecoveryCrashGap | None
 
     def __init__(self, *args: object, **kwargs: object) -> None:
         raise TypeError("RecoveryFaultSelectorV1 requires a fixed factory")
 
     @classmethod
     def none(cls):
-        return _fault(cls, "none", None)
+        return _fault(cls, "none", None, None)
+
+    @classmethod
+    def crash(cls, boundary, gap):
+        if type(boundary) is not RecoveryBoundary or type(gap) is not RecoveryCrashGap:
+            raise ValueError("R2_RECOVERY_FAULT_INVALID")
+        return _fault(cls, "recovery_crash", boundary, gap)
 
     @classmethod
     def crash_after_effect(cls, boundary):
-        if type(boundary) is not RecoveryBoundary:
+        return cls.crash(boundary, RecoveryCrashGap.AFTER_EFFECT)
+
+    @classmethod
+    def seal_crash(cls, gap):
+        if type(gap) is not RecoveryCrashGap:
             raise ValueError("R2_RECOVERY_FAULT_INVALID")
-        return _fault(cls, "crash_after_effect", boundary)
+        return _fault(cls, "seal_crash", None, gap)
 
 
 @dataclass(frozen=True, slots=True, repr=False, init=False)
@@ -179,8 +199,6 @@ class FinalFreshnessObservationV1:
 @dataclass(frozen=True, slots=True, repr=False, init=False)
 class FinalSealRequestV1:
     validation: ValidationLifecycleResultV1
-    stopped_audit: IndependentAuditCompletionV1
-    final_audit: IndependentAuditCompletionV1
     current_journal_head: str
     nonce_b: str
     approved_identities_fingerprint: str
@@ -236,19 +254,22 @@ def plan_fingerprint(boundaries):
     return fingerprint("r2-remaining-reverse-plan-v1", [item.value for item in boundaries])
 
 
-def _fault(cls, kind, boundary):
+def _fault(cls, kind, boundary, gap):
     result = object.__new__(cls)
     object.__setattr__(result, "kind", kind)
     object.__setattr__(result, "boundary", boundary)
+    object.__setattr__(result, "gap", gap)
     return result
 
 
 def _valid_snapshot(values):
     expected = {"current_journal_head", "receipt_links", "pending_intents", "remaining_reverse_plan", "failed_container_preserved", "retained_new_object_count", "approved_identities_fingerprint"}
     plan = values.get("remaining_reverse_plan")
-    return set(values) == expected and is_fingerprint(values["current_journal_head"]) and type(values["receipt_links"]) is tuple and all(type(item) is ReceiptPredecessorLinkV1 for item in values["receipt_links"]) and type(values["pending_intents"]) is tuple and all(type(item) is PendingIntentV1 for item in values["pending_intents"]) and type(plan) is tuple and all(type(item) is RecoveryBoundary for item in plan) and tuple(item for item in RecoveryBoundary if item in plan) == plan and type(values["failed_container_preserved"]) is bool and type(values["retained_new_object_count"]) is int and values["retained_new_object_count"] >= 0 and is_fingerprint(values["approved_identities_fingerprint"])
+    pending = values.get("pending_intents")
+    return set(values) == expected and is_fingerprint(values["current_journal_head"]) and type(values["receipt_links"]) is tuple and all(type(item) is ReceiptPredecessorLinkV1 for item in values["receipt_links"]) and type(pending) is tuple and all(type(item) is PendingIntentV1 for item in pending) and len({item.boundary for item in pending}) == len(pending) and len({item.intent_fingerprint for item in pending}) == len(pending) and type(plan) is tuple and all(type(item) is RecoveryBoundary for item in plan) and tuple(item for item in RecoveryBoundary if item in plan) == plan and type(values["failed_container_preserved"]) is bool and type(values["retained_new_object_count"]) is int and values["retained_new_object_count"] >= 0 and is_fingerprint(values["approved_identities_fingerprint"])
 
 
 def _valid_seal(values):
-    expected = {"validation", "stopped_audit", "final_audit", "current_journal_head", "nonce_b", "approved_identities_fingerprint", "stopped_identities_fingerprint", "final_identities_fingerprint"}
-    return set(values) == expected and type(values["validation"]) is ValidationLifecycleResultV1 and values["validation"].status is ValidationStatus.VALIDATED and type(values["stopped_audit"]) is IndependentAuditCompletionV1 and type(values["final_audit"]) is IndependentAuditCompletionV1 and values["stopped_audit"].audit_kind is AuditKind.STOPPED_LAYOUT and values["final_audit"].audit_kind is AuditKind.FINAL_RUNNING_HEALTH and type(values["nonce_b"]) is str and all(is_fingerprint(values[name]) for name in ("current_journal_head", "approved_identities_fingerprint", "stopped_identities_fingerprint", "final_identities_fingerprint"))
+    expected = {"validation", "current_journal_head", "nonce_b", "approved_identities_fingerprint", "stopped_identities_fingerprint", "final_identities_fingerprint"}
+    validation = values.get("validation")
+    return set(values) == expected and type(validation) is ValidationLifecycleResultV1 and is_issued_validation_result(validation) and validation.status is ValidationStatus.VALIDATED and type(validation.stopped_audit) is IndependentStoppedLayoutAuditReceiptV1 and type(validation.final_audit) is IndependentFinalRunningHealthReceiptV1 and is_issued_audit_receipt(validation.stopped_audit) and is_issued_audit_receipt(validation.final_audit) and validation.start_b_nonce == values["nonce_b"] and validation.approved_identities_fingerprint == values["approved_identities_fingerprint"] and type(values["nonce_b"]) is str and all(is_fingerprint(values[name]) for name in ("current_journal_head", "approved_identities_fingerprint", "stopped_identities_fingerprint", "final_identities_fingerprint"))

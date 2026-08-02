@@ -38,6 +38,7 @@ class SyntheticDatabasePublicationTransaction:
         self._events: list[str] = []
         self._checkpoints: list[DatabaseCheckpoint] = []
         self._executed = False
+        self._stopped = None
 
     @property
     def events(self) -> tuple[str, ...]:
@@ -54,10 +55,9 @@ class SyntheticDatabasePublicationTransaction:
     def execute(self, selector: DatabaseFaultSelectorV1) -> DatabaseTransactionResultV1:
         if self._executed or type(selector) is not DatabaseFaultSelectorV1:
             raise ValueError("database_transaction_invocation_invalid")
+        stopped = self._stopped if self._stopped is not None else self.quiesce()
         self._executed = True
         self._selector = selector
-        self._verify_prerequisites()
-        stopped = self._quiesce()
         try:
             self._checkpoint(DatabaseCheckpoint.POST_STOP_BASELINE)
             self._checkpoint(DatabaseCheckpoint.PRE_COPY_LEASE)
@@ -69,6 +69,13 @@ class SyntheticDatabasePublicationTransaction:
             return self._result(DatabaseTransactionStatus.PUBLISHED)
         finally:
             close_lease(self._lease)
+
+    def quiesce(self):
+        if self._executed or self._stopped is not None:
+            raise ValueError("legacy_service_quiescence_invocation_invalid")
+        self._verify_prerequisites()
+        self._stopped = self._quiesce()
+        return self._stopped
 
     def recover(self) -> DatabaseTransactionResultV1:
         close_lease(self._lease)
@@ -172,7 +179,14 @@ class SyntheticDatabasePublicationTransaction:
         retained = sum(path.exists() for path in (self._staging, self._target))
         passes = 0 if self._lease is None else lease_read_passes(self._lease)
         body = [status.value, self._journal.head, passes, retained]
-        return DatabaseTransactionResultV1(status, fingerprint("database-transaction-result-v1", body), passes, retained, 0)
+        return DatabaseTransactionResultV1(
+            status,
+            fingerprint("database-transaction-result-v1", body),
+            self._journal.head,
+            passes,
+            retained,
+            0,
+        )
 
 
 def _hash(path: Path) -> str:

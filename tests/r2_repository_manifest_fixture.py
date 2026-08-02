@@ -16,18 +16,38 @@ from tests.cutover_repository_transaction_fixtures import (
 )
 
 
-def build_manifest_repository_scenario() -> SyntheticRepositoryScenario:
-    owner = tempfile.TemporaryDirectory(prefix="issue56-synthetic-manifest-")
-    root = Path(owner.name)
+def build_manifest_repository_scenario(
+    directory: Path | None = None,
+    *,
+    shared_root: Path | None = None,
+    shared_source: Path | None = None,
+) -> SyntheticRepositoryScenario:
+    owner = None
+    if shared_root is None:
+        owner = tempfile.TemporaryDirectory(
+            prefix="issue56-synthetic-manifest-",
+            dir=str(directory) if directory is not None else None,
+        )
+        root = Path(owner.name)
+        source = root / "Container"
+    else:
+        root = shared_root
+        source = shared_source
+        if source != root / "Container" or not source.is_dir():
+            raise ValueError("shared repository container invalid")
     marker = root / ".codex-cutover-mutation-test-sandbox"
     marker.write_bytes(b"issue56-synthetic-marker-v1")
-    source = root / "Container"
     parents = _prepare_parents(root)
     _run(root, "init", "-b", "master", str(source))
     _run(source, "config", "user.name", "Synthetic Operator")
     _run(source, "config", "user.email", "synthetic@example.test")
     _build_manifest_content(source)
-    _run(source, "add", ".gitignore", "README.md", "whole-selected", "mixed/selected.txt")
+    additions = (
+        (".",)
+        if shared_root is not None
+        else (".gitignore", "README.md", "whole-selected", "mixed/selected.txt")
+    )
+    _run(source, "add", *additions)
     _run(source, "commit", "-m", "synthetic manifest baseline")
     _exclude_worktree_roots(source)
     worktrees = _create_worktrees(root, source, parents)
@@ -40,7 +60,11 @@ def build_manifest_repository_scenario() -> SyntheticRepositoryScenario:
         root=root,
         marker=marker,
         source=source,
-        legacy=root / "LegacySourceAnchorV1",
+        legacy=(
+            root / "RepositoryLegacyAnchorV1"
+            if shared_root is not None
+            else root / "LegacySourceAnchorV1"
+        ),
         failed_container=root / "FailedContainerV1",
         journal_root=parents["journal"],
         admin_preservation=parents["admin"],
@@ -62,7 +86,7 @@ def _prepare_parents(root: Path) -> dict[str, Path]:
         "finance": root / "finance-synthetic",
     }
     for path in values.values():
-        path.mkdir(parents=True)
+        path.mkdir(parents=True, exist_ok=True)
     return values
 
 

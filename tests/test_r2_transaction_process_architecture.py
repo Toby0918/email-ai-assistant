@@ -68,6 +68,8 @@ class R2TransactionProcessArchitectureTests(unittest.TestCase):
 
     def test_context_and_domains_are_explicit_before_action(self) -> None:
         testing = (PACKAGE / "testing.py").read_text(encoding="utf-8")
+        entry = (PACKAGE / "entry.py").read_text(encoding="utf-8")
+        source = entry + testing
         for required in (
             "approved_binding_fingerprint",
             "journal_owner_fingerprint",
@@ -80,10 +82,10 @@ class R2TransactionProcessArchitectureTests(unittest.TestCase):
             "CutoverExecutionAuthorizationV1",
             "RecoveryAuthorizationV1",
         ):
-            self.assertIn(required, testing)
+            self.assertIn(required, source)
         self.assertLess(
-            testing.index("verify_authorization_envelope("),
-            testing.index("self._perform(verb)"),
+            source.index("verify_authorization_envelope("),
+            source.index("return self._perform(argv[0])"),
         )
 
     def test_no_normal_consumer_imports_transaction_test_binder(self) -> None:

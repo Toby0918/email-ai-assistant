@@ -63,6 +63,17 @@ class R2RepositoryManifestWindowsTests(unittest.TestCase):
             transaction.close()
             scenario.close()
 
+    def test_manifest_exact_rejects_an_unreviewed_extra_object(self) -> None:
+        scenario, transaction, _originals = self._bound()
+        try:
+            transaction.execute(ManifestSelectorV1.none())
+            extra = scenario.source / "main" / "unreviewed-extra.txt"
+            extra.write_text("not selected\n", encoding="utf-8")
+            self.assertFalse(transaction.manifest_exact())
+        finally:
+            transaction.close()
+            scenario.close()
+
     def test_each_manifest_and_worktree_boundary_can_crash_and_reverse(self) -> None:
         cases = (
             (ManifestBoundary.MANIFEST_RELOCATION, 1),

@@ -8,10 +8,15 @@ from backend.cutover_service_lifecycle.contracts import (
     ServiceStartEvidenceV1,
     ServiceStopEvidenceV1,
 )
-from backend.r2_independent_audits import AuditKind
+from backend.r2_independent_audits import (
+    AuditKind,
+    IndependentFinalRunningHealthReceiptV1,
+    IndependentStoppedLayoutAuditReceiptV1,
+    is_issued_audit_receipt,
+)
 
 from .adapters import ValidationAdaptersV1
-from .contracts import ApprovedValidationSliceV1, FinalDatabaseProofV1, IndependentAuditCompletionV1, IndependentAuditRequestV1, OperatorPublicConfirmationV1, PersistedPublicRowEvidenceV1, PublicRuleFallbackResultV1, ValidationBoundary, ValidationFaultSelectorV1, ValidationLifecycleResultV1, ValidationStatus, start_request
+from .contracts import ApprovedValidationSliceV1, FinalDatabaseProofV1, IndependentAuditRequestV1, OperatorPublicConfirmationV1, PersistedPublicRowEvidenceV1, PublicRuleFallbackResultV1, ValidationBoundary, ValidationFaultSelectorV1, ValidationStatus, _issue_validation_result, start_request
 
 
 class _Rejected(Exception):
@@ -20,7 +25,7 @@ class _Rejected(Exception):
 
 
 class ValidationLifecycle:
-    __slots__ = ("_approved", "_adapters", "_nonce", "_now", "_fault", "_state", "_completed", "_analysis_count", "_write_count", "_provider_attempts", "_start_a", "_start_b", "_health_a", "_health_b", "_analysis", "_row", "_stopped", "_audit_pids")
+    __slots__ = ("_approved", "_adapters", "_nonce", "_now", "_fault", "_state", "_completed", "_analysis_count", "_write_count", "_provider_attempts", "_start_a", "_start_b", "_health_a", "_health_b", "_analysis", "_row", "_stopped", "_stopped_audit", "_final_audit", "_audit_pids")
 
     def __init__(self, *args: object, **kwargs: object) -> None:
         raise TypeError("ValidationLifecycle requires create()")
@@ -36,6 +41,7 @@ class ValidationLifecycle:
         value._analysis_count = value._write_count = value._provider_attempts = 0
         value._start_a = value._start_b = value._health_a = value._health_b = None
         value._analysis = value._row = value._stopped = None
+        value._stopped_audit = value._final_audit = None
         value._audit_pids = []
         return value
 
@@ -114,7 +120,7 @@ class ValidationLifecycle:
             raise _Rejected(ValidationStatus.ROLLBACK_REQUIRED)
 
     def _do_stopped_audit(self):
-        self._validate_audit(self._adapters.run_independent_audit(self._audit_request(AuditKind.STOPPED_LAYOUT, self._start_a, self._stopped)), AuditKind.STOPPED_LAYOUT, self._start_a, self._stopped)
+        self._stopped_audit = self._validate_audit(self._adapters.run_independent_audit(self._audit_request(AuditKind.STOPPED_LAYOUT, self._start_a, self._stopped)), AuditKind.STOPPED_LAYOUT, self._start_a, self._stopped)
 
     def _do_start_b(self):
         request = start_request(self._approved, "start_b", self._nonce())
@@ -126,7 +132,7 @@ class ValidationLifecycle:
         self._validate_health(self._start_b, self._health_b)
 
     def _do_final_audit(self):
-        self._validate_audit(self._adapters.run_independent_audit(self._audit_request(AuditKind.FINAL_RUNNING_HEALTH, self._start_b, self._health_b)), AuditKind.FINAL_RUNNING_HEALTH, self._start_b, self._health_b)
+        self._final_audit = self._validate_audit(self._adapters.run_independent_audit(self._audit_request(AuditKind.FINAL_RUNNING_HEALTH, self._start_b, self._health_b)), AuditKind.FINAL_RUNNING_HEALTH, self._start_b, self._health_b)
 
     def _validate_start(self, request, start, prior):
         if type(start) is not ServiceStartEvidenceV1:
@@ -151,19 +157,37 @@ class ValidationLifecycle:
 
     def _validate_audit(self, value, kind, start, evidence):
         request = self._audit_request(kind, start, evidence)
-        if type(value) is not IndependentAuditCompletionV1:
+        expected_type = (
+            IndependentStoppedLayoutAuditReceiptV1
+            if kind is AuditKind.STOPPED_LAYOUT
+            else IndependentFinalRunningHealthReceiptV1
+        )
+        if type(value) is not expected_type or not is_issued_audit_receipt(value):
             raise _Rejected(ValidationStatus.INCIDENT_STOP)
-        exact = (value.audit_kind is kind and value.service_nonce == request.service_nonce and value.service_process_id == request.service_process_id and value.journal_head_fingerprint == request.journal_head_fingerprint and value.approved_identities_fingerprint == request.approved_identities_fingerprint and value.health_evidence_fingerprint == request.health_evidence_fingerprint and value.attested)
+        exact = (value.journal_head_fingerprint == request.journal_head_fingerprint and value.approved_identities_fingerprint == request.approved_identities_fingerprint and value.health_evidence_fingerprint == request.health_evidence_fingerprint)
         now = self._now()
         if not exact:
             raise _Rejected(ValidationStatus.ROLLBACK_REQUIRED)
-        if type(now) is not int or not value.observed_at_epoch <= now <= value.expires_at_epoch or value.expires_at_epoch - value.observed_at_epoch != 300 or value.audit_process_id in {start.pid, *self._audit_pids}:
+        if type(now) is not int or not value.observed_at_epoch <= now <= value.expires_at_epoch or value.expires_at_epoch - value.observed_at_epoch != 300 or value.process_id in {start.pid, *self._audit_pids}:
             raise _Rejected(ValidationStatus.INCIDENT_STOP)
-        self._audit_pids.append(value.audit_process_id)
+        self._audit_pids.append(value.process_id)
+        return value
 
     def _request_a(self):
         return start_request(self._approved, "start_a", self._start_a.nonce)
 
     def _result(self, status):
-        body = {"status": status.value, "completed": self._completed, "analysis": self._analysis_count, "writes": self._write_count, "providers": self._provider_attempts, "slice": self._approved.slice_fingerprint}
-        return ValidationLifecycleResultV1(status, self._completed, self._analysis_count, self._write_count, self._provider_attempts, fingerprint("r2-validation-lifecycle-result-v1", body))
+        nonce_b = self._start_b.nonce if self._start_b is not None else None
+        body = {"status": status.value, "completed": self._completed, "analysis": self._analysis_count, "writes": self._write_count, "providers": self._provider_attempts, "slice": self._approved.slice_fingerprint, "stopped_audit": getattr(self._stopped_audit, "attestation_fingerprint", None), "final_audit": getattr(self._final_audit, "attestation_fingerprint", None), "nonce_b": nonce_b}
+        return _issue_validation_result(
+            status=status,
+            completed_boundaries=self._completed,
+            analysis_count=self._analysis_count,
+            database_write_count=self._write_count,
+            provider_attempts=self._provider_attempts,
+            receipt_fingerprint=fingerprint("r2-validation-lifecycle-result-v1", body),
+            stopped_audit=self._stopped_audit,
+            final_audit=self._final_audit,
+            start_b_nonce=nonce_b,
+            approved_identities_fingerprint=self._approved.approved_identities_fingerprint,
+        )

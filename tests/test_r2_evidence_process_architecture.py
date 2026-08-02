@@ -53,7 +53,8 @@ class R2EvidenceProcessArchitectureTests(unittest.TestCase):
             'EVIDENCE_VERBS = {"publish": "evidence_publication"}',
             contracts,
         )
-        self.assertIn('tuple(sys.argv[1:]) != ("publish",)', entry)
+        self.assertIn("argv=tuple(sys.argv[1:])", entry)
+        self.assertIn('if argv != ("publish",)', entry)
         for forbidden in (
             "argparse",
             "--target",

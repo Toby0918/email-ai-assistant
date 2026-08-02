@@ -14,11 +14,9 @@ from backend.r2_cross_stage_recovery import (
     RecoveryBoundary,
     RecoveryFaultSelectorV1,
 )
-from backend.r2_independent_audits import AuditKind
 from backend.r2_validation_lifecycle import (
-    IndependentAuditCompletionV1,
-    ValidationLifecycleResultV1,
-    ValidationStatus,
+    ValidationFaultSelectorV1,
+    ValidationLifecycle,
 )
 from tests.cutover_contract_fixtures import opaque_fingerprint
 from tests.r2_cross_stage_recovery_fixture import (
@@ -30,12 +28,10 @@ from tests.r2_cross_stage_recovery_fixture import (
     RecoveryAdapters,
     snapshot,
 )
-
-
-STOPPED_IDENTITIES = opaque_fingerprint(8400)
-FINAL_IDENTITIES = opaque_fingerprint(8401)
-STOPPED_HEALTH = opaque_fingerprint(8402)
-FINAL_HEALTH = opaque_fingerprint(8403)
+from tests.r2_validation_lifecycle_fixture import (
+    SyntheticValidationAdapters,
+    approved_slice,
+)
 
 
 class R2CrossStageFinalSealTests(unittest.TestCase):
@@ -51,20 +47,33 @@ class R2CrossStageFinalSealTests(unittest.TestCase):
         self.assertEqual(adapters.freshness_reads, 1)
         self.assertEqual(adapters.success_appends, 1)
         self.assertEqual(adapters.mutations, 0)
-        self.assertEqual(adapters.calls[-2:], ["minimal_freshness", "CUTOVER_SUCCESS"])
+        self.assertEqual(
+            adapters.calls[-3:],
+            ["minimal_freshness", "CUTOVER_SUCCESS", "head"],
+        )
         with self.assertRaises(ValueError):
             machine.seal(self._request())
+
+    def test_success_append_requires_a_new_durably_observed_head(self):
+        adapters = RecoveryAdapters()
+        self._enable_seal(adapters, advance_head=False)
+        result = self._machine(adapters, snapshot(remaining=())).seal(
+            self._request()
+        )
+        self.assertIs(result.status, CrossStageStatus.INCIDENT_STOP)
+        self.assertEqual(result.journal_appends, 0)
+        self.assertEqual(adapters.success_appends, 1)
 
     def test_audit_expiry_head_nonce_and_identity_drift_cannot_seal(self):
         for mode in ("audit_expiry", "head", "nonce", "identities"):
             adapters = RecoveryAdapters()
             self._enable_seal(adapters, mode=mode)
-            request = self._request(
-                expired=(mode == "audit_expiry")
-            )
+            request = self._request()
             with self.subTest(mode=mode):
                 result = self._machine(
-                    adapters, snapshot(remaining=())
+                    adapters,
+                    snapshot(remaining=()),
+                    now_epoch=(NOW + 301 if mode == "audit_expiry" else NOW),
                 ).seal(request)
                 self.assertIs(result.status, CrossStageStatus.INCIDENT_STOP)
                 self.assertEqual(adapters.success_appends, 0)
@@ -86,7 +95,7 @@ class R2CrossStageFinalSealTests(unittest.TestCase):
             self.assertIs(result.status, CrossStageStatus.INCIDENT_STOP)
             self.assertEqual(adapters.freshness_reads, 0)
 
-    def _enable_seal(self, adapters, mode="ok"):
+    def _enable_seal(self, adapters, mode="ok", advance_head=True):
         def freshness():
             adapters.calls.append("minimal_freshness")
             adapters.freshness_reads += 1
@@ -100,16 +109,19 @@ class R2CrossStageFinalSealTests(unittest.TestCase):
                     if mode == "identities"
                     else IDENTITIES
                 ),
-                observed_at_epoch=NOW,
+                observed_at_epoch=(NOW + 301 if mode == "audit_expiry" else NOW),
             )
 
         def append(record_type, prior_head, material):
             adapters.calls.append(record_type)
             adapters.success_appends += 1
+            new_head = opaque_fingerprint(8492)
+            if advance_head:
+                adapters.head = new_head
             return CutoverSuccessAppendV1.create(
                 record_type=record_type,
                 prior_head_fingerprint=prior_head,
-                journal_head_fingerprint=opaque_fingerprint(8492),
+                journal_head_fingerprint=new_head,
                 material_fingerprint=material,
             )
 
@@ -118,56 +130,30 @@ class R2CrossStageFinalSealTests(unittest.TestCase):
         original = adapters.bundle
         adapters.bundle = lambda: _seal_bundle(adapters, original())
 
-    def _request(self, *, expired=False):
-        expires = NOW if expired else NOW + 299
-        stopped = IndependentAuditCompletionV1.create(
-            audit_kind=AuditKind.STOPPED_LAYOUT,
-            audit_process_id=5101,
-            service_nonce=NONCE_A,
-            service_process_id=4101,
-            journal_head_fingerprint=HEAD,
-            approved_identities_fingerprint=STOPPED_IDENTITIES,
-            health_evidence_fingerprint=STOPPED_HEALTH,
-            observed_at_epoch=NOW - 1,
-            expires_at_epoch=expires,
-            attested=True,
-        )
-        final = IndependentAuditCompletionV1.create(
-            audit_kind=AuditKind.FINAL_RUNNING_HEALTH,
-            audit_process_id=5201,
-            service_nonce=NONCE_B,
-            service_process_id=4201,
-            journal_head_fingerprint=HEAD,
-            approved_identities_fingerprint=FINAL_IDENTITIES,
-            health_evidence_fingerprint=FINAL_HEALTH,
-            observed_at_epoch=NOW - 1,
-            expires_at_epoch=expires,
-            attested=True,
-        )
-        validation = ValidationLifecycleResultV1(
-            ValidationStatus.VALIDATED,
-            11,
-            1,
-            1,
-            0,
-            opaque_fingerprint(8420),
-        )
+    def _request(self):
+        validation = ValidationLifecycle.create(
+            approved=approved_slice(),
+            adapters=SyntheticValidationAdapters().bundle(),
+            nonce_factory=iter((NONCE_A, NONCE_B)).__next__,
+            now=lambda: NOW,
+            fault=ValidationFaultSelectorV1.none(),
+        ).run()
+        stopped = validation.stopped_audit
+        final = validation.final_audit
         return FinalSealRequestV1.create(
             validation=validation,
-            stopped_audit=stopped,
-            final_audit=final,
             current_journal_head=HEAD,
             nonce_b=NONCE_B,
             approved_identities_fingerprint=IDENTITIES,
-            stopped_identities_fingerprint=STOPPED_IDENTITIES,
-            final_identities_fingerprint=FINAL_IDENTITIES,
+            stopped_identities_fingerprint=stopped.approved_identities_fingerprint,
+            final_identities_fingerprint=final.approved_identities_fingerprint,
         )
 
-    def _machine(self, adapters, value):
+    def _machine(self, adapters, value, now_epoch=NOW):
         return CrossStageRecoveryMachine.create(
             snapshot=value,
             adapters=adapters.bundle(),
-            now=lambda: NOW,
+            now=lambda: now_epoch,
             fault=RecoveryFaultSelectorV1.none(),
         )
 

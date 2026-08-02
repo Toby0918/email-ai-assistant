@@ -40,6 +40,17 @@ class R2DatabasePublicationWindowsTests(unittest.TestCase):
             self.assertLess(events.index("quiescence:intent"), events.index("service:stopped"))
             self.assertLess(events.index("service:stopped"), events.index("database_prepare:intent"))
 
+    def test_quiescence_can_be_bound_before_later_publication_mutations(self) -> None:
+        with _world() as world:
+            transaction = world.transaction()
+            stopped = transaction.quiesce()
+            self.assertEqual(stopped.status, "STOPPED")
+            self.assertFalse(world.staging.exists())
+            self.assertFalse(world.target.exists())
+            result = transaction.execute(DatabaseFaultSelectorV1.none())
+            self.assertEqual(result.status, DatabaseTransactionStatus.PUBLISHED)
+            self.assertEqual(transaction.events.count("service:stopped"), 1)
+
     def test_generic_result_cannot_forge_stopped_receipt(self) -> None:
         with _world() as world:
             transaction = world.transaction()
@@ -109,8 +120,10 @@ class R2DatabasePublicationWindowsTests(unittest.TestCase):
 
 
 class _World:
-    def __init__(self) -> None:
-        self._temporary = tempfile.TemporaryDirectory()
+    def __init__(self, directory: Path | None = None) -> None:
+        self._temporary = tempfile.TemporaryDirectory(
+            dir=str(directory) if directory is not None else None
+        )
         self.root = Path(self._temporary.name)
         self.source = self.root / "legacy.sqlite3"
         self.target = self.root / "LocalData" / "analysis.sqlite3"

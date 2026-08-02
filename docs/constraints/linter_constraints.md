@@ -1154,8 +1154,14 @@ allowlisted counts.
 Obsolete-surface tests recursively reject R2 reachability of batched managed
 publication, stale R1 verification, in-process-only operator substitution,
 self-certified audit receipts, and any legacy R2 success terminal. Windows
-behavior tests own every sandbox and require real TTY channels and distinct
-processes; portable tests explicitly make no native evidence claim. Existing
+behavior tests own every sandbox and require real TTY channels, distinct
+test-worker success proofs, separately locked production entries, quiescence
+before operational mutation, distinct service/audit processes, exact registered
+nominal receipts, complete canonical receipt mappings, pre-lifecycle
+predecessor/head recomputation, durable final-head re-observation, and transitive
+hashing of every local verifier input. The
+70-case count must be returned by executed semantic dispatch, never a verifier
+literal. Portable tests explicitly make no native evidence claim. Existing
 module/function bounds continue to apply.
 
 ## 14. 修改规则

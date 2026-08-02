@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import secrets
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -57,9 +58,11 @@ class IndependentStoppedLayoutAuditReceiptV1:
     attestation_fingerprint: str = field(repr=False)
     journal_head_fingerprint: str = field(repr=False)
     approved_identities_fingerprint: str = field(repr=False)
+    health_evidence_fingerprint: str = field(repr=False)
     observed_at_epoch: int
     expires_at_epoch: int
     process_id: int = field(repr=False)
+    _issuance_nonce: str = field(repr=False)
 
     def __init__(self, *args: object, **kwargs: object) -> None:
         raise TypeError("IndependentStoppedLayoutAuditReceiptV1 is nominal")
@@ -77,6 +80,7 @@ class IndependentFinalRunningHealthReceiptV1:
     observed_at_epoch: int
     expires_at_epoch: int
     process_id: int = field(repr=False)
+    _issuance_nonce: str = field(repr=False)
 
     def __init__(self, *args: object, **kwargs: object) -> None:
         raise TypeError("IndependentFinalRunningHealthReceiptV1 is nominal")
@@ -93,3 +97,32 @@ class IndependentAuditResult:
         | IndependentFinalRunningHealthReceiptV1
         | None
     ) = field(repr=False)
+
+
+_ISSUED_RECEIPTS: dict[str, object] = {}
+
+
+def is_issued_audit_receipt(value: object) -> bool:
+    receipt_types = (
+        IndependentStoppedLayoutAuditReceiptV1,
+        IndependentFinalRunningHealthReceiptV1,
+    )
+    return (
+        type(value) in receipt_types
+        and type(value._issuance_nonce) is str
+        and _ISSUED_RECEIPTS.get(value._issuance_nonce) is value
+    )
+
+
+def _issue_receipt(receipt_type, values):
+    if receipt_type not in {
+        IndependentStoppedLayoutAuditReceiptV1,
+        IndependentFinalRunningHealthReceiptV1,
+    }:
+        raise TypeError("INDEPENDENT_AUDIT_RECEIPT_TYPE_INVALID")
+    nonce = secrets.token_hex(32)
+    receipt = object.__new__(receipt_type)
+    for name, value in {**values, "_issuance_nonce": nonce}.items():
+        object.__setattr__(receipt, name, value)
+    _ISSUED_RECEIPTS[nonce] = receipt
+    return receipt

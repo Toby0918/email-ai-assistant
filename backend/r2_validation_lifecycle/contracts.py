@@ -12,6 +12,11 @@ from backend.r2_crx_publication import CrxPublicationReceiptV1, CrxPublicationSt
 from backend.r2_database_publication import DatabaseTransactionResultV1, DatabaseTransactionStatus
 from backend.r2_evidence_process import EvidenceProcessResult, EvidenceProcessStatus
 from backend.r2_independent_audits import AuditKind
+from backend.r2_independent_audits import (
+    IndependentFinalRunningHealthReceiptV1,
+    IndependentStoppedLayoutAuditReceiptV1,
+    is_issued_audit_receipt,
+)
 from backend.r2_repository_manifest import RepositoryTopologyReceiptV1
 from backend.r2_runtime_publication import RuntimePublicationReceiptV1, RuntimePublicationStatus
 
@@ -87,7 +92,7 @@ class ApprovedValidationSliceV1:
             "profile_fingerprint": values["profile_fingerprint"],
             "authorization_fingerprint": values["authorization_fingerprint"],
             "evidence_fingerprint": values["evidence_fingerprint"],
-            "journal_head_fingerprint": values["repository"].journal_head_fingerprint,
+            "journal_head_fingerprint": values["journal_head_fingerprint"],
             "runtime_fingerprint": values["runtime"].receipt_fingerprint,
             "crx_fingerprint": values["crx"].receipt_fingerprint,
             "config_fingerprint": values["config"].receipt_fingerprint,
@@ -209,32 +214,6 @@ class IndependentAuditRequestV1:
 
 
 @dataclass(frozen=True, slots=True, repr=False, init=False)
-class IndependentAuditCompletionV1:
-    audit_kind: AuditKind
-    audit_process_id: int
-    service_nonce: str
-    service_process_id: int
-    journal_head_fingerprint: str
-    approved_identities_fingerprint: str
-    health_evidence_fingerprint: str
-    observed_at_epoch: int
-    expires_at_epoch: int
-    attested: bool
-
-    def __init__(self, *args: object, **kwargs: object) -> None:
-        raise TypeError("IndependentAuditCompletionV1 requires create()")
-
-    @classmethod
-    def create(cls, **values):
-        if not _valid_audit_completion(values):
-            raise ValueError("R2_VALIDATION_AUDIT_COMPLETION_INVALID")
-        result = object.__new__(cls)
-        for name, value in values.items():
-            object.__setattr__(result, name, value)
-        return result
-
-
-@dataclass(frozen=True, slots=True, repr=False)
 class ValidationLifecycleResultV1:
     status: ValidationStatus
     completed_boundaries: int
@@ -242,6 +221,54 @@ class ValidationLifecycleResultV1:
     database_write_count: int
     provider_attempts: int
     receipt_fingerprint: str
+    stopped_audit: IndependentStoppedLayoutAuditReceiptV1 | None
+    final_audit: IndependentFinalRunningHealthReceiptV1 | None
+    start_b_nonce: str | None
+    approved_identities_fingerprint: str
+    _issuance_nonce: str = field(repr=False)
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        raise TypeError("ValidationLifecycleResultV1 is lifecycle-issued")
+
+
+_ISSUED_VALIDATION_RESULTS: dict[str, object] = {}
+
+
+def is_issued_validation_result(value: object) -> bool:
+    return (
+        type(value) is ValidationLifecycleResultV1
+        and type(value._issuance_nonce) is str
+        and _ISSUED_VALIDATION_RESULTS.get(value._issuance_nonce) is value
+    )
+
+
+def _issue_validation_result(**values):
+    import secrets
+
+    stopped = values.pop("stopped_audit")
+    final = values.pop("final_audit")
+    nonce_b = values.pop("start_b_nonce")
+    if values["status"] is ValidationStatus.VALIDATED and (
+        type(stopped) is not IndependentStoppedLayoutAuditReceiptV1
+        or type(final) is not IndependentFinalRunningHealthReceiptV1
+        or not is_issued_audit_receipt(stopped)
+        or not is_issued_audit_receipt(final)
+        or not _uuid4(nonce_b)
+    ):
+        raise ValueError("R2_VALIDATION_RESULT_PROVENANCE_INVALID")
+    issuance = secrets.token_hex(32)
+    result = object.__new__(ValidationLifecycleResultV1)
+    bound = {
+        **values,
+        "stopped_audit": stopped,
+        "final_audit": final,
+            "start_b_nonce": nonce_b,
+        "_issuance_nonce": issuance,
+    }
+    for name, value in bound.items():
+        object.__setattr__(result, name, value)
+    _ISSUED_VALIDATION_RESULTS[issuance] = result
+    return result
 
 
 def start_request(approved, phase, nonce):
@@ -261,13 +288,8 @@ def _fault(cls, kind, boundary):
 
 
 def _valid_approved(values):
-    expected = {"operation_fingerprint", "profile_fingerprint", "authorization_fingerprint", "evidence", "evidence_fingerprint", "repository", "runtime", "crx", "config", "database", "approved_identities_fingerprint"}
-    return set(values) == expected and all(is_fingerprint(values[name]) for name in ("operation_fingerprint", "profile_fingerprint", "authorization_fingerprint", "evidence_fingerprint", "approved_identities_fingerprint")) and type(values["evidence"]) is EvidenceProcessResult and values["evidence"].status is EvidenceProcessStatus.PUBLISHED and type(values["repository"]) is RepositoryTopologyReceiptV1 and values["repository"].status == "REPOSITORY_TOPOLOGY_PUBLISHED" and type(values["runtime"]) is RuntimePublicationReceiptV1 and values["runtime"].status is RuntimePublicationStatus.PUBLISHED and values["runtime"].complete and type(values["crx"]) is CrxPublicationReceiptV1 and values["crx"].status is CrxPublicationStatus.PUBLISHED and values["crx"].source_held_through_final_verify and values["crx"].target_held_through_final_verify and type(values["config"]) is ConfigPublicationReceiptV1 and values["config"].status is ConfigPublicationStatus.PUBLISHED and values["config"].provider_disabled and values["config"].loader_verified and type(values["database"]) is DatabaseTransactionResultV1 and values["database"].status is DatabaseTransactionStatus.PUBLISHED and values["database"].source_mutations == 0
-
-
-def _valid_audit_completion(values):
-    expected = {"audit_kind", "audit_process_id", "service_nonce", "service_process_id", "journal_head_fingerprint", "approved_identities_fingerprint", "health_evidence_fingerprint", "observed_at_epoch", "expires_at_epoch", "attested"}
-    return set(values) == expected and type(values["audit_kind"]) is AuditKind and all(type(values[name]) is int and values[name] > 0 for name in ("audit_process_id", "service_process_id")) and _uuid4(values["service_nonce"]) and all(is_fingerprint(values[name]) for name in ("journal_head_fingerprint", "approved_identities_fingerprint", "health_evidence_fingerprint")) and type(values["observed_at_epoch"]) is int and type(values["expires_at_epoch"]) is int and type(values["attested"]) is bool
+    expected = {"operation_fingerprint", "profile_fingerprint", "authorization_fingerprint", "evidence", "evidence_fingerprint", "journal_head_fingerprint", "repository", "runtime", "crx", "config", "database", "approved_identities_fingerprint"}
+    return set(values) == expected and all(is_fingerprint(values[name]) for name in ("operation_fingerprint", "profile_fingerprint", "authorization_fingerprint", "evidence_fingerprint", "journal_head_fingerprint", "approved_identities_fingerprint")) and type(values["evidence"]) is EvidenceProcessResult and values["evidence"].status is EvidenceProcessStatus.PUBLISHED and type(values["repository"]) is RepositoryTopologyReceiptV1 and values["repository"].status == "REPOSITORY_TOPOLOGY_PUBLISHED" and type(values["runtime"]) is RuntimePublicationReceiptV1 and values["runtime"].status is RuntimePublicationStatus.PUBLISHED and values["runtime"].complete and type(values["crx"]) is CrxPublicationReceiptV1 and values["crx"].status is CrxPublicationStatus.PUBLISHED and values["crx"].source_held_through_final_verify and values["crx"].target_held_through_final_verify and type(values["config"]) is ConfigPublicationReceiptV1 and values["config"].status is ConfigPublicationStatus.PUBLISHED and values["config"].provider_disabled and values["config"].loader_verified and type(values["database"]) is DatabaseTransactionResultV1 and values["database"].status is DatabaseTransactionStatus.PUBLISHED and values["database"].source_mutations == 0
 
 
 def _uuid4(value):

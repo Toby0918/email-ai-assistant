@@ -44,7 +44,7 @@ def _run_operator(workdir=None) -> dict[str, object]:
             str(python),
             "-B",
             "-m",
-            "tests.r2_evidence_process_worker",
+            "backend.r2_evidence_process",
             "publish",
         ),
         cwd=workdir,

@@ -6,6 +6,8 @@ from backend.r2_cross_stage_recovery import (
     CrossStageAdaptersV1,
     EffectObservation,
     PendingIntentV1,
+    INITIAL_JOURNAL_HEAD_FINGERPRINT,
+    INITIAL_RECEIPT_FINGERPRINT,
     ReceiptPredecessorLinkV1,
     RecoveryBoundary,
     ReverseBoundaryAuthorityV1,
@@ -13,24 +15,31 @@ from backend.r2_cross_stage_recovery import (
     RestartSnapshotV1,
 )
 from tests.cutover_contract_fixtures import opaque_fingerprint
+from tests.r2_validation_lifecycle_fixture import (
+    HEAD as VALIDATION_HEAD,
+    IDENTITIES as VALIDATION_IDENTITIES,
+    PUBLICATION_MATERIAL,
+)
 
 
 NOW = 1_900_000_000
-HEAD = opaque_fingerprint(8200)
-IDENTITIES = opaque_fingerprint(8201)
+HEAD = VALIDATION_HEAD
+IDENTITIES = VALIDATION_IDENTITIES
 NONCE_A = "11111111-1111-4111-8111-111111111111"
 NONCE_B = "22222222-2222-4222-8222-222222222222"
 BOUNDARIES = tuple(RecoveryBoundary)
 
 
-def snapshot(*, pending=None, remaining=BOUNDARIES, links=None, preserved=False):
+def snapshot(
+    *, pending=None, remaining=BOUNDARIES, links=None, preserved=False, head=HEAD
+):
     if links is None:
         links = (
-            ReceiptPredecessorLinkV1(
-                receipt_fingerprint=opaque_fingerprint(8210),
-                predecessor_fingerprint=opaque_fingerprint(8211),
-                prior_head_fingerprint=opaque_fingerprint(8212),
-                journal_head_fingerprint=HEAD,
+            ReceiptPredecessorLinkV1.create(
+                record_type="PUBLICATION_RECEIPT",
+                material_fingerprint=PUBLICATION_MATERIAL,
+                predecessor_fingerprint=INITIAL_RECEIPT_FINGERPRINT,
+                prior_head_fingerprint=INITIAL_JOURNAL_HEAD_FINGERPRINT,
             ),
         )
     if pending is None:
@@ -43,7 +52,7 @@ def snapshot(*, pending=None, remaining=BOUNDARIES, links=None, preserved=False)
             for index, boundary in enumerate(remaining)
         )
     return RestartSnapshotV1.create(
-        current_journal_head=HEAD,
+        current_journal_head=head,
         receipt_links=links,
         pending_intents=tuple(pending),
         remaining_reverse_plan=tuple(remaining),
