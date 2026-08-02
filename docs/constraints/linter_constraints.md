@@ -8,6 +8,21 @@ source_type: operation_guide
 
 # Static Linter Constraints
 
+## R2 rollback recovery guards
+
+- Derive the reverse plan only from the same-binding #94-#96 plan chain and
+  exact durable forward commits; failed-Container preservation is always first.
+- Require strict LIFO source transition order, a unique nonzero remaining-plan
+  fingerprint per boundary, and fresh single-use ROLLBACK authority per intent.
+- Effect evidence fixes retained failed/partial objects, one bounded reverse
+  mutation, and zero destructive operations. PRE/POST/AMBIGUOUS follow the
+  unified journal and never permit a blind repeat.
+- The package stays pathless and dormant, with no executable, normal-runtime
+  consumer, host adapter, issuer, cleanup, deletion, provider, mailbox, vault,
+  or private-data capability.
+- The only successful reverse terminal is `LEGACY_FLAT_LAYOUT_RESTORED`, after
+  exact legacy and independent audit evidence, with zero terminal host effects.
+
 ## R2 two-start validation guards
 
 - Require the exact seven-action lifecycle sequence after all eight managed

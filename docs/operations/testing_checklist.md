@@ -8,6 +8,17 @@ source_type: operation_guide
 
 # 测试检查清单
 
+## Issue #97 rollback recovery checks
+
+Run `tests/test_r2_rollback_recovery_v2.py`, its crash-matrix module, and its
+architecture companion. Prove failed-Container-first strict LIFO derivation
+for every one of the 32 forward commit prefixes and every journal cut, then
+execute all 33 full-prefix reverse boundaries
+with distinct fresh recovery claims and retained-object evidence. Exercise
+PRE/POST/AMBIGUOUS restart, prove POST performs zero replay, reject caller
+reordering and normal-runtime capability, and require exact legacy audits,
+zero destructive/provider/write counts, and one terminal append only.
+
 ## Issue #96 two-start validation checks
 
 Run `tests/test_r2_two_start_validation_v2.py` and its architecture companion.

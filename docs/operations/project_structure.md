@@ -8,6 +8,19 @@ source_type: operation_guide
 
 # 项目结构
 
+## Issue #97 rollback recovery V2
+
+- `backend/r2_rollback_recovery_v2/plan.py`: journal-derived failed-Container-
+  first LIFO plan, immutable source-commit links, and remaining-plan bindings.
+- `backend/r2_rollback_recovery_v2/evidence.py`: retained-object reverse-effect
+  evidence and exact legacy topology/service/audit terminal evidence.
+- `backend/r2_rollback_recovery_v2/progress.py`: one-boundary begin, commit,
+  tri-state classification, and fresh-authority recovery over the one journal.
+- `backend/r2_rollback_recovery_v2/seal.py`: unique zero-host-mutation
+  `LEGACY_FLAT_LAYOUT_RESTORED` append.
+- The package has no host reader, path, process, issuer, destructive operation,
+  independent journal, executable, or normal-runtime consumer.
+
 ## Issue #96 two-start validation V2
 
 - `backend/r2_two_start_validation_v2/plan.py`: seven fixed lifecycle

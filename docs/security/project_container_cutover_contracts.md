@@ -8,6 +8,23 @@ source_type: security_policy
 
 # Project Container cutover contract security boundary
 
+## Issue #97 journal-derived rollback and legacy recovery
+
+Rollback begins only from the exact same-binding durable forward COMMIT prefix.
+The plan first preserves the failed Container and every partial/new object,
+then reverses the committed #94-#96 transitions in strict LIFO order. Callers
+cannot supply, omit, select, or reorder reverse boundaries. Every boundary has
+a unique remaining-plan fingerprint and requires fresh single-use ROLLBACK
+authority bound to that suffix and current journal head.
+
+Exact PRE may create a fresh intent; exact POST may append a recovered commit
+without repeating the effect; ambiguity incident-stops. No reverse evidence
+permits deletion or cleanup. Only after all reverse commits and exact legacy
+topology, service, ACL, identity, and Git/worktree audits may fresh recovery
+authority append the sole successful reverse terminal,
+`LEGACY_FLAT_LAYOUT_RESTORED`, with zero provider attempts, legacy analysis
+writes, destructive operations, or terminal host mutations.
+
 ## Issue #96 two-start validation and final seal
 
 `R2TwoStartValidationPlanV2` binds seven ordered lifecycle transitions after

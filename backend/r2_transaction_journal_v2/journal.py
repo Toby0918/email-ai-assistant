@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from backend.r2_production_binding import (
     ApprovedCutoverBindingV2,
     DurableAuthorityClaimV2,
+    ProductionCommandV2,
     validate_new_authority_claim,
 )
 
@@ -227,7 +228,7 @@ def _validate_record_kind(journal, record, previous):
             raise JournalV2Error()
         if len(journal.records) >= 2:
             classified = journal.records[-2]
-            if classified.record_type is JournalRecordTypeV2.RECOVERY_CLASSIFICATION and (classified.effect_classification is not EffectClassificationV2.EFFECT_ABSENT_EXACT or record.transition_instance_fingerprint != classified.transition_instance_fingerprint):
+            if classified.record_type is JournalRecordTypeV2.RECOVERY_CLASSIFICATION and not _valid_intent_after_classification(classified, previous, record):
                 raise JournalV2Error()
     elif record.record_type is JournalRecordTypeV2.EFFECT_OBSERVATION:
         if previous is None or previous.record_type is not JournalRecordTypeV2.INTENT or record.transition_instance_fingerprint != previous.transition_instance_fingerprint:
@@ -262,6 +263,17 @@ def _validate_record_kind(journal, record, previous):
             raise JournalV2Error()
     else:
         raise JournalV2Error()
+
+
+def _valid_intent_after_classification(classified, authority, intent):
+    return (
+        classified.effect_classification is EffectClassificationV2.EFFECT_ABSENT_EXACT
+        and (
+            intent.transition_instance_fingerprint
+            == classified.transition_instance_fingerprint
+            or authority.authority_claim.command is ProductionCommandV2.ROLLBACK
+        )
+    )
 
 
 def _decode_frames(payload):

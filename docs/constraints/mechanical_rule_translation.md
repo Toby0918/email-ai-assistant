@@ -8,6 +8,21 @@ source_type: operation_guide
 
 # Mechanical Rule Translation
 
+## Issue #97 rollback recovery rules
+
+1. Enumerate the durable #94-#96 COMMIT prefix and reject unknown, omitted,
+   duplicate, or reordered forward commits.
+2. Prepend one failed-Container preservation transition, then reverse every
+   committed source transition in strict LIFO order with swapped states.
+3. Fingerprint each remaining reverse suffix and bind it, the current journal
+   head, and transition instance into fresh ROLLBACK authority.
+4. Require retention evidence and zero destructive operations for every
+   reverse effect; exact POST uses a new claim and commit without effect replay.
+5. Exercise all 32 forward commit crash prefixes and every reverse boundary;
+   PRE resumes with a fresh intent and AMBIGUOUS incident-stops.
+6. After all reverse commits, require exact legacy topology/service/ACL/
+   Git-worktree audits and append `LEGACY_FLAT_LAYOUT_RESTORED` exactly once.
+
 ## Issue #96 validation rules
 
 1. Require the complete managed prefix, then derive the seven fixed validation

@@ -8,6 +8,20 @@ source_type: operation_guide
 
 # Executable Architecture Constraints
 
+## Issue #97 rollback recovery architecture
+
+`R2RollbackPlanV2` accepts only the exact reviewed binding, the #94-#96 plans,
+and the unified journal. It derives a mandatory failed-Container preservation
+boundary followed by the exact reverse of the durable forward commit prefix;
+no public list, selector, reorder, or alternate reverse-plan input exists.
+
+Every reverse transition binds its source commit head, swapped pre/post state,
+current remaining-plan fingerprint, fixed production owner, and fresh recovery
+authority. Exact PRE starts a new intent, exact POST appends only a recovered
+commit, and ambiguity incident-stops. Legacy terminal evidence requires exact
+topology, service, ACL, Git/worktree, identity, retention, zero-provider, and
+zero-write facts before one zero-host-effect terminal append.
+
 ## Issue #96 two-start validation architecture
 
 `R2TwoStartValidationPlanV2` depends on a complete managed plan and defines
