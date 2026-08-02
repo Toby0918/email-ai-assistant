@@ -1,0 +1,23 @@
+"""Closed vocabulary for the unified append-only journal."""
+
+from enum import Enum
+
+
+class JournalRecordTypeV2(str, Enum):
+    AUTHORITY_CLAIM = "AUTHORITY_CLAIM"
+    INTENT = "INTENT"
+    EFFECT_OBSERVATION = "EFFECT_OBSERVATION"
+    COMMIT = "COMMIT"
+    RECOVERY_CLASSIFICATION = "RECOVERY_CLASSIFICATION"
+    TERMINAL_STATE = "TERMINAL_STATE"
+
+
+class EffectClassificationV2(str, Enum):
+    EFFECT_ABSENT_EXACT = "EFFECT_ABSENT_EXACT"
+    EFFECT_PRESENT_EXACT = "EFFECT_PRESENT_EXACT"
+    EFFECT_AMBIGUOUS = "EFFECT_AMBIGUOUS"
+
+
+class TerminalStateV2(str, Enum):
+    CUTOVER_SUCCESS = "CUTOVER_SUCCESS"
+    LEGACY_FLAT_LAYOUT_RESTORED = "LEGACY_FLAT_LAYOUT_RESTORED"

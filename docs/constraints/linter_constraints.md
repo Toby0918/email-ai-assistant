@@ -8,6 +8,20 @@ source_type: operation_guide
 
 # Static Linter Constraints
 
+## R2 unified-journal guards
+
+- The journal package must retain its exact closed record and effect vocabulary,
+  canonical framing, one owner, one increasing sequence, and one predecessor
+  head per append.
+- Fresh reconstruction must reject an unknown type, duplicate/reordered record,
+  owner/head drift, authority replay, noncanonical JSON, invalid frame length,
+  extra bytes, and any torn tail.
+- The package must not import path, operating-system, subprocess, database, or
+  production process roots and must not gain reader, signer, issuer, mutation,
+  cleanup, mailbox, provider, vault, or private-data capability.
+- Inspection receipts must remain zero-mutation, zero-append evidence outside
+  the real-authorization type registry.
+
 ## R2 Git-byte state guards
 
 - Selected bytes must match the exact Git blob OID, checkout bytes, index OID,

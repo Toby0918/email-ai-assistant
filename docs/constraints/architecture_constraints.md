@@ -8,6 +8,20 @@ source_type: operation_guide
 
 # Executable Architecture Constraints
 
+## Issue #93 unified journal architecture
+
+`R2TransactionJournalV2` has one genesis and one ordered record tuple. Its last
+canonical record fingerprint is the single authoritative current head. Every
+append binds that head, the fixed journal owner, the reviewed final master, and
+one transition instance; every restart reconstructs and validates the entire
+chain before exposing the next legal action.
+
+The package is pure and capability-free. It accepts immutable content-free
+observations and durable authority claim values but owns no path, file, Git,
+process, database, signer, private key, callback, host mutation, or lifecycle
+action. The read-only inspection receipt is evidence only and is excluded from
+all real authorization types.
+
 ## Issue #92 Git-object byte conformance
 
 `backend.r2_repository_manifest` contains a pure V2 snapshot layer for selected

@@ -8,6 +8,18 @@ source_type: operation_guide
 
 # 项目结构
 
+## Issue #93 unified transaction journal V2
+
+- `backend/r2_transaction_journal_v2/journal.py`: immutable framed chain,
+  fresh-process reconstruction, durable claim replay checks, and next-action
+  classification.
+- `backend/r2_transaction_journal_v2/record.py`: canonical closed-vocabulary
+  content-free record contract.
+- `backend/r2_transaction_journal_v2/inspection.py`: two-observation read-only
+  PRE/POST/AMBIGUOUS classification and non-authorizing receipt.
+- The `r2_transaction_journal_v2/` package owns no host reader, path, process,
+  mutation adapter, signer, issuer, or private payload capability.
+
 ## Issue #92 Git-byte state V2
 
 - `backend/r2_repository_manifest/git_byte_types_v2.py`: nominal selected-byte,

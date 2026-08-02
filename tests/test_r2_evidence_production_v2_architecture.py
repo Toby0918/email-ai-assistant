@@ -21,10 +21,19 @@ JOURNAL = ROOT / "backend" / "r2_transaction_journal_v2"
 
 
 class R2EvidenceProductionV2ArchitectureTests(unittest.TestCase):
-    def test_physical_evidence_root_and_pure_genesis_package_are_closed(self):
+    def test_physical_evidence_root_and_pure_journal_package_are_closed(self):
         self.assertEqual(
             {path.name for path in JOURNAL.glob("*.py")},
-            {"__init__.py", "_canonical.py", "errors.py", "genesis.py"},
+            {
+                "__init__.py",
+                "_canonical.py",
+                "errors.py",
+                "genesis.py",
+                "inspection.py",
+                "journal.py",
+                "record.py",
+                "vocabulary.py",
+            },
         )
         self.assertNotIn(R2JournalGenesisV2, REAL_AUTHORIZATION_TYPES)
         production = (EVIDENCE / "production_v2.py").read_text(encoding="utf-8")

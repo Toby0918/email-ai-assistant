@@ -8,6 +8,24 @@ source_type: security_policy
 
 # Project Container cutover contract security boundary
 
+## Issue #93 unified transaction journal
+
+`R2TransactionJournalV2` is the only append-only chain for all later R2
+production transitions. Length-framed canonical records bind one reviewed
+production binding, journal owner, monotonically increasing sequence, exact
+predecessor head, transition instance, and the durable single-use authority
+claim where required. Unknown records, replay, duplicate sequence, owner/head
+drift, noncanonical bytes, or a torn frame tail fail closed during
+fresh-process reconstruction.
+
+The journal vocabulary is closed to authority claim, intent, effect
+observation, commit, recovery classification, and terminal state. A pure
+read-only tri-state inspection compares two identical content-free
+observations against the pending intent and returns exactly effect absent,
+effect present, or ambiguous. The receipt performs zero mutation and zero
+journal append, is not authority, and cannot own a reader, path, process,
+issuer, host adapter, or private payload.
+
 ## Issue #92 Git-byte state
 
 `GitByteSnapshotV2` proves selected checkout bytes against exact Git blob-object

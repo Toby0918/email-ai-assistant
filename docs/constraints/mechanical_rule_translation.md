@@ -8,6 +8,19 @@ source_type: operation_guide
 
 # Mechanical Rule Translation
 
+## Issue #93 journal rules
+
+1. Frame genesis and every later canonical record as exact lowercase
+   eight-hex-length bytes followed by one colon, payload, and newline.
+2. Reconstruct the complete chain and require one binding, owner, sequence, and
+   exact predecessor head at every cut point; replayed durable claims fail.
+3. Permit only `AUTHORITY_CLAIM`, `INTENT`, `EFFECT_OBSERVATION`, `COMMIT`,
+   `RECOVERY_CLASSIFICATION`, and `TERMINAL_STATE` record types.
+4. Classify two equal immutable observations as exact PRE, exact POST, or
+   ambiguous. Inspection performs no append and no mutation.
+5. Treat all journal and inspection values as content-free evidence, never as
+   an issuer or real-host authorization.
+
 ## Issue #92 Git-byte rules
 
 1. Compare every selected checkout byte string to its exact Git blob bytes and

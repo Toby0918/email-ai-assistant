@@ -8,6 +8,15 @@ source_type: operation_guide
 
 # 测试检查清单
 
+## Issue #93 unified journal checks
+
+Run `tests/test_r2_transaction_journal_v2.py` and its architecture companion.
+Prove full and every-cut-point fresh reconstruction; reject torn framing,
+unknown types, duplicate sequence, wrong predecessor/owner, and authority
+replay. Exercise exact PRE/POST/AMBIGUOUS two-observation inspection and prove
+the receipt leaves journal bytes/head unchanged with zero mutation and zero
+append.
+
 ## Issue #92 Git-byte state checks
 
 Run `tests/test_r2_git_byte_state_v2.py` and its architecture companion. Prove
