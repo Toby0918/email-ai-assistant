@@ -1015,3 +1015,12 @@ vault/签名/密钥错误、schema/safety/grounding 违规、p95 超限、泄漏
 错误码和计数，并由本地负责人决定恢复或撤销。
 
 
+## Issue #91 production composition closure
+
+1. Run `tests/test_r2_production_composition_reachability.py` and confirm all
+   three executable roots import only their V2 entry.
+2. Confirm the obsolete V1 lock and every test binder are unreachable from the
+   production import graph.
+3. Confirm default fixed verbs return content-free no-issuer dormancy and that
+   the existing #88-#90 positive/negative tests still prove one authorized
+   composition acquisition and zero unauthorized acquisitions.

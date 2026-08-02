@@ -1518,3 +1518,14 @@ tests/test_architecture_constraints.py
 ```
 
 如果只是业务功能变化，不得随意放宽架构约束。
+## Issue #91 production composition graph closure
+
+The three executable V2 process roots import `production_v2.main` directly.
+The obsolete post-authorization locks in the historical V1 `entry.py` modules
+are not reachable from those entries. The public package surfaces export the
+verifier-side V2 role and dispatcher types needed to bind complete production
+compositions.
+
+No executable root imports `testing.py`, accepts a synthetic context or test
+binder, or owns an issuer/private signing key. With no external issuer the
+three executable V2 process roots return only `DORMANT_NO_EXTERNAL_ISSUER`.

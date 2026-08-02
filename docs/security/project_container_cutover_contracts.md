@@ -8,6 +8,19 @@ source_type: security_policy
 
 # Project Container cutover contract security boundary
 
+## Issue #91 production composition closure
+
+The three executable V2 process roots now boot only their corresponding
+`production_v2` module. A valid future V2 authority can reach the exact
+preflight, evidence-publication, or single-action transaction composition
+without an obsolete post-authorization lock. The V1 locked entries remain
+historical compatibility surfaces and are not reachable from `__main__`.
+
+Default execution preserves no-issuer dormancy: each root accepts only its
+fixed verb catalog and returns `DORMANT_NO_EXTERNAL_ISSUER` with zero host
+operations. The executable production graph imports neither a synthetic
+context nor a test binder and contains no private signing key or issuer.
+
 ## Issue #90 V2 single-action transaction process
 
 The transaction root maps only `execute`, `resume`, and `rollback` to their

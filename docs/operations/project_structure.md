@@ -590,3 +590,15 @@ scripts/repository_leakage_scan.py
 snapshot filesystem 或 mailbox access。`frontend/` 仍仅在
 用户点击后读取当前可见邮件，公开 HTTP/SQLite/renderer schema 没有因为上述
 管理员工具而扩大。
+## Issue #91 V2 process-root reachability
+
+The three V2 executable roots are
+`backend.r2_preflight_process`, `backend.r2_evidence_process`, and
+`backend.r2_transaction_process`. Each package's `__main__.py` imports only its
+local `production_v2.main`, while its public package exports the corresponding
+verifier-side dispatcher and bound role type. The historical V1 entry remains
+present but is outside the executable production graph.
+
+With no external issuer, every valid fixed verb returns
+`DORMANT_NO_EXTERNAL_ISSUER` and zero operations. Production imports no test
+binder, synthetic context, private signing key, or cross-root umbrella.

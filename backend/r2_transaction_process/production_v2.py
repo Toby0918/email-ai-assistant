@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -10,14 +11,17 @@ from backend.r2_production_binding import (
     ApprovedCutoverBindingV2,
     DurableAuthorityClaimV2,
     ProductionCommandV2,
-    production_action_fingerprint_v2,
 )
 
 from .contracts import TRANSACTION_ACKNOWLEDGEMENT
-from ._production_v2_canonical import fingerprint, is_fingerprint
+from ._production_v2_canonical import (
+    UNBOUND_REVERSE_PLAN_V2,
+    fingerprint,
+    is_fingerprint,
+    transaction_action_fingerprint_v2,
+)
 
 
-UNBOUND_REVERSE_PLAN_V2 = "0" * 64
 TRANSACTION_PRODUCTION_VERBS_V2 = {
     "execute": ProductionCommandV2.EXECUTE,
     "resume": ProductionCommandV2.RESUME,
@@ -94,51 +98,6 @@ class TransactionProductionRolesV2:
         return self.execute, self.resume, self.rollback
 
 
-def transaction_action_fingerprint_v2(
-    binding,
-    command,
-    *,
-    journal_head_fingerprint,
-    transition_instance_fingerprint,
-    remaining_reverse_plan_fingerprint,
-):
-    if (
-        type(binding) is not ApprovedCutoverBindingV2
-        or type(command) is not ProductionCommandV2
-        or command not in TRANSACTION_PRODUCTION_VERBS_V2.values()
-        or not all(
-            is_fingerprint(value)
-            for value in (
-                journal_head_fingerprint,
-                transition_instance_fingerprint,
-                remaining_reverse_plan_fingerprint,
-            )
-        )
-        or (
-            command is ProductionCommandV2.ROLLBACK
-            and remaining_reverse_plan_fingerprint == UNBOUND_REVERSE_PLAN_V2
-        )
-        or (
-            command is not ProductionCommandV2.ROLLBACK
-            and remaining_reverse_plan_fingerprint != UNBOUND_REVERSE_PLAN_V2
-        )
-    ):
-        raise ValueError("R2_TRANSACTION_ACTION_BINDING_INVALID")
-    subject = fingerprint(
-        "r2-transaction-action-subject-v2",
-        {
-            "journal_head_fingerprint": journal_head_fingerprint,
-            "transition_instance_fingerprint": transition_instance_fingerprint,
-            "remaining_reverse_plan_fingerprint": remaining_reverse_plan_fingerprint,
-        },
-    )
-    return production_action_fingerprint_v2(
-        binding,
-        command,
-        subject_fingerprint=subject,
-    )
-
-
 def run_transaction_production_v2(
     *,
     argv,
@@ -195,6 +154,17 @@ def dormant_transaction_production_v2(*, argv):
         0,
         0,
     )
+
+
+def main(*, argv=None):
+    arguments = tuple(sys.argv[1:]) if argv is None else argv
+    result = dormant_transaction_production_v2(argv=arguments)
+    sys.stdout.write(
+        f"{result.status.value} accepted={result.accepted} "
+        f"rejected={result.rejected} mutations={result.mutations}\n"
+    )
+    sys.stdout.flush()
+    return 2 if result.status is TransactionProductionStatusV2.BLOCKED_COMMAND else 0
 
 
 def complete_transaction_action_v2(

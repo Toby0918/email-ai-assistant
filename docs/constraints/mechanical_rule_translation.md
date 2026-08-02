@@ -903,3 +903,14 @@ private-data container, or authorization to migrate.
    filesystem, network, GitHub, cleanup, deletion, provider, mailbox, vault,
    credential, or private-data capability. Receipt types never enter
    `REAL_AUTHORIZATION_TYPES`.
+## Issue #91 production-graph rules
+
+1. Parse each of the three executable process roots and require exactly one
+   local `production_v2.main` import; reject an `entry` or `testing` import.
+2. Parse each reachable V2 module and reject `BLOCKED_NO_APPROVED_COMMAND`,
+   `real_locked`, private-key/signing capability, synthetic context, or test
+   binder inputs.
+3. Invoke every default fixed-verb entry and require content-free
+   `DORMANT_NO_EXTERNAL_ISSUER` with zero operations.
+4. Preserve the already tested authorized seam: exact V2 authority reaches one
+   and only one binding-bound role, while negative authority reaches none.

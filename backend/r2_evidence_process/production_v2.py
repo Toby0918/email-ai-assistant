@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sys
 from dataclasses import dataclass, field
 from enum import Enum
 
@@ -133,6 +134,17 @@ def dormant_evidence_production_v2(*, argv):
         0,
         0,
     )
+
+
+def main(*, argv=None):
+    arguments = tuple(sys.argv[1:]) if argv is None else argv
+    result = dormant_evidence_production_v2(argv=arguments)
+    sys.stdout.write(
+        f"{result.status.value} accepted={result.accepted} "
+        f"rejected={result.rejected} published={result.published}\n"
+    )
+    sys.stdout.flush()
+    return 2 if result.status is EvidenceProductionStatusV2.BLOCKED_COMMAND else 0
 
 
 def complete_reviewed_evidence_publication_v2(

@@ -1253,3 +1253,12 @@ tests/test_static_linter_constraints.py
 ```text
 docs/constraints/architecture_constraints.md
 ```
+## R2 production composition closure guards
+
+- The three `r2_*_process/__main__.py` files must import only their local
+  `production_v2.main`; the historical V1 `entry.py` lock must not be on the
+  executable production path.
+- Production modules must not import a synthetic context, `testing.py`, a test
+  binder, an issuer, or a private signing key.
+- Default fixed-verb entry returns `DORMANT_NO_EXTERNAL_ISSUER`; a valid future
+  V2 authority is verified before exactly one bound composition role.
