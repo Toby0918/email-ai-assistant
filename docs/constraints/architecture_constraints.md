@@ -8,6 +8,18 @@ source_type: operation_guide
 
 # Executable Architecture Constraints
 
+## Issue #95 managed-unit publication architecture
+
+`R2ManagedUnitPlanV2` depends on one fully committed
+`R2FoundationPlanV2` and contains exactly eight transitions: prepare/publish
+for four fixed units. It derives next action only from the unified journal's
+managed committed prefix and has no selector or stage-local head.
+
+Unit effect observations bind the transaction completion to identity, bytes,
+ACL, semantic proof, and retained source/partial/failed state. Recovery proofs
+are immutable read-only values; neither progress nor proof is authorization or
+a filesystem, SQLite, service, artifact, or Config adapter.
+
 ## Issue #94 foundation publication architecture
 
 `R2FoundationPlanV2` is the fixed owner/order projection for six scalar

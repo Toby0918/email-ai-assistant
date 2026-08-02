@@ -8,6 +8,17 @@ source_type: operation_guide
 
 # 项目结构
 
+## Issue #95 managed-unit publication V2
+
+- `backend/r2_managed_unit_publication_v2/plan.py`: fixed Runtime, Database,
+  CRX, and Config prepare/publish transitions after foundation completion.
+- `backend/r2_managed_unit_publication_v2/progress.py`: next-only managed
+  action, exact effect evidence, and unified-journal progress.
+- `backend/r2_managed_unit_publication_v2/recovery.py`: read-only ACL and
+  unit-semantic recovery proof, including Database SQLite conformance.
+- The `r2_managed_unit_publication_v2/` package owns no host, path, database,
+  process, signer, issuer, destructive capability, or independent journal.
+
 ## Issue #94 foundation publication V2
 
 - `backend/r2_foundation_publication_v2/plan.py`: exact 17-transition binding,

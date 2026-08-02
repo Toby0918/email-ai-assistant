@@ -8,6 +8,20 @@ source_type: security_policy
 
 # Project Container cutover contract security boundary
 
+## Issue #95 managed-unit single-actions
+
+`R2ManagedUnitPlanV2` extends a completely committed foundation plan with
+exactly eight transitions: PREPARE then PUBLISH for Runtime, Database, CRX, and
+Config. Every transition binds the reviewed final master, foundation plan,
+fixed production owner, predecessor, and immutable pre/post state.
+
+Accepted effects bind exact identity, bytes, ACL, and unit-specific semantic
+conformance while retaining source, partial, and failed-unit evidence. The
+destructive-operation count is fixed at zero. Recovery requires a separate
+read-only proof that both ACL and unit semantics are exact; Database semantics
+include SQLite integrity and sidecar state. PRE/POST/AMBIGUOUS then follow the
+same fresh-authority, no-replay, and incident-stop rules as foundation work.
+
 ## Issue #94 foundation single-actions
 
 `R2FoundationPlanV2` binds exactly seventeen foundation transitions to the

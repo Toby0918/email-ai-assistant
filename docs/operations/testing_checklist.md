@@ -8,6 +8,15 @@ source_type: operation_guide
 
 # 测试检查清单
 
+## Issue #95 managed-unit publication checks
+
+Run `tests/test_r2_managed_unit_publication_v2.py` and its architecture
+companion. Prove all 8 managed-unit transitions progress only after the full
+foundation prefix, use fresh authority and one effect each, reconstruct from
+every journal cut, and retain source/partial/failed evidence with zero
+destructive actions. Exercise PRE/POST/AMBIGUOUS and reject missing ACL or
+unit-semantic proof, including SQLite semantics for Database.
+
 ## Issue #94 foundation publication checks
 
 Run `tests/test_r2_foundation_publication_v2.py` and its architecture companion.

@@ -8,6 +8,19 @@ source_type: operation_guide
 
 # Mechanical Rule Translation
 
+## Issue #95 managed-unit rules
+
+1. Require the complete 17-transition foundation prefix before deriving the
+   first managed transition.
+2. Derive exactly Runtime PREPARE/PUBLISH, Database PREPARE/PUBLISH, CRX
+   PREPARE/PUBLISH, and Config PREPARE/PUBLISH in fixed order.
+3. Accept one effect only with exact transaction completion, identity, byte,
+   ACL, semantic, retention, and zero-destructive-operation facts.
+4. Require exact read-only ACL/semantic recovery proof before appending a
+   recovery classification; false Database SQLite proof fails closed.
+5. Map exact POST to `MANAGED_RECOVERED_COMMIT` with zero replay, exact PRE to
+   a fresh-authority intent, and ambiguity to incident stop.
+
 ## Issue #94 foundation rules
 
 1. Derive six scalar foundation transitions plus eleven ordered worktree

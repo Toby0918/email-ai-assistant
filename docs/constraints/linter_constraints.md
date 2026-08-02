@@ -8,6 +8,17 @@ source_type: operation_guide
 
 # Static Linter Constraints
 
+## R2 managed-unit publication guards
+
+- Require Runtime, Database, CRX, and Config PREPARE then PUBLISH in that fixed
+  order, with exactly eight unique transition instances.
+- Effect evidence must bind exact identity, bytes, ACL, unit semantics, retained
+  source/partial/failed state, one host mutation, and zero destructive actions.
+- Recovery requires exact ACL and semantic proof. Database proof includes
+  SQLite semantic conformance and sidecar state; a false or omitted check fails.
+- POST permits one recovered commit and zero effect replay; PRE requires fresh
+  resume authority; ambiguity incident-stops.
+
 ## R2 foundation publication guards
 
 - The plan must contain exactly 17 transitions, exactly eleven worktree
