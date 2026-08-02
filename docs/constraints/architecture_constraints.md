@@ -8,6 +8,19 @@ source_type: operation_guide
 
 # Executable Architecture Constraints
 
+## Issue #96 two-start validation architecture
+
+`R2TwoStartValidationPlanV2` depends on a complete managed plan and defines
+seven ordered lifecycle transitions with fixed execution or preflight commands
+and production owners. Each durable claim, intent, evidence observation, and
+commit binds the same transition and the unified journal head.
+
+The aggregate receipt is canonically reconstructable in a fresh process and
+contains the exact rules-result/row/provider counts plus independent stopped
+and final audit provenance. The terminal seal consumes this receipt, two fresh
+minimal reads, and fresh RESUME authority; it appends a terminal record rather
+than performing a host effect.
+
 ## Issue #95 managed-unit publication architecture
 
 `R2ManagedUnitPlanV2` depends on one fully committed

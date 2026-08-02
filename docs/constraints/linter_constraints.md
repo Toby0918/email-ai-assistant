@@ -8,6 +8,17 @@ source_type: operation_guide
 
 # Static Linter Constraints
 
+## R2 two-start validation guards
+
+- Require the exact seven-action lifecycle sequence after all eight managed
+  commits; no caller selector may reorder or omit an action.
+- Start A and Start B must have distinct run, nonce, and actor identities.
+  Rules evidence requires one analysis, one row, and `provider_attempts=0`.
+- Stopped and final audits require distinct independent actors and exact
+  300-second windows containing the claim and final freshness time.
+- Final seal requires fresh RESUME authority, `minimal_read_count=2`, zero host
+  mutations, and no existing terminal record.
+
 ## R2 managed-unit publication guards
 
 - Require Runtime, Database, CRX, and Config PREPARE then PUBLISH in that fixed

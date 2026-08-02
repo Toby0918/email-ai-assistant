@@ -170,6 +170,16 @@ class R2TransactionJournalV2:
         )
         return self._append_existing(record)
 
+    def append_terminal_state(self, *, transition_instance_fingerprint: object, final_state_fingerprint: object, terminal_state: object, terminal_evidence_fingerprint: object) -> R2TransactionJournalV2:
+        record = self._new_record(
+            JournalRecordTypeV2.TERMINAL_STATE,
+            transition_instance_fingerprint,
+            observed_state_fingerprint=final_state_fingerprint,
+            terminal_evidence_fingerprint=terminal_evidence_fingerprint,
+            terminal_state=terminal_state,
+        )
+        return self._append_existing(record)
+
     def _new_record(self, kind, transition, **overrides):
         values = {
             "binding": self._binding,
@@ -183,6 +193,7 @@ class R2TransactionJournalV2:
             "post_state_fingerprint": ZERO_FINGERPRINT,
             "observed_state_fingerprint": ZERO_FINGERPRINT,
             "inspection_receipt_fingerprint": ZERO_FINGERPRINT,
+            "terminal_evidence_fingerprint": ZERO_FINGERPRINT,
             "effect_classification": "",
             "terminal_state": "",
         }
@@ -198,6 +209,10 @@ def _validate_transition(journal, record):
     if type(record) is not R2JournalRecordV2 or record.record_sequence != len(journal.records) + 1 or record.predecessor_head_fingerprint != journal.current_head_fingerprint or record.journal_owner_fingerprint != journal.journal_owner_fingerprint:
         raise JournalV2Error()
     previous = journal.records[-1] if journal.records else None
+    _validate_record_kind(journal, record, previous)
+
+
+def _validate_record_kind(journal, record, previous):
     if record.record_type is JournalRecordTypeV2.AUTHORITY_CLAIM:
         if previous is not None and previous.record_type not in {
             JournalRecordTypeV2.COMMIT,
@@ -241,6 +256,9 @@ def _validate_transition(journal, record):
         if record.effect_classification is EffectClassificationV2.EFFECT_PRESENT_EXACT and exact != previous.post_state_fingerprint:
             raise JournalV2Error()
         if record.effect_classification is EffectClassificationV2.EFFECT_AMBIGUOUS and exact in {previous.pre_state_fingerprint, previous.post_state_fingerprint}:
+            raise JournalV2Error()
+    elif record.record_type is JournalRecordTypeV2.TERMINAL_STATE:
+        if previous is None or previous.record_type is not JournalRecordTypeV2.AUTHORITY_CLAIM or record.transition_instance_fingerprint != previous.transition_instance_fingerprint:
             raise JournalV2Error()
     else:
         raise JournalV2Error()

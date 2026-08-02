@@ -8,6 +8,21 @@ source_type: security_policy
 
 # Project Container cutover contract security boundary
 
+## Issue #96 two-start validation and final seal
+
+`R2TwoStartValidationPlanV2` binds seven ordered lifecycle transitions after
+all managed publication commits: Start A, one rules-only analysis and row,
+Stop A, final database proof, independent stopped-layout audit, distinct Start
+B, and independent final-running audit. Evidence binds one reviewed final
+master, exact runs/nonces/actors, one analysis, one row, and
+`provider_attempts=0` without process-local issuance state.
+
+Both audit records have exact 300-second windows and distinct actors from the
+service processes and each other. A final read-only observation performs
+exactly two minimal freshness reads. Only fresh external RESUME authority may
+then append exactly one durable CUTOVER_SUCCESS; the seal performs zero host
+mutations, and a repeated or mixed-binding seal fails closed.
+
 ## Issue #95 managed-unit single-actions
 
 `R2ManagedUnitPlanV2` extends a completely committed foundation plan with

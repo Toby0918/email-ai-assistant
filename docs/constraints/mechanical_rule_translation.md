@@ -8,6 +8,20 @@ source_type: operation_guide
 
 # Mechanical Rule Translation
 
+## Issue #96 validation rules
+
+1. Require the complete managed prefix, then derive the seven fixed validation
+   transition instances and commands.
+2. Bind exact run, actor, service nonce, result, row, provider-attempt, DB-proof,
+   and audit facts to each committed transition.
+3. Reconstruct the aggregate validation receipt from canonical evidence and the
+   same journal; reject stale, mixed, duplicate, reordered, or count-drifted
+   facts.
+4. Require both audit windows to remain fresh and require
+   `minimal_read_count=2` in the final read-only observation.
+5. With fresh RESUME authority append one `CUTOVER_SUCCESS` terminal record,
+   zero host effects, and reject all repeated seals.
+
 ## Issue #95 managed-unit rules
 
 1. Require the complete 17-transition foundation prefix before deriving the

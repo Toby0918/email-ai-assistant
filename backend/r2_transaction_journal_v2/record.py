@@ -28,6 +28,7 @@ _FIELDS = (
     "post_state_fingerprint",
     "observed_state_fingerprint",
     "inspection_receipt_fingerprint",
+    "terminal_evidence_fingerprint",
     "effect_classification",
     "terminal_state",
 )
@@ -47,6 +48,7 @@ class R2JournalRecordV2:
     post_state_fingerprint: str = field(repr=False)
     observed_state_fingerprint: str = field(repr=False)
     inspection_receipt_fingerprint: str = field(repr=False)
+    terminal_evidence_fingerprint: str = field(repr=False)
     effect_classification: EffectClassificationV2 | None
     terminal_state: TerminalStateV2 | None
     head_fingerprint: str = field(repr=False)
@@ -88,6 +90,7 @@ class R2JournalRecordV2:
                 post_state_fingerprint=source["post_state_fingerprint"],
                 observed_state_fingerprint=source["observed_state_fingerprint"],
                 inspection_receipt_fingerprint=source["inspection_receipt_fingerprint"],
+                terminal_evidence_fingerprint=source["terminal_evidence_fingerprint"],
                 effect_classification=source["effect_classification"],
                 terminal_state=source["terminal_state"],
             )
@@ -132,6 +135,7 @@ def _build_body(*, binding, record_type, authority_claim=None, **values):
         "post_state_fingerprint",
         "observed_state_fingerprint",
         "inspection_receipt_fingerprint",
+        "terminal_evidence_fingerprint",
         "effect_classification",
         "terminal_state",
     }
@@ -161,20 +165,21 @@ def _require_shape(kind, claim, classification, terminal, values):
     zeros = {name: values[name] == ZERO_FINGERPRINT for name in (
         "pre_state_fingerprint", "post_state_fingerprint", "observed_state_fingerprint",
         "inspection_receipt_fingerprint",
+        "terminal_evidence_fingerprint",
     )}
     valid = False
     if kind is JournalRecordTypeV2.AUTHORITY_CLAIM:
         valid = type(claim) is DurableAuthorityClaimV2 and all(zeros.values()) and classification is None and terminal is None
     elif kind is JournalRecordTypeV2.INTENT:
-        valid = claim is None and not zeros["pre_state_fingerprint"] and not zeros["post_state_fingerprint"] and zeros["observed_state_fingerprint"] and zeros["inspection_receipt_fingerprint"] and values["pre_state_fingerprint"] != values["post_state_fingerprint"] and classification is None and terminal is None
+        valid = claim is None and not zeros["pre_state_fingerprint"] and not zeros["post_state_fingerprint"] and zeros["observed_state_fingerprint"] and zeros["inspection_receipt_fingerprint"] and zeros["terminal_evidence_fingerprint"] and values["pre_state_fingerprint"] != values["post_state_fingerprint"] and classification is None and terminal is None
     elif kind is JournalRecordTypeV2.EFFECT_OBSERVATION:
-        valid = claim is None and zeros["pre_state_fingerprint"] and zeros["post_state_fingerprint"] and not zeros["observed_state_fingerprint"] and zeros["inspection_receipt_fingerprint"] and classification is not None and terminal is None
+        valid = claim is None and zeros["pre_state_fingerprint"] and zeros["post_state_fingerprint"] and not zeros["observed_state_fingerprint"] and zeros["inspection_receipt_fingerprint"] and zeros["terminal_evidence_fingerprint"] and classification is not None and terminal is None
     elif kind is JournalRecordTypeV2.RECOVERY_CLASSIFICATION:
-        valid = claim is None and zeros["pre_state_fingerprint"] and zeros["post_state_fingerprint"] and not zeros["observed_state_fingerprint"] and not zeros["inspection_receipt_fingerprint"] and classification is not None and terminal is None
+        valid = claim is None and zeros["pre_state_fingerprint"] and zeros["post_state_fingerprint"] and not zeros["observed_state_fingerprint"] and not zeros["inspection_receipt_fingerprint"] and zeros["terminal_evidence_fingerprint"] and classification is not None and terminal is None
     elif kind is JournalRecordTypeV2.COMMIT:
-        valid = claim is None and zeros["pre_state_fingerprint"] and zeros["post_state_fingerprint"] and not zeros["observed_state_fingerprint"] and zeros["inspection_receipt_fingerprint"] and classification is None and terminal is None
+        valid = claim is None and zeros["pre_state_fingerprint"] and zeros["post_state_fingerprint"] and not zeros["observed_state_fingerprint"] and zeros["inspection_receipt_fingerprint"] and zeros["terminal_evidence_fingerprint"] and classification is None and terminal is None
     elif kind is JournalRecordTypeV2.TERMINAL_STATE:
-        valid = claim is None and zeros["pre_state_fingerprint"] and zeros["post_state_fingerprint"] and not zeros["observed_state_fingerprint"] and zeros["inspection_receipt_fingerprint"] and classification is None and terminal is not None
+        valid = claim is None and zeros["pre_state_fingerprint"] and zeros["post_state_fingerprint"] and not zeros["observed_state_fingerprint"] and zeros["inspection_receipt_fingerprint"] and not zeros["terminal_evidence_fingerprint"] and classification is None and terminal is not None
     if not valid:
         raise JournalV2Error()
 

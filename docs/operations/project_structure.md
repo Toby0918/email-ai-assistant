@@ -8,6 +8,18 @@ source_type: operation_guide
 
 # 项目结构
 
+## Issue #96 two-start validation V2
+
+- `backend/r2_two_start_validation_v2/plan.py`: seven fixed lifecycle
+  transitions, command/owner bindings, and terminal transition identity.
+- `backend/r2_two_start_validation_v2/evidence.py`: canonical per-action facts
+  and fresh-process aggregate validation receipt.
+- `backend/r2_two_start_validation_v2/progress.py`: next-only journal progress.
+- `backend/r2_two_start_validation_v2/seal.py`: two-audit freshness observation
+  and unique zero-host-mutation `CUTOVER_SUCCESS` append.
+- The `r2_two_start_validation_v2/` package owns no service, database, path,
+  process, signer, issuer, or separate journal.
+
 ## Issue #95 managed-unit publication V2
 
 - `backend/r2_managed_unit_publication_v2/plan.py`: fixed Runtime, Database,

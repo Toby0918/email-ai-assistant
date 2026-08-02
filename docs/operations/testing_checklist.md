@@ -8,6 +8,15 @@ source_type: operation_guide
 
 # 测试检查清单
 
+## Issue #96 two-start validation checks
+
+Run `tests/test_r2_two_start_validation_v2.py` and its architecture companion.
+Prove all 7 validation transitions reconstruct after each intent/commit cut;
+require distinct A/B runs, exactly one rules analysis and database row, zero
+provider attempts, exact DB proof, two independent fresh audits, and canonical
+receipt restart. Seal with exactly two minimal reads and fresh RESUME authority;
+prove one terminal append, zero host mutations, and repeated/mixed/stale failure.
+
 ## Issue #95 managed-unit publication checks
 
 Run `tests/test_r2_managed_unit_publication_v2.py` and its architecture
