@@ -8,6 +8,21 @@ source_type: operation_guide
 
 # 测试检查清单
 
+## Issue #88 production preflight V2 checks
+
+Run `tests/test_r2_preflight_production_v2.py` and
+`tests/test_r2_preflight_production_v2_architecture.py`. The first suite must
+drive every fixed verb through a fresh signed synthetic envelope and prove one
+matching read-only role call; wrong binding/domain/verb/freshness must call no
+role. The second suite rejects private-key, issuer, mutation, path, selector,
+payload, provider, mailbox, vault, or cross-process-root capability and pins the
+no-external-issuer dormant result.
+
+```powershell
+python -m unittest tests.test_r2_preflight_production_v2
+python -m unittest tests.test_r2_preflight_production_v2_architecture
+```
+
 ## Issue #87 production binding V2 checks
 
 Run `tests/test_r2_production_binding_contracts.py` and

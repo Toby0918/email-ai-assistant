@@ -5,7 +5,13 @@ from __future__ import annotations
 from backend.cutover_composition_contracts import ApprovedCutoverBindingV1
 from backend.cutover_composition_contracts.canonical import fingerprint
 from backend.cutover_contracts import CutoverProfileV1
+from backend.r2_production_binding import ApprovedCutoverBindingV2, ProductionCommandV2
 from .entry import run_authorization_gate
+from .production_v2 import (
+    PreflightProductionRolesV2,
+    complete_preflight_read_v2,
+    run_preflight_production_v2,
+)
 
 
 class SyntheticPreflightProcess:
@@ -84,3 +90,53 @@ def _require_context(profile, binding, operation, key, now) -> None:
         or not callable(now)
     ):
         raise ValueError("R2_PREFLIGHT_SYNTHETIC_BINDING_INVALID")
+
+
+class SyntheticPreflightProductionV2:
+    __slots__ = ("_binding", "_counts", "_now", "_roles")
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        raise TypeError("SyntheticPreflightProductionV2 requires create()")
+
+    @classmethod
+    def create(cls, *, binding, observed_at_epoch):
+        if (
+            type(binding) is not ApprovedCutoverBindingV2
+            or not callable(observed_at_epoch)
+        ):
+            raise ValueError("R2_PREFLIGHT_SYNTHETIC_V2_BINDING_INVALID")
+        value = object.__new__(cls)
+        value._binding = binding
+        value._now = observed_at_epoch
+        value._counts = {command: 0 for command in ProductionCommandV2}
+        callbacks = {
+            command: _callback(value, command)
+            for command in tuple(ProductionCommandV2)[:6]
+        }
+        value._roles = PreflightProductionRolesV2(*callbacks.values())
+        return value
+
+    @property
+    def total_role_invocations(self):
+        return sum(self._counts.values())
+
+    def role_invocations(self, command):
+        return self._counts[command]
+
+    def run(self, **values):
+        return run_preflight_production_v2(
+            binding=self._binding,
+            roles=self._roles,
+            observed_at_epoch=self._now,
+            **values,
+        )
+
+    def _record(self, command, binding, claim):
+        if claim.command is not command:
+            raise ValueError("R2_PREFLIGHT_SYNTHETIC_V2_COMMAND_INVALID")
+        self._counts[command] += 1
+        return complete_preflight_read_v2(binding, claim)
+
+
+def _callback(process, command):
+    return lambda binding, claim: process._record(command, binding, claim)

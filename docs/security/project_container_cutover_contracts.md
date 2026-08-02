@@ -8,6 +8,26 @@ source_type: security_policy
 
 # Project Container cutover contract security boundary
 
+## Issue #88 production preflight V2 dispatcher
+
+The dedicated preflight root maps exactly six fixed CLI verbs to the six V2
+preflight commands. Hidden bounded real-TTY ingress is verified against the
+exact `ApprovedCutoverBindingV2`, preflight operator role, preflight public key,
+command/domain, action fingerprint, durable prior head, sequence, and validity
+window before a composition role is selected.
+
+Each accepted invocation reaches exactly one pre-bound read-only role and must
+return one exact claim-bound completion. Wrong binding, final master, operation,
+command, domain, operator, public-key role, action, head, sequence, signature,
+or freshness fails before any role acquisition. No preflight role can publish
+evidence, execute a transaction, mutate a host, or expose private payload.
+
+`dormant_preflight_production_v2(...)` has no binding, key, envelope, issuer,
+or composition input. A valid fixed verb returns only
+`DORMANT_NO_EXTERNAL_ISSUER` with zero operations. Dormancy is therefore the
+absence of an external issuer and fresh authority, not an embedded private key
+or a post-verification unconditional lock.
+
 ## Issue #87 reviewed production binding V2
 
 `ApprovedCutoverBindingV2` derives from one exact `FinalMasterBindingV1` and

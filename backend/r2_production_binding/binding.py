@@ -163,6 +163,26 @@ class ApprovedCutoverBindingV2:
         return canonical_json(self.to_mapping())
 
 
+def production_action_fingerprint_v2(
+    binding: object,
+    command: object,
+) -> str:
+    if (
+        type(binding) is not ApprovedCutoverBindingV2
+        or type(command) is not ProductionCommandV2
+    ):
+        raise ProductionBindingError()
+    return fingerprint(
+        "r2-production-action-v2",
+        {
+            "binding_fingerprint": binding.binding_fingerprint,
+            "command": command.value,
+            "domain": dict(binding.command_domains)[command].value,
+            "operation_fingerprint": binding.operation_fingerprint,
+        },
+    )
+
+
 def _construct(body: dict[str, object]) -> ApprovedCutoverBindingV2:
     value = object.__new__(ApprovedCutoverBindingV2)
     for name in _SCALAR_FIELDS:

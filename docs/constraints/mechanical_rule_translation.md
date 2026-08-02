@@ -8,6 +8,19 @@ source_type: operation_guide
 
 # Mechanical Rule Translation
 
+## Issue #88 production preflight reachability rules
+
+1. Enumerate the exact six fixed argv verbs and map them one-to-one to the six
+   V2 preflight commands.
+2. For each valid signed envelope, assert exactly one read-only role invocation,
+   exact command/claim completion, and zero other role invocations.
+3. For wrong binding, domain, verb, action, signature, head, sequence, or time,
+   assert zero role invocations and one fixed blocked result.
+4. Reject every private key, issuer, path, selector, arbitrary payload, host
+   mutation, evidence publication, or transaction import/surface.
+5. Assert the no-issuer entry returns its one dormant status with zero reads and
+   zero operations; it cannot manufacture future production authority.
+
 ## Issue #87 reviewed production binding V2 rules
 
 1. Assert the exact ten command verbs map to exactly four authority domains and

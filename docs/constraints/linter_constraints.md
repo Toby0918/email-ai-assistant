@@ -8,6 +8,19 @@ source_type: operation_guide
 
 # Static Linter Constraints
 
+## R2 V2 preflight dispatcher guards
+
+- The production dispatcher must expose exactly six fixed preflight verbs and
+  select exactly one matching read-only role after V2 verification.
+- It must reject wrong binding, command, domain, operator/key role, action,
+  prior head, sequence, signature, replay, and stale authority before role
+  selection.
+- It must contain no private signing key, issuer, path/selector, host mutation,
+  evidence publication, transaction, provider, mailbox, vault, or private
+  payload surface.
+- With no external issuer, the fixed dormant entry performs zero role calls and
+  returns only `DORMANT_NO_EXTERNAL_ISSUER`.
+
 ## R2 production binding V2 guards
 
 - The V2 binding package may import only the standard library and the pure

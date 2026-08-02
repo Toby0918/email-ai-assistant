@@ -43,6 +43,7 @@ class R2ProductionBindingArchitectureTests(unittest.TestCase):
                 "ProductionRoleV2",
                 "PublicKeyRoleV2",
                 "authority_domain_for_command_v2",
+                "production_action_fingerprint_v2",
                 "validate_new_authority_claim",
             },
         )

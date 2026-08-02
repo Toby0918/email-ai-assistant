@@ -8,6 +8,20 @@ source_type: operation_guide
 
 # 项目结构
 
+## Issue #88 production preflight V2
+
+- `backend/r2_operator_process/production_v2.py`: shared verification-only V2
+  Ed25519 envelope ingress; it binds exact command/domain/operator/key/action,
+  reviewed binding, durable prior head, sequence, and freshness without an
+  issuer or private key.
+- `backend/r2_preflight_process/production_v2.py`: six-verb dispatcher and
+  complete six-role read-only composition seam. Its no-issuer entry is dormant.
+- `backend/r2_preflight_process/testing.py`: test-only synthetic role binder;
+  production code does not import it.
+- `tests/test_r2_preflight_production_v2.py` and
+  `tests/test_r2_preflight_production_v2_architecture.py`: reachability,
+  negative-path, dormancy, capability, and documentation guards.
+
 ## Issue #87 reviewed production binding
 
 - `backend/r2_production_binding/`: pure reviewed V2 binding and authority

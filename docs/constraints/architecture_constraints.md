@@ -8,6 +8,21 @@ source_type: operation_guide
 
 # Executable Architecture Constraints
 
+## Issue #88 preflight production composition
+
+The six V2 preflight verbs are implemented only by the physically dedicated
+`backend.r2_preflight_process.production_v2` dispatcher. It consumes the
+shared verification-only V2 envelope seam, one exact reviewed binding, durable
+claim history/head, and a complete production composition containing exactly
+six named read-only roles. One invocation can select only the role matching its
+signed command.
+
+The dispatcher and verifier have no private key, issuer, path, selector, shell,
+filesystem mutation, database mutation, service control, evidence publication,
+transaction, provider, mailbox, vault, or private-data capability. The
+synthetic binder remains test-only. The no-issuer entry accepts only fixed argv
+and performs zero TTY reads and zero role calls.
+
 ## Issue #87 production-binding boundary
 
 `backend/r2_production_binding` is a pure deep module layered only on the

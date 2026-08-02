@@ -1,6 +1,6 @@
 """Reviewed production binding and durable authority claim contracts."""
 
-from .binding import ApprovedCutoverBindingV2
+from .binding import ApprovedCutoverBindingV2, production_action_fingerprint_v2
 from .claim import DurableAuthorityClaimV2, validate_new_authority_claim
 from .errors import AuthorityClaimError, ProductionBindingError
 from .vocabulary import (
@@ -23,5 +23,6 @@ __all__ = [
     "PublicKeyRoleV2",
     "ProductionBindingError",
     "authority_domain_for_command_v2",
+    "production_action_fingerprint_v2",
     "validate_new_authority_claim",
 ]
