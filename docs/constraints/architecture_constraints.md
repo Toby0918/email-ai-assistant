@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-29
+last_update: 2026-08-02
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -1420,6 +1420,30 @@ success consumer. Portable suites may validate only pure contracts; only the
 Windows verifier may claim physical NTFS, ACL, real TTY, or process isolation.
 
 ## 7. 修改规则
+
+## 7.1 R2 final-master closure module
+
+`backend/r2_final_master_closure` is a pure in-process module. Its interface is
+limited to the closed gap/gate/finding vocabularies, one immutable
+`FinalMasterBindingV1`, nominal gap/gate evidence, and
+`R2FinalMasterClosureReceiptV1`. It may depend only on Python canonical-value
+primitives and its own package-private implementation. It must not import the
+cutover authority types, process roots, host adapters, filesystem, subprocess,
+Git runner, network, provider, mailbox, vault, credential, private-data,
+SQLite, frontend, workflow, issue-tracker, or cleanup implementations.
+
+All evidence objects use exact concrete types and one binding fingerprint.
+The terminal constructor accepts the complete dependency-ordered eight-gap set
+and exact fourteen-gate set only. Missing, duplicate, unknown, reordered,
+stale, cross-commit, cross-tree, cross-package, cross-workflow, or mixed-binding
+evidence fails closed. The architecture must reject every
+receipt-to-authority conversion: closure values are disjoint from
+`REAL_AUTHORIZATION_TYPES` and expose no issuer, signer, claim, execute, resume,
+rollback, publication, cleanup, deletion, GitHub, or host-effect capability.
+
+The module performs no I/O. Later issues may supply separately guarded adapters
+that produce verified fingerprints, but those adapters cannot be added to this
+pure interface or use a terminal receipt as a process input.
 
 如果需要改变架构边界，必须同时修改：
 

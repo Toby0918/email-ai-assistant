@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-29
+last_update: 2026-08-02
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -1165,6 +1165,28 @@ literal. Portable tests explicitly make no native evidence claim. Existing
 module/function bounds continue to apply.
 
 ## 14. 修改规则
+
+## R2 final-master closure guards
+
+Static and architecture checks must keep
+`backend/r2_final_master_closure/` pure and content-free. Its public export set
+must be explicit; absolute imports are limited to standard-library immutable
+value, enum, canonical JSON, and SHA-256 helpers. The package must not import or
+reference cutover authority issuers/types, host/process/filesystem/network/Git
+adapters, provider, mailbox, vault, credential, private data, SQLite, frontend,
+workflow mutation, GitHub issue creation, cleanup, or deletion capability.
+
+Mechanical checks pin exactly eight dependency-ordered gap registrations,
+exactly fourteen gate kinds, and the closed eight-value finding taxonomy. The
+terminal receipt must bind the exact final commit/tree, closure map, source
+package, runbook, workflow family, eight gap proofs, and fourteen same-binding
+gate receipts. It must reject missing, duplicate, unknown, reordered, stale,
+mixed, self-certified, skipped, leaking, cleanup-capable, provider-active,
+real-host-active, or #39-code-changing evidence.
+
+Closure binding, proof, gate, and terminal receipt types must remain disjoint
+from `REAL_AUTHORIZATION_TYPES`; static guards reject any receipt-to-authority,
+receipt-to-command, receipt-to-ticket, or receipt-to-host-effect conversion.
 
 如果新增或修改 linter 规则，必须同步更新：
 

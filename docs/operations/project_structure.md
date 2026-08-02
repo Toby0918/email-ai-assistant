@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-29
+last_update: 2026-08-02
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -7,6 +7,21 @@ source_type: operation_guide
 ---
 
 # 项目结构
+
+## Issue #86 final-master closure contracts
+
+- `backend/r2_final_master_closure/`: pure content-free deep module for the
+  finite R2 closure map. Its small interface exposes the exact eight gaps,
+  fourteen gates, finding taxonomy, immutable final-master binding, nominal
+  gap/gate evidence, and the sole terminal
+  `R2FinalMasterClosureReceiptV1`. The implementation owns canonical strict JSON,
+  fixed errors, same-binding validation, and fingerprint construction. It owns
+  no adapter, path, command, authority, I/O, host, GitHub, cleanup, or deletion
+  capability.
+- `tests/test_r2_final_master_closure_contracts.py`: public-seam closure map,
+  binding, proof, gate, terminal receipt, canonicality, and mixed-evidence tests.
+- `tests/test_r2_final_master_closure_architecture.py`: exact exports,
+  purity/import, authority separation, and normative-document guards.
 
 ## 目标
 

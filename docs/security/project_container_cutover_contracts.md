@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-29
+last_update: 2026-08-02
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -7,6 +7,38 @@ source_type: security_policy
 ---
 
 # Project Container cutover contract security boundary
+
+## Issue #86 finite final-master closure contract
+
+`backend.r2_final_master_closure` fixes exactly eight closure gaps in one
+dependency order: terminal contract, production composition, Git-byte
+reproducibility, crash recovery, retention/no-deletion, runbook semantic
+closure, Windows CI provenance, and global gates. The registry binds every gap
+to its existing GitHub owner set and reviewed decision IDs. It is closed;
+ordinary implementation, surface, evidence, documentation, CI, leakage, and
+review findings return to one registered gap instead of creating an unbounded
+remediation stream.
+
+`FinalMasterBindingV1` binds the exact frozen commit and tree, the closure-map
+fingerprint, Git-object source-package fingerprint, deterministic runbook
+fingerprint, and final workflow-family fingerprint. A gap proof or gate receipt
+is valid only for that exact nominal binding. Missing, duplicate, unknown,
+noncanonical, stale, or mixed-binding evidence fails with the one fixed closure
+contract error.
+
+`R2FinalMasterClosureReceiptV1` is the only terminal evidence schema. It accepts
+exactly one completed proof for each of the eight gaps and exactly one verified,
+non-self-certified receipt for each of the fourteen global gate kinds. All open
+finding, omission, skip, leakage, cleanup, provider, real-host operation, and
+#39 code-change counts must be zero. Its sole terminal status is
+`ELIGIBLE_FOR_SINGLE_FINAL_MASTER_REVIEW`.
+
+The binding, gap proofs, gate receipts, fingerprints, and terminal receipt are
+evidence only. They are not authorization values, contain no private issuer or
+signing capability, and are excluded from every real-host authority type. They
+cannot execute, resume, rollback, publish, move, clean, delete, open a ticket,
+close #38, or begin #39. The single final review and Issue #38 approval remain
+human-controlled and separate from all receipt construction.
 
 ## Scope
 

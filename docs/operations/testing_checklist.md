@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-29
+last_update: 2026-08-02
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -7,6 +7,25 @@ source_type: operation_guide
 ---
 
 # 测试检查清单
+
+## Issue #86 final-master closure checks
+
+Run the two focused public-seam suites before any downstream closure ticket:
+
+The source files are `tests/test_r2_final_master_closure_contracts.py` and
+`tests/test_r2_final_master_closure_architecture.py`.
+
+```powershell
+python -m unittest tests.test_r2_final_master_closure_contracts
+python -m unittest tests.test_r2_final_master_closure_architecture
+```
+
+They must prove the exact finite gap/gate/finding registries, canonical
+final-master binding, completed same-binding evidence, the sole terminal status,
+fixed error handling, missing/duplicate/mixed rejection, pure imports, explicit
+exports, and disjoint receipt/authority types. These tests use no provider,
+mailbox, vault, credential, private data, real host, external Git operation, or
+GitHub mutation.
 
 ## Managed Container Mode
 

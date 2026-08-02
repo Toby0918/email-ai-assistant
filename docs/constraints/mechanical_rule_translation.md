@@ -817,3 +817,30 @@ private-data container, or authorization to migrate.
 8. The accepted prototype fingerprint is non-authorizing prior art; fresh
    criteria, matrix, script, bundle, surface, and package fingerprints are
    mandatory and do not authorize Issue #39 or real-host work.
+
+## Issue #86 final-master closure contract rules
+
+1. The closure registry contains exactly eight gaps in the fixed dependency
+   order and binds every gap to its existing owning Issues and decision IDs.
+2. The gate registry contains exactly fourteen gate kinds; a missing, added,
+   duplicate, unknown, or reordered kind fails closed.
+3. `FinalMasterBindingV1` binds one lowercase Git commit OID, one lowercase Git
+   tree OID, the exact closure-map fingerprint, source-package fingerprint,
+   runbook fingerprint, and workflow-family fingerprint.
+4. Each gap proof and gate receipt is an exact nominal value for one final-master
+   binding. Every completion, finding, omission, skip, leakage, cleanup,
+   provider, real-host, and #39-code-change count is mechanically fixed to its
+   accepted value.
+5. `R2FinalMasterClosureReceiptV1` accepts exactly eight dependency-ordered gap
+   proofs and fourteen ordered gate receipts. Mixed bindings and noncanonical or
+   tampered JSON return only `R2_FINAL_MASTER_CLOSURE_INVALID`.
+6. The only terminal status is
+   `ELIGIBLE_FOR_SINGLE_FINAL_MASTER_REVIEW`; no partial status is serializable.
+7. A closed eight-value finding taxonomy separates existing-gap, surface,
+   evidence, external authority/state, nonblocking, security incident, decision
+   contradiction, and duplicate/historical classifications; this is the
+   closed eight-value finding taxonomy.
+8. Closure values have no path, command, issuer, signer, authority, process,
+   filesystem, network, GitHub, cleanup, deletion, provider, mailbox, vault,
+   credential, or private-data capability. Receipt types never enter
+   `REAL_AUTHORIZATION_TYPES`.
