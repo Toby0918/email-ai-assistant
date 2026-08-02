@@ -15,6 +15,14 @@ from .contracts import (
     result,
 )
 from .entry import run_authorization_gate
+from .production_v2 import (
+    UNBOUND_REVERSE_PLAN_V2,
+    TransactionProductionRolesV2,
+    complete_transaction_action_v2,
+    run_transaction_production_v2,
+)
+from backend.r2_production_binding import ApprovedCutoverBindingV2, ProductionCommandV2
+from backend.r2_transaction_journal_v2 import R2JournalGenesisV2
 
 
 class SyntheticTransactionProcess:
@@ -169,3 +177,119 @@ def _require_context(values) -> None:
         )
     ):
         raise ValueError("R2_TRANSACTION_SYNTHETIC_BINDING_INVALID")
+
+
+class SyntheticTransactionProductionV2:
+    __slots__ = (
+        "_actions",
+        "_binding",
+        "_genesis",
+        "_invoked",
+        "_now",
+        "_plan",
+        "_roles",
+        "_transition",
+        "total_action_acquisitions",
+    )
+
+    def __init__(self, *args, **kwargs):
+        raise TypeError("SyntheticTransactionProductionV2 requires create()")
+
+    @classmethod
+    def create(cls, **values):
+        _require_v2_context(values)
+        process = object.__new__(cls)
+        process._binding = values["binding"]
+        process._genesis = values["reconstructed_genesis"]
+        process._transition = values["transition_instance_fingerprint"]
+        process._plan = values["remaining_reverse_plan_fingerprint"]
+        process._now = values["observed_at_epoch"]
+        process._actions = {
+            command: values[command.value]
+            for command in (
+                ProductionCommandV2.EXECUTE,
+                ProductionCommandV2.RESUME,
+                ProductionCommandV2.ROLLBACK,
+            )
+        }
+        process._invoked = False
+        process.total_action_acquisitions = 0
+        process._roles = TransactionProductionRolesV2(
+            *(
+                _action_callback(process, command)
+                for command in process._actions
+            )
+        )
+        return process
+
+    def run(self, *, argv, terminal):
+        command = (
+            ProductionCommandV2(argv[0])
+            if type(argv) is tuple and len(argv) == 1 and argv[0] in {"execute", "resume", "rollback"}
+            else None
+        )
+        plan = (
+            self._plan
+            if command is ProductionCommandV2.ROLLBACK
+            else UNBOUND_REVERSE_PLAN_V2
+        )
+        return run_transaction_production_v2(
+            argv=argv,
+            terminal=terminal,
+            binding=self._binding,
+            roles=self._roles,
+            durable_claims=(self._genesis.authority_claim,),
+            current_journal_head_fingerprint=self._genesis.head_fingerprint,
+            transition_instance_fingerprint=self._transition,
+            remaining_reverse_plan_fingerprint=plan,
+            observed_at_epoch=self._now,
+        )
+
+    def _perform(self, command, binding, claim, head, transition, plan):
+        if self._invoked or claim.command is not command:
+            raise ValueError("R2_TRANSACTION_V2_SINGLE_ACTION_INVALID")
+        self._invoked = True
+        self.total_action_acquisitions += 1
+        if self._actions[command]() != 1:
+            raise ValueError("R2_TRANSACTION_V2_ACTION_FAILED")
+        return complete_transaction_action_v2(
+            binding,
+            claim,
+            head,
+            transition,
+            plan,
+        )
+
+
+def _action_callback(process, command):
+    return lambda binding, claim, head, transition, plan: process._perform(
+        command, binding, claim, head, transition, plan
+    )
+
+
+def _require_v2_context(values):
+    expected = {
+        "binding",
+        "reconstructed_genesis",
+        "transition_instance_fingerprint",
+        "remaining_reverse_plan_fingerprint",
+        "observed_at_epoch",
+        "execute",
+        "resume",
+        "rollback",
+    }
+    if (
+        type(values) is not dict
+        or set(values) != expected
+        or type(values["binding"]) is not ApprovedCutoverBindingV2
+        or type(values["reconstructed_genesis"]) is not R2JournalGenesisV2
+        or values["reconstructed_genesis"].binding_fingerprint
+        != values["binding"].binding_fingerprint
+        or not is_fingerprint(values["transition_instance_fingerprint"])
+        or not is_fingerprint(values["remaining_reverse_plan_fingerprint"])
+        or not all(
+            callable(values[name])
+            for name in ("observed_at_epoch", "execute", "resume", "rollback")
+        )
+    ):
+        raise ValueError("R2_TRANSACTION_SYNTHETIC_V2_BINDING_INVALID")

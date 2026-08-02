@@ -8,6 +8,19 @@ source_type: operation_guide
 
 # 项目结构
 
+## Issue #90 transaction process V2
+
+- `backend/r2_transaction_process/production_v2.py`: exact three-verb V2
+  dispatcher, journal-bound action fingerprint, three-role composition,
+  one-mutation completion, and no-external-issuer dormant entry.
+- `backend/r2_transaction_process/_production_v2_canonical.py`: internal strict
+  content-free transaction subject/completion fingerprints.
+- `backend/r2_transaction_process/testing.py`: test-only single-callback binder
+  over a reconstructed V2 genesis; production code does not import it.
+- `tests/test_r2_transaction_production_v2.py` and
+  `tests/test_r2_transaction_production_v2_architecture.py`: exact reachability,
+  mismatch, one-action, capability, and documentation guards.
+
 ## Issue #89 evidence publication V2 and genesis
 
 - `backend/r2_evidence_process/production_v2.py`: exact single-verb V2

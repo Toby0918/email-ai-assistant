@@ -8,6 +8,23 @@ source_type: operation_guide
 
 # Executable Architecture Constraints
 
+## Issue #90 transaction production architecture
+
+The three V2 transaction verbs live only in
+`backend.r2_transaction_process.production_v2`. The dispatcher consumes one
+exact binding, reconstructed durable claims, current journal head, transition
+instance, applicable remaining reverse plan, and three named roles. Its
+journal-bound action fingerprint is domain-separated and signed before one
+matching role can be selected.
+
+The production dispatcher contains no iteration statement and cannot run a
+plan, retry, switch direction, acquire a second role, or own a current journal
+head. It has no preflight/evidence-root import, private key, issuer, path,
+filesystem/process adapter, service/Git/ACL/database capability, cleanup,
+provider, mailbox, vault, credential, or private-data surface. The test-only
+binder may inject one synthetic callback per role and is not a production
+consumer.
+
 ## Issue #89 evidence production and genesis architecture
 
 The single V2 evidence-publication verb lives only in the physically separate

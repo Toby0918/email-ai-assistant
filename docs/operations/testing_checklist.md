@@ -8,6 +8,22 @@ source_type: operation_guide
 
 # 测试检查清单
 
+## Issue #90 V2 transaction single-action checks
+
+Run `tests/test_r2_transaction_production_v2.py` and
+`tests/test_r2_transaction_production_v2_architecture.py`. The behavior suite
+must prove execute/resume/rollback domain separation, one matching action per
+invocation, exact genesis/head/transition/plan binding, zero action on mismatch,
+no retry after non-unit completion, and no-issuer dormancy. The architecture
+suite must reject loops, batch, retry, direction switch, paths, private keys,
+issuer, cross-root imports, deletion, cleanup, provider, mailbox, vault,
+credential, and private-data capability.
+
+```powershell
+python -m unittest tests.test_r2_transaction_production_v2
+python -m unittest tests.test_r2_transaction_production_v2_architecture
+```
+
 ## Issue #89 evidence publication V2 and genesis checks
 
 Run `tests/test_r2_evidence_production_v2.py` and

@@ -8,6 +8,26 @@ source_type: security_policy
 
 # Project Container cutover contract security boundary
 
+## Issue #90 V2 single-action transaction process
+
+The transaction root maps only `execute`, `resume`, and `rollback` to their
+exact V2 commands. Execute and resume require the execution domain/operator/key;
+rollback requires the recovery domain/operator/key. Each signed action binds
+the reviewed final master, current journal head, exact transition instance, and
+the remaining reverse-plan fingerprint applicable to that command.
+
+One process invocation verifies one authority and selects at most one action.
+The selected role returns one claim/head/transition/plan-bound completion with
+exactly one mutation. A non-unit completion, exception, wrong command, action,
+domain, binding, journal head, transition, plan, sequence, signature, replay, or
+freshness returns a fixed blocked result without retrying or selecting another
+role.
+
+The dispatcher has no batch, loop, automatic resume, retry, direction switch,
+cleanup, delete, overwrite, repair, arbitrary path, shell, or Git surface. The
+no-issuer entry returns `DORMANT_NO_EXTERNAL_ISSUER` with zero mutations; it
+contains no private signing key or post-verification unconditional lock.
+
 ## Issue #89 production evidence V2 and journal genesis
 
 The evidence root exposes only the fixed `publish` verb. Its V2 envelope must

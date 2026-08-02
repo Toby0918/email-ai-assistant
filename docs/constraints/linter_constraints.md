@@ -8,6 +8,19 @@ source_type: operation_guide
 
 # Static Linter Constraints
 
+## R2 V2 single-action transaction guards
+
+- The fixed command map is exactly execute, resume, and rollback; no umbrella,
+  path, selector, batch, force, shell, retry, or direction input exists.
+- The signed action binds exact binding, command/domain/operator/key, journal
+  head, transition instance, and applicable reverse-plan fingerprint.
+- One invocation consumes one authority, selects at most one role, and accepts
+  only a completion with exactly one mutation; there is no retry or second role.
+- Wrong action/domain/binding/head/transition/plan/sequence/signature/replay/time
+  must fail before the action callback increments.
+- Production modules contain no private key, issuer, delete, overwrite, repair,
+  cleanup, provider, mailbox, vault, credential, or private-data capability.
+
 ## R2 V2 evidence and genesis guards
 
 - The evidence production root accepts only `publish`; it has no path, target,

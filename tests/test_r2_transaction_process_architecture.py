@@ -22,6 +22,8 @@ class R2TransactionProcessArchitectureTests(unittest.TestCase):
                 "entry.py",
                 "terminal.py",
                 "testing.py",
+                "production_v2.py",
+                "_production_v2_canonical.py",
             },
         )
         imports = set()

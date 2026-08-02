@@ -8,6 +8,21 @@ source_type: operation_guide
 
 # Mechanical Rule Translation
 
+## Issue #90 transaction reachability rules
+
+1. Assert the exact three fixed verbs and execution/execution/recovery domain
+   mapping.
+2. For each verb, sign one journal/head/transition/plan-bound authority and
+   prove one invocation calls only its matching role exactly once.
+3. Make a callback return a non-unit completion and prove the dispatcher does
+   not retry or call a second action.
+4. For wrong action, domain, binding, head, transition, plan, sequence, or time,
+   assert zero action acquisitions.
+5. Reject loop statements and every batch, retry, direction-switch, cleanup,
+   delete, overwrite, path, shell, issuer, private-key, or cross-root surface.
+6. Assert the no-issuer entry accepts only the three fixed argv values and
+   always returns its dormant status with zero mutations.
+
 ## Issue #89 evidence/genesis rules
 
 1. Accept exactly one `publish` argv value and read authority only through the
