@@ -8,6 +8,25 @@ source_type: security_policy
 
 # Project Container cutover contract security boundary
 
+## Issue #99 generated final R2 operator runbook
+
+The executable vocabulary has one source:
+`backend/r2_production_binding/catalog.py`. Six preflight verbs, one evidence
+publication verb, and three transaction verbs cover the exact production
+command enum. Each V2 dispatcher derives its map from that catalog and still
+accepts one verb, one exact acknowledgement, fresh external authority, and at
+most one operation per invocation. Unknown, umbrella, batch, cleanup, or
+historical R1 commands do not resolve.
+
+The final runbook is generated from that catalog and its closed phase graph.
+Forward and reverse crash handling, LIFO rollback, #98 reconciliation, zero
+deletion, and human-only final review are state-machine facts rather than a
+second handwritten command system. Verification binds the current final
+commit/tree, exact source-package and runbook hashes, package semantics, and
+same-binding retention proof. The document and receipt never authorize an
+operation; production remains `DORMANT_NO_EXTERNAL_ISSUER` without a separately
+valid authority.
+
 ## Issue #98 object-level retention ledger
 
 The retention ledger is computed only from the reviewed binding, linked

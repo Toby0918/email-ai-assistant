@@ -8,6 +8,21 @@ source_type: operation_guide
 
 # Executable Architecture Constraints
 
+## Issue #99 generated operator-runbook architecture
+
+The exact ten-command catalog lives in
+`backend/r2_production_binding/catalog.py`. All three V2 production dispatchers
+derive their accepted verb maps directly from it. The #99 state machine groups
+only those commands into preflight, publication, forward, recovery, rollback,
+retention-reconciliation, and human-review phases; non-command phases expose no
+executable verb.
+
+`backend.r2_operator_runbook_v2` renders one fixed UTF-8/LF Markdown document
+from that catalog and state machine. Its receipt binds the exact final master,
+source-package hash, generated document hash, current package semantics, and
+#98 retention proof. It has no document input selector, path, writer, process,
+issuer, host adapter, or authority conversion.
+
 ## Issue #98 retention-ledger architecture
 
 `R2RetentionLedgerV2` is a deterministic in-process projection of one exact

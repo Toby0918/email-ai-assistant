@@ -15,9 +15,16 @@ from backend.r2_production_binding import (
     ProductionCommandV2,
     production_action_fingerprint_v2,
 )
+from backend.r2_production_binding.catalog import (
+    OperatorSurfaceV2,
+    executable_verb_map_v2,
+)
 from backend.r2_transaction_journal_v2 import R2JournalGenesisV2
 
 from .contracts import EVIDENCE_ACKNOWLEDGEMENT
+
+
+EVIDENCE_PRODUCTION_VERBS_V2 = executable_verb_map_v2(OperatorSurfaceV2.EVIDENCE)
 
 
 class EvidenceProductionStatusV2(str, Enum):
@@ -90,7 +97,7 @@ def run_evidence_production_v2(
     journal_owner_fingerprint,
     genesis_nonce,
 ):
-    if argv != ("publish",):
+    if not _valid_argv(argv):
         return _blocked(EvidenceProductionStatusV2.BLOCKED_COMMAND)
     ingress = _read_ingress(terminal)
     if type(ingress) is EvidenceProductionStatusV2:
@@ -126,7 +133,7 @@ def run_evidence_production_v2(
 
 
 def dormant_evidence_production_v2(*, argv):
-    if argv != ("publish",):
+    if not _valid_argv(argv):
         return _blocked(EvidenceProductionStatusV2.BLOCKED_COMMAND)
     return EvidenceProductionResultV2(
         EvidenceProductionStatusV2.DORMANT_NO_EXTERNAL_ISSUER,
@@ -233,6 +240,15 @@ def _read_ingress(terminal):
 
 def _blocked(status):
     return EvidenceProductionResultV2(status, 0, 1, 0)
+
+
+def _valid_argv(argv):
+    return (
+        type(argv) is tuple
+        and len(argv) == 1
+        and type(argv[0]) is str
+        and argv[0] in EVIDENCE_PRODUCTION_VERBS_V2
+    )
 
 
 def _is_fingerprint(value):

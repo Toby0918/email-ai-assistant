@@ -12,6 +12,10 @@ from backend.r2_production_binding import (
     DurableAuthorityClaimV2,
     ProductionCommandV2,
 )
+from backend.r2_production_binding.catalog import (
+    OperatorSurfaceV2,
+    executable_verb_map_v2,
+)
 
 from .contracts import TRANSACTION_ACKNOWLEDGEMENT
 from ._production_v2_canonical import (
@@ -22,11 +26,9 @@ from ._production_v2_canonical import (
 )
 
 
-TRANSACTION_PRODUCTION_VERBS_V2 = {
-    "execute": ProductionCommandV2.EXECUTE,
-    "resume": ProductionCommandV2.RESUME,
-    "rollback": ProductionCommandV2.ROLLBACK,
-}
+TRANSACTION_PRODUCTION_VERBS_V2 = executable_verb_map_v2(
+    OperatorSurfaceV2.TRANSACTION
+)
 
 
 class TransactionProductionStatusV2(str, Enum):

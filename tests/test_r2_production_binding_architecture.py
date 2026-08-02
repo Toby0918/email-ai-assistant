@@ -26,6 +26,7 @@ class R2ProductionBindingArchitectureTests(unittest.TestCase):
                 "_claim_body.py",
                 "binding.py",
                 "claim.py",
+                "catalog.py",
                 "errors.py",
                 "vocabulary.py",
             },

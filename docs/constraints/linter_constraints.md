@@ -8,6 +8,21 @@ source_type: operation_guide
 
 # Static Linter Constraints
 
+## R2 generated-runbook guards
+
+- Require exactly ten unique catalog verbs covering every
+  `ProductionCommandV2`; each dispatcher map is derived from the catalog.
+- Require exact acknowledgement agreement, one-operation ceilings, closed
+  effects, zero destructive capability, and rejection of every unknown or
+  historical R1 alias.
+- Generate `docs/operations/r2_final_operator_runbook.md` byte-for-byte from
+  the catalog and state machine; hand-edited semantic drift fails tests.
+- Receipt construction requires exact final commit/tree, runbook hash, source-
+  package hash, current package-semantics fingerprint, and same-binding #98
+  proof. Stale or mixed evidence fails closed.
+- Retention reconciliation and human final review accept no command; the
+  generated artifact, receipt, CI, and synthetic proof are not authority.
+
 ## R2 retention-ledger guards
 
 - Require exact same-binding #94-#97 plan links and a journal extension of the

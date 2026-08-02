@@ -30,8 +30,8 @@ from tests.test_r2_two_start_validation_v2 import (
 )
 
 
-def complete_forward_journal():
-    binding = _binding()
+def complete_forward_journal(binding=None):
+    binding = _binding() if binding is None else binding
     foundation = _plan(binding)
     journal = _complete_foundation(binding, foundation)
     managed = _managed_plan(binding, foundation)

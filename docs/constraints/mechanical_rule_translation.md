@@ -8,6 +8,21 @@ source_type: operation_guide
 
 # Mechanical Rule Translation
 
+## Issue #99 generated-runbook rules
+
+1. Enumerate all ten `ProductionCommandV2` values once in the catalog with
+   exact surface, verb, effect, acknowledgement, ordinal, and one-operation cap.
+2. Derive preflight, evidence, and transaction dispatcher verb maps from that
+   catalog; no local executable vocabulary may diverge.
+3. Generate eight state-machine phase rows, including exact forward/recovery/
+   rollback paths and commandless retention/human-review phases.
+4. Render fixed front matter, catalog/state fingerprints, command table, state
+   table, crash semantics, retention rule, and authority boundary as UTF-8/LF.
+5. Compare the committed Markdown bytes to the renderer and bind its hash,
+   current package semantics, final master, source package, and retention proof.
+6. Reject stale master/package hashes, altered document bytes, mixed binding,
+   unknown verbs, historical aliases, and every nonzero deletion count.
+
 ## Issue #98 retention-ledger rules
 
 1. Select the exact durable forward COMMIT prefix and every current rollback

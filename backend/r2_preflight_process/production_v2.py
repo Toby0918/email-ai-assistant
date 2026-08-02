@@ -12,18 +12,15 @@ from backend.r2_production_binding import (
     DurableAuthorityClaimV2,
     ProductionCommandV2,
 )
+from backend.r2_production_binding.catalog import (
+    OperatorSurfaceV2,
+    executable_verb_map_v2,
+)
 
 from .contracts import PREFLIGHT_ACKNOWLEDGEMENT
 
 
-PREFLIGHT_PRODUCTION_VERBS_V2 = {
-    "current-topology": ProductionCommandV2.CURRENT_TOPOLOGY_PREFLIGHT,
-    "host-baseline": ProductionCommandV2.HOST_BASELINE,
-    "evidence-review": ProductionCommandV2.EVIDENCE_REVIEW,
-    "evidence-verification": ProductionCommandV2.EVIDENCE_VERIFICATION,
-    "final-audit-readiness": ProductionCommandV2.FINAL_AUDIT_READINESS,
-    "recovery-inspection": ProductionCommandV2.RECOVERY_INSPECTION,
-}
+PREFLIGHT_PRODUCTION_VERBS_V2 = executable_verb_map_v2(OperatorSurfaceV2.PREFLIGHT)
 
 
 class PreflightProductionStatusV2(str, Enum):

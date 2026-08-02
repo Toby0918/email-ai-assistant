@@ -8,6 +8,16 @@ source_type: operation_guide
 
 # 测试检查清单
 
+## Issue #99 generated-runbook checks
+
+Run `tests/test_r2_operator_runbook_v2.py` and its architecture companion.
+Require the exact ten-command catalog to equal all three executable dispatcher
+maps and acknowledgement constants. Exercise the eight-phase state machine,
+including narrow recovery verbs and commandless retention/human review. Compare
+the committed Markdown bytes to the renderer, reconstruct the receipt, and
+reject stale final master, source-package hash, package semantics, document,
+mixed retention proof, unknown verbs, and historical R1 aliases.
+
 ## Issue #98 retention-ledger checks
 
 Run `tests/test_r2_retention_ledger_v2.py` and its architecture companion.

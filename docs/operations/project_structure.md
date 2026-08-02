@@ -8,6 +8,18 @@ source_type: operation_guide
 
 # 项目结构
 
+## Issue #99 generated final R2 operator runbook
+
+- `backend/r2_production_binding/catalog.py`: single executable command catalog
+  consumed by all three V2 process dispatchers.
+- `backend/r2_operator_runbook_v2/state_machine.py`: closed phase graph and
+  current package-semantics fingerprint.
+- `backend/r2_operator_runbook_v2/render.py`: deterministic UTF-8/LF renderer.
+- `backend/r2_operator_runbook_v2/receipt.py`: final-master/package/retention
+  drift gate and content-free receipt.
+- `docs/operations/r2_final_operator_runbook.md`: renderer-locked generated
+  artifact; it is operational documentation, never execution authority.
+
 ## Issue #98 retention ledger V2
 
 - `backend/r2_retention_ledger_v2/ledger.py`: deterministic object-level
