@@ -133,7 +133,7 @@ class R2FullTopologyWindowsTests(unittest.TestCase):
 
     def test_all_publications_share_one_physical_container(self):
         with tempfile.TemporaryDirectory(
-            prefix="r2-shared-publications-", dir=ROOT.anchor
+            prefix="r2-shared-publications-", dir=Path(sys._base_executable).anchor
         ) as raw:
             prerequisites = QuiescencePrerequisitesV1.create(
                 preflight_fingerprint=fingerprint("r2-test-preflight-v1", 1),

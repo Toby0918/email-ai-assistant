@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-29
+last_update: 2026-08-03
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -7,6 +7,250 @@ source_type: operation_guide
 ---
 
 # Mechanical Rule Translation
+
+## Issue #102 frozen-terminal rules
+
+1. The fixed no-argument script requires isolated safe-path Python, rejects all
+   tracked and untracked worktree changes plus assume-unchanged/skip-worktree,
+   compares clean `HEAD` and the local tracking ref to a fresh fixed-URL
+   remote-master observation, scrubs inherited Git state and disables replace
+   refs, then independently hashes and parses raw commit/tree/blob objects into
+   an exact safe Win32-alias-unique roster. It verifies the running script bytes,
+   index, worktree, and every repository import origin against that roster, and
+   only then
+   derives the exact final binding
+   across ref, commit, tree, source package, domain-separated runbook, workflow,
+   and dependency locks.
+2. Derive exactly eight gap proofs in registry order with eight unique proof and
+   evidence fingerprints, all bound to the frozen master. The explicit semantic
+   partition must own all fourteen gate receipts exactly once: terminal owns
+   binding/surface, production owns composition, Git/crash/retention/runbook own
+   their matching gates, Windows provenance owns dependency/native/portable,
+   and global gates own documentation/mechanical/leakage/maintenance.
+3. Accept the #101 coordinator only when all fourteen internally derived gate
+   receipts share the binding and every unsafe coordinator counter is zero.
+4. Read the one fixed Git-common-dir reviewed-production-binding artifact,
+   require an exact frozen-master-matching `ApprovedCutoverBindingV2`, derive its
+   pure receipt, and require the signed production-composition gate evidence to
+   equal that receipt's composition fingerprint.
+5. Recompute `R2FinalMasterClosureReceiptV1`; callers cannot supply or replace a
+   terminal receipt, gate receipt, terminal status, count, or review result.
+6. Bind every immutable reference into one canonical review package and fix all
+   findings, skips, leakage, cleanup, provider, host, private-data, #39,
+   approval, and authority counts to zero.
+7. Emit only eligibility plus `AWAITING_SINGLE_HUMAN_FINAL_REVIEW`; preserve one
+   required human review and zero completed reviews.
+
+## Issue #101 fourteen same-binding global-gate rules
+
+1. Enumerate the fourteen existing `ClosureGate` values once and map each to a
+   unique producer role plus a fixed review domain.
+2. Cover exactly Standards, Spec, security, documentation, mechanical,
+   leakage, and operator-review domains; omitted or unknown domains fail.
+3. Bind every evidence record to the exact frozen final-master binding, verify
+   it with that producer's fixed Ed25519 public key, and require distinct
+   evidence, producer, binding, and coordinator fingerprints.
+4. Fix verified to one and self-certified, skips, divergence, leakage,
+   private-data, host-operation, provider-attempt, and #39-change counts to zero.
+5. Accept the exact ordered fourteen evidence records, reject missing,
+   duplicate, stale, mixed, shared-producer, or self-certified inputs, and
+   derive gate receipts rather than accepting caller-supplied receipts.
+6. Canonically reconstruct the coordinator and its evidence/receipt sets;
+   unknown fields or any nonzero injected counter fail closed.
+
+## Issue #100 Git-object and CI provenance rules
+
+1. Resolve `HEAD^{commit}` and `HEAD^{tree}`, enumerate `HEAD` with `ls-tree`,
+   and read every selected byte with `cat-file blob`; verify every SHA-1 blob
+   frame and reread commit/tree after collection.
+2. Hash only content-free path identities and Git-object bytes into the V2
+   package; fix historical, ignored-content, and private-content counts at zero.
+3. Require exactly the three reviewed workflow files, fixed runner images,
+   every external `uses:` reference at a full 40-hex commit, and no conditional
+   missing-file skip or `continue-on-error` bypass. Require two 31-distribution
+   platform locks and `--require-hashes` for all three installs.
+4. Run full portable discovery after removing only exact registered native
+   skips, plus the Windows-native and independent-Windows suites, with zero
+   failed tests and zero unclassified skips; run repository leakage and
+   reject any finding before a receipt can be created.
+5. Bind every receipt to the exact final commit/tree, selected-entry and byte
+   counts, source-package, workflow lock, runbook, fixed suite, and runner.
+6. Reconcile exactly one receipt per platform kind, three distinct runner
+   fingerprints, and exact same-package inputs; reject missing, duplicate,
+   stale, mixed, shared-runner, divergent, leaking, failed, or skipped evidence.
+
+## Issue #99 generated-runbook rules
+
+1. Enumerate all ten `ProductionCommandV2` values once in the catalog with
+   exact surface, verb, effect, acknowledgement, ordinal, and one-operation cap.
+2. Derive preflight, evidence, and transaction dispatcher verb maps from that
+   catalog; no local executable vocabulary may diverge.
+3. Generate eight state-machine phase rows, including exact forward/recovery/
+   rollback paths and commandless retention/human-review phases.
+4. Render fixed front matter, catalog/state fingerprints, command table, state
+   table, all fourteen Issue #38 decisions, all four R1 blocker completion
+   proofs, crash semantics, retention rule, and authority boundary as UTF-8/LF.
+5. Compare the committed Markdown bytes to the renderer and bind its hash,
+   current package semantics, final master, source package, and retention proof.
+6. Reject stale master/package hashes, altered document bytes, mixed binding,
+   unknown verbs, historical aliases, and every nonzero deletion count.
+
+## Issue #98 retention-ledger rules
+
+1. Select the exact durable forward COMMIT prefix and every current rollback
+   COMMIT from the linked plans and journal; reject unknown journal extensions.
+2. Project three object duties for every forward commit: original state, new
+   state, and retained partial state; project one failed-Container duty.
+3. Add one evidence entry for every forward/reverse COMMIT and one journal-
+   artifact entry for genesis plus every current record.
+4. Derive the ledger stage from the rollback base index, current record kind,
+   completed reverse prefix, and sole legacy-restored terminal.
+5. Recompute canonical entries/counts during parse and proof construction;
+   reject injection, omission, duplication, reorder, mixed binding, or drift.
+6. Scan the complete #93-#98 production graph and require zero destructive or
+   automatic-expiry call paths and zero normal-runtime consumers.
+
+## Issue #97 rollback recovery rules
+
+1. Enumerate the durable #94-#96 COMMIT prefix and reject unknown, omitted,
+   duplicate, or reordered forward commits.
+2. Prepend one failed-Container preservation transition, then reverse every
+   committed source transition in strict LIFO order with swapped states.
+3. Fingerprint each remaining reverse suffix and bind it, the current journal
+   head, and transition instance into fresh ROLLBACK authority.
+4. Require retention evidence and zero destructive operations for every
+   reverse effect; exact POST uses a new claim and commit without effect replay.
+5. Exercise all 32 forward commit crash prefixes and every reverse boundary;
+   PRE resumes with a fresh intent and AMBIGUOUS incident-stops.
+6. After all reverse commits, require exact legacy topology/service/ACL/
+   Git-worktree audits and append `LEGACY_FLAT_LAYOUT_RESTORED` exactly once.
+
+## Issue #96 validation rules
+
+1. Require the complete managed prefix, then derive the seven fixed validation
+   transition instances and commands.
+2. Bind exact run, actor, service nonce, result, row, provider-attempt, DB-proof,
+   and audit facts to each committed transition.
+3. Reconstruct the aggregate validation receipt from canonical evidence and the
+   same journal; reject stale, mixed, duplicate, reordered, or count-drifted
+   facts.
+4. Require both audit windows to remain fresh and require
+   `minimal_read_count=2` in the final read-only observation.
+5. With fresh RESUME authority append one `CUTOVER_SUCCESS` terminal record,
+   zero host effects, and reject all repeated seals.
+
+## Issue #95 managed-unit rules
+
+1. Require the complete 17-transition foundation prefix before deriving the
+   first managed transition.
+2. Derive exactly Runtime PREPARE/PUBLISH, Database PREPARE/PUBLISH, CRX
+   PREPARE/PUBLISH, and Config PREPARE/PUBLISH in fixed order.
+3. Accept one effect only with exact transaction completion, identity, byte,
+   ACL, semantic, retention, and zero-destructive-operation facts.
+4. Require exact read-only ACL/semantic recovery proof before appending a
+   recovery classification; false Database SQLite proof fails closed.
+5. Map exact POST to `MANAGED_RECOVERED_COMMIT` with zero replay, exact PRE to
+   a fresh-authority intent, and ambiguity to incident stop.
+
+## Issue #94 foundation rules
+
+1. Derive six scalar foundation transitions plus eleven ordered worktree
+   transitions from one reviewed binding and exact immutable pre/post states.
+2. Accept only the plan-derived next transition and an exact execute/resume
+   authority bound to its current unified-journal head.
+3. Count one accepted action completion as exactly one host effect and append
+   effect observation plus commit for that same transition.
+4. Map PRE to fresh-authority new intent, POST to
+   `FOUNDATION_RECOVERED_COMMIT` with zero replayed effect, and ambiguity to
+   one durable classification followed by incident stop.
+5. Reconstruct the journal after every cut; no stage-local head or lifecycle
+   batch may substitute for committed-prefix derivation.
+
+## Issue #93 journal rules
+
+1. Frame genesis and every later canonical record as exact lowercase
+   eight-hex-length bytes followed by one colon, payload, and newline.
+2. Reconstruct the complete chain and require one binding, owner, sequence, and
+   exact predecessor head at every cut point; replayed durable claims fail.
+3. Permit only `AUTHORITY_CLAIM`, `INTENT`, `EFFECT_OBSERVATION`, `COMMIT`,
+   `RECOVERY_CLASSIFICATION`, and `TERMINAL_STATE` record types.
+4. Classify two equal immutable observations as exact PRE, exact POST, or
+   ambiguous. Inspection performs no append and no mutation.
+5. Treat all journal and inspection values as content-free evidence, never as
+   an issuer or real-host authorization.
+
+## Issue #92 Git-byte rules
+
+1. Compare every selected checkout byte string to its exact Git blob bytes and
+   recomputed object OID; reject same-size, EOL/filter, mode, index, flag, or
+   stage drift.
+2. Require exactly fourteen local refs, five stable common-state roles, eleven
+   original worktree records, and eleven reconstructed worktree records.
+3. Bind Repository Root identity, refs, stable common state, original records,
+   reconstructed records, final commit/tree, and source package separately.
+4. Reconstruct snapshot and receipt in a fresh process and reject any omitted,
+   duplicated, noncanonical, mixed-binding, or changed segment.
+5. Static guards require zero filesystem/Git/process reader capability and zero
+   ignored/private content reads in this pure contract.
+
+## Issue #90 transaction reachability rules
+
+1. Assert the exact three fixed verbs and execution/execution/recovery domain
+   mapping.
+2. For each verb, sign one journal/head/transition/plan-bound authority and
+   prove one invocation calls only its matching role exactly once.
+3. Make a callback return a non-unit completion and prove the dispatcher does
+   not retry or call a second action.
+4. For wrong action, domain, binding, head, transition, plan, sequence, or time,
+   assert zero action acquisitions.
+5. Reject loop statements and every batch, retry, direction-switch, cleanup,
+   delete, overwrite, path, shell, issuer, private-key, or cross-root surface.
+6. Assert the no-issuer entry accepts only the three fixed argv values and
+   always returns its dormant status with zero mutations.
+
+## Issue #89 evidence/genesis rules
+
+1. Accept exactly one `publish` argv value and read authority only through the
+   existing bounded real-TTY ingress.
+2. Bind the authority action to the exact reviewed-evidence fingerprint and
+   assert wrong review/domain/binding/time reaches zero publication calls.
+3. Assert one create-only call returns one exact evidence identity, package,
+   manifest, review, and claim binding.
+4. Build one canonical genesis from that completion and assert strict fresh-
+   process reconstruction yields the same final-master and evidence identity.
+5. Restart from reconstructed genesis and prove the same authority performs
+   zero publication calls; no process-local claimed set is authoritative.
+6. Reject issuer, private-key, path, selector, mutation, deletion, cleanup, and
+   cross-process-root capability in the production graph.
+
+## Issue #88 production preflight reachability rules
+
+1. Enumerate the exact six fixed argv verbs and map them one-to-one to the six
+   V2 preflight commands.
+2. For each valid signed envelope, assert exactly one read-only role invocation,
+   exact command/claim completion, and zero other role invocations.
+3. For wrong binding, domain, verb, action, signature, head, sequence, or time,
+   assert zero role invocations and one fixed blocked result.
+4. Reject every private key, issuer, path, selector, arbitrary payload, host
+   mutation, evidence publication, or transaction import/surface.
+5. Assert the no-issuer entry returns its one dormant status with zero reads and
+   zero operations; it cannot manufacture future production authority.
+
+## Issue #87 reviewed production binding V2 rules
+
+1. Assert the exact ten command verbs map to exactly four authority domains and
+   that no unknown command/domain is constructible.
+2. Assert the exact operator, public verification-key, and production-role
+   registries are complete, unique, canonical, and bound to one exact final
+   master.
+3. Reject every private signing key, signer, issuer, path, callback, host,
+   process, filesystem, database, or network surface in the pure package.
+4. Reconstruct the durable claim ledger from canonical values in a fresh
+   process and reject missing sequence, wrong prior head, replayed authority or
+   envelope nonce, stale validity, and mixed binding.
+5. Treat binding and claim values as content-free contract facts only; later
+   journal composition must perform atomic persistence before any capability is
+   reachable.
 
 本文件定义如何把人工 code review 中反复出现的主观要求，翻译成可执行、可检测、可由 CI 阻止的机械规则。
 
@@ -817,3 +1061,59 @@ private-data container, or authorization to migrate.
 8. The accepted prototype fingerprint is non-authorizing prior art; fresh
    criteria, matrix, script, bundle, surface, and package fingerprints are
    mandatory and do not authorize Issue #39 or real-host work.
+
+## Issue #86 final-master closure contract rules
+
+1. The closure registry contains exactly eight gaps in the fixed dependency
+   order and binds every gap to its existing owning Issues and decision IDs.
+2. The gate registry contains exactly fourteen gate kinds; a missing, added,
+   duplicate, unknown, or reordered kind fails closed.
+3. `FinalMasterBindingV1` binds one lowercase Git commit OID, one lowercase Git
+   tree OID, the exact closure-map fingerprint, source-package fingerprint,
+   runbook fingerprint, and workflow-family fingerprint.
+4. Each gap proof and gate receipt is an exact nominal value for one final-master
+   binding. Every completion, finding, omission, skip, leakage, cleanup,
+   provider, real-host, and #39-code-change count is mechanically fixed to its
+   accepted value.
+5. `R2FinalMasterClosureReceiptV1` accepts exactly eight dependency-ordered gap
+   proofs and fourteen ordered gate receipts. Mixed bindings and noncanonical or
+   tampered JSON return only `R2_FINAL_MASTER_CLOSURE_INVALID`.
+6. The only terminal status is
+   `ELIGIBLE_FOR_SINGLE_FINAL_MASTER_REVIEW`; no partial status is serializable.
+7. A closed eight-value finding taxonomy separates existing-gap, surface,
+   evidence, external authority/state, nonblocking, security incident, decision
+   contradiction, and duplicate/historical classifications; this is the
+   closed eight-value finding taxonomy.
+8. Closure values have no path, command, issuer, signer, authority, process,
+   filesystem, network, GitHub, cleanup, deletion, provider, mailbox, vault,
+   credential, or private-data capability. Receipt types never enter
+   `REAL_AUTHORIZATION_TYPES`.
+## Issue #91 production-graph rules
+
+1. Parse each of the three executable process roots and require exactly one
+   local `production_v2.main` import; reject an `entry` or `testing` import.
+2. Parse each reachable V2 module and reject `BLOCKED_NO_APPROVED_COMMAND`,
+   `real_locked`, private-key/signing capability, synthetic context, or test
+   binder inputs.
+3. Invoke every default fixed-verb entry and require content-free
+   `DORMANT_NO_EXTERNAL_ISSUER` with zero operations.
+4. Construct each nominal bootstrap only from an exact reviewed binding, its
+   exact frozen-review receipt, binding-bound public roles, same-binding durable
+   claims, and journal identities. Use explicit keyword-only factories; reject
+   unknown mapping/CLI/path/environment inputs and every testing-only synthetic
+   role before `main()` reaches a composition. Production `main()` accepts no
+   terminal or clock input and owns exact `SystemTerminal` plus the system clock.
+5. Preserve the already tested authorized seam: exact V2 authority reaches one
+   and only one binding-bound role, while negative authority reaches none.
+6. Permit only top-level functions whose normalized code, defaults, keyword
+   defaults, function state, recursively referenced globals/builtins, and exact
+   command-parameter type surfaces bind exactly. Reject top-level closures,
+   bound methods, imports, dynamic namespaces/frames, function attributes, and
+   global mutation. Frame helper dependencies, referenced module non-dunder
+   namespaces and executable loaded globals, non-built-in MRO-owner constructor/
+   method/property/descriptor/scalar-or-object constants, custom metaclass
+   construction, object state, and exact parameter-method loaded globals. Prove
+   alias, branch, helper-return, container, cross-module, parameter helper/
+   configuration, class-state, global-constructor, JSON encoder, and default-
+   encoder drift all change identity; recompute immediately before dispatch and
+   again inside the wrapper.

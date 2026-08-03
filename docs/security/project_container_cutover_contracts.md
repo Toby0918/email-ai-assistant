@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-29
+last_update: 2026-08-03
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -7,6 +7,425 @@ source_type: security_policy
 ---
 
 # Project Container cutover contract security boundary
+
+## Issue #102 frozen final-master review package
+
+The fixed no-argument script requires `python -I -B`. It independently verifies
+the raw commit/tree/blob hashes, then validates its current script bytes, the
+exact index and hidden flags, all non-ignored tracked/untracked status, and only
+the expected tracked worktree paths before making the fresh remote observation.
+Ignored residue is neither enumerated nor read. Every expected tracked parent
+and file rejects symlink, junction, and other reparse state and is identity-
+checked as a complete root-to-file chain around the exact bounded byte read;
+the current verifier script uses that same reader before its reviewed blob is
+accepted. The script then proves `HEAD` plus
+its local tracking ref equal a fresh observation of the code-fixed public GitHub
+master ref. It materializes all repository imports from the exact raw Git
+tree/blob bytes, rejects
+`.gitattributes` archive transformations, trailing-dot/space, ADS,
+reserved-device, short-name, Unicode/case-fold aliases, unsafe/colliding paths,
+unsupported modes, or a repository module loaded outside the materialized tree;
+the complete roster passes before the first write. It then derives one
+`R2FrozenRemoteMasterV1` from actual Git objects, then reads only the fixed
+`r2-final-master-closure-v1/reviewed-production-binding-v2.json` artifact and
+fourteen fixed signed-evidence filenames from the Git common directory.
+It accepts no caller path, binding, observed fingerprint, receipt, or review
+result. The concrete reviewed `ApprovedCutoverBindingV2` must exactly match the
+frozen master; its binding and four role/domain/key registries are carried by a
+pure receipt and must match the signed production-composition gate evidence.
+Missing or invalid binding input returns the fixed content-free
+`BLOCKED_MISSING_REVIEWED_PRODUCTION_BINDING` status and zero eligibility.
+
+It then derives exactly eight unique ordered same-binding gap proofs using an
+explicit exhaustive semantic partition that owns all fourteen gate receipts
+exactly once, rather than positional pairing,
+and the #101 coordinator, derives the fourteen gate
+receipts, and recomputes the sole terminal eligibility receipt. A historical,
+missing, duplicate, stale, mixed, self-certified, skipped, divergent, leaking,
+or contract-changing input fails closed.
+
+The immutable package exposes only `AWAITING_SINGLE_HUMAN_FINAL_REVIEW` and
+`ELIGIBLE_FOR_SINGLE_FINAL_MASTER_REVIEW`. Human review remains required and
+incomplete; approval, execution-authority, #39-change, provider-attempt,
+live-host, private-data, cleanup, leakage, skip, and finding counts remain zero.
+There is no `APPROVED` value or approve/merge/execute/authorize method.
+
+This package is evidence for the later single human final-master review. It
+does not approve #38, authorize #39, issue a command, touch a live host, access
+a provider/mailbox/vault/credential/private data, merge a branch, or perform
+cutover. Only the human operator may decide the final review and #38 approval.
+
+## Issue #101 independent global-gate coordinator
+
+The global coordinator consumes exactly one same-binding evidence record for
+each of the fourteen closure gates. The registry fixes a unique producer role
+and review domain for every gate and collectively requires Standards, Spec,
+security, documentation, mechanical, leakage, and operator-review evidence.
+Fourteen distinct producer fingerprints and evidence records are mandatory;
+each registry row fixes a distinct Ed25519 verification public key. A producer
+must externally sign the full canonical evidence body; arbitrary fingerprints
+cannot mint `verified=1`. The coordinator derives receipts internally and never
+accepts nominal receipts as an input or permits the coordinator to certify itself.
+
+Every evidence and coordinator counter for missing/duplicate/stale/self-
+certified evidence, required or unclassified skips, platform divergence,
+leakage, private-data access, live-host operations, provider attempts, and #39
+changes is fixed at zero. Canonical reconstruction rejects unknown fields and
+any altered count, binding, producer, domain, or receipt-set identity.
+
+The resulting `GLOBAL_GATES_VERIFIED` state is evidence only. Operator-review
+means runbook and maintenance review, not the human final-master approval in
+#102. No gate receipt can issue authority, approve #38, execute #39, access a
+host/provider/mailbox/vault/credential/private data, or authorize cutover.
+
+## Issue #100 frozen Git-object package and CI provenance
+
+The CI source package is constructed from the candidate commit's Git object
+database, never from mutable checkout bytes. It binds the exact final commit
+and tree, every selected blob OID and byte digest, selected counts, the
+generated runbook digest, and the workflow/action lock. A commit/tree change
+during collection, a malformed blob frame, an omitted or duplicate entry, or a
+historical package fails closed. Untracked and ignored content, including any
+private dataset or local credential artifact, is neither enumerated nor read.
+
+Every workflow action is pinned to a full commit hash and every runner uses a
+fixed image label. Linux and Windows each have a complete 31-distribution wheel
+lock; all installs use `--require-hashes`, and receipts bind installed metadata,
+platform wheel hashes, and nine direct import-byte hashes. Portable discovers
+the full test suite while excluding only registered Windows-native skips;
+Windows-native and independent-Windows jobs run their closed suites. Every
+remaining skip or failure is fatal, then repository leakage must be zero.
+Reconciliation requires one receipt per kind, exact agreement
+on final commit/tree, source package, workflow lock and runbook, and three
+distinct runner fingerprints. Missing, mixed, stale, duplicate, self-replaced,
+skipped, divergent, failed, or leaking evidence cannot become a bundle.
+
+The package and receipts contain fingerprints and aggregate counts only. They
+do not expose paths or bytes, issue authority, access a live host, call a
+provider, read mailbox/vault/private data, perform cleanup, or authorize #38 or
+#39. CI success remains synthetic/offline evidence for later human review.
+
+## Issue #99 generated final R2 operator runbook
+
+The executable vocabulary has one source:
+`backend/r2_production_binding/catalog.py`. Six preflight verbs, one evidence
+publication verb, and three transaction verbs cover the exact production
+command enum. Each V2 dispatcher derives its map from that catalog and still
+accepts one verb, one exact acknowledgement, fresh external authority, and at
+most one operation per invocation. Unknown, umbrella, batch, cleanup, or
+historical R1 commands do not resolve.
+
+The final runbook is generated from that catalog, its closed phase graph, the
+fourteen Issue #38 decisions, and the four R1 blocker-class completion proofs.
+Forward and reverse crash handling, LIFO rollback, #98 reconciliation, zero
+deletion, and human-only final review are state-machine facts rather than a
+second handwritten command system. Verification binds the current final
+commit/tree, exact source-package and runbook hashes, package semantics, and
+same-binding retention proof. The document and receipt never authorize an
+operation; production remains `DORMANT_NO_EXTERNAL_ISSUER` without a separately
+valid authority.
+
+## Issue #98 object-level retention ledger
+
+The retention ledger is computed only from the reviewed binding, linked
+#94-#97 plans, and current unified journal. It separately accounts for every
+original state, new state, partial-state preservation duty, failed Container,
+forward/reverse commit evidence, journal genesis, and journal record. Entries
+contain only roles, ordinals, counts, booleans, and fingerprints; no path,
+object bytes, private payload, timer, or operator-selected artifact is accepted.
+
+Every forward, recovery-required, rollback-pending, classified, resumed,
+rollback-complete, and legacy-restored projection is reconciled against the
+same journal head. The proof requires zero untracked artifacts and zero
+deletion, overwrite, prune, automatic-expiry, destructive, or private-payload
+capability. Static reachability scans independently require the complete
+#93-#98 production graph to contain no such operation or normal-runtime entry.
+
+## Issue #97 journal-derived rollback and legacy recovery
+
+Rollback begins only from the exact same-binding durable forward COMMIT prefix.
+The plan first preserves the failed Container and every partial/new object,
+then reverses the committed #94-#96 transitions in strict LIFO order. Callers
+cannot supply, omit, select, or reorder reverse boundaries. Every boundary has
+a unique remaining-plan fingerprint and requires fresh single-use ROLLBACK
+authority bound to that suffix and current journal head.
+
+Exact PRE may create a fresh intent; exact POST may append a recovered commit
+without repeating the effect; ambiguity incident-stops. No reverse evidence
+permits deletion or cleanup. Only after all reverse commits and exact legacy
+topology, service, ACL, identity, and Git/worktree audits may fresh recovery
+authority append the sole successful reverse terminal,
+`LEGACY_FLAT_LAYOUT_RESTORED`, with zero provider attempts, legacy analysis
+writes, destructive operations, or terminal host mutations.
+
+## Issue #96 two-start validation and final seal
+
+`R2TwoStartValidationPlanV2` binds seven ordered lifecycle transitions after
+all managed publication commits: Start A, one rules-only analysis and row,
+Stop A, final database proof, independent stopped-layout audit, distinct Start
+B, and independent final-running audit. Evidence binds one reviewed final
+master, exact runs/nonces/actors, one analysis, one row, and
+`provider_attempts=0` without process-local issuance state.
+
+Both audit records have exact 300-second windows and distinct actors from the
+service processes and each other. A final read-only observation performs
+exactly two minimal freshness reads. Only fresh external RESUME authority may
+then append exactly one durable CUTOVER_SUCCESS; the seal performs zero host
+mutations, and a repeated or mixed-binding seal fails closed.
+
+## Issue #95 managed-unit single-actions
+
+`R2ManagedUnitPlanV2` extends a completely committed foundation plan with
+exactly eight transitions: PREPARE then PUBLISH for Runtime, Database, CRX, and
+Config. Every transition binds the reviewed final master, foundation plan,
+fixed production owner, predecessor, and immutable pre/post state.
+
+Accepted effects bind exact identity, bytes, ACL, and unit-specific semantic
+conformance while retaining source, partial, and failed-unit evidence. The
+destructive-operation count is fixed at zero. Recovery requires a separate
+read-only proof that both ACL and unit semantics are exact; Database semantics
+include SQLite integrity and sidecar state. PRE/POST/AMBIGUOUS then follow the
+same fresh-authority, no-replay, and incident-stop rules as foundation work.
+
+## Issue #94 foundation single-actions
+
+`R2FoundationPlanV2` binds exactly seventeen foundation transitions to the
+reviewed final master: service quiescence, legacy anchor rename, Container and
+main publication, whole-tree ACL conformance, Repository Root relocation, and
+eleven independently owned worktree reconstructions. The next transition is
+derived from the committed journal prefix; callers cannot select, omit,
+duplicate, or reorder an effect.
+
+Each execution authority starts at most one transition and each accepted
+completion records exactly one host mutation. After interruption, exact PRE
+requires new resume authority before a new intent; exact POST requires new
+resume authority and appends only a recovered commit. Ambiguity appends one
+content-free recovery classification and incident-stops. All tests are pure
+and synthetic; no foundation role owns a real host or issuer.
+
+## Issue #93 unified transaction journal
+
+`R2TransactionJournalV2` is the only append-only chain for all later R2
+production transitions. Length-framed canonical records bind one reviewed
+production binding, journal owner, monotonically increasing sequence, exact
+predecessor head, transition instance, and the durable single-use authority
+claim where required. Unknown records, replay, duplicate sequence, owner/head
+drift, noncanonical bytes, or a torn frame tail fail closed during
+fresh-process reconstruction.
+
+The journal vocabulary is closed to authority claim, intent, effect
+observation, commit, recovery classification, and terminal state. A pure
+read-only tri-state inspection compares two identical content-free
+observations against the pending intent and returns exactly effect absent,
+effect present, or ambiguous. The receipt performs zero mutation and zero
+journal append, is not authority, and cannot own a reader, path, process,
+issuer, host adapter, or private payload.
+
+## Issue #92 Git-byte state
+
+`GitByteSnapshotV2` proves selected checkout bytes against exact Git blob-object
+bytes and OIDs, clean stage-zero index entries, the Repository Root identity,
+fourteen local refs, five closed stable-common-state roles, and both eleven
+original and eleven deterministically reconstructed worktree records. Stable
+Git common state is fingerprinted separately from worktree administrative state
+that is intentionally reconstructed.
+
+The contract is pure and receives bounded bytes from a later fixed adapter; it
+owns no path, Git command, filesystem reader, process, or mutation capability.
+It therefore cannot enumerate or read ignored or private content. Public JSON
+contains only fixed types, counts, object IDs, and fingerprints. The final
+`R2GitByteStateReceiptV1` is final-master-bound evidence, never authority.
+
+## Issue #91 production composition closure
+
+The three executable V2 process roots now boot only their corresponding
+`production_v2` module. Each `main()` has one repo-owned nominal
+`bootstrap_v2.py` seam; the process launcher must inject the exact reviewed
+binding, its matching frozen-review receipt, binding-bound public production
+roles, same-binding durable claims, and journal identities. Bootstrap
+construction revalidates every receipt field and role and rejects every
+testing-only synthetic marker. It is not constructible from CLI text, a path,
+an environment variable, a generic mapping, a terminal adapter, or a clock
+callback. Production `main()` owns exact `SystemTerminal` and its module-fixed
+system clock. A valid future V2 authority can then reach the exact
+preflight, evidence-publication, or single-action transaction composition
+without an obsolete post-authorization lock. The V1 locked entries remain
+historical compatibility surfaces and are not reachable from `__main__`.
+
+The three role bundle constructors compare each top-level callable's normalized
+code, defaults, keyword defaults, function state, recursively referenced
+globals/builtins, and exact command-parameter type surfaces to the reviewed
+production-role fingerprint selected by the command. Top-level bound methods
+and closures, dynamic namespaces/frames, imports, function-attribute access,
+global mutation, wrong identities, and wrong role mappings fail. Closed
+semantic frames bind helper dependencies, every referenced module's non-dunder
+namespace plus repository-owned or synthetic executable loaded globals,
+non-built-in MRO-owner executable surfaces, scalar/object constants, custom
+metaclass construction, and object state. Pinned external-module-owned
+functions and the exact Enum methods automatically copied by the
+standard-library metaclass contribute their complete code surface without
+recursively absorbing implicit mutable interpreter state. Same-family
+and explicitly mounted instance/static/class methods recursively bind their
+loaded globals, as do deep Python/built-in/method-wrapper receiver graphs, Enum
+member state, side-effect-free dictionary/exact-owner slot object state, and global
+staticmethod/property descriptor functions. Alias, branch,
+helper-return, container, and cross-module flows therefore bind their static
+dependencies; parameter helper/configuration, class-state, global-constructor,
+`JSONEncoder`, and default-encoder drift are detected. Dispatch and the wrapper
+reject any deep opaque/native value whose complete state cannot be proven from
+those dictionary/slot rules, including extension types exposing native method
+or wrapper members. Pinned external surface functions keep shallow
+implicit-value frames and therefore do not absorb unrelated interpreter state;
+functions nested only in defaults, closures, or function state remain pure
+code surfaces.
+external namespace object methods, nested types, and container-carried types
+still recursively bind their actual loaded global behavior dependencies.
+Re-exported functions, object-state modules, and custom-metaclass construction
+retain that same behavior policy, including complete custom-metaclass MRO/class
+state and other class-state object graphs and
+owned-to-external dependency transitions. Module `__getattr__` and custom
+`ModuleType` subclasses fail closed as dynamic namespaces, and unsupported
+module dunder reads are rejected while module `__doc__` is bound. Accessed
+loaderful nested modules fail closed across direct, alias, helper, and container
+paths; accessed external same-namespace functions bind loaded globals.
+Built-in classification requires exact `builtins` object identity, and exact
+`type` descriptors supply namespace, MRO, module, qualname, and name without
+invoking a custom metaclass. Exact class names, annotations/doc/generic
+metadata, default-empty-only dataclass field metadata, IEEE float/complex bytes,
+recursively typed slices, regex state, and the exact six visible fields of the
+CPython JSON scanner are bound without trusting spoofable labels. Custom
+instance `__dict__` descriptors and nonempty/custom dataclass metadata fail
+before user behavior runs; locale-dependent regex and dynamic private-attribute
+string adapters are rejected. Loaderless
+explicitly mounted nested modules bind their values; ordinarily imported
+nested modules remain nominal only when the traversal does not access them,
+preventing interpreter caches from entering the reviewed identity.
+Dispatch and the wrapper
+recompute the current behavior identity
+immediately before invocation, so post-binding drift has zero callback
+acquisitions. The synthetic bypass is private to each
+existing `testing.py` package and is not imported by an executable root.
+
+Default execution without a reviewed bootstrap preserves no-issuer dormancy:
+each root accepts only its fixed verb catalog and returns
+`DORMANT_NO_EXTERNAL_ISSUER` with zero host operations. The executable
+production graph imports neither a synthetic context nor a test binder and
+contains no private signing key or issuer.
+
+## Issue #90 V2 single-action transaction process
+
+The transaction root maps only `execute`, `resume`, and `rollback` to their
+exact V2 commands. Execute and resume require the execution domain/operator/key;
+rollback requires the recovery domain/operator/key. Each signed action binds
+the reviewed final master, current journal head, exact transition instance, and
+the remaining reverse-plan fingerprint applicable to that command.
+
+One process invocation verifies one authority and selects at most one action.
+The selected role returns one claim/head/transition/plan-bound completion with
+exactly one mutation. A non-unit completion, exception, wrong command, action,
+domain, binding, journal head, transition, plan, sequence, signature, replay, or
+freshness returns a fixed blocked result without retrying or selecting another
+role.
+
+The dispatcher has no batch, loop, automatic resume, retry, direction switch,
+cleanup, delete, overwrite, repair, arbitrary path, shell, or Git surface. The
+no-issuer entry returns `DORMANT_NO_EXTERNAL_ISSUER` with zero mutations; it
+contains no private signing key or post-verification unconditional lock.
+
+## Issue #89 production evidence V2 and journal genesis
+
+The evidence root exposes only the fixed `publish` verb. Its V2 envelope must
+bind the reviewed final-master binding, evidence domain/operator/public key,
+and an action fingerprint derived from the exact reviewed-evidence fingerprint.
+Wrong review, binding, command, domain, action, prior head, sequence, signature,
+or freshness fails before the create-only publication role is acquired.
+
+A successful role returns one exact `ReviewedEvidencePublicationV2` binding the
+authority claim, reviewed evidence, evidence object identity, package bytes,
+and manifest bytes. The dispatcher immediately constructs one
+`R2JournalGenesisV2`. Genesis binds the final commit/tree, binding and role/key
+registries, operation, evidence/review/package/manifest identities, journal
+owner, pre-genesis head, nonce, and the first durable authority claim.
+
+Canonical genesis parsing reconstructs and revalidates that claim in a fresh
+process. Reusing its authority, envelope nonce, sequence, or old prior head
+cannot reacquire publication. Genesis and publication receipts are evidence,
+not authorization. The dormant entry has no issuer or binding and returns only
+`DORMANT_NO_EXTERNAL_ISSUER`; no private key or post-verification lock exists.
+
+## Issue #88 production preflight V2 dispatcher
+
+The dedicated preflight root maps exactly six fixed CLI verbs to the six V2
+preflight commands. Hidden bounded real-TTY ingress is verified against the
+exact `ApprovedCutoverBindingV2`, preflight operator role, preflight public key,
+command/domain, action fingerprint, durable prior head, sequence, and validity
+window before a composition role is selected.
+
+Each accepted invocation reaches exactly one pre-bound read-only role and must
+return one exact claim-bound completion. Wrong binding, final master, operation,
+command, domain, operator, public-key role, action, head, sequence, signature,
+or freshness fails before any role acquisition. No preflight role can publish
+evidence, execute a transaction, mutate a host, or expose private payload.
+
+`dormant_preflight_production_v2(...)` has no binding, key, envelope, issuer,
+or composition input. A valid fixed verb returns only
+`DORMANT_NO_EXTERNAL_ISSUER` with zero operations. Dormancy is therefore the
+absence of an external issuer and fresh authority, not an embedded private key
+or a post-verification unconditional lock.
+
+## Issue #87 reviewed production binding V2
+
+`ApprovedCutoverBindingV2` derives from one exact `FinalMasterBindingV1` and
+binds the fixed cutover operation, the four authority domains, all ten command
+verbs, the four operator roles, the four public verification-key roles, and
+the complete eighteen-role production registry. Missing roles, extra roles,
+mixed final-master values, duplicate fingerprints, noncanonical JSON, or an
+unknown command/domain assignment fail with fixed content-free errors.
+
+The binding contains verification material only: it has no private signing keys,
+signing methods, issuer capability, path, command runner, host adapter,
+or environment input in `backend.r2_production_binding`. A public-key role or
+binding fingerprint is not authority to run a production operation.
+
+`DurableAuthorityClaimV2` records the exact binding, command, authority domain,
+operator/key roles, action and envelope nonces, prior journal head, sequence,
+and bounded freshness window. `validate_new_authority_claim(...)` reconstructs
+all durable prior claims and rejects stale, replayed, reordered, wrong-head, or
+mixed-binding claims. The contract is pure; a later unified journal owns the
+durable append and atomic single-use boundary. The claim is evidence of that
+append decision, not a new authorization issuer.
+
+## Issue #86 finite final-master closure contract
+
+`backend.r2_final_master_closure` fixes exactly eight closure gaps in one
+dependency order: terminal contract, production composition, Git-byte
+reproducibility, crash recovery, retention/no-deletion, runbook semantic
+closure, Windows CI provenance, and global gates. The registry binds every gap
+to its existing GitHub owner set and reviewed decision IDs. It is closed;
+ordinary implementation, surface, evidence, documentation, CI, leakage, and
+review findings return to one registered gap instead of creating an unbounded
+remediation stream.
+
+`FinalMasterBindingV1` binds the exact frozen commit and tree, the closure-map
+fingerprint, Git-object source-package fingerprint, deterministic runbook
+fingerprint, and final workflow-family fingerprint. A gap proof or gate receipt
+is valid only for that exact nominal binding. Missing, duplicate, unknown,
+noncanonical, stale, or mixed-binding evidence fails with the one fixed closure
+contract error.
+
+`R2FinalMasterClosureReceiptV1` is the only terminal evidence schema. It accepts
+exactly one completed proof for each of the eight gaps and exactly one verified,
+non-self-certified receipt for each of the fourteen global gate kinds. All open
+finding, omission, skip, leakage, cleanup, provider, real-host operation, and
+#39 code-change counts must be zero. Its sole terminal status is
+`ELIGIBLE_FOR_SINGLE_FINAL_MASTER_REVIEW`.
+
+The binding, gap proofs, gate receipts, fingerprints, and terminal receipt are
+evidence only. They are not authorization values, contain no private issuer or
+signing capability, and are excluded from every real-host authority type. They
+cannot execute, resume, rollback, publish, move, clean, delete, open a ticket,
+close #38, or begin #39. The single final review and Issue #38 approval remain
+human-controlled and separate from all receipt construction.
 
 ## Scope
 

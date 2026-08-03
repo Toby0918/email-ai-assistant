@@ -190,7 +190,7 @@ class R2EvidenceProcessTests(unittest.TestCase):
         self.assertEqual(calls, 1)
         self.assertEqual(process.publication_acquisitions, 1)
 
-    def test_production_module_rejects_redirected_and_extra_ingress(self):
+    def test_production_module_is_the_v2_no_issuer_root(self):
         root = Path(__file__).resolve().parents[1]
         invalid = subprocess.run(
             (
@@ -221,14 +221,14 @@ class R2EvidenceProcessTests(unittest.TestCase):
             check=False,
         )
         self.assertEqual((invalid.returncode, invalid.stderr), (2, ""))
-        self.assertEqual((redirected.returncode, redirected.stderr), (3, ""))
+        self.assertEqual((redirected.returncode, redirected.stderr), (0, ""))
         self.assertEqual(
             invalid.stdout,
             "BLOCKED_COMMAND accepted=0 rejected=1 published=0\n",
         )
         self.assertEqual(
             redirected.stdout,
-            "BLOCKED_TTY accepted=0 rejected=1 published=0\n",
+            "DORMANT_NO_EXTERNAL_ISSUER accepted=0 rejected=0 published=0\n",
         )
 
     @unittest.skipUnless(sys.platform == "win32", "Windows real TTY proof")

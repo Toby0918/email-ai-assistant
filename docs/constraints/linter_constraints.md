@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-29
+last_update: 2026-08-03
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -7,6 +7,209 @@ source_type: operation_guide
 ---
 
 # Static Linter Constraints
+
+## R2 Issue #102 terminal-review guards
+
+- Require exact observed remote commit/tree, source-package, runbook, and
+  workflow fingerprints to equal the frozen final-master binding.
+- Require isolated safe-path Python, the fixed no-argument Git adapter, a clean
+  tracked-and-untracked worktree with no assume-unchanged/skip-worktree entry,
+  exact local and fresh fixed-URL remote-master equality, a scrubbed Git
+  environment with replacement refs disabled, independent raw commit/tree/blob
+  hash verification before repository imports, exact current-script and
+  imported-module origins/bytes, and fourteen exact Git-common-dir receipt
+  filenames; reject path or receipt args.
+- Require exactly eight ordered, unique, same-binding gap proofs and the exact
+  #101 fourteen-gate coordinator; do not accept caller-supplied terminal or gate
+  receipts.
+- Require the exact Git-common-dir `reviewed-production-binding-v2.json`,
+  validate one concrete `ApprovedCutoverBindingV2` against the frozen master,
+  and bind its four registries plus production-composition evidence into the
+  final package. Missing/invalid input must use the fixed blocked status.
+- Derive every gap proof from the explicit exhaustive eight-gap/fourteen-gate
+  semantic partition; reject positional or partial gate pairing.
+- Recompute the terminal receipt and immutable review package; reject unknown,
+  stale, mixed, duplicate, skipped, leaking, or contract-changing evidence.
+- Fix `human_review_completed`, approval, execution-authority, #39, provider,
+  live-host, private-data, cleanup, and every finding count at zero.
+- Permit only `AWAITING_SINGLE_HUMAN_FINAL_REVIEW`; reject any `APPROVED` status
+  or approve/merge/execute/authorize method and keep authority types disjoint.
+
+## R2 Issue #101 global-gate guards
+
+- Require exactly fourteen gate registrations, fourteen unique producer roles,
+  and complete seven-domain Standards/Spec/security/documentation/mechanical/
+  leakage/operator-review coverage.
+- Require the evidence tuple to follow the closed gate order and every record
+  to bind the same final master; missing, duplicate, stale, mixed, or shared-
+  producer evidence is invalid.
+- Require coordinator, producer, evidence, and binding fingerprints to remain
+  distinct, and derive every receipt from evidence inside the coordinator.
+- Require one fixed distinct Ed25519 public key per producer and a valid
+  signature over the complete canonical evidence body; raw fingerprints cannot
+  set `verified=1` or `self_certified=0`.
+- Reject any nonzero self-certified, required/unclassified skip, divergence,
+  leakage, private-data, host-operation, provider-attempt, or #39-change count.
+- Keep the package pure and below file/function limits; no host, process,
+  network, path, provider, mailbox, vault, private-data, or authority import.
+
+## R2 generated-runbook guards
+
+- Require exactly ten unique catalog verbs covering every
+  `ProductionCommandV2`; each dispatcher map is derived from the catalog.
+- Require exact acknowledgement agreement, one-operation ceilings, closed
+  effects, zero destructive capability, and rejection of every unknown or
+  historical R1 alias.
+- Generate `docs/operations/r2_final_operator_runbook.md` byte-for-byte from
+  the catalog and state machine; hand-edited semantic drift fails tests.
+- Receipt construction requires exact final commit/tree, runbook hash, source-
+  package hash, current package-semantics fingerprint, and same-binding #98
+  proof. Stale or mixed evidence fails closed.
+- Require exactly fourteen decision rows and four R1 blocker-class completion
+  rows; bind both registry fingerprints and reject omission or duplication.
+- Retention reconciliation and human final review accept no command; the
+  generated artifact, receipt, CI, and synthetic proof are not authority.
+
+## R2 retention-ledger guards
+
+- Require exact same-binding #94-#97 plan links and a journal extension of the
+  rollback plan; reject caller-provided entries, counts, or artifact selectors.
+- Track original, new, partial, failed Container, commit evidence, and every
+  genesis/record journal artifact as unique content-free entries.
+- Reconcile forward-committed, forward-recovery-required, rollback-pending,
+  rollback-classified, rollback-in-progress, rollback-complete, and legacy-
+  restored states without adding a parallel lifecycle head.
+- Production-graph AST guards reject filesystem/process mutation imports and
+  removal, unlink, directory removal, replacement, pruning, or expiry calls.
+- Ledger and proof must report zero untracked artifacts, destructive/deletion/
+  overwrite/prune/automatic-expiry capabilities, and private payload fields.
+
+## R2 rollback recovery guards
+
+- Derive the reverse plan only from the same-binding #94-#96 plan chain and
+  exact durable forward commits; failed-Container preservation is always first.
+- Require strict LIFO source transition order, a unique nonzero remaining-plan
+  fingerprint per boundary, and fresh single-use ROLLBACK authority per intent.
+- Effect evidence fixes retained failed/partial objects, one bounded reverse
+  mutation, and zero destructive operations. PRE/POST/AMBIGUOUS follow the
+  unified journal and never permit a blind repeat.
+- The package stays pathless and dormant, with no executable, normal-runtime
+  consumer, host adapter, issuer, cleanup, deletion, provider, mailbox, vault,
+  or private-data capability.
+- The only successful reverse terminal is `LEGACY_FLAT_LAYOUT_RESTORED`, after
+  exact legacy and independent audit evidence, with zero terminal host effects.
+
+## R2 two-start validation guards
+
+- Require the exact seven-action lifecycle sequence after all eight managed
+  commits; no caller selector may reorder or omit an action.
+- Start A and Start B must have distinct run, nonce, and actor identities.
+  Rules evidence requires one analysis, one row, and `provider_attempts=0`.
+- Stopped and final audits require distinct independent actors and exact
+  300-second windows containing the claim and final freshness time.
+- Final seal requires fresh RESUME authority, `minimal_read_count=2`, zero host
+  mutations, and no existing terminal record.
+
+## R2 managed-unit publication guards
+
+- Require Runtime, Database, CRX, and Config PREPARE then PUBLISH in that fixed
+  order, with exactly eight unique transition instances.
+- Effect evidence must bind exact identity, bytes, ACL, unit semantics, retained
+  source/partial/failed state, one host mutation, and zero destructive actions.
+- Recovery requires exact ACL and semantic proof. Database proof includes
+  SQLite semantic conformance and sidecar state; a false or omitted check fails.
+- POST permits one recovered commit and zero effect replay; PRE requires fresh
+  resume authority; ambiguity incident-stops.
+
+## R2 foundation publication guards
+
+- The plan must contain exactly 17 transitions, exactly eleven worktree
+  instances, the fixed owner sequence, unique instance fingerprints, and no
+  caller-controlled selector.
+- Only the next transition in the committed prefix may begin. Every authority,
+  intent, effect, observation, and commit binds the same transition.
+- PRE restart requires fresh resume authority and a new intent; POST restart
+  permits a recovered commit without effect replay; ambiguity incident-stops.
+- The package must remain pathless and content-free, with no filesystem,
+  process, database, signer, issuer, cleanup, or private-data capability.
+
+## R2 unified-journal guards
+
+- The journal package must retain its exact closed record and effect vocabulary,
+  canonical framing, one owner, one increasing sequence, and one predecessor
+  head per append.
+- Fresh reconstruction must reject an unknown type, duplicate/reordered record,
+  owner/head drift, authority replay, noncanonical JSON, invalid frame length,
+  extra bytes, and any torn tail.
+- The package must not import path, operating-system, subprocess, database, or
+  production process roots and must not gain reader, signer, issuer, mutation,
+  cleanup, mailbox, provider, vault, or private-data capability.
+- Inspection receipts must remain zero-mutation, zero-append evidence outside
+  the real-authorization type registry.
+
+## R2 Git-byte state guards
+
+- Selected bytes must match the exact Git blob OID, checkout bytes, index OID,
+  mode, stage zero, and false assume-unchanged/skip-worktree flags.
+- Changes including same-size edits, EOL/filter drift, index-only or staged changes, ref drift,
+  stable-common-state drift, and original/reconstructed administrative drift
+  fail before a receipt exists.
+- Counts are exact: fourteen refs, five stable common roles, eleven original
+  and eleven reconstructed worktrees with eight embedded and three external.
+- The pure package must not gain path, filesystem, Git runner, process,
+  ignored/private content, cleanup, or authority capability.
+
+## R2 V2 single-action transaction guards
+
+- The fixed command map is exactly execute, resume, and rollback; no umbrella,
+  path, selector, batch, force, shell, retry, or direction input exists.
+- The signed action binds exact binding, command/domain/operator/key, journal
+  head, transition instance, and applicable reverse-plan fingerprint.
+- One invocation consumes one authority, selects at most one role, and accepts
+  only a completion with exactly one mutation; there is no retry or second role.
+- Wrong action/domain/binding/head/transition/plan/sequence/signature/replay/time
+  must fail before the action callback increments.
+- Production modules contain no private key, issuer, delete, overwrite, repair,
+  cleanup, provider, mailbox, vault, credential, or private-data capability.
+
+## R2 V2 evidence and genesis guards
+
+- The evidence production root accepts only `publish`; it has no path, target,
+  profile, selector, force, shell, or arbitrary payload input.
+- Verification must compare the reviewed-evidence action fingerprint before
+  acquiring the create-only role.
+- The exact publication completion must bind claim, review, evidence identity,
+  package, and manifest before canonical genesis construction.
+- Genesis must reconstruct its embedded durable claim from canonical bytes and
+  reject mixed binding, final master, identity, prior head, sequence, replay,
+  duplicate key, or fingerprint drift.
+- Production modules contain no private key, issuer, deletion, overwrite,
+  cleanup, provider, mailbox, vault, credential, or private-data capability.
+
+## R2 V2 preflight dispatcher guards
+
+- The production dispatcher must expose exactly six fixed preflight verbs and
+  select exactly one matching read-only role after V2 verification.
+- It must reject wrong binding, command, domain, operator/key role, action,
+  prior head, sequence, signature, replay, and stale authority before role
+  selection.
+- It must contain no private signing key, issuer, path/selector, host mutation,
+  evidence publication, transaction, provider, mailbox, vault, or private
+  payload surface.
+- With no external issuer, the fixed dormant entry performs zero role calls and
+  returns only `DORMANT_NO_EXTERNAL_ISSUER`.
+
+## R2 production binding V2 guards
+
+- The V2 binding package may import only the standard library and the pure
+  final-master closure package.
+- It must not contain private-key construction, signing, filesystem, database,
+  process, network, provider, mailbox, vault, or host capability.
+- Public signatures must not accept paths, shell commands, adapters, callbacks,
+  private keys, secrets, environment values, or arbitrary authority issuers.
+- A durable single-use authority claim must bind the exact prior journal head,
+  sequence, command/domain, operator/key roles, action nonce, and envelope
+  nonce; process-local claimed sets are forbidden.
 
 本文件定义项目的自定义静态检查规则。  
 它的目的不是替代单元测试，而是把容易被 Agent 忽略的工程边界变成可执行检查。
@@ -1166,6 +1369,28 @@ module/function bounds continue to apply.
 
 ## 14. 修改规则
 
+## R2 final-master closure guards
+
+Static and architecture checks must keep
+`backend/r2_final_master_closure/` pure and content-free. Its public export set
+must be explicit; absolute imports are limited to standard-library immutable
+value, enum, canonical JSON, and SHA-256 helpers. The package must not import or
+reference cutover authority issuers/types, host/process/filesystem/network/Git
+adapters, provider, mailbox, vault, credential, private data, SQLite, frontend,
+workflow mutation, GitHub issue creation, cleanup, or deletion capability.
+
+Mechanical checks pin exactly eight dependency-ordered gap registrations,
+exactly fourteen gate kinds, and the closed eight-value finding taxonomy. The
+terminal receipt must bind the exact final commit/tree, closure map, source
+package, runbook, workflow family, eight gap proofs, and fourteen same-binding
+gate receipts. It must reject missing, duplicate, unknown, reordered, stale,
+mixed, self-certified, skipped, leaking, cleanup-capable, provider-active,
+real-host-active, or #39-code-changing evidence.
+
+Closure binding, proof, gate, and terminal receipt types must remain disjoint
+from `REAL_AUTHORIZATION_TYPES`; static guards reject any receipt-to-authority,
+receipt-to-command, receipt-to-ticket, or receipt-to-host-effect conversion.
+
 如果新增或修改 linter 规则，必须同步更新：
 
 ```text
@@ -1179,3 +1404,34 @@ tests/test_static_linter_constraints.py
 ```text
 docs/constraints/architecture_constraints.md
 ```
+## R2 production composition closure guards
+
+- The three `r2_*_process/__main__.py` files must import only their local
+  `production_v2.main`; the historical V1 `entry.py` lock must not be on the
+  executable production path.
+- Production modules must not import a synthetic context, `testing.py`, a test
+  binder, an issuer, or a private signing key.
+- Default fixed-verb entry returns `DORMANT_NO_EXTERNAL_ISSUER`. The only live
+  reachability seam is the exact nominal `bootstrap_v2.py` object injected by
+  the process launcher; it must hold the reviewed binding, exact frozen-review
+  receipt, binding-bound public roles, same-binding claims, and journal
+  identities, and must reject every testing-only synthetic bound role.
+- A valid V2 authority is verified before exactly one bound composition role;
+  no CLI/path/environment/bootstrap mapping may construct or select a role.
+  `main()` accepts no terminal or clock injection and uses only its exact
+  `SystemTerminal` plus module-owned system clock.
+- Production role fingerprints must bind normalized top-level function code,
+  defaults, keyword defaults, function state, recursively referenced globals and
+  builtins, and exact command-parameter type surfaces. Closed semantic frames
+  cover helper dependencies, referenced module non-dunder namespaces plus
+  executable loaded globals, non-built-in MRO-owner executable surfaces,
+  scalar/object constants, custom metaclass construction, object state, and
+  exact parameter-method loaded globals. Tests must prove alias/branch/helper/
+  container/cross-module, parameter helper/configuration, class-state,
+  constructor, `JSONEncoder`, and default-encoder drift fail before invocation.
+  Traversal-wide attribute closure must fail closed for accessed loaderful
+  nested modules through alias/helper/container paths; exact `type` descriptors
+  must bypass metaclass identity/namespace/MRO spoofing; module `__doc__` drift
+  must bind. Custom instance `__dict__` descriptors and custom/nonempty
+  dataclass metadata must be rejected without execution or iteration, dynamic
+  private-attribute string adapters must fail, and `re.LOCALE` is forbidden.

@@ -110,7 +110,7 @@ class R2PreflightProcessTests(unittest.TestCase):
                 self.assertEqual(result.counts(), (0, 1, 0))
                 self.assertEqual((terminal.ack_reads, terminal.envelope_reads), (0, 0))
 
-    def test_production_module_is_a_separate_fixed_process_and_rejects_pipes(self) -> None:
+    def test_production_module_is_the_v2_no_issuer_root(self) -> None:
         root = Path(__file__).resolve().parents[1]
         invalid = subprocess.run(
             (
@@ -141,14 +141,14 @@ class R2PreflightProcessTests(unittest.TestCase):
             check=False,
         )
         self.assertEqual((invalid.returncode, invalid.stderr), (2, ""))
-        self.assertEqual((redirected.returncode, redirected.stderr), (3, ""))
+        self.assertEqual((redirected.returncode, redirected.stderr), (0, ""))
         self.assertEqual(
             invalid.stdout,
-            "BLOCKED_COMMAND accepted=0 rejected=1 host_operations=0\n",
+            "BLOCKED_COMMAND accepted=0 rejected=1 read_operations=0\n",
         )
         self.assertEqual(
             redirected.stdout,
-            "BLOCKED_TTY accepted=0 rejected=1 host_operations=0\n",
+            "DORMANT_NO_EXTERNAL_ISSUER accepted=0 rejected=0 read_operations=0\n",
         )
 
     @unittest.skipUnless(sys.platform == "win32", "Windows real TTY proof")

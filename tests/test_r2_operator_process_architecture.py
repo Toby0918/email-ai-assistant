@@ -16,7 +16,7 @@ class R2OperatorProcessArchitectureTests(unittest.TestCase):
     def test_packages_have_only_the_reviewed_files(self) -> None:
         self.assertEqual(
             {item.name for item in OPERATOR.glob("*.py")},
-            {"__init__.py", "envelope.py", "dormant_context.py"},
+            {"__init__.py", "envelope.py", "dormant_context.py", "production_v2.py"},
         )
         self.assertEqual(
             {item.name for item in PREFLIGHT.glob("*.py")},
@@ -27,6 +27,8 @@ class R2OperatorProcessArchitectureTests(unittest.TestCase):
                 "entry.py",
                 "terminal.py",
                 "testing.py",
+                "bootstrap_v2.py",
+                "production_v2.py",
             },
         )
 

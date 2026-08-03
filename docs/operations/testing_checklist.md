@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-29
+last_update: 2026-08-03
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -7,6 +7,208 @@ source_type: operation_guide
 ---
 
 # 测试检查清单
+
+## Issue #102 frozen final-master and human-review checks
+
+Run `tests/test_r2_final_master_review_v1.py` with the #86, #100, and #101
+contract/architecture suites. Invoke the adapter only as
+`python -I -B scripts/verify_r2_final_master_closure.py`; require zero tracked
+or untracked changes, exact fresh fixed-URL remote observation equality, and
+exact independently hashed raw commit/tree/blob materialization plus current
+script and imported-module origin verification before any repository import can
+affect the result. Prove inherited `GIT_*`, local projection config, replacement
+refs, assume-unchanged, skip-worktree, staged/index drift, and actual worktree
+byte drift cannot select or hide different bytes. Prove
+export attributes, trailing-dot/space, ADS, reserved-device, short-name,
+Unicode, and case-fold aliases cannot change or overwrite materialized bytes,
+exactly eight unique ordered gap proofs, fourteen same-binding coordinator
+receipts, canonical terminal reconstruction, and one immutable package whose
+only status awaits the human-only review.
+
+Require the fixed reviewed-production-binding artifact, exact frozen-master and
+four-registry agreement, a pure binding receipt, and signed production-gate
+linkage. Reject missing, malformed, stale, or mixed bindings with the fixed
+content-free blocked status. Verify the explicit gap-to-gate partition covers
+all fourteen gates exactly once and that every gap fingerprint changes with an
+owned gate receipt rather than an unrelated positional record.
+
+Reject historical, missing, duplicate, stale, mixed, self-certified, skipped,
+divergent, leaking, private-data, host, provider, #39, contract-changing,
+approval, or execution-authority evidence. Confirm no approve/merge/execute/
+authorize API exists. Automated success prepares evidence only; a human must
+freeze/review the final remote master and separately decide Issue #38.
+
+## Issue #101 global-gate coordinator checks
+
+Run `tests/test_r2_global_gates_v1.py` with the existing final-master closure
+contract and architecture suites. Require all fourteen gates and all seven
+review domains. The gate requires fourteen unique producers. Reconstruct the coordinator from
+canonical bytes and verify it derives exactly fourteen same-binding,
+non-self-certified receipts.
+
+Reject missing, duplicate, stale, mixed-binding, shared-producer, coordinator-
+self-certified, unknown-field, skipped, divergent, leaking, private-data,
+live-host, provider, and #39-change evidence. The operator-review domain proves
+only runbook/maintenance review and cannot satisfy the human #102 review.
+Generate ephemeral signer keys only inside tests and prove arbitrary 64-hex
+fingerprints or wrong signatures cannot construct gate evidence.
+
+## Issue #99 generated-runbook checks
+
+Run `tests/test_r2_operator_runbook_v2.py` and its architecture companion.
+Require the exact ten-command catalog to equal all three executable dispatcher
+maps and acknowledgement constants. Exercise the eight-phase state machine,
+including narrow recovery verbs and commandless retention/human review. Compare
+all fourteen decision rows and four blocker rows exactly once, compare the
+committed Markdown bytes to the renderer, reconstruct the receipt, and
+reject stale final master, source-package hash, package semantics, document,
+mixed retention proof, unknown verbs, and historical R1 aliases.
+
+## Issue #98 retention-ledger checks
+
+Run `tests/test_r2_retention_ledger_v2.py` and its architecture companion.
+Require exact counts and unique entries for all six object classes, canonical
+fresh-process reconstruction, and correct forward/pending/classified/resumed/
+rollback/terminal stage projection. Reconcile every entry and journal record;
+reject mixed inputs and injected artifacts. Scan the #93-#98 graph for
+filesystem/process mutation and removal/replacement/prune/expiry calls, and
+prove all destructive, untracked, and private-payload counts remain zero.
+
+## Issue #97 rollback recovery checks
+
+Run `tests/test_r2_rollback_recovery_v2.py`, its crash-matrix module, and its
+architecture companion. Prove failed-Container-first strict LIFO derivation
+for every one of the 32 forward commit prefixes and every journal cut, then
+execute all 33 full-prefix reverse boundaries
+with distinct fresh recovery claims and retained-object evidence. Exercise
+PRE/POST/AMBIGUOUS restart, prove POST performs zero replay, reject caller
+reordering and normal-runtime capability, and require exact legacy audits,
+zero destructive/provider/write counts, and one terminal append only.
+
+## Issue #96 two-start validation checks
+
+Run `tests/test_r2_two_start_validation_v2.py` and its architecture companion.
+Prove all 7 validation transitions reconstruct after each intent/commit cut;
+require distinct A/B runs, exactly one rules analysis and database row, zero
+provider attempts, exact DB proof, two independent fresh audits, and canonical
+receipt restart. Seal with exactly two minimal reads and fresh RESUME authority;
+prove one terminal append, zero host mutations, and repeated/mixed/stale failure.
+
+## Issue #95 managed-unit publication checks
+
+Run `tests/test_r2_managed_unit_publication_v2.py` and its architecture
+companion. Prove all 8 managed-unit transitions progress only after the full
+foundation prefix, use fresh authority and one effect each, reconstruct from
+every journal cut, and retain source/partial/failed evidence with zero
+destructive actions. Exercise PRE/POST/AMBIGUOUS and reject missing ACL or
+unit-semantic proof, including SQLite semantics for Database.
+
+## Issue #94 foundation publication checks
+
+Run `tests/test_r2_foundation_publication_v2.py` and its architecture companion.
+Prove all 17 foundation transitions progress only in order with fresh authority
+and one effect each, including eleven unique worktrees. Restart from intent,
+classification, effect, and commit bytes; PRE must require a new intent, POST
+must commit without replay, and AMBIGUOUS must incident-stop.
+
+## Issue #93 unified journal checks
+
+Run `tests/test_r2_transaction_journal_v2.py` and its architecture companion.
+Prove full and every-cut-point fresh reconstruction; reject torn framing,
+unknown types, duplicate sequence, wrong predecessor/owner, and authority
+replay. Exercise exact PRE/POST/AMBIGUOUS two-observation inspection and prove
+the receipt leaves journal bytes/head unchanged with zero mutation and zero
+append.
+
+## Issue #92 Git-byte state checks
+
+Run `tests/test_r2_git_byte_state_v2.py` and its architecture companion. Prove
+exact blob/checkout/index agreement; reject same-size edits, EOL/filter drift,
+index-only/staged state, ref/common-state changes, original admin changes, and
+reconstructed checkout changes. Require fourteen refs, five stable common
+roles, eleven original and eleven reconstructed worktrees, fresh-process exact
+receipt reconstruction, and zero ignored/private content reads.
+
+## Issue #90 V2 transaction single-action checks
+
+Run `tests/test_r2_transaction_production_v2.py` and
+`tests/test_r2_transaction_production_v2_architecture.py`. The behavior suite
+must prove execute/resume/rollback domain separation, one matching action per
+invocation, exact genesis/head/transition/plan binding, zero action on mismatch,
+no retry after non-unit completion, and no-issuer dormancy. The architecture
+suite must reject loops, batch, retry, direction switch, paths, private keys,
+issuer, cross-root imports, deletion, cleanup, provider, mailbox, vault,
+credential, and private-data capability.
+
+```powershell
+python -m unittest tests.test_r2_transaction_production_v2
+python -m unittest tests.test_r2_transaction_production_v2_architecture
+```
+
+## Issue #89 evidence publication V2 and genesis checks
+
+Run `tests/test_r2_evidence_production_v2.py` and
+`tests/test_r2_evidence_production_v2_architecture.py`. The behavior suite must
+prove one create-only reviewed publication, exact evidence/package/manifest
+identity binding, strict `R2JournalGenesisV2` round-trip, fresh-process replay
+rejection, review/domain/binding/freshness negatives, and no-issuer dormancy.
+The architecture suite must prove physical root separation, pure genesis,
+receipt/authority separation, and absence of paths, private keys, issuer,
+mutation, deletion, cleanup, provider, mailbox, vault, or private data.
+
+```powershell
+python -m unittest tests.test_r2_evidence_production_v2
+python -m unittest tests.test_r2_evidence_production_v2_architecture
+```
+
+## Issue #88 production preflight V2 checks
+
+Run `tests/test_r2_preflight_production_v2.py` and
+`tests/test_r2_preflight_production_v2_architecture.py`. The first suite must
+drive every fixed verb through a fresh signed synthetic envelope and prove one
+matching read-only role call; wrong binding/domain/verb/freshness must call no
+role. The second suite rejects private-key, issuer, mutation, path, selector,
+payload, provider, mailbox, vault, or cross-process-root capability and pins the
+no-external-issuer dormant result.
+
+```powershell
+python -m unittest tests.test_r2_preflight_production_v2
+python -m unittest tests.test_r2_preflight_production_v2_architecture
+```
+
+## Issue #87 production binding V2 checks
+
+Run `tests/test_r2_production_binding_contracts.py` and
+`tests/test_r2_production_binding_architecture.py`. They must prove the exact
+final-master-derived binding, ten commands, four authority domains, four
+operator roles, four public-key roles, eighteen production roles, canonical
+round-trip, durable claim freshness/order/head binding, fresh-process replay
+rejection, pure imports, exact exports, and the absence of private signing or
+operational capability.
+
+```powershell
+python -m unittest tests.test_r2_production_binding_contracts
+python -m unittest tests.test_r2_production_binding_architecture
+```
+
+## Issue #86 final-master closure checks
+
+Run the two focused public-seam suites before any downstream closure ticket:
+
+The source files are `tests/test_r2_final_master_closure_contracts.py` and
+`tests/test_r2_final_master_closure_architecture.py`.
+
+```powershell
+python -m unittest tests.test_r2_final_master_closure_contracts
+python -m unittest tests.test_r2_final_master_closure_architecture
+```
+
+They must prove the exact finite gap/gate/finding registries, canonical
+final-master binding, completed same-binding evidence, the sole terminal status,
+fixed error handling, missing/duplicate/mixed rejection, pure imports, explicit
+exports, and disjoint receipt/authority types. These tests use no provider,
+mailbox, vault, credential, private data, real host, external Git operation, or
+GitHub mutation.
 
 ## Managed Container Mode
 
@@ -934,3 +1136,60 @@ vault/签名/密钥错误、schema/safety/grounding 违规、p95 超限、泄漏
 错误码和计数，并由本地负责人决定恢复或撤销。
 
 
+## Issue #91 production composition closure
+
+1. Run `tests/test_r2_production_composition_reachability.py` and confirm all
+   three executable roots import only their V2 entry.
+2. Confirm the obsolete V1 lock and every test binder are unreachable from the
+   production import graph.
+3. Confirm default fixed verbs return content-free no-issuer dormancy and that
+   the existing #88-#90 positive/negative tests still prove one authorized
+   composition acquisition and zero unauthorized acquisitions.
+4. Run `tests/test_r2_production_role_binding_v2.py`; require exact callable
+   semantic fingerprints for all three roots. Prove closures, bound methods,
+   defaults/globals/code drift, nested dynamic namespace access, imports, and
+   function-attribute access are rejected before a callback can run. Also prove
+   module/class drift through aliases, branches, helper returns and containers,
+   exact parameter-method and parameter-global drift, class-level object state,
+   custom metaclass/global constructor drift, cross-module dependencies,
+   cross-module instance/static/class methods, bound receiver graphs, and
+   built-in/method-wrapper receivers, shadowed slotted objects, Enum member state, global
+   staticmethod/property aliases, and
+   `JSONEncoder`/default-encoder drift all change identity before invocation.
+   Mutating `json.encoder.encode_basestring_ascii` must likewise change the
+   reviewed identity before `json.dumps` can run.
+   External module singleton methods, nested types, and types carried in
+   namespace containers must retain the same loaded-global dependency policy.
+   Re-exported functions, modules stored in singleton state, and hidden custom
+   metaclass or inherited-method construction must retain that policy too.
+   Accessed loaderful nested modules through aliases, helper returns, or
+   containers must fail closed, and an accessed external same-namespace
+   function must bind its loaded globals.
+   Class-state object graphs and owned-to-external transitions must preserve
+   the same behavior/implicit-value policy, while module `__getattr__` and
+   custom `ModuleType` subclasses fail closed.
+   Mutate module `__doc__`, class annotations, exact type names, dataclass field defaults,
+   spoofed `builtins` module labels, mounted nested-module values, IEEE NaN
+   payloads, complex values, and slice member types; every change must block
+   invocation. Reject unsupported module dunder reads, dynamic adapters for
+   private attribute strings, custom instance `__dict__` descriptors without
+   executing them, custom/nonempty dataclass metadata without iterating it, and
+   `re.LOCALE`. Confirm locale-independent regex and the
+   exact six-field CPython JSON scanner projection remain stable while other
+   incomplete opaque native state continues to fail closed.
+   Hidden custom-metaclass MRO/class state must drift the reviewed identity
+   before construction can observe it, while metaclass identity/namespace/MRO
+   accessors remain uncalled because exact `type` descriptors are used.
+   A function attached only to an external function's unused `__dict__` state
+   must remain a shallow code surface when its unrelated globals drift.
+   Require direct deep `StringIO`, `list_iterator`, `random.Random`, and
+   `itertools.count` globals to fail closed because their complete native state
+   cannot be proven.
+   Recompute the same callback while stdout is redirected and require an equal
+   fingerprint so unrelated mutable interpreter state cannot poison dispatch.
+5. Run `tests/test_r2_production_bootstrap_v2.py`; prove all three `main()`
+   roots reach exactly one role with an exact reviewed nominal bootstrap and
+   matching frozen-review receipt plus valid TTY authority. Confirm `main()` has
+   no terminal/clock input and factories have no `**values`; synthetic roles,
+   mismatched receipts, wrong bootstrap types, and absent input remain blocked
+   or dormant with zero role operations.

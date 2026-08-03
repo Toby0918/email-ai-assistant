@@ -1,6 +1,6 @@
-"""Run only the dedicated transaction process."""
+"""Run only the dedicated V2 transaction process."""
 
-from .entry import main
+from .production_v2 import main
 
 
 raise SystemExit(main())

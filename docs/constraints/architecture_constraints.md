@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-29
+last_update: 2026-08-03
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -7,6 +7,264 @@ source_type: operation_guide
 ---
 
 # Executable Architecture Constraints
+
+## Issue #102 terminal verifier architecture
+
+`R2FrozenRemoteMasterV1` is a nominal pure observation contract with no public
+constructor. The fixed no-argument `scripts/verify_r2_final_master_closure.py`
+adapter requires isolated safe-path Python, rejects every tracked or untracked
+worktree change including hidden index flags, compares `HEAD` and
+`refs/remotes/origin/master` to a fresh fixed-URL `refs/heads/master`
+observation, and strips inherited Git state while disabling replacement refs,
+fsmonitor, sparse-checkout, and untracked-cache projections. It reads the raw
+commit, recursively parses the raw tree objects, and independently recomputes
+every commit/tree/blob Git object hash before any repository import. Before
+writing any blob it rejects unsupported modes,
+Win32 trailing-dot/space, ADS, reserved-device, short-name, Unicode/case-fold
+aliases, other unsafe paths, and collisions. It also rejects blob-hash
+disagreement, any index/worktree byte disagreement, any current verifier-script
+byte disagreement with the verified blob, and any imported repository module whose
+origin is outside that materialized tree. That verified code
+derives the Git-object package directly from the verified descriptors, plus
+domain-separated runbook, workflow, and
+dependency-lock identities and only then allocates the observation. Historical,
+dirty, shadowed, stale-remote, or mixed identity fails closed.
+
+The fixed script reads one exact reviewed-production-binding artifact and
+fourteen exact signed-evidence filenames from the Git common directory; it
+accepts no path or receipt argument. Missing or invalid external input returns
+zero eligibility with a fixed content-free status. The production-binding
+adapter validates a concrete `ApprovedCutoverBindingV2` against the frozen
+master and derives a pure `R2ReviewedProductionBindingReceiptV1`; the closure
+package imports only that pure receipt type. Only after verification does the
+pure coordinator derive eight unique same-binding gap proofs and recompute
+the fourteen gate receipts and the sole terminal receipt, then returns an
+immutable `R2FinalMasterReviewPackageV1` whose only status is
+`AWAITING_SINGLE_HUMAN_FINAL_REVIEW`. The module exposes no approve, merge,
+execute, authority-issuance, receipt-conversion, host, process, provider,
+mailbox, vault, credential, private-data, cleanup, or #39 capability.
+
+The package is not final approval. A human must independently freeze/review the
+remote master and decide #38; repository code cannot set human review complete,
+record approval, issue authority, or convert eligibility into execution.
+
+## Issue #101 same-binding global-gate architecture
+
+`backend.r2_final_master_closure` retains the only public closure interface.
+Its global-gate registry maps each of the fourteen closed gate kinds to one
+unique producer role and one of seven required review domains: Standards,
+Spec, security, documentation, mechanical, leakage, or operator review.
+
+Each `R2GlobalGateEvidenceV1` is immutable, content-free, same-binding, and
+fixed to zero skips, divergence, leakage, private-data access, host operations,
+provider attempts, and #39 changes. Each registry row also fixes a distinct
+Ed25519 verification public key; evidence exists only after the external
+producer signature verifies. There is no public arbitrary-fingerprint
+constructor. `R2GlobalGateCoordinatorV1` accepts only
+the exact ordered evidence set, requires fourteen distinct producers and all
+seven domains, and derives the existing `R2ClosureGateReceiptV1` values itself.
+It accepts no supplied receipt, authority, callback, path, process, host,
+network, mailbox, vault, provider, credential, private payload, or command.
+
+Operator-review evidence covers generated-runbook semantics and maintenance
+scope only. It cannot represent the human final-master review reserved for
+#102, and neither evidence nor coordinator has a receipt-to-authority path.
+
+## Issue #100 Git-object CI provenance architecture
+
+`backend.r2_ci_provenance_v2` owns only immutable content-free contracts: exact
+Git blob observations, the final commit/tree source package, workflow/action
+lock state, two complete platform dependency locks, the closed platform-suite
+registry, three provenance receipts, and
+their same-package reconciliation bundle. It has no path, environment,
+process, filesystem, network, test runner, host adapter, issuer, or mutation
+capability.
+
+The only repository reader is the fixed no-argument
+`scripts/r2_ci_provenance_support.py` adapter. It enumerates `HEAD` with Git
+plumbing, reads every selected blob from the object database, verifies each
+blob OID, and rereads the commit/tree after collection. It never enumerates or
+packages ignored or untracked content. The verify and reconcile entry scripts
+accept no path, command, suite, workflow, receipt-file, or host selector.
+
+The three runner jobs are independent. All installs use `--require-hashes`;
+receipts bind 31 exact installed distributions, platform wheel hashes, and nine
+direct import-byte observations. The portable job discovers the full `tests/`
+suite and removes only exact registered Windows-native skips; every remaining
+skip fails. Windows native and Windows process-isolation claims run only on fixed
+Windows runner images. Their receipts are evidence, never authority, and no package in
+this module is consumed by normal runtime or the #39 cutover surface.
+
+## Issue #99 generated operator-runbook architecture
+
+The exact ten-command catalog lives in
+`backend/r2_production_binding/catalog.py`. All three V2 production dispatchers
+derive their accepted verb maps directly from it. The #99 state machine groups
+only those commands into preflight, publication, forward, recovery, rollback,
+retention-reconciliation, and human-review phases; non-command phases expose no
+executable verb.
+
+`backend.r2_operator_runbook_v2` renders one fixed UTF-8/LF Markdown document
+from that catalog, state machine, fourteen-item Issue #38 decision registry,
+and four-class R1 blocker completion map. Its receipt binds the exact final master,
+source-package hash, generated document hash, current package semantics, and
+#98 retention proof. It has no document input selector, path, writer, process,
+issuer, host adapter, or authority conversion.
+
+## Issue #98 retention-ledger architecture
+
+`R2RetentionLedgerV2` is a deterministic in-process projection of one exact
+reviewed binding, the linked #94-#97 plans, and the unified journal. Callers
+cannot supply entries or counts. The projection accounts separately for every
+original, new, partial, failed-Container, evidence, and journal-artifact object
+and binds each entry to its plan transition or durable record head.
+
+The ledger and reconciliation proof are immutable, content-free values. Their
+untracked-artifact, deletion, overwrite, prune, automatic-expiry, destructive,
+and private-payload counts are fixed at zero. The package has no path, host,
+clock, timer, process, issuer, callback, or object-mutation capability.
+
+## Issue #97 rollback recovery architecture
+
+`R2RollbackPlanV2` accepts only the exact reviewed binding, the #94-#96 plans,
+and the unified journal. It derives a mandatory failed-Container preservation
+boundary followed by the exact reverse of the durable forward commit prefix;
+no public list, selector, reorder, or alternate reverse-plan input exists.
+
+Every reverse transition binds its source commit head, swapped pre/post state,
+current remaining-plan fingerprint, fixed production owner, and fresh recovery
+authority. Exact PRE starts a new intent, exact POST appends only a recovered
+commit, and ambiguity incident-stops. Legacy terminal evidence requires exact
+topology, service, ACL, Git/worktree, identity, retention, zero-provider, and
+zero-write facts before one zero-host-effect terminal append.
+
+## Issue #96 two-start validation architecture
+
+`R2TwoStartValidationPlanV2` depends on a complete managed plan and defines
+seven ordered lifecycle transitions with fixed execution or preflight commands
+and production owners. Each durable claim, intent, evidence observation, and
+commit binds the same transition and the unified journal head.
+
+The aggregate receipt is canonically reconstructable in a fresh process and
+contains the exact rules-result/row/provider counts plus independent stopped
+and final audit provenance. The terminal seal consumes this receipt, two fresh
+minimal reads, and fresh RESUME authority; it appends a terminal record rather
+than performing a host effect.
+
+## Issue #95 managed-unit publication architecture
+
+`R2ManagedUnitPlanV2` depends on one fully committed
+`R2FoundationPlanV2` and contains exactly eight transitions: prepare/publish
+for four fixed units. It derives next action only from the unified journal's
+managed committed prefix and has no selector or stage-local head.
+
+Unit effect observations bind the transaction completion to identity, bytes,
+ACL, semantic proof, and retained source/partial/failed state. Recovery proofs
+are immutable read-only values; neither progress nor proof is authorization or
+a filesystem, SQLite, service, artifact, or Config adapter.
+
+## Issue #94 foundation publication architecture
+
+`R2FoundationPlanV2` is the fixed owner/order projection for six scalar
+foundation boundaries and eleven worktree instances. Every transition binds
+its exact pre/post state, predecessor transition, production role, reviewed
+binding, and unique transition fingerprint.
+
+Foundation progress appends only to `R2TransactionJournalV2`; it cannot own a
+parallel head. Begin appends authority plus intent, an exact one-effect
+completion appends observation plus commit, and classified restart requires a
+new authority. Progress values remain content-free evidence outside every real
+authorization type.
+
+## Issue #93 unified journal architecture
+
+`R2TransactionJournalV2` has one genesis and one ordered record tuple. Its last
+canonical record fingerprint is the single authoritative current head. Every
+append binds that head, the fixed journal owner, the reviewed final master, and
+one transition instance; every restart reconstructs and validates the entire
+chain before exposing the next legal action.
+
+The package is pure and capability-free. It accepts immutable content-free
+observations and durable authority claim values but owns no path, file, Git,
+process, database, signer, private key, callback, host mutation, or lifecycle
+action. The read-only inspection receipt is evidence only and is excluded from
+all real authorization types.
+
+## Issue #92 Git-object byte conformance
+
+`backend.r2_repository_manifest` contains a pure V2 snapshot layer for selected
+Git blob bytes, exact index state, fourteen local refs, Repository Root identity,
+and eleven original plus eleven reconstructed worktrees. The five-role
+stable common state is a distinct segment from intentionally reconstructed worktree
+administrative records.
+
+The module accepts already bounded byte observations and has no filesystem,
+path, Git runner, process, ignored-file enumeration, private-data reader, or
+mutation capability. Fresh-process canonical reconstruction revalidates the
+same final-master binding and all segment fingerprints.
+
+## Issue #90 transaction production architecture
+
+The three V2 transaction verbs live only in
+`backend.r2_transaction_process.production_v2`. The dispatcher consumes one
+exact binding, reconstructed durable claims, current journal head, transition
+instance, applicable remaining reverse plan, and three named roles. Its
+journal-bound action fingerprint is domain-separated and signed before one
+matching role can be selected.
+
+The production dispatcher contains no iteration statement and cannot run a
+plan, retry, switch direction, acquire a second role, or own a current journal
+head. It has no preflight/evidence-root import, private key, issuer, path,
+filesystem/process adapter, service/Git/ACL/database capability, cleanup,
+provider, mailbox, vault, credential, or private-data surface. The test-only
+binder may inject one synthetic callback per role and is not a production
+consumer.
+
+## Issue #89 evidence production and genesis architecture
+
+The single V2 evidence-publication verb lives only in the physically separate
+`backend.r2_evidence_process.production_v2` root. It composes one reviewed
+create-only publication role after exact V2 verification and cannot import the
+preflight or transaction process roots. Its action fingerprint includes the
+reviewed-evidence fingerprint so a valid signature for a different review is
+not reusable.
+
+`backend.r2_transaction_journal_v2` begins as a pure canonical genesis module.
+fresh-process genesis reconstruction validates the exact final master, evidence
+identity, package/manifest identities, journal owner and first durable claim.
+It has no path, file, SQLite, process, clock, random, signer, issuer, mutation,
+cleanup, provider, mailbox, vault, or private-data capability. Later journal
+tickets deepen this same package; stage-local current-head owners are forbidden.
+
+## Issue #88 preflight production composition
+
+The six V2 preflight verbs are implemented only by the physically dedicated
+`backend.r2_preflight_process.production_v2` dispatcher. It consumes the
+shared verification-only V2 envelope seam, one exact reviewed binding, durable
+claim history/head, and a complete production composition containing exactly
+six named read-only roles. One invocation can select only the role matching its
+signed command.
+
+The dispatcher and verifier have no private key, issuer, path, selector, shell,
+filesystem mutation, database mutation, service control, evidence publication,
+transaction, provider, mailbox, vault, or private-data capability. The
+synthetic binder remains test-only. The no-issuer entry accepts only fixed argv
+and performs zero TTY reads and zero role calls.
+
+## Issue #87 production-binding boundary
+
+`backend/r2_production_binding` is a pure deep module layered only on the
+standard library and `backend.r2_final_master_closure`. Its public interface is
+the reviewed V2 binding, the four closed authority vocabularies, and a durable
+authority-claim validator. It has no filesystem, SQLite, network, process,
+clock, randomness, private-key, signing, provider, mailbox, vault, or host
+capability.
+
+Every authority claim carries its exact prior journal-head fingerprint and
+sequence. Validation performs fresh-process reconstruction from immutable
+durable claim values; process-local claimed sets or object identity cannot
+establish single use. Persistence and atomic append belong to the later unified
+journal composition, not this package.
 
 本文件定义本项目的可执行架构约束。这些约束不是普通建议，而是应通过测试或 CI 自动检查的工程边界。
 
@@ -1421,6 +1679,30 @@ Windows verifier may claim physical NTFS, ACL, real TTY, or process isolation.
 
 ## 7. 修改规则
 
+## 7.1 R2 final-master closure module
+
+`backend/r2_final_master_closure` is a pure in-process module. Its interface is
+limited to the closed gap/gate/finding vocabularies, one immutable
+`FinalMasterBindingV1`, nominal gap/gate evidence, and
+`R2FinalMasterClosureReceiptV1`. It may depend only on Python canonical-value
+primitives and its own package-private implementation. It must not import the
+cutover authority types, process roots, host adapters, filesystem, subprocess,
+Git runner, network, provider, mailbox, vault, credential, private-data,
+SQLite, frontend, workflow, issue-tracker, or cleanup implementations.
+
+All evidence objects use exact concrete types and one binding fingerprint.
+The terminal constructor accepts the complete dependency-ordered eight-gap set
+and exact fourteen-gate set only. Missing, duplicate, unknown, reordered,
+stale, cross-commit, cross-tree, cross-package, cross-workflow, or mixed-binding
+evidence fails closed. The architecture must reject every
+receipt-to-authority conversion: closure values are disjoint from
+`REAL_AUTHORIZATION_TYPES` and expose no issuer, signer, claim, execute, resume,
+rollback, publication, cleanup, deletion, GitHub, or host-effect capability.
+
+The module performs no I/O. Later issues may supply separately guarded adapters
+that produce verified fingerprints, but those adapters cannot be added to this
+pure interface or use a terminal receipt as a process input.
+
 如果需要改变架构边界，必须同时修改：
 
 ```text
@@ -1431,3 +1713,88 @@ tests/test_architecture_constraints.py
 ```
 
 如果只是业务功能变化，不得随意放宽架构约束。
+## Issue #91 production composition graph closure
+
+The three executable V2 process roots import `production_v2.main` directly.
+The obsolete post-authorization locks in the historical V1 `entry.py` modules
+are not reachable from those entries. The public package surfaces export the
+verifier-side V2 role and dispatcher types needed to bind complete production
+compositions.
+
+Every production role bundle is `init=False` and can be created only by
+comparing the selected top-level function's path-independent normalized code,
+defaults, keyword defaults, function state, referenced globals/builtins, and
+the exact command-parameter type surfaces to the corresponding
+`ApprovedCutoverBindingV2.production_role_fingerprints` entry. Top-level bound
+methods and closures are rejected. Recursive bytecode checks reject imports,
+dynamic namespaces/frames, function-attribute access, and global mutation.
+Every statically referenced global is recursively framed: helper functions bind
+their code and semantic dependencies; module frames bind their non-dunder
+namespace values plus repository-owned or synthetic executable loaded globals;
+pinned external-module functions remain bound by complete code surface without
+recursively absorbing mutable interpreter state. Type frames bind non-built-in
+MRO-owner constructors, methods, properties, descriptors, scalar and object
+constants, and custom metaclass construction. Same-family, explicitly mounted,
+and external behavior-surface inherited methods recursively bind loaded
+globals, while exact standard-library Enum auto-copies retain their complete
+code surface. Object, Enum-member, and bound-method receiver
+frames bind their deep type surface plus dictionary and non-built-in-MRO slot
+state; built-in bound methods and method wrappers bind non-module receiver
+state. Slot collection calls each exact owner member descriptor so shadowed
+same-name base slots remain distinct and cannot invoke pickle/getstate hooks. Global
+staticmethod and property descriptors preserve the same deep policy. Exact command-parameter
+methods use the same rule. This
+covers local aliases, branches, helper returns,
+containers, cross-module calls, parameter helper/configuration drift, global
+constructors, and standard-library encoder state without local flow inference.
+Deep opaque/native values without provably complete dictionary/slot state fail
+closed; extension owners exposing native method or wrapper members are never
+treated as complete. External code-surface functions use shallow implicit-value frames, so
+their pinned code remains stable without recursively absorbing interpreter
+state; functions nested only in implicit values remain pure code surfaces.
+External namespace object methods, nested types, and container-carried
+types separately recurse through actual `LOAD_GLOBAL` behavior dependencies,
+including encoder helpers. Re-exported functions, object-state modules, and
+custom-metaclass construction preserve the same dependency policy and bind the
+custom metaclass's complete non-built-in MRO/class state through
+class-state object graphs and owned-to-external transitions. Module
+`__getattr__` and custom `ModuleType` subclasses are rejected as dynamic
+namespaces; unsupported module dunder reads are rejected. Built-in types are
+recognized only by exact object identity in the `builtins` namespace, so a
+spoofed `__module__` cannot suppress non-built-in behavior. Type frames also
+bind the exact name and runtime-readable annotations, doc/generic metadata,
+plus complete dataclass field configuration through a dedicated stable frame.
+Loaderless explicitly mounted nested modules bind their value namespace;
+ordinary imported nested modules remain nominal only while unreferenced;
+traversal-wide attribute closure rejects accessed loaderful nested modules,
+including alias/helper/container paths, while accessed external same-namespace
+functions bind their loaded globals. Module `__doc__` is bound explicitly.
+Float and complex values use exact
+IEEE bytes, slices recursively preserve member types, and the only native
+behavior adapters are exact closed state projections such as locale-independent
+regex and the six-field CPython JSON scanner. Type namespace, MRO, and identity
+come only from exact `type` descriptors; custom instance `__dict__` descriptors,
+nonempty/custom dataclass metadata, and `re.LOCALE` patterns fail closed without
+executing user behavior.
+Dispatch and the wrapper recompute current
+behavior identity immediately before invocation, so post-binding code/default/
+global/module/type/object/parameter-surface drift and arbitrary injected
+callables fail before any role effect.
+
+Each root also owns a nominal `bootstrap_v2.py` contract. `main()` reaches its
+existing `run_*_production_v2` composition only when the process launcher
+injects that exact bootstrap object containing the reviewed binding, its exact
+frozen-review receipt, the binding-bound public production roles, same-binding
+durable claims, and journal identities. Bootstrap creation revalidates every
+receipt field and role and rejects the testing-only synthetic marker. Production
+`main()` owns `SystemTerminal` and the module-fixed system clock; neither is an
+argument or bootstrap field. No path, environment, CLI payload, generic mapping,
+clock callback, or terminal adapter can construct or select the bootstrap.
+The small claim/receipt match predicates intentionally remain root-local even
+when mechanically identical: sharing bootstrap validation code across these
+three packages would weaken the documented physical non-import boundary. Shared
+semantics stop at the existing immutable production-binding contracts.
+
+No executable root imports `testing.py`, accepts a synthetic context or test
+binder, or owns an issuer/private signing key. With no bootstrap the three
+executable V2 process roots return only `DORMANT_NO_EXTERNAL_ISSUER`.

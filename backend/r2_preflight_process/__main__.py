@@ -1,6 +1,6 @@
-"""Run only the dedicated preflight process."""
+"""Run only the dedicated V2 preflight process."""
 
-from .entry import main
+from .production_v2 import main
 
 
 raise SystemExit(main())
