@@ -90,7 +90,7 @@ class R2RetentionLedgerV2ArchitectureTests(unittest.TestCase):
                 if "r2_retention_ledger_v2" in path.read_text(encoding="utf-8"):
                     consumers.append(path.relative_to(ROOT).as_posix())
         self.assertEqual(
-            consumers,
+            sorted(consumers),
             [
                 "backend/r2_operator_runbook_v2/receipt.py",
                 "backend/r2_operator_runbook_v2/state_machine.py",
