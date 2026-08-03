@@ -12,6 +12,12 @@ from backend.r2_transaction_journal_v2._canonical import canonical_json, fingerp
 from .errors import OperatorRunbookError
 from .render import render_r2_operator_runbook_v2, runbook_document_fingerprint_v2
 from .state_machine import operator_package_semantics_fingerprint_v2
+from .review_registry import (
+    blocker_resolution_fingerprint_v2,
+    decision_registry_fingerprint_v2,
+    issue38_decision_registry_v2,
+    r1_blocker_resolution_registry_v2,
+)
 
 
 class RunbookVerificationStatusV2(str, Enum):
@@ -29,8 +35,12 @@ class R2OperatorRunbookReceiptV2:
     runbook_fingerprint: str = field(repr=False)
     package_semantics_fingerprint: str = field(repr=False)
     retention_proof_fingerprint: str = field(repr=False)
+    decision_registry_fingerprint: str = field(repr=False)
+    blocker_resolution_fingerprint: str = field(repr=False)
     catalog_command_count: int
     state_phase_count: int
+    decision_count: int
+    r1_blocker_class_count: int
     historical_command_count: int
     deletion_capability_count: int
     mixed_binding_count: int
@@ -44,7 +54,7 @@ class R2OperatorRunbookReceiptV2:
         try:
             _require(values)
             binding, retention = values["binding"], values["retention_proof"]
-            body = {"receipt_type": "R2OperatorRunbookReceiptV2", "status": RunbookVerificationStatusV2.RUNBOOK_SEMANTICS_VERIFIED.value, "binding_fingerprint": binding.binding_fingerprint, "final_commit_oid": binding.final_commit_oid, "final_tree_oid": binding.final_tree_oid, "source_package_fingerprint": binding.source_package_fingerprint, "runbook_fingerprint": binding.runbook_fingerprint, "package_semantics_fingerprint": values["package_semantics_fingerprint"], "retention_proof_fingerprint": retention.proof_fingerprint, "catalog_command_count": 10, "state_phase_count": 8, "historical_command_count": 0, "deletion_capability_count": 0, "mixed_binding_count": 0}
+            body = {"receipt_type": "R2OperatorRunbookReceiptV2", "status": RunbookVerificationStatusV2.RUNBOOK_SEMANTICS_VERIFIED.value, "binding_fingerprint": binding.binding_fingerprint, "final_commit_oid": binding.final_commit_oid, "final_tree_oid": binding.final_tree_oid, "source_package_fingerprint": binding.source_package_fingerprint, "runbook_fingerprint": binding.runbook_fingerprint, "package_semantics_fingerprint": values["package_semantics_fingerprint"], "retention_proof_fingerprint": retention.proof_fingerprint, "decision_registry_fingerprint": decision_registry_fingerprint_v2(), "blocker_resolution_fingerprint": blocker_resolution_fingerprint_v2(), "catalog_command_count": 10, "state_phase_count": 8, "decision_count": len(issue38_decision_registry_v2()), "r1_blocker_class_count": len(r1_blocker_resolution_registry_v2()), "historical_command_count": 0, "deletion_capability_count": 0, "mixed_binding_count": 0}
             return _construct(body)
         except OperatorRunbookError:
             raise

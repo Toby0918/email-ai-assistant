@@ -11,6 +11,9 @@ from backend.r2_production_binding import (
     ApprovedCutoverBindingV2,
     DurableAuthorityClaimV2,
     ProductionCommandV2,
+    R2BoundProductionCallableV2,
+    bind_production_callable_v2,
+    reverify_bound_production_callable_v2,
 )
 from backend.r2_production_binding.catalog import (
     OperatorSurfaceV2,
@@ -61,7 +64,7 @@ class PreflightReadCompletionV2:
     read_operations: int
 
 
-@dataclass(frozen=True, slots=True, repr=False)
+@dataclass(frozen=True, slots=True, init=False, repr=False)
 class PreflightProductionRolesV2:
     current_topology_preflight: object = field(repr=False)
     host_baseline: object = field(repr=False)
@@ -70,9 +73,21 @@ class PreflightProductionRolesV2:
     final_audit_readiness: object = field(repr=False)
     recovery_inspection: object = field(repr=False)
 
-    def __post_init__(self):
-        if not all(callable(value) for value in self._values()):
+    def __init__(self, *args, **kwargs):
+        raise TypeError("PreflightProductionRolesV2 requires create()")
+
+    @classmethod
+    def create(cls, *, binding, **callbacks):
+        expected = tuple(PREFLIGHT_PRODUCTION_VERBS_V2.values())
+        if set(callbacks) != {item.value for item in expected}:
             raise TypeError("R2_PREFLIGHT_PRODUCTION_ROLES_INVALID")
+        values = tuple(
+            bind_production_callable_v2(
+                binding=binding, command=command, callback=callbacks[command.value]
+            )
+            for command in expected
+        )
+        return _allocate_roles(values)
 
     def select(self, command):
         if type(command) is not ProductionCommandV2:
@@ -136,9 +151,10 @@ def dormant_preflight_production_v2(*, argv):
     )
 
 
-def main(*, argv=None):
+def main(*, argv=None, bootstrap=None):
     arguments = tuple(sys.argv[1:]) if argv is None else argv
-    result = dormant_preflight_production_v2(argv=arguments)
+    from .bootstrap_v2 import execute_preflight_main_v2
+    result = execute_preflight_main_v2(arguments, bootstrap)
     sys.stdout.write(
         f"{result.status.value} accepted={result.accepted} "
         f"rejected={result.rejected} read_operations={result.read_operations}\n"
@@ -166,7 +182,10 @@ def _invoke_role(binding, roles, command, claim):
     try:
         if type(roles) is not PreflightProductionRolesV2:
             raise TypeError
-        completion = roles.select(command)(binding, claim)
+        role = reverify_bound_production_callable_v2(
+            binding=binding, command=command, bound=roles.select(command)
+        )
+        completion = role(binding, claim)
         if (
             type(completion) is not PreflightReadCompletionV2
             or completion.binding_fingerprint != binding.binding_fingerprint
@@ -210,3 +229,16 @@ def _valid_argv(argv):
 
 def _blocked(status):
     return PreflightProductionResultV2(status, 0, 1, 0)
+
+
+def _allocate_roles(values):
+    if len(values) != 6 or any(type(item) is not R2BoundProductionCallableV2 for item in values):
+        raise TypeError("R2_PREFLIGHT_PRODUCTION_ROLES_INVALID")
+    result = object.__new__(PreflightProductionRolesV2)
+    for name, item in zip(PreflightProductionRolesV2.__dataclass_fields__, values):
+        object.__setattr__(result, name, item)
+    return result
+
+
+def _create_synthetic_roles_v2(values):
+    return _allocate_roles(values)

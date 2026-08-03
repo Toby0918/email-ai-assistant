@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import unittest
+from pathlib import Path
 
 from backend.r2_ci_provenance_v2 import (
     CiProvenanceKindV2,
@@ -33,6 +34,9 @@ class R2CiProvenanceV2Tests(unittest.TestCase):
         self.assertEqual(package.ignored_content_reads, 0)
         self.assertEqual(package.private_content_reads, 0)
         self.assertEqual(package.workflow_lock_fingerprint, self.lock.lock_fingerprint)
+        self.assertEqual(self.lock.dependency_lock.lock_count, 2)
+        self.assertEqual(self.lock.dependency_lock.dependency_count, 31)
+        self.assertEqual(self.lock.dependency_lock.wheel_hash_count, 62)
         self.assertNotIn("synthetic", repr(package))
         self.assertNotIn("backend/app.py", package.to_canonical_json().decode("ascii"))
 
@@ -71,7 +75,8 @@ class R2CiProvenanceV2Tests(unittest.TestCase):
                     R2CiProvenanceError, "R2_CI_PROVENANCE_INVALID"
                 ):
                     R2WorkflowLockV2.create(
-                        workflows=((".github/workflows/r2_provenance.yml", bad),)
+                        workflows=((".github/workflows/r2_provenance.yml", bad),),
+                        dependency_locks=_dependency_locks(),
                     )
 
     def test_three_independent_receipts_reconcile_without_skips_or_divergence(self):
@@ -89,6 +94,14 @@ class R2CiProvenanceV2Tests(unittest.TestCase):
         self.assertEqual(bundle.required_skip_count, 0)
         self.assertEqual(bundle.platform_divergence_count, 0)
         self.assertEqual(bundle.leakage_finding_count, 0)
+        self.assertEqual(bundle.hash_locked_dependency_count, 31)
+        self.assertEqual(bundle.wheel_hash_count, 62)
+        self.assertEqual(bundle.portable_full_suite_receipt_count, 1)
+        portable = next(
+            item for item in receipts
+            if item.provenance_kind is CiProvenanceKindV2.PORTABLE
+        )
+        self.assertEqual(portable.portable_full_suite, 1)
         self.assertEqual(
             R2CiProvenanceBundleV2.from_json(
                 bundle.to_canonical_json(),
@@ -183,6 +196,12 @@ def _workflow_lock() -> R2WorkflowLockV2:
                 f"    runs-on: {runner}\n"
                 "    steps:\n"
                 f"      - uses: actions/checkout@{sha}\n"
+                + (
+                    "      - run: pip install --only-binary=:all: --require-hashes -r requirements-ci-linux.lock\n"
+                    "      - run: pip install --only-binary=:all: --require-hashes -r requirements-ci-windows.lock\n"
+                    "      - run: pip install --only-binary=:all: --require-hashes -r requirements-ci-windows.lock\n"
+                    if name == "r2_provenance" else ""
+                )
             ).encode("ascii"),
         )
         for name, runner in (
@@ -191,7 +210,17 @@ def _workflow_lock() -> R2WorkflowLockV2:
             ("r2_provenance", "windows-2022"),
         )
     )
-    return R2WorkflowLockV2.create(workflows=workflows)
+    return R2WorkflowLockV2.create(
+        workflows=workflows, dependency_locks=_dependency_locks()
+    )
+
+
+def _dependency_locks():
+    root = Path(__file__).resolve().parents[1]
+    return tuple(
+        (name, (root / name).read_bytes())
+        for name in ("requirements-ci-linux.lock", "requirements-ci-windows.lock")
+    )
 
 
 def _package(lock: R2WorkflowLockV2, **changes) -> R2GitObjectSourcePackageV2:
@@ -207,7 +236,9 @@ def _package(lock: R2WorkflowLockV2, **changes) -> R2GitObjectSourcePackageV2:
             _entry("README.md", b"x"),
         ),
         "workflow_lock": lock,
-        "runbook_fingerprint": hashlib.sha256(runbook).hexdigest(),
+        "runbook_fingerprint": hashlib.sha256(
+            b"r2-operator-runbook-document-v2\0" + runbook
+        ).hexdigest(),
     }
     values.update(changes)
     return R2GitObjectSourcePackageV2.create(**values)
@@ -219,6 +250,7 @@ def _receipt_values(package, kind, runner_fingerprint):
         "workflow_lock": _workflow_lock(),
         "provenance_kind": kind,
         "runner_fingerprint": runner_fingerprint,
+        "installed_dependency_fingerprint": "a" * 64,
         "suite_fingerprint": fixed_suite_fingerprint_v2(kind),
         "required_skip_count": 0,
         "platform_divergence_count": 0,

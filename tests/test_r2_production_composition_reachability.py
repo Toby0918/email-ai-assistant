@@ -44,16 +44,19 @@ class R2ProductionCompositionReachabilityTests(unittest.TestCase):
     def test_public_packages_export_only_verifier_side_v2_reachability(self):
         expected = {
             "preflight": {
+                "PreflightProductionBootstrapV2",
                 "PreflightProductionRolesV2",
                 "dormant_preflight_production_v2",
                 "run_preflight_production_v2",
             },
             "evidence": {
+                "EvidenceProductionBootstrapV2",
                 "EvidenceProductionRoleV2",
                 "dormant_evidence_production_v2",
                 "run_evidence_production_v2",
             },
             "transaction": {
+                "TransactionProductionBootstrapV2",
                 "TransactionProductionRolesV2",
                 "dormant_transaction_production_v2",
                 "run_transaction_production_v2",
@@ -105,6 +108,16 @@ class R2ProductionCompositionReachabilityTests(unittest.TestCase):
                         or value in {"entry", "testing"}
                         for value in imports
                     )
+                )
+
+    def test_all_bootstraps_use_the_exact_receipt_revalidator(self):
+        for root in ROOTS:
+            source = (
+                ROOT / "backend" / f"r2_{root}_process" / "bootstrap_v2.py"
+            ).read_text(encoding="utf-8")
+            with self.subTest(root=root):
+                self.assertIn(
+                    "require_reviewed_production_binding_receipt_v2(", source
                 )
 
     def test_normative_docs_pin_obsolete_lock_contraction(self):

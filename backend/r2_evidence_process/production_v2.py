@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
-import json
 import sys
 from dataclasses import dataclass, field
 from enum import Enum
@@ -13,12 +11,16 @@ from backend.r2_production_binding import (
     ApprovedCutoverBindingV2,
     DurableAuthorityClaimV2,
     ProductionCommandV2,
+    R2BoundProductionCallableV2,
+    bind_production_callable_v2,
     production_action_fingerprint_v2,
+    reverify_bound_production_callable_v2,
 )
 from backend.r2_production_binding.catalog import (
     OperatorSurfaceV2,
     executable_verb_map_v2,
 )
+from backend.r2_production_binding._canonical import fingerprint as _fingerprint
 from backend.r2_transaction_journal_v2 import R2JournalGenesisV2
 
 from .contracts import EVIDENCE_ACKNOWLEDGEMENT
@@ -75,13 +77,21 @@ class ReviewedEvidencePublicationV2:
     created: int
 
 
-@dataclass(frozen=True, slots=True, repr=False)
+@dataclass(frozen=True, slots=True, init=False, repr=False)
 class EvidenceProductionRoleV2:
     publish_reviewed_evidence: object = field(repr=False)
 
-    def __post_init__(self):
-        if not callable(self.publish_reviewed_evidence):
-            raise TypeError("R2_EVIDENCE_PRODUCTION_ROLE_INVALID")
+    def __init__(self, *args, **kwargs):
+        raise TypeError("EvidenceProductionRoleV2 requires create()")
+
+    @classmethod
+    def create(cls, *, binding, publish_reviewed_evidence):
+        bound = bind_production_callable_v2(
+            binding=binding,
+            command=ProductionCommandV2.EVIDENCE_PUBLICATION,
+            callback=publish_reviewed_evidence,
+        )
+        return _allocate_role(bound)
 
 
 def run_evidence_production_v2(
@@ -143,9 +153,10 @@ def dormant_evidence_production_v2(*, argv):
     )
 
 
-def main(*, argv=None):
+def main(*, argv=None, bootstrap=None):
     arguments = tuple(sys.argv[1:]) if argv is None else argv
-    result = dormant_evidence_production_v2(argv=arguments)
+    from .bootstrap_v2 import execute_evidence_main_v2
+    result = execute_evidence_main_v2(arguments, bootstrap)
     sys.stdout.write(
         f"{result.status.value} accepted={result.accepted} "
         f"rejected={result.rejected} published={result.published}\n"
@@ -177,7 +188,7 @@ def complete_reviewed_evidence_publication_v2(
         or type(claim) is not DurableAuthorityClaimV2
         or claim.binding_fingerprint != binding.binding_fingerprint
         or claim.command is not ProductionCommandV2.EVIDENCE_PUBLICATION
-        or any(not _is_fingerprint(value) for value in tuple(values.values())[:-1])
+        or not all(_is_fingerprint(values[name]) for name in tuple(values)[:-1])
     ):
         raise TypeError("R2_REVIEWED_EVIDENCE_PUBLICATION_INVALID")
     publication = _fingerprint("r2-reviewed-evidence-publication-v2", values)
@@ -188,7 +199,12 @@ def _publish_and_bind_genesis(binding, role, claim, review, owner, nonce, prior_
     try:
         if type(role) is not EvidenceProductionRoleV2:
             raise TypeError
-        publication = role.publish_reviewed_evidence(binding, claim)
+        bound = reverify_bound_production_callable_v2(
+            binding=binding,
+            command=ProductionCommandV2.EVIDENCE_PUBLICATION,
+            bound=role.publish_reviewed_evidence,
+        )
+        publication = bound(binding, claim)
         if (
             type(publication) is not ReviewedEvidencePublicationV2
             or publication.binding_fingerprint != binding.binding_fingerprint
@@ -259,12 +275,13 @@ def _is_fingerprint(value):
     )
 
 
-def _fingerprint(domain, value):
-    payload = json.dumps(
-        value,
-        ensure_ascii=True,
-        allow_nan=False,
-        sort_keys=True,
-        separators=(",", ":"),
-    ).encode("ascii")
-    return hashlib.sha256(domain.encode("ascii") + b"\0" + payload).hexdigest()
+def _allocate_role(bound):
+    if type(bound) is not R2BoundProductionCallableV2:
+        raise TypeError("R2_EVIDENCE_PRODUCTION_ROLE_INVALID")
+    result = object.__new__(EvidenceProductionRoleV2)
+    object.__setattr__(result, "publish_reviewed_evidence", bound)
+    return result
+
+
+def _create_synthetic_role_v2(bound):
+    return _allocate_role(bound)

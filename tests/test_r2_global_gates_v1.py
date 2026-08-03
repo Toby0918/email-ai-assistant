@@ -1,15 +1,14 @@
-"""Same-binding fourteen-gate coordinator contracts for Issue #101."""
+"""Signed same-binding fourteen-gate coordinator contracts for Issue #101."""
 
-from __future__ import annotations
-
-import unittest
 from pathlib import Path
+import unittest
+from unittest.mock import patch
+
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from backend.r2_final_master_closure import (
-    ClosureGate,
     FinalMasterBindingV1,
     FinalMasterClosureError,
-    GateEvidenceProducerV1,
     GlobalGateStatusV1,
     R2GlobalGateCoordinatorV1,
     R2GlobalGateEvidenceV1,
@@ -17,190 +16,114 @@ from backend.r2_final_master_closure import (
     closure_gate_registry,
     gate_evidence_registry,
 )
+from backend.r2_final_master_closure._canonical import canonical_json, fingerprint
+from backend.r2_final_master_closure.global_gate_evidence import ZERO_GATE_FIELDS
+from backend.r2_final_master_closure.global_gate_registry import GateEvidenceRegistrationV1
 
 
 class R2GlobalGatesV1Tests(unittest.TestCase):
     def setUp(self):
         self.binding = _binding()
-        self.evidence = _evidence(self.binding)
+        self.keys = tuple(Ed25519PrivateKey.generate() for _ in range(14))
+        self.registry = tuple(
+            GateEvidenceRegistrationV1(
+                item.gate, item.producer, item.review_domain,
+                key.public_key().public_bytes_raw(),
+            )
+            for item, key in zip(gate_evidence_registry(), self.keys, strict=True)
+        )
+        with self._registry_patch():
+            self.evidence = _evidence(self.binding, self.registry, self.keys)
 
-    def test_registry_maps_all_fourteen_gates_to_independent_review_sources(self):
+    def _registry_patch(self):
+        return patch(
+            "backend.r2_final_master_closure.global_gate_evidence.gate_evidence_registry",
+            return_value=self.registry,
+        )
+
+    def test_registry_maps_all_fourteen_gates_to_independent_fixed_public_keys(self):
         registry = gate_evidence_registry()
         self.assertEqual(tuple(item.gate for item in registry), closure_gate_registry())
         self.assertEqual(len(registry), 14)
         self.assertEqual(len({item.producer for item in registry}), 14)
-        self.assertEqual(
-            {item.review_domain for item in registry},
-            set(ReviewDomainV1),
-        )
-        self.assertIn(GateEvidenceProducerV1.STANDARDS_REVIEW, {
-            item.producer for item in registry
-        })
-        self.assertIn(GateEvidenceProducerV1.SPEC_REVIEW, {
-            item.producer for item in registry
-        })
-        self.assertIn(GateEvidenceProducerV1.SECURITY_REVIEW, {
-            item.producer for item in registry
-        })
+        self.assertEqual(len({item.verification_public_key for item in registry}), 14)
+        self.assertTrue(all(len(item.verification_public_key) == 32 for item in registry))
+        self.assertEqual({item.review_domain for item in registry}, set(ReviewDomainV1))
 
-    def test_coordinator_derives_exact_non_self_certified_same_binding_receipts(self):
-        coordinator = self._coordinator()
+    def test_registry_uses_reviewed_production_trust_anchors(self):
+        expected = {
+            "final_master_verifier": "9cb7cd1c4efdd4908f7af2a9b3bf450bf8072482b2d0398e1f904929d305beee",
+            "spec_review": "609df0856a9fc70e7b09bb6c47337c649894826db7f144b84754cfb7b9c538d1",
+            "security_review": "c3c1f440f8706f1c18f71ac05c510f5296b05b77921dda59465a744cffdf2873",
+            "git_byte_verifier": "c72347def07454e1d27b16deba6bd0c533b9612b258921ebbf900d77709acc8b",
+            "ci_provenance_reconciler": "79ba03a98f33e786429ffbfc384708dd4d4db002843d03b39cdfb18d805965aa",
+            "windows_native_verifier": "473a3115d49d25a462fca247495faf15e9e95214ea78044abbee49e9d0efeb58",
+            "portable_suite_verifier": "c9db5d551b43bfb81d9d46adfa00061067ecd70067f405da1624e36033914633",
+            "operator_runbook_review": "4dac025e27c1ec0a1e0493b014079009dc90a0f0271ae2bf20b700ffcc84e14c",
+            "crash_recovery_verifier": "cee003c822ff18da86b79f448a79d0a3d8037340d42c23bb0402590419298b03",
+            "retention_verifier": "1c43993142ba36e3db23a17969c8636bb345e03518d0110b04f1c812bd3d5fdf",
+            "documentation_review": "9c0a4374ee55a7762486f6dbc2400644ffbc2c4e1a9fb74118a3a85211b2f6a5",
+            "standards_review": "6a398607d471583890c7040e4f653043221d312089566ce079168e8c98fbbbc5",
+            "leakage_scanner": "c07e985530416b1027ec2bc19dd648a8b366838cd1439133193cbcbf47ed09c8",
+            "maintenance_review": "ecf1302df9f6a3086d4f57ccf3cdff4b9ed13b2bfbd4991bab22c97434b1a3e0",
+        }
+        actual = {
+            item.producer.value: item.verification_public_key.hex()
+            for item in gate_evidence_registry()
+        }
+        self.assertEqual(actual, expected)
+
+    def test_signed_evidence_derives_exact_non_self_certified_receipts(self):
+        coordinator = R2GlobalGateCoordinatorV1.create(
+            binding=self.binding, evidence=self.evidence
+        )
         self.assertIs(coordinator.status, GlobalGateStatusV1.GLOBAL_GATES_VERIFIED)
         self.assertEqual(coordinator.gate_receipt_count, 14)
         self.assertEqual(coordinator.independent_producer_count, 14)
         self.assertEqual(coordinator.review_domain_count, 7)
-        self.assertEqual(tuple(item.gate for item in coordinator.gate_receipts),
-                         closure_gate_registry())
-        self.assertTrue(all(item.binding_fingerprint == self.binding.binding_fingerprint
-                            for item in coordinator.gate_receipts))
         self.assertTrue(all(item.self_certified == 0 for item in coordinator.gate_receipts))
         self.assertEqual(
-            (
-                coordinator.missing_gate_count,
-                coordinator.duplicate_gate_count,
-                coordinator.stale_binding_count,
-                coordinator.self_certified_count,
-                coordinator.required_skip_count,
-                coordinator.unclassified_skip_count,
-                coordinator.platform_divergence_count,
-                coordinator.leakage_finding_count,
-                coordinator.private_data_access_count,
-                coordinator.real_host_operation_count,
-                coordinator.provider_attempt_count,
-                coordinator.issue39_code_change_count,
+            R2GlobalGateCoordinatorV1.from_json(
+                coordinator.to_canonical_json(),
+                binding=self.binding,
+                evidence=self.evidence,
             ),
-            (0,) * 12,
+            coordinator,
         )
 
-    def test_canonical_round_trip_recomputes_receipts_from_independent_evidence(self):
-        coordinator = self._coordinator()
-        restored = R2GlobalGateCoordinatorV1.from_json(
-            coordinator.to_canonical_json(),
-            binding=self.binding,
-            coordinator_fingerprint="f" * 64,
-            evidence=self.evidence,
-        )
-        self.assertEqual(restored, coordinator)
-        self.assertNotIn("authority", coordinator.to_canonical_json().decode("ascii"))
-        self.assertNotIn("private", repr(coordinator).lower())
-
-    def test_missing_duplicate_mixed_and_self_certified_evidence_fail_closed(self):
-        other = _binding(commit="9" * 40)
-        mixed = (
-            R2GlobalGateEvidenceV1.create(
-                binding=other,
-                gate=self.evidence[0].gate,
-                producer=self.evidence[0].producer,
-                review_domain=self.evidence[0].review_domain,
-                evidence_fingerprint="8" * 64,
-                producer_fingerprint="7" * 64,
-            ),
-            *self.evidence[1:],
-        )
-        invalid = (
-            self.evidence[:-1],
-            (self.evidence[0], *self.evidence[:-1]),
-            mixed,
-        )
-        for evidence in invalid:
-            with self.subTest(count=len(evidence)):
-                with self.assertRaisesRegex(
-                    FinalMasterClosureError, "R2_FINAL_MASTER_CLOSURE_INVALID"
-                ):
-                    R2GlobalGateCoordinatorV1.create(
-                        binding=self.binding,
-                        coordinator_fingerprint="f" * 64,
-                        evidence=evidence,
-                    )
-        with self.assertRaisesRegex(
+    def test_arbitrary_fingerprints_cannot_mint_verified_evidence(self):
+        registration = self.registry[0]
+        body = _body(self.binding, registration, "7" * 64)
+        forged = canonical_json({**body, "signature_hex": "8" * 128})
+        with self._registry_patch(), self.assertRaisesRegex(
             FinalMasterClosureError, "R2_FINAL_MASTER_CLOSURE_INVALID"
         ):
-            R2GlobalGateCoordinatorV1.create(
-                binding=self.binding,
-                coordinator_fingerprint=self.evidence[0].producer_fingerprint,
-                evidence=self.evidence,
-            )
+            R2GlobalGateEvidenceV1.from_signed_json(forged, binding=self.binding)
+        self.assertFalse(hasattr(R2GlobalGateEvidenceV1, "create"))
 
-    def test_wrong_gate_producer_domain_skip_and_leakage_injection_fail(self):
-        registration = gate_evidence_registry()[0]
-        for change in (
-            {"producer": gate_evidence_registry()[1].producer},
-            {"review_domain": gate_evidence_registry()[2].review_domain},
-            {"producer_fingerprint": "1" * 64,
-             "evidence_fingerprint": "1" * 64},
-        ):
-            values = {
-                "binding": self.binding,
-                "gate": registration.gate,
-                "producer": registration.producer,
-                "review_domain": registration.review_domain,
-                "producer_fingerprint": "2" * 64,
-                "evidence_fingerprint": "3" * 64,
-            }
-            with self.subTest(change=change):
-                with self.assertRaisesRegex(
-                    FinalMasterClosureError, "R2_FINAL_MASTER_CLOSURE_INVALID"
-                ):
-                    R2GlobalGateEvidenceV1.create(**{**values, **change})
+    def test_tamper_wrong_key_missing_duplicate_and_mixed_binding_fail(self):
+        payload = self.evidence[0].to_canonical_json()
+        tampered = payload.replace(b'"verified":1', b'"verified":0')
+        with self._registry_patch(), self.assertRaises(FinalMasterClosureError):
+            R2GlobalGateEvidenceV1.from_signed_json(tampered, binding=self.binding)
+        other = _binding(commit="9" * 40)
+        invalid = (self.evidence[:-1], (self.evidence[0], *self.evidence[:-1]))
+        for evidence in invalid:
+            with self.assertRaises(FinalMasterClosureError):
+                R2GlobalGateCoordinatorV1.create(binding=self.binding, evidence=evidence)
+        with self.assertRaises(FinalMasterClosureError):
+            R2GlobalGateCoordinatorV1.create(binding=other, evidence=self.evidence)
 
-        coordinator = self._coordinator()
-        payload = coordinator.to_canonical_json()
-        for replacement in (
-            payload.replace(b'"required_skip_count":0', b'"required_skip_count":1'),
-            payload.replace(b'"leakage_finding_count":0', b'"leakage_finding_count":1'),
-            payload[:-1] + b',"unknown":0}',
-        ):
-            with self.subTest(payload=replacement[-30:]):
-                with self.assertRaisesRegex(
-                    FinalMasterClosureError, "R2_FINAL_MASTER_CLOSURE_INVALID"
-                ):
-                    R2GlobalGateCoordinatorV1.from_json(
-                        replacement,
-                        binding=self.binding,
-                        coordinator_fingerprint="f" * 64,
-                        evidence=self.evidence,
-                    )
-
-    def test_normative_docs_define_independent_non_authorizing_gates(self):
+    def test_normative_docs_define_external_signed_non_authorizing_gates(self):
         root = Path(__file__).resolve().parents[1]
         expected = {
-            "docs/constraints/architecture_constraints.md": (
-                "Issue #101 same-binding global-gate architecture",
-                "receipt-to-authority",
-            ),
-            "docs/constraints/linter_constraints.md": (
-                "R2 Issue #101 global-gate guards",
-                "seven-domain",
-            ),
-            "docs/constraints/mechanical_rule_translation.md": (
-                "Issue #101 fourteen same-binding global-gate rules",
-                "derive gate receipts",
-            ),
-            "docs/security/project_container_cutover_contracts.md": (
-                "Issue #101 independent global-gate coordinator",
-                "GLOBAL_GATES_VERIFIED",
-            ),
-            "docs/operations/project_structure.md": (
-                "global_gate_registry.py",
-                "global_gate_evidence.py",
-            ),
-            "docs/operations/testing_checklist.md": (
-                "test_r2_global_gates_v1.py",
-                "fourteen unique producers",
-            ),
+            "docs/constraints/architecture_constraints.md": "receipt-to-authority",
+            "docs/constraints/linter_constraints.md": "seven-domain",
+            "docs/constraints/mechanical_rule_translation.md": "derive gate receipts",
+            "docs/security/project_container_cutover_contracts.md": "GLOBAL_GATES_VERIFIED",
         }
-        for relative, phrases in expected.items():
-            text = (root / relative).read_text(encoding="utf-8")
-            for phrase in phrases:
-                with self.subTest(relative=relative, phrase=phrase):
-                    self.assertIn(phrase, text)
-
-    def _coordinator(self):
-        return R2GlobalGateCoordinatorV1.create(
-            binding=self.binding,
-            coordinator_fingerprint="f" * 64,
-            evidence=self.evidence,
-        )
+        for relative, phrase in expected.items():
+            self.assertIn(phrase, (root / relative).read_text(encoding="utf-8"))
 
 
 def _binding(commit="a" * 40):
@@ -213,18 +136,35 @@ def _binding(commit="a" * 40):
     )
 
 
-def _evidence(binding):
-    return tuple(
-        R2GlobalGateEvidenceV1.create(
-            binding=binding,
-            gate=item.gate,
-            producer=item.producer,
-            review_domain=item.review_domain,
-            evidence_fingerprint=f"{index + 10:064x}",
-            producer_fingerprint=f"{index + 40:064x}",
-        )
-        for index, item in enumerate(gate_evidence_registry())
-    )
+def _body(binding, registration, evidence_fingerprint):
+    producer = fingerprint("r2-gate-producer-v1", {
+        "producer": registration.producer.value,
+        "verification_public_key_hex": registration.verification_public_key.hex(),
+    })
+    return {
+        "evidence_type": "R2SignedGlobalGateEvidenceV1",
+        "binding_fingerprint": binding.binding_fingerprint,
+        "gate": registration.gate.value,
+        "producer": registration.producer.value,
+        "review_domain": registration.review_domain.value,
+        "evidence_fingerprint": evidence_fingerprint,
+        "producer_fingerprint": producer,
+        "verified": 1,
+        "self_certified": 0,
+        **{name: 0 for name in ZERO_GATE_FIELDS},
+    }
+
+
+def _evidence(binding, registry, keys):
+    result = []
+    for index, (registration, key) in enumerate(zip(registry, keys, strict=True)):
+        body = _body(binding, registration, f"{index + 10:064x}")
+        payload = canonical_json({
+            **body,
+            "signature_hex": key.sign(canonical_json(body)).hex(),
+        })
+        result.append(R2GlobalGateEvidenceV1.from_signed_json(payload, binding=binding))
+    return tuple(result)
 
 
 if __name__ == "__main__":

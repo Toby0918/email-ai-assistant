@@ -18,7 +18,7 @@ class R2OperatorRunbookV2ArchitectureTests(unittest.TestCase):
     def test_exact_files_exports_and_generated_document(self):
         self.assertEqual(
             {path.name for path in PACKAGE.glob("*.py")},
-            {"__init__.py", "errors.py", "state_machine.py", "render.py", "receipt.py"},
+            {"__init__.py", "errors.py", "state_machine.py", "render.py", "receipt.py", "review_registry.py"},
         )
         self.assertIn("catalog.py", {path.name for path in BINDING.glob("*.py")})
         self.assertFalse((PACKAGE / "__main__.py").exists())
@@ -32,6 +32,10 @@ class R2OperatorRunbookV2ArchitectureTests(unittest.TestCase):
                 "executable_verb_map_v2", "operator_package_semantics_fingerprint_v2",
                 "operator_state_machine_v2", "render_r2_operator_runbook_v2",
                 "resolve_operator_command_v2", "runbook_document_fingerprint_v2",
+                "blocker_resolution_fingerprint_v2",
+                "decision_registry_fingerprint_v2",
+                "issue38_decision_registry_v2",
+                "r1_blocker_resolution_registry_v2",
             },
         )
 

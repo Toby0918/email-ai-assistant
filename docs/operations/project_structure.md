@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-02
+last_update: 2026-08-03
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -8,12 +8,36 @@ source_type: operation_guide
 
 # 项目结构
 
+## Issue #102 frozen terminal review package
+
+- `backend/r2_final_master_closure/frozen_master.py`: nominal remote-ref/final-
+  binding observation with no public constructor.
+- `backend/r2_final_master_closure/final_review.py`: fixed
+  `verify_final_master_closure_v1` entry and immutable pending-human-review
+  package derived from eight gap proofs and the #101 coordinator.
+- `backend/r2_final_master_closure/gap_completion.py`: exhaustive semantic
+  partition assigning all fourteen gate receipts to the eight closure gaps.
+- `backend/r2_final_master_closure/reviewed_production.py`: pure nominal receipt
+  for one concrete reviewed V2 production binding tied to the frozen master.
+- `backend/r2_production_binding/review.py`: adapter-side validation and receipt
+  derivation for that concrete `ApprovedCutoverBindingV2`.
+- `tests/test_r2_final_master_review_v1.py`: frozen identity, terminal binding,
+  canonical reconstruction, negative evidence, zero-authority, and human-only
+  boundary tests.
+- `scripts/verify_r2_final_master_closure.py`: fixed no-argument actual Git and
+  fixed Git-common-dir signed-evidence adapter; missing evidence yields zero
+  eligibility.
+- The backend module has no Git/network reader and no approve, merge, execution,
+  authority, live-host, provider, private-data, cleanup, or #39 surface.
+
 ## Issue #101 same-binding global gates
 
 - `backend/r2_final_master_closure/global_gate_registry.py`: exact fourteen
-  gate-to-producer mappings and seven closed review domains.
-- `backend/r2_final_master_closure/global_gate_evidence.py`: immutable
-  content-free same-binding evidence with fixed zero unsafe counters.
+  gate-to-producer mappings, seven domains, and fourteen distinct verification
+  public keys.
+- `backend/r2_final_master_closure/global_gate_evidence.py`: externally signed
+  content-free same-binding evidence with fixed zero unsafe counters and no raw
+  fingerprint constructor.
 - `backend/r2_final_master_closure/global_gates.py`: exact ordered coordinator
   that derives fourteen non-self-certified gate receipts from fourteen unique
   producers and exposes no authority or execution surface.
@@ -25,9 +49,11 @@ source_type: operation_guide
 - `backend/r2_ci_provenance_v2/source_package.py`: immutable Git blob entries
   and the exact final commit/tree source package.
 - `backend/r2_ci_provenance_v2/workflow_lock.py`: exact workflow set, pinned
-  action, fixed runner, and no-skip/bypass validation.
-- `backend/r2_ci_provenance_v2/suites.py`: closed portable, Windows-native, and
-  independent-Windows test registries.
+  action, fixed runner, dependency-lock, and no-skip/bypass validation.
+- `backend/r2_ci_provenance_v2/dependency_lock.py`: two exact 31-distribution
+  Linux/Windows wheel-hash locks.
+- `backend/r2_ci_provenance_v2/suites.py`: full portable discovery with exact
+  native-skip registry plus Windows-native and independent-Windows suites.
 - `backend/r2_ci_provenance_v2/receipts.py`: one receipt per runner kind and the
   exact three-of-three same-package reconciliation bundle.
 - `scripts/r2_ci_provenance_support.py`: fixed Git-plumbing/test/leakage adapter;
@@ -45,6 +71,8 @@ source_type: operation_guide
   consumed by all three V2 process dispatchers.
 - `backend/r2_operator_runbook_v2/state_machine.py`: closed phase graph and
   current package-semantics fingerprint.
+- `backend/r2_operator_runbook_v2/review_registry.py`: exact fourteen-decision
+  registry and four-class R1 blocker completion map.
 - `backend/r2_operator_runbook_v2/render.py`: deterministic UTF-8/LF renderer.
 - `backend/r2_operator_runbook_v2/receipt.py`: final-master/package/retention
   drift gate and content-free receipt.
@@ -725,3 +753,49 @@ present but is outside the executable production graph.
 With no external issuer, every valid fixed verb returns
 `DORMANT_NO_EXTERNAL_ISSUER` and zero operations. Production imports no test
 binder, synthetic context, private signing key, or cross-root umbrella.
+`backend/r2_production_binding/role_binding.py` normalizes callable code
+identity with `_callable_identity.py`, `_frame_primitives.py`,
+`_semantic_identity.py`, `_type_identity.py`, fail-closed bytecode policy in
+`_static_code.py`, bounded
+executable-global traversal in `_module_identity.py`, and policy-specific
+per-fingerprint memoization in `_traversal.py`. The closed
+identity recursively binds helper globals/builtins plus referenced module
+namespaces and repository-owned/synthetic loaded dependencies, pinned external
+code surfaces, non-built-in executable type surfaces, scalar/object constants,
+custom metaclass construction, deep dictionary/exact-slot/bound-receiver state, and
+same-family or explicitly mounted method globals. Enum member state and global
+staticmethod/property aliases preserve the caller's deep policy; inherited
+external behavior methods bind loaded globals, while exact Enum auto-copied
+methods retain pinned code surfaces.
+Policy-specific digest
+references close
+cycles. Deep opaque/native values without provably complete dictionary/slot
+state, including native method/wrapper extension owners, fail closed, while
+shallow external function surfaces avoid making
+terminal streams or other mutable interpreter state part of implicit function
+state; unused functions attached only to implicit values remain code surfaces.
+External namespace object methods, nested types, and container-carried
+types still bind their loaded global behavior dependencies; aliases and
+re-exported functions, object-state modules, custom metaclasses, and other
+class-state/cross-module/parameter flows need no local attribute-flow
+inference. Custom metaclass frames include their complete non-built-in MRO and
+class state through exact `type` descriptor reads that bypass metaclass
+identity/namespace/MRO spoofing. Module `__getattr__` and custom `ModuleType`
+subclasses fail closed as dynamic namespaces, unsupported module dunders are
+rejected, and module `__doc__` is explicit. Accessed loaderful nested modules
+fail closed through direct/alias/helper/container paths; accessed external
+same-namespace functions bind globals. Exact built-in object identity, class
+names and runtime metadata, default-empty-only dataclass metadata, IEEE
+float/complex bytes, recursively typed slices, locale-independent regex state,
+and the closed six-field CPython JSON scanner projection are framed explicitly.
+Custom instance `__dict__` descriptors, custom metadata mappings, dynamic
+private-attribute adapters, and `re.LOCALE` fail before user behavior executes.
+Loaderless mounted nested modules bind values without absorbing the internal
+caches of unreferenced imported standard-library modules.
+It maps every command to its reviewed
+production role and rejects any callable whose recomputed fingerprint differs
+from the immutable binding. Each root's `bootstrap_v2.py` accepts only the exact reviewed
+binding, matching frozen-review receipt, binding-bound public roles,
+same-binding claims, and journal identities. `main()` reaches the existing run
+composition only through that nominal bootstrap and owns the exact system TTY
+and clock; test-only synthetic roles and terminal/clock injection fail closed.

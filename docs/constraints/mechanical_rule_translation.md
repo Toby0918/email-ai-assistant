@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-02
+last_update: 2026-08-03
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -8,14 +8,48 @@ source_type: operation_guide
 
 # Mechanical Rule Translation
 
+## Issue #102 frozen-terminal rules
+
+1. The fixed no-argument script requires isolated safe-path Python, rejects all
+   tracked and untracked worktree changes plus assume-unchanged/skip-worktree,
+   compares clean `HEAD` and the local tracking ref to a fresh fixed-URL
+   remote-master observation, scrubs inherited Git state and disables replace
+   refs, then independently hashes and parses raw commit/tree/blob objects into
+   an exact safe Win32-alias-unique roster. It verifies the running script bytes,
+   index, worktree, and every repository import origin against that roster, and
+   only then
+   derives the exact final binding
+   across ref, commit, tree, source package, domain-separated runbook, workflow,
+   and dependency locks.
+2. Derive exactly eight gap proofs in registry order with eight unique proof and
+   evidence fingerprints, all bound to the frozen master. The explicit semantic
+   partition must own all fourteen gate receipts exactly once: terminal owns
+   binding/surface, production owns composition, Git/crash/retention/runbook own
+   their matching gates, Windows provenance owns dependency/native/portable,
+   and global gates own documentation/mechanical/leakage/maintenance.
+3. Accept the #101 coordinator only when all fourteen internally derived gate
+   receipts share the binding and every unsafe coordinator counter is zero.
+4. Read the one fixed Git-common-dir reviewed-production-binding artifact,
+   require an exact frozen-master-matching `ApprovedCutoverBindingV2`, derive its
+   pure receipt, and require the signed production-composition gate evidence to
+   equal that receipt's composition fingerprint.
+5. Recompute `R2FinalMasterClosureReceiptV1`; callers cannot supply or replace a
+   terminal receipt, gate receipt, terminal status, count, or review result.
+6. Bind every immutable reference into one canonical review package and fix all
+   findings, skips, leakage, cleanup, provider, host, private-data, #39,
+   approval, and authority counts to zero.
+7. Emit only eligibility plus `AWAITING_SINGLE_HUMAN_FINAL_REVIEW`; preserve one
+   required human review and zero completed reviews.
+
 ## Issue #101 fourteen same-binding global-gate rules
 
 1. Enumerate the fourteen existing `ClosureGate` values once and map each to a
    unique producer role plus a fixed review domain.
 2. Cover exactly Standards, Spec, security, documentation, mechanical,
    leakage, and operator-review domains; omitted or unknown domains fail.
-3. Bind every evidence record to the exact frozen final-master binding and
-   require distinct evidence, producer, binding, and coordinator fingerprints.
+3. Bind every evidence record to the exact frozen final-master binding, verify
+   it with that producer's fixed Ed25519 public key, and require distinct
+   evidence, producer, binding, and coordinator fingerprints.
 4. Fix verified to one and self-certified, skips, divergence, leakage,
    private-data, host-operation, provider-attempt, and #39-change counts to zero.
 5. Accept the exact ordered fourteen evidence records, reject missing,
@@ -33,9 +67,11 @@ source_type: operation_guide
    package; fix historical, ignored-content, and private-content counts at zero.
 3. Require exactly the three reviewed workflow files, fixed runner images,
    every external `uses:` reference at a full 40-hex commit, and no conditional
-   missing-file skip or `continue-on-error` bypass.
-4. Run the closed portable, Windows-native, and independent-Windows suite
-   registries with zero failed tests and zero skips; run repository leakage and
+   missing-file skip or `continue-on-error` bypass. Require two 31-distribution
+   platform locks and `--require-hashes` for all three installs.
+4. Run full portable discovery after removing only exact registered native
+   skips, plus the Windows-native and independent-Windows suites, with zero
+   failed tests and zero unclassified skips; run repository leakage and
    reject any finding before a receipt can be created.
 5. Bind every receipt to the exact final commit/tree, selected-entry and byte
    counts, source-package, workflow lock, runbook, fixed suite, and runner.
@@ -52,7 +88,8 @@ source_type: operation_guide
 3. Generate eight state-machine phase rows, including exact forward/recovery/
    rollback paths and commandless retention/human-review phases.
 4. Render fixed front matter, catalog/state fingerprints, command table, state
-   table, crash semantics, retention rule, and authority boundary as UTF-8/LF.
+   table, all fourteen Issue #38 decisions, all four R1 blocker completion
+   proofs, crash semantics, retention rule, and authority boundary as UTF-8/LF.
 5. Compare the committed Markdown bytes to the renderer and bind its hash,
    current package semantics, final master, source package, and retention proof.
 6. Reject stale master/package hashes, altered document bytes, mixed binding,
@@ -1060,5 +1097,23 @@ private-data container, or authorization to migrate.
    binder inputs.
 3. Invoke every default fixed-verb entry and require content-free
    `DORMANT_NO_EXTERNAL_ISSUER` with zero operations.
-4. Preserve the already tested authorized seam: exact V2 authority reaches one
+4. Construct each nominal bootstrap only from an exact reviewed binding, its
+   exact frozen-review receipt, binding-bound public roles, same-binding durable
+   claims, and journal identities. Use explicit keyword-only factories; reject
+   unknown mapping/CLI/path/environment inputs and every testing-only synthetic
+   role before `main()` reaches a composition. Production `main()` accepts no
+   terminal or clock input and owns exact `SystemTerminal` plus the system clock.
+5. Preserve the already tested authorized seam: exact V2 authority reaches one
    and only one binding-bound role, while negative authority reaches none.
+6. Permit only top-level functions whose normalized code, defaults, keyword
+   defaults, function state, recursively referenced globals/builtins, and exact
+   command-parameter type surfaces bind exactly. Reject top-level closures,
+   bound methods, imports, dynamic namespaces/frames, function attributes, and
+   global mutation. Frame helper dependencies, referenced module non-dunder
+   namespaces and executable loaded globals, non-built-in MRO-owner constructor/
+   method/property/descriptor/scalar-or-object constants, custom metaclass
+   construction, object state, and exact parameter-method loaded globals. Prove
+   alias, branch, helper-return, container, cross-module, parameter helper/
+   configuration, class-state, global-constructor, JSON encoder, and default-
+   encoder drift all change identity; recompute immediately before dispatch and
+   again inside the wrapper.

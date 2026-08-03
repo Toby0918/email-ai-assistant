@@ -7,6 +7,8 @@ import os
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 import platform
+import importlib.metadata
+import importlib.util
 import subprocess
 import sys
 import unittest
@@ -20,6 +22,7 @@ from backend.r2_ci_provenance_v2 import (
     R2WorkflowLockV2,
     fixed_suite_fingerprint_v2,
     fixed_suite_v2,
+    portable_native_skip_reason_registry_v2,
 )
 from backend.r2_ci_provenance_v2._canonical import fingerprint, sha256
 from scripts.repository_leakage_scan import scan_repository
@@ -52,7 +55,9 @@ def read_git_object_source_package_v2(root: Path):
         observed_tree_oid=observed_tree,
         entries=tuple(entries),
         workflow_lock=lock,
-        runbook_fingerprint=sha256(raw[_RUNBOOK]),
+        runbook_fingerprint=sha256(
+            b"r2-operator-runbook-document-v2\0" + raw[_RUNBOOK]
+        ),
     )
     return package, lock
 
@@ -86,7 +91,11 @@ def execute_fixed_suite_v2(kind: CiProvenanceKindV2, root: Path):
     stream = io.StringIO()
     try:
         os.chdir(root)
-        suite = unittest.defaultTestLoader.loadTestsFromNames(fixed_suite_v2(kind))
+        if kind is CiProvenanceKindV2.PORTABLE:
+            discovered = unittest.defaultTestLoader.discover(str(root / "tests"))
+            suite = _portable_suite(discovered)
+        else:
+            suite = unittest.defaultTestLoader.loadTestsFromNames(fixed_suite_v2(kind))
         with redirect_stdout(stream), redirect_stderr(stream):
             result = unittest.TextTestRunner(stream=stream, verbosity=0).run(suite)
     finally:
@@ -94,6 +103,37 @@ def execute_fixed_suite_v2(kind: CiProvenanceKindV2, root: Path):
     if not result.wasSuccessful() or result.testsRun < 1 or len(result.skipped) != 0:
         raise R2CiProvenanceError()
     return result.testsRun
+
+
+def _portable_suite(discovered):
+    allowed = set(portable_native_skip_reason_registry_v2())
+    selected = unittest.TestSuite()
+    excluded = 0
+    for case in _test_cases(discovered):
+        method = getattr(case, case._testMethodName)
+        reason = getattr(method, "__unittest_skip_why__", "") or getattr(
+            case.__class__, "__unittest_skip_why__", ""
+        )
+        skipped = bool(getattr(method, "__unittest_skip__", False) or getattr(
+            case.__class__, "__unittest_skip__", False
+        ))
+        if skipped:
+            if reason not in allowed:
+                raise R2CiProvenanceError()
+            excluded += 1
+        else:
+            selected.addTest(case)
+    if selected.countTestCases() < 1 or excluded < 1:
+        raise R2CiProvenanceError()
+    return selected
+
+
+def _test_cases(suite):
+    for item in suite:
+        if isinstance(item, unittest.TestSuite):
+            yield from _test_cases(item)
+        else:
+            yield item
 
 
 def create_ci_receipt_v2(root: Path, kind: CiProvenanceKindV2):
@@ -107,12 +147,35 @@ def create_ci_receipt_v2(root: Path, kind: CiProvenanceKindV2):
         workflow_lock=lock,
         provenance_kind=kind,
         runner_fingerprint=runner,
+        installed_dependency_fingerprint=_installed_dependency_fingerprint(lock),
         suite_fingerprint=fixed_suite_fingerprint_v2(kind),
         required_skip_count=0,
         platform_divergence_count=0,
         leakage_finding_count=0,
         failure_count=0,
     )
+
+
+def _installed_dependency_fingerprint(lock):
+    installed = {
+        distribution.metadata["Name"].lower().replace("_", "-"): distribution.version
+        for distribution in importlib.metadata.distributions()
+        if distribution.metadata.get("Name")
+    }
+    expected = dict(lock.dependency_lock.distributions)
+    if any(installed.get(name) != version for name, version in expected.items()):
+        raise R2CiProvenanceError()
+    imports = []
+    for name in ("bs4", "cryptography", "openpyxl", "openai", "dotenv",
+                 "pypdf", "docx", "PIL", "pytesseract"):
+        spec = importlib.util.find_spec(name)
+        if spec is None or not spec.origin or not Path(spec.origin).is_file():
+            raise R2CiProvenanceError()
+        imports.append({"module": name, "byte_sha256": sha256(Path(spec.origin).read_bytes())})
+    return fingerprint("r2-installed-dependency-import-bytes-v2", {
+        "distributions": list(lock.dependency_lock.distributions),
+        "imports": imports,
+    })
 
 
 def _git(root: Path, *arguments: str):
@@ -154,4 +217,11 @@ def _workflow_lock(raw):
         if path.startswith(".github/workflows/")
         and (path.endswith(".yml") or path.endswith(".yaml"))
     )
-    return R2WorkflowLockV2.create(workflows=workflows)
+    dependency_locks = tuple(
+        (path, raw[path])
+        for path in ("requirements-ci-linux.lock", "requirements-ci-windows.lock")
+        if path in raw
+    )
+    return R2WorkflowLockV2.create(
+        workflows=workflows, dependency_locks=dependency_locks
+    )

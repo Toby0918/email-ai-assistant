@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-02
+last_update: 2026-08-03
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -7,6 +7,36 @@ source_type: operation_guide
 ---
 
 # 测试检查清单
+
+## Issue #102 frozen final-master and human-review checks
+
+Run `tests/test_r2_final_master_review_v1.py` with the #86, #100, and #101
+contract/architecture suites. Invoke the adapter only as
+`python -I -B scripts/verify_r2_final_master_closure.py`; require zero tracked
+or untracked changes, exact fresh fixed-URL remote observation equality, and
+exact independently hashed raw commit/tree/blob materialization plus current
+script and imported-module origin verification before any repository import can
+affect the result. Prove inherited `GIT_*`, local projection config, replacement
+refs, assume-unchanged, skip-worktree, staged/index drift, and actual worktree
+byte drift cannot select or hide different bytes. Prove
+export attributes, trailing-dot/space, ADS, reserved-device, short-name,
+Unicode, and case-fold aliases cannot change or overwrite materialized bytes,
+exactly eight unique ordered gap proofs, fourteen same-binding coordinator
+receipts, canonical terminal reconstruction, and one immutable package whose
+only status awaits the human-only review.
+
+Require the fixed reviewed-production-binding artifact, exact frozen-master and
+four-registry agreement, a pure binding receipt, and signed production-gate
+linkage. Reject missing, malformed, stale, or mixed bindings with the fixed
+content-free blocked status. Verify the explicit gap-to-gate partition covers
+all fourteen gates exactly once and that every gap fingerprint changes with an
+owned gate receipt rather than an unrelated positional record.
+
+Reject historical, missing, duplicate, stale, mixed, self-certified, skipped,
+divergent, leaking, private-data, host, provider, #39, contract-changing,
+approval, or execution-authority evidence. Confirm no approve/merge/execute/
+authorize API exists. Automated success prepares evidence only; a human must
+freeze/review the final remote master and separately decide Issue #38.
 
 ## Issue #101 global-gate coordinator checks
 
@@ -20,6 +50,8 @@ Reject missing, duplicate, stale, mixed-binding, shared-producer, coordinator-
 self-certified, unknown-field, skipped, divergent, leaking, private-data,
 live-host, provider, and #39-change evidence. The operator-review domain proves
 only runbook/maintenance review and cannot satisfy the human #102 review.
+Generate ephemeral signer keys only inside tests and prove arbitrary 64-hex
+fingerprints or wrong signatures cannot construct gate evidence.
 
 ## Issue #99 generated-runbook checks
 
@@ -27,7 +59,8 @@ Run `tests/test_r2_operator_runbook_v2.py` and its architecture companion.
 Require the exact ten-command catalog to equal all three executable dispatcher
 maps and acknowledgement constants. Exercise the eight-phase state machine,
 including narrow recovery verbs and commandless retention/human review. Compare
-the committed Markdown bytes to the renderer, reconstruct the receipt, and
+all fourteen decision rows and four blocker rows exactly once, compare the
+committed Markdown bytes to the renderer, reconstruct the receipt, and
 reject stale final master, source-package hash, package semantics, document,
 mixed retention proof, unknown verbs, and historical R1 aliases.
 
@@ -1112,3 +1145,51 @@ vault/签名/密钥错误、schema/safety/grounding 违规、p95 超限、泄漏
 3. Confirm default fixed verbs return content-free no-issuer dormancy and that
    the existing #88-#90 positive/negative tests still prove one authorized
    composition acquisition and zero unauthorized acquisitions.
+4. Run `tests/test_r2_production_role_binding_v2.py`; require exact callable
+   semantic fingerprints for all three roots. Prove closures, bound methods,
+   defaults/globals/code drift, nested dynamic namespace access, imports, and
+   function-attribute access are rejected before a callback can run. Also prove
+   module/class drift through aliases, branches, helper returns and containers,
+   exact parameter-method and parameter-global drift, class-level object state,
+   custom metaclass/global constructor drift, cross-module dependencies,
+   cross-module instance/static/class methods, bound receiver graphs, and
+   built-in/method-wrapper receivers, shadowed slotted objects, Enum member state, global
+   staticmethod/property aliases, and
+   `JSONEncoder`/default-encoder drift all change identity before invocation.
+   Mutating `json.encoder.encode_basestring_ascii` must likewise change the
+   reviewed identity before `json.dumps` can run.
+   External module singleton methods, nested types, and types carried in
+   namespace containers must retain the same loaded-global dependency policy.
+   Re-exported functions, modules stored in singleton state, and hidden custom
+   metaclass or inherited-method construction must retain that policy too.
+   Accessed loaderful nested modules through aliases, helper returns, or
+   containers must fail closed, and an accessed external same-namespace
+   function must bind its loaded globals.
+   Class-state object graphs and owned-to-external transitions must preserve
+   the same behavior/implicit-value policy, while module `__getattr__` and
+   custom `ModuleType` subclasses fail closed.
+   Mutate module `__doc__`, class annotations, exact type names, dataclass field defaults,
+   spoofed `builtins` module labels, mounted nested-module values, IEEE NaN
+   payloads, complex values, and slice member types; every change must block
+   invocation. Reject unsupported module dunder reads, dynamic adapters for
+   private attribute strings, custom instance `__dict__` descriptors without
+   executing them, custom/nonempty dataclass metadata without iterating it, and
+   `re.LOCALE`. Confirm locale-independent regex and the
+   exact six-field CPython JSON scanner projection remain stable while other
+   incomplete opaque native state continues to fail closed.
+   Hidden custom-metaclass MRO/class state must drift the reviewed identity
+   before construction can observe it, while metaclass identity/namespace/MRO
+   accessors remain uncalled because exact `type` descriptors are used.
+   A function attached only to an external function's unused `__dict__` state
+   must remain a shallow code surface when its unrelated globals drift.
+   Require direct deep `StringIO`, `list_iterator`, `random.Random`, and
+   `itertools.count` globals to fail closed because their complete native state
+   cannot be proven.
+   Recompute the same callback while stdout is redirected and require an equal
+   fingerprint so unrelated mutable interpreter state cannot poison dispatch.
+5. Run `tests/test_r2_production_bootstrap_v2.py`; prove all three `main()`
+   roots reach exactly one role with an exact reviewed nominal bootstrap and
+   matching frozen-review receipt plus valid TTY authority. Confirm `main()` has
+   no terminal/clock input and factories have no `**values`; synthetic roles,
+   mismatched receipts, wrong bootstrap types, and absent input remain blocked
+   or dormant with zero role operations.

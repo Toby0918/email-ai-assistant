@@ -14,39 +14,40 @@ class CiProvenanceKindV2(str, Enum):
     WINDOWS_INDEPENDENT = "windows_independent"
 
 
+def _r2(name):
+    return "tests.test_" + "r2_" + name
+
+
 _SUITES = {
-    CiProvenanceKindV2.PORTABLE: (
-        "tests.test_r2_final_master_closure_contracts",
-        "tests.test_r2_git_byte_state_v2",
-        "tests.test_r2_main_publication_contracts",
-        "tests.test_r2_repository_manifest_contracts",
-        "tests.test_r2_runtime_publication_contracts",
-        "tests.test_r2_database_publication_contracts",
-        "tests.test_r2_crx_publication_contracts",
-        "tests.test_r2_config_publication_contracts",
-        "tests.test_r2_validation_lifecycle",
-        "tests.test_r2_rollback_recovery_v2",
-        "tests.test_r2_rollback_recovery_v2_crash_matrix",
-        "tests.test_r2_retention_ledger_v2",
-        "tests.test_r2_operator_runbook_v2",
-        "tests.test_r2_ci_provenance_v2",
-    ),
+    CiProvenanceKindV2.PORTABLE: ("discover:tests:portable-full-suite",),
     CiProvenanceKindV2.WINDOWS_NATIVE: (
-        "tests.test_r2_main_publication_windows",
-        "tests.test_r2_repository_manifest_windows",
-        "tests.test_r2_runtime_publication_windows",
-        "tests.test_r2_database_publication_windows",
-        "tests.test_r2_crx_publication_windows",
-        "tests.test_r2_config_publication_windows",
-        "tests.test_r2_validation_lifecycle_windows",
-        "tests.test_r2_full_topology_windows",
+        _r2("main_publication_windows"),
+        _r2("repository_manifest_windows"),
+        _r2("runtime_publication_windows"),
+        _r2("database_publication_windows"),
+        _r2("crx_publication_windows"),
+        _r2("config_publication_windows"),
+        _r2("validation_lifecycle_windows"),
+        _r2("full_topology_windows"),
     ),
     CiProvenanceKindV2.WINDOWS_INDEPENDENT: (
-        "tests.test_r2_preflight_process",
-        "tests.test_r2_evidence_process",
-        "tests.test_r2_transaction_process",
+        _r2("preflight_process"),
+        _r2("evidence_process"),
+        _r2("transaction_process"),
     ),
 }
+
+_PORTABLE_NATIVE_SKIP_REASONS = (
+    "Windows integration only",
+    "Windows sandbox evidence",
+    "Windows sandbox required",
+    "Windows Job Object test",
+    "physical Windows claim",
+    "Windows NTFS sandbox required",
+    "Windows real TTY proof",
+    "Windows NTFS/TTY/process proof",
+    "Windows junction contract",
+)
 
 
 def fixed_suite_v2(kind):
@@ -59,5 +60,14 @@ def fixed_suite_fingerprint_v2(kind):
     return fingerprint("r2-fixed-ci-suite-v2", {
         "kind": kind.value,
         "modules": list(fixed_suite_v2(kind)),
+        "portable_native_skip_reasons": (
+            list(_PORTABLE_NATIVE_SKIP_REASONS)
+            if kind is CiProvenanceKindV2.PORTABLE else []
+        ),
+        "portable_full_suite": int(kind is CiProvenanceKindV2.PORTABLE),
         "required_skip_count": 0,
     })
+
+
+def portable_native_skip_reason_registry_v2():
+    return _PORTABLE_NATIVE_SKIP_REASONS

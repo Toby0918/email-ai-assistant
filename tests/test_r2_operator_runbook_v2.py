@@ -16,9 +16,11 @@ from backend.r2_operator_runbook_v2 import (
     RunbookVerificationStatusV2,
     command_catalog_v2,
     executable_verb_map_v2,
+    issue38_decision_registry_v2,
     operator_package_semantics_fingerprint_v2,
     operator_state_machine_v2,
     render_r2_operator_runbook_v2,
+    r1_blocker_resolution_registry_v2,
     resolve_operator_command_v2,
     runbook_document_fingerprint_v2,
 )
@@ -134,6 +136,12 @@ class R2OperatorRunbookV2Tests(unittest.TestCase):
         self.assertIn("DORMANT_NO_EXTERNAL_ISSUER", text)
         self.assertIn("LEGACY_FLAT_LAYOUT_RESTORED", text)
         self.assertIn("zero deletion capability", text)
+        self.assertEqual(len(issue38_decision_registry_v2()), 14)
+        self.assertEqual(len(r1_blocker_resolution_registry_v2()), 4)
+        for item in issue38_decision_registry_v2():
+            self.assertEqual(text.count(f"`{item.decision_id}`"), 1)
+        for item in r1_blocker_resolution_registry_v2():
+            self.assertEqual(text.count(f"Issue #{item.issue}"), 1)
 
     def test_receipt_binds_current_master_package_semantics_and_retention(self):
         receipt = self._receipt()
@@ -147,6 +155,7 @@ class R2OperatorRunbookV2Tests(unittest.TestCase):
         )
         self.assertEqual(restarted, receipt)
         self.assertIs(receipt.status, RunbookVerificationStatusV2.RUNBOOK_SEMANTICS_VERIFIED)
+        self.assertEqual((receipt.decision_count, receipt.r1_blocker_class_count), (14, 4))
         self.assertEqual(
             (
                 receipt.historical_command_count,

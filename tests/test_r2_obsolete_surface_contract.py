@@ -42,22 +42,22 @@ class R2ObsoleteSurfaceContractTests(unittest.TestCase):
             self.assertNotIn("Synthetic", source)
             self.assertIn("BLOCKED_NO_APPROVED_COMMAND", source)
 
-    def test_all_three_real_entries_reject_redirected_ingress_with_fixed_output(self):
+    def test_all_three_v2_roots_are_dormant_without_an_external_issuer(self):
         cases = (
             (
                 "backend.r2_preflight_process",
                 "current-topology",
-                "BLOCKED_TTY accepted=0 rejected=1 host_operations=0\n",
+                "DORMANT_NO_EXTERNAL_ISSUER accepted=0 rejected=0 read_operations=0\n",
             ),
             (
                 "backend.r2_evidence_process",
                 "publish",
-                "BLOCKED_TTY accepted=0 rejected=1 published=0\n",
+                "DORMANT_NO_EXTERNAL_ISSUER accepted=0 rejected=0 published=0\n",
             ),
             (
                 "backend.r2_transaction_process",
                 "execute",
-                "BLOCKED_TTY accepted=0 rejected=1 mutations=0\n",
+                "DORMANT_NO_EXTERNAL_ISSUER accepted=0 rejected=0 mutations=0\n",
             ),
         )
         for module, verb, expected in cases:
@@ -70,7 +70,7 @@ class R2ObsoleteSurfaceContractTests(unittest.TestCase):
                     text=True,
                     check=False,
                 )
-                self.assertEqual((completed.returncode, completed.stderr), (3, ""))
+                self.assertEqual((completed.returncode, completed.stderr), (0, ""))
                 self.assertEqual(completed.stdout, expected)
 
 

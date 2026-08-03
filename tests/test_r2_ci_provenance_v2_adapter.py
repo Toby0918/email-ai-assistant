@@ -26,7 +26,11 @@ class R2CiProvenanceV2AdapterTests(unittest.TestCase):
             workflow.mkdir(parents=True)
             (workflow / "agent_guardrails.yml").write_text(_workflow("ubuntu-24.04"))
             (workflow / "cleanup_agent.yml").write_text(_workflow("ubuntu-24.04"))
-            (workflow / "r2_provenance.yml").write_text(_workflow("windows-2022"))
+            (workflow / "r2_provenance.yml").write_text(
+                _workflow("windows-2022", provenance=True)
+            )
+            for name in ("requirements-ci-linux.lock", "requirements-ci-windows.lock"):
+                (root / name).write_bytes((ROOT / name).read_bytes())
             runbook = root / "docs" / "operations" / "r2_final_operator_runbook.md"
             runbook.parent.mkdir(parents=True)
             runbook.write_bytes(b"committed runbook\n")
@@ -56,6 +60,12 @@ class R2CiProvenanceV2AdapterTests(unittest.TestCase):
             )
             self.assertEqual(package.private_content_reads, 0)
             self.assertEqual(package.workflow_lock_fingerprint, lock.lock_fingerprint)
+            self.assertEqual(
+                package.runbook_fingerprint,
+                hashlib.sha256(
+                    b"r2-operator-runbook-document-v2\0committed runbook\n"
+                ).hexdigest(),
+            )
 
     def test_committed_workflows_are_pinned_and_have_independent_provenance_jobs(self):
         workflows = tuple((ROOT / ".github" / "workflows").glob("*.yml"))
@@ -76,15 +86,22 @@ class R2CiProvenanceV2AdapterTests(unittest.TestCase):
             self.assertIn(job, provenance)
         self.assertIn("scripts/verify_r2_ci_provenance.py", provenance)
         self.assertIn("scripts/reconcile_r2_ci_provenance.py", provenance)
+        self.assertEqual(provenance.count("--require-hashes"), 3)
 
 
-def _workflow(runner: str) -> str:
+def _workflow(runner: str, *, provenance: bool = False) -> str:
     return (
         "jobs:\n"
         "  gate:\n"
         f"    runs-on: {runner}\n"
         "    steps:\n"
         f"      - uses: actions/checkout@{'a' * 40}\n"
+        + (
+            "      - run: pip install --only-binary=:all: --require-hashes -r requirements-ci-linux.lock\n"
+            "      - run: pip install --only-binary=:all: --require-hashes -r requirements-ci-windows.lock\n"
+            "      - run: pip install --only-binary=:all: --require-hashes -r requirements-ci-windows.lock\n"
+            if provenance else ""
+        )
     )
 
 

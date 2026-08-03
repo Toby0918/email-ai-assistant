@@ -11,8 +11,10 @@ from .suites import (
     CiProvenanceKindV2,
     fixed_suite_fingerprint_v2,
     fixed_suite_v2,
+    portable_native_skip_reason_registry_v2,
 )
 from .workflow_lock import R2WorkflowLockV2
+from .dependency_lock import R2DependencyLockV2
 
 __all__ = [
     "CiProvenanceKindV2",
@@ -23,6 +25,8 @@ __all__ = [
     "R2GitObjectEntryV2",
     "R2GitObjectSourcePackageV2",
     "R2WorkflowLockV2",
+    "R2DependencyLockV2",
     "fixed_suite_fingerprint_v2",
     "fixed_suite_v2",
+    "portable_native_skip_reason_registry_v2",
 ]

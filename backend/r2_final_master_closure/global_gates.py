@@ -10,7 +10,7 @@ from .binding import FinalMasterBindingV1
 from .errors import FinalMasterClosureError
 from .evidence import R2ClosureGateReceiptV1
 from .global_gate_evidence import R2GlobalGateEvidenceV1, ZERO_GATE_FIELDS
-from .global_gate_registry import GlobalGateStatusV1, ReviewDomainV1
+from .global_gate_registry import GlobalGateStatusV1, ReviewDomainV1, gate_evidence_registry
 from .vocabulary import closure_gate_registry
 
 
@@ -50,8 +50,9 @@ class R2GlobalGateCoordinatorV1:
         raise TypeError("R2GlobalGateCoordinatorV1 requires create()")
 
     @classmethod
-    def create(cls, *, binding, coordinator_fingerprint, evidence):
+    def create(cls, *, binding, evidence):
         try:
+            coordinator_fingerprint = _coordinator_fingerprint()
             _require(binding, coordinator_fingerprint, evidence)
             receipts = _derive_receipts(binding, evidence)
             body = _body(binding, coordinator_fingerprint, receipts)
@@ -102,6 +103,18 @@ def _require(binding, coordinator, evidence):
         raise FinalMasterClosureError()
     if {item.review_domain for item in evidence} != set(ReviewDomainV1):
         raise FinalMasterClosureError()
+
+
+def _coordinator_fingerprint():
+    return fingerprint("r2-fixed-global-gate-coordinator-v1", [
+        {
+            "gate": item.gate.value,
+            "producer": item.producer.value,
+            "review_domain": item.review_domain.value,
+            "verification_public_key_hex": item.verification_public_key.hex(),
+        }
+        for item in gate_evidence_registry()
+    ])
 
 
 def _derive_receipts(binding, evidence):

@@ -27,6 +27,7 @@ class R2OperatorProcessArchitectureTests(unittest.TestCase):
                 "entry.py",
                 "terminal.py",
                 "testing.py",
+                "bootstrap_v2.py",
                 "production_v2.py",
             },
         )

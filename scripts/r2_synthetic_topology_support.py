@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import hashlib
+import sys
 import tempfile
 from pathlib import Path
 
@@ -76,7 +77,7 @@ _DYNAMIC_SURFACE_MODULES = (
 def run_verification(repo_root: Path, script_path: Path) -> dict[str, object]:
     criteria = repo_root / "docs" / "operations" / "r2_synthetic_verification_criteria.md"
     with tempfile.TemporaryDirectory(
-        prefix="r2-full-topology-", dir=repo_root.anchor
+        prefix="r2-full-topology-", dir=Path(sys._base_executable).anchor
     ) as raw:
         sandbox = Path(raw)
         if not _is_ntfs(sandbox):

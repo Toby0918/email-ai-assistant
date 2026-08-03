@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-02
+last_update: 2026-08-03
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -7,6 +7,46 @@ source_type: operation_guide
 ---
 
 # Executable Architecture Constraints
+
+## Issue #102 terminal verifier architecture
+
+`R2FrozenRemoteMasterV1` is a nominal pure observation contract with no public
+constructor. The fixed no-argument `scripts/verify_r2_final_master_closure.py`
+adapter requires isolated safe-path Python, rejects every tracked or untracked
+worktree change including hidden index flags, compares `HEAD` and
+`refs/remotes/origin/master` to a fresh fixed-URL `refs/heads/master`
+observation, and strips inherited Git state while disabling replacement refs,
+fsmonitor, sparse-checkout, and untracked-cache projections. It reads the raw
+commit, recursively parses the raw tree objects, and independently recomputes
+every commit/tree/blob Git object hash before any repository import. Before
+writing any blob it rejects unsupported modes,
+Win32 trailing-dot/space, ADS, reserved-device, short-name, Unicode/case-fold
+aliases, other unsafe paths, and collisions. It also rejects blob-hash
+disagreement, any index/worktree byte disagreement, any current verifier-script
+byte disagreement with the verified blob, and any imported repository module whose
+origin is outside that materialized tree. That verified code
+derives the Git-object package directly from the verified descriptors, plus
+domain-separated runbook, workflow, and
+dependency-lock identities and only then allocates the observation. Historical,
+dirty, shadowed, stale-remote, or mixed identity fails closed.
+
+The fixed script reads one exact reviewed-production-binding artifact and
+fourteen exact signed-evidence filenames from the Git common directory; it
+accepts no path or receipt argument. Missing or invalid external input returns
+zero eligibility with a fixed content-free status. The production-binding
+adapter validates a concrete `ApprovedCutoverBindingV2` against the frozen
+master and derives a pure `R2ReviewedProductionBindingReceiptV1`; the closure
+package imports only that pure receipt type. Only after verification does the
+pure coordinator derive eight unique same-binding gap proofs and recompute
+the fourteen gate receipts and the sole terminal receipt, then returns an
+immutable `R2FinalMasterReviewPackageV1` whose only status is
+`AWAITING_SINGLE_HUMAN_FINAL_REVIEW`. The module exposes no approve, merge,
+execute, authority-issuance, receipt-conversion, host, process, provider,
+mailbox, vault, credential, private-data, cleanup, or #39 capability.
+
+The package is not final approval. A human must independently freeze/review the
+remote master and decide #38; repository code cannot set human review complete,
+record approval, issue authority, or convert eligibility into execution.
 
 ## Issue #101 same-binding global-gate architecture
 
@@ -17,7 +57,10 @@ Spec, security, documentation, mechanical, leakage, or operator review.
 
 Each `R2GlobalGateEvidenceV1` is immutable, content-free, same-binding, and
 fixed to zero skips, divergence, leakage, private-data access, host operations,
-provider attempts, and #39 changes. `R2GlobalGateCoordinatorV1` accepts only
+provider attempts, and #39 changes. Each registry row also fixes a distinct
+Ed25519 verification public key; evidence exists only after the external
+producer signature verifies. There is no public arbitrary-fingerprint
+constructor. `R2GlobalGateCoordinatorV1` accepts only
 the exact ordered evidence set, requires fourteen distinct producers and all
 seven domains, and derives the existing `R2ClosureGateReceiptV1` values itself.
 It accepts no supplied receipt, authority, callback, path, process, host,
@@ -31,7 +74,8 @@ scope only. It cannot represent the human final-master review reserved for
 
 `backend.r2_ci_provenance_v2` owns only immutable content-free contracts: exact
 Git blob observations, the final commit/tree source package, workflow/action
-lock state, the closed platform-suite registry, three provenance receipts, and
+lock state, two complete platform dependency locks, the closed platform-suite
+registry, three provenance receipts, and
 their same-package reconciliation bundle. It has no path, environment,
 process, filesystem, network, test runner, host adapter, issuer, or mutation
 capability.
@@ -43,9 +87,12 @@ blob OID, and rereads the commit/tree after collection. It never enumerates or
 packages ignored or untracked content. The verify and reconcile entry scripts
 accept no path, command, suite, workflow, receipt-file, or host selector.
 
-The three runner jobs are independent. Portable claims contain no native test;
-Windows native and Windows process-isolation claims run only on fixed Windows
-runner images. Their receipts are evidence, never authority, and no package in
+The three runner jobs are independent. All installs use `--require-hashes`;
+receipts bind 31 exact installed distributions, platform wheel hashes, and nine
+direct import-byte observations. The portable job discovers the full `tests/`
+suite and removes only exact registered Windows-native skips; every remaining
+skip fails. Windows native and Windows process-isolation claims run only on fixed
+Windows runner images. Their receipts are evidence, never authority, and no package in
 this module is consumed by normal runtime or the #39 cutover surface.
 
 ## Issue #99 generated operator-runbook architecture
@@ -58,7 +105,8 @@ retention-reconciliation, and human-review phases; non-command phases expose no
 executable verb.
 
 `backend.r2_operator_runbook_v2` renders one fixed UTF-8/LF Markdown document
-from that catalog and state machine. Its receipt binds the exact final master,
+from that catalog, state machine, fourteen-item Issue #38 decision registry,
+and four-class R1 blocker completion map. Its receipt binds the exact final master,
 source-package hash, generated document hash, current package semantics, and
 #98 retention proof. It has no document input selector, path, writer, process,
 issuer, host adapter, or authority conversion.
@@ -1673,6 +1721,80 @@ are not reachable from those entries. The public package surfaces export the
 verifier-side V2 role and dispatcher types needed to bind complete production
 compositions.
 
+Every production role bundle is `init=False` and can be created only by
+comparing the selected top-level function's path-independent normalized code,
+defaults, keyword defaults, function state, referenced globals/builtins, and
+the exact command-parameter type surfaces to the corresponding
+`ApprovedCutoverBindingV2.production_role_fingerprints` entry. Top-level bound
+methods and closures are rejected. Recursive bytecode checks reject imports,
+dynamic namespaces/frames, function-attribute access, and global mutation.
+Every statically referenced global is recursively framed: helper functions bind
+their code and semantic dependencies; module frames bind their non-dunder
+namespace values plus repository-owned or synthetic executable loaded globals;
+pinned external-module functions remain bound by complete code surface without
+recursively absorbing mutable interpreter state. Type frames bind non-built-in
+MRO-owner constructors, methods, properties, descriptors, scalar and object
+constants, and custom metaclass construction. Same-family, explicitly mounted,
+and external behavior-surface inherited methods recursively bind loaded
+globals, while exact standard-library Enum auto-copies retain their complete
+code surface. Object, Enum-member, and bound-method receiver
+frames bind their deep type surface plus dictionary and non-built-in-MRO slot
+state; built-in bound methods and method wrappers bind non-module receiver
+state. Slot collection calls each exact owner member descriptor so shadowed
+same-name base slots remain distinct and cannot invoke pickle/getstate hooks. Global
+staticmethod and property descriptors preserve the same deep policy. Exact command-parameter
+methods use the same rule. This
+covers local aliases, branches, helper returns,
+containers, cross-module calls, parameter helper/configuration drift, global
+constructors, and standard-library encoder state without local flow inference.
+Deep opaque/native values without provably complete dictionary/slot state fail
+closed; extension owners exposing native method or wrapper members are never
+treated as complete. External code-surface functions use shallow implicit-value frames, so
+their pinned code remains stable without recursively absorbing interpreter
+state; functions nested only in implicit values remain pure code surfaces.
+External namespace object methods, nested types, and container-carried
+types separately recurse through actual `LOAD_GLOBAL` behavior dependencies,
+including encoder helpers. Re-exported functions, object-state modules, and
+custom-metaclass construction preserve the same dependency policy and bind the
+custom metaclass's complete non-built-in MRO/class state through
+class-state object graphs and owned-to-external transitions. Module
+`__getattr__` and custom `ModuleType` subclasses are rejected as dynamic
+namespaces; unsupported module dunder reads are rejected. Built-in types are
+recognized only by exact object identity in the `builtins` namespace, so a
+spoofed `__module__` cannot suppress non-built-in behavior. Type frames also
+bind the exact name and runtime-readable annotations, doc/generic metadata,
+plus complete dataclass field configuration through a dedicated stable frame.
+Loaderless explicitly mounted nested modules bind their value namespace;
+ordinary imported nested modules remain nominal only while unreferenced;
+traversal-wide attribute closure rejects accessed loaderful nested modules,
+including alias/helper/container paths, while accessed external same-namespace
+functions bind their loaded globals. Module `__doc__` is bound explicitly.
+Float and complex values use exact
+IEEE bytes, slices recursively preserve member types, and the only native
+behavior adapters are exact closed state projections such as locale-independent
+regex and the six-field CPython JSON scanner. Type namespace, MRO, and identity
+come only from exact `type` descriptors; custom instance `__dict__` descriptors,
+nonempty/custom dataclass metadata, and `re.LOCALE` patterns fail closed without
+executing user behavior.
+Dispatch and the wrapper recompute current
+behavior identity immediately before invocation, so post-binding code/default/
+global/module/type/object/parameter-surface drift and arbitrary injected
+callables fail before any role effect.
+
+Each root also owns a nominal `bootstrap_v2.py` contract. `main()` reaches its
+existing `run_*_production_v2` composition only when the process launcher
+injects that exact bootstrap object containing the reviewed binding, its exact
+frozen-review receipt, the binding-bound public production roles, same-binding
+durable claims, and journal identities. Bootstrap creation revalidates every
+receipt field and role and rejects the testing-only synthetic marker. Production
+`main()` owns `SystemTerminal` and the module-fixed system clock; neither is an
+argument or bootstrap field. No path, environment, CLI payload, generic mapping,
+clock callback, or terminal adapter can construct or select the bootstrap.
+The small claim/receipt match predicates intentionally remain root-local even
+when mechanically identical: sharing bootstrap validation code across these
+three packages would weaken the documented physical non-import boundary. Shared
+semantics stop at the existing immutable production-binding contracts.
+
 No executable root imports `testing.py`, accepts a synthetic context or test
-binder, or owns an issuer/private signing key. With no external issuer the
-three executable V2 process roots return only `DORMANT_NO_EXTERNAL_ISSUER`.
+binder, or owns an issuer/private signing key. With no bootstrap the three
+executable V2 process roots return only `DORMANT_NO_EXTERNAL_ISSUER`.

@@ -12,6 +12,7 @@ from .production_v2 import (
     dormant_preflight_production_v2,
     run_preflight_production_v2,
 )
+from .bootstrap_v2 import PreflightProductionBootstrapV2
 
 __all__ = [
     "PREFLIGHT_ACKNOWLEDGEMENT",
@@ -19,6 +20,7 @@ __all__ = [
     "PreflightProcessResult",
     "PreflightProcessStatus",
     "PreflightProductionRolesV2",
+    "PreflightProductionBootstrapV2",
     "PreflightProductionStatusV2",
     "dormant_preflight_production_v2",
     "run_preflight_production_v2",

@@ -1,9 +1,9 @@
 ---
-last_update: 2026-08-02
+last_update: 2026-08-03
 status: active
 owner: "@tobyWang"
 review_cycle: as_needed
-source_type: task_brief
+source_type: operation_guide
 ---
 
 # Issues 86-102 R2 Final-Master Closure Task Brief
@@ -61,13 +61,13 @@ generated runbook、portable/Windows provenance 和 fourteen global gates 绑定
 
 ## 7. 涉及范围
 
-预计新增或修改：
+预计新增或修改:
 
-- `backend/r2_final_master_closure/`：closure vocabulary、binding、gap/gate evidence、
+- `backend/r2_final_master_closure/`: closure vocabulary、binding、gap/gate evidence、
   source-package/runbook/global coordinator contracts。
 - 现有三个 production process roots、R2 publication/repository/lifecycle/recovery modules，
   仅按各 ticket 的 fixed composition seam 深化。
-- `tests/`：public-contract、fresh-process、crash-gap、Git-byte、retention、runbook、
+- `tests/`: public-contract、fresh-process、crash-gap、Git-byte、retention、runbook、
   Windows/portable provenance、architecture、mechanical、documentation、leakage tests。
 - `.github/workflows/` 与 hash-locked CI inputs，仅在 #100 明确范围内修改。
 - `docs/operations/`、`docs/security/`、`docs/constraints/` 与 generated status，按 ticket
@@ -75,7 +75,7 @@ generated runbook、portable/Windows provenance 和 fourteen global gates 绑定
 
 ## 8. 技术方案
 
-1. #86 建立一个纯 in-process 深层 module：公开 interface 仅包含 immutable binding、
+1. #86 建立一个纯 in-process 深层 module: 公开 interface 仅包含 immutable binding、
    gap/gate receipts 与 terminal receipt construction；内部隐藏 canonical validation。
 2. #87-#91 将 reviewed V2 binding 与 no-issuer dormancy 连接到三个物理独立 process roots。
 3. #92 从 Git objects 证明 selected bytes、fourteen refs、Repository Root 和 eleven
@@ -193,15 +193,48 @@ Not applicable.
 ## 21. 执行后记录
 
 ```text
-实际修改文件：
-- Pending.
+实际修改文件:
+- #86-#101 已按依赖顺序完成、提交并关闭；#102 保持 open，等待人工 final review。
+- #102 增加固定 Git-object verifier、签名 gate evidence、production callable code binding、
+  14 项决策与 4 类 R1 blocker 的 runbook registry，以及跨平台 hash-locked CI provenance。
+- #102 verifier 现独立重算 raw commit/tree/blob 哈希，清除继承 Git 状态并禁用 replace
+  refs，拒绝隐藏 index flags/工作树字节漂移，并在导入业务模块前核对自身已验证 blob。
+- Verifier 只通过 scrubbed Git status 拒绝 non-ignored 漂移并逐一读取 exact tracked
+  paths；ignored residue 不枚举不读取，tracked parent/file 的 symlink、junction 与
+  reparse 状态均 fail closed，完整 root-to-file identity chain 在 bounded read 前后
+  保持一致；current script 复用同一 reader，fresh remote observation 位于这些本地
+  trust checks 之后。
+- Production callable binding 额外关闭 loaderful nested-module 间接访问、external
+  same-namespace globals、dynamic private-attribute adapter、module `__doc__`、custom
+  dataclass metadata、custom `__dict__` descriptor、metaclass spoof 与 `re.LOCALE` 缺口。
+- 同步更新 architecture、linter、mechanical、security、testing、project structure 与
+  generated operator runbook 文档和对应测试。
 
-测试结果：
-- Pending.
+测试结果:
+- Latest focused closure/repair suites: 71 passed。
+- R2 architecture suites: 91 passed；latest mechanical/static/architecture suites: 117 passed。
+- Documentation/security suites: 115 passed；R2 contract fast suites: 195 passed。
+- Process suites: 34 passed；journal/recovery/lifecycle suites: 35 passed。
+- Windows-native suites excluding full topology: 29 passed；full topology: 6 passed。
+- Final full repository suite: `2779` tests passed in `3401.636s` with `3` existing skips，
+  using Python `3.12.13` and `.venv` site packages；the earlier isolated Windows server
+  connection-abort flake did not recur。
+- `compileall`、`git diff --check`、status generation 与 repository leakage scan passed；
+  leakage result is `{"findings":[],"total":0}`。
+- Maintenance scan completed read-only with zero high findings；only 19 pre-existing low
+  stale-document findings remain。
+- Independent `code-review` re-review completed with Standards PASS and Spec PASS after all
+  actionable findings were remediated。
 
-未完成事项：
-- #102 human final review remains human-only by contract.
+未完成事项:
+- #102 human final review remains human-only by contract。
+- Operator 已提供 14 个 unique Ed25519 producer public keys；每个 32-byte public key 的
+  64-byte possession signature 已按固定 role-bound challenge 验证。Private keys 未读取、
+  未复制、未持有且不得提交；仓库仅冻结已验证 public keys。
+- Merge、remote-master freeze、external signed receipts 与 Issue #38 approval 均未执行。
 
-后续建议：
-- Pending.
+后续建议:
+- 按 explicit allowlist 提交、推送并创建 #102 PR；由人工 merge/freeze 后运行 fixed
+  verifier，再由人工处理 Issue #38。
+- Issue #38 获批前不得启动 Issue #39 或任何 live cutover。
 ```

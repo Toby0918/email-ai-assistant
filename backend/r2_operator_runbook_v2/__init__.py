@@ -18,6 +18,12 @@ from .state_machine import (
     operator_package_semantics_fingerprint_v2,
     operator_state_machine_v2,
 )
+from .review_registry import (
+    blocker_resolution_fingerprint_v2,
+    decision_registry_fingerprint_v2,
+    issue38_decision_registry_v2,
+    r1_blocker_resolution_registry_v2,
+)
 
 __all__ = [
     "OperatorCommandEffectV2", "OperatorPhaseV2", "OperatorSurfaceV2",
@@ -27,4 +33,8 @@ __all__ = [
     "operator_package_semantics_fingerprint_v2", "operator_state_machine_v2",
     "render_r2_operator_runbook_v2", "resolve_operator_command_v2",
     "runbook_document_fingerprint_v2",
+    "blocker_resolution_fingerprint_v2",
+    "decision_registry_fingerprint_v2",
+    "issue38_decision_registry_v2",
+    "r1_blocker_resolution_registry_v2",
 ]

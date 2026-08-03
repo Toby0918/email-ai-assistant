@@ -11,6 +11,9 @@ from backend.r2_production_binding import (
     ApprovedCutoverBindingV2,
     DurableAuthorityClaimV2,
     ProductionCommandV2,
+    R2BoundProductionCallableV2,
+    bind_production_callable_v2,
+    reverify_bound_production_callable_v2,
 )
 from backend.r2_production_binding.catalog import (
     OperatorSurfaceV2,
@@ -77,15 +80,28 @@ class TransactionActionCompletionV2:
     mutations: int
 
 
-@dataclass(frozen=True, slots=True, repr=False)
+@dataclass(frozen=True, slots=True, init=False, repr=False)
 class TransactionProductionRolesV2:
     execute: object = field(repr=False)
     resume: object = field(repr=False)
     rollback: object = field(repr=False)
 
-    def __post_init__(self):
-        if not all(callable(value) for value in self._values()):
-            raise TypeError("R2_TRANSACTION_PRODUCTION_ROLES_INVALID")
+    def __init__(self, *args, **kwargs):
+        raise TypeError("TransactionProductionRolesV2 requires create()")
+
+    @classmethod
+    def create(cls, *, binding, execute, resume, rollback):
+        callbacks = {
+            ProductionCommandV2.EXECUTE: execute,
+            ProductionCommandV2.RESUME: resume,
+            ProductionCommandV2.ROLLBACK: rollback,
+        }
+        return _allocate_roles(tuple(
+            bind_production_callable_v2(
+                binding=binding, command=command, callback=callbacks[command]
+            )
+            for command in callbacks
+        ))
 
     def select(self, command):
         if type(command) is not ProductionCommandV2:
@@ -158,9 +174,10 @@ def dormant_transaction_production_v2(*, argv):
     )
 
 
-def main(*, argv=None):
+def main(*, argv=None, bootstrap=None):
     arguments = tuple(sys.argv[1:]) if argv is None else argv
-    result = dormant_transaction_production_v2(argv=arguments)
+    from .bootstrap_v2 import execute_transaction_main_v2
+    result = execute_transaction_main_v2(arguments, bootstrap)
     sys.stdout.write(
         f"{result.status.value} accepted={result.accepted} "
         f"rejected={result.rejected} mutations={result.mutations}\n"
@@ -211,7 +228,10 @@ def _invoke_action(binding, roles, claim, head, transition, plan):
     try:
         if type(roles) is not TransactionProductionRolesV2:
             raise TypeError
-        completion = roles.select(claim.command)(
+        role = reverify_bound_production_callable_v2(
+            binding=binding, command=claim.command, bound=roles.select(claim.command)
+        )
+        completion = role(
             binding, claim, head, transition, plan
         )
         if (
@@ -263,3 +283,15 @@ def _valid_argv(argv):
 
 def _blocked(status):
     return TransactionProductionResultV2(status, 0, 1, 0)
+
+
+def _allocate_roles(values):
+    if len(values) != 3 or any(type(item) is not R2BoundProductionCallableV2 for item in values):
+        raise TypeError("R2_TRANSACTION_PRODUCTION_ROLES_INVALID")
+    result = object.__new__(TransactionProductionRolesV2)
+    object.__setattr__(result, "execute", values[0])
+    object.__setattr__(result, "resume", values[1])
+    object.__setattr__(result, "rollback", values[2])
+    return result
+def _create_synthetic_roles_v2(values):
+    return _allocate_roles(values)

@@ -28,9 +28,15 @@ class R2CiProvenanceReceiptV2:
     selected_entry_count: int
     selected_byte_count: int
     workflow_lock_fingerprint: str = field(repr=False)
+    dependency_lock_fingerprint: str = field(repr=False)
+    platform_lock_fingerprint: str = field(repr=False)
     runbook_fingerprint: str = field(repr=False)
     suite_fingerprint: str = field(repr=False)
     runner_fingerprint: str = field(repr=False)
+    installed_dependency_fingerprint: str = field(repr=False)
+    hash_locked_dependency_count: int
+    wheel_hash_count: int
+    portable_full_suite: int
     historical_package_count: int
     required_skip_count: int
     platform_divergence_count: int
@@ -65,6 +71,7 @@ class R2CiProvenanceReceiptV2:
                 workflow_lock=workflow_lock,
                 provenance_kind=CiProvenanceKindV2(source["provenance_kind"]),
                 runner_fingerprint=source["runner_fingerprint"],
+                installed_dependency_fingerprint=source["installed_dependency_fingerprint"],
                 suite_fingerprint=source["suite_fingerprint"],
                 required_skip_count=source["required_skip_count"],
                 platform_divergence_count=source["platform_divergence_count"],
@@ -94,6 +101,7 @@ class R2CiProvenanceBundleV2:
     final_tree_oid: str = field(repr=False)
     source_package_fingerprint: str = field(repr=False)
     workflow_lock_fingerprint: str = field(repr=False)
+    dependency_lock_fingerprint: str = field(repr=False)
     runbook_fingerprint: str = field(repr=False)
     provenance_receipt_count: int
     historical_package_count: int
@@ -102,6 +110,9 @@ class R2CiProvenanceBundleV2:
     leakage_finding_count: int
     failure_count: int
     runner_fingerprint_count: int
+    hash_locked_dependency_count: int
+    wheel_hash_count: int
+    portable_full_suite_receipt_count: int
     receipt_set_fingerprint: str = field(repr=False)
     bundle_fingerprint: str = field(repr=False)
 
@@ -143,7 +154,8 @@ class R2CiProvenanceBundleV2:
 
 def _require_receipt_inputs(values):
     expected = {"source_package", "workflow_lock", "provenance_kind",
-                "runner_fingerprint", "suite_fingerprint", "required_skip_count",
+                "runner_fingerprint", "installed_dependency_fingerprint",
+                "suite_fingerprint", "required_skip_count",
                 "platform_divergence_count", "leakage_finding_count", "failure_count"}
     if set(values) != expected:
         raise R2CiProvenanceError()
@@ -153,7 +165,9 @@ def _require_receipt_inputs(values):
         raise R2CiProvenanceError()
     if type(kind) is not CiProvenanceKindV2 or package.workflow_lock_fingerprint != lock.lock_fingerprint:
         raise R2CiProvenanceError()
-    if not is_fingerprint(values["runner_fingerprint"]):
+    if not is_fingerprint(values["runner_fingerprint"]) or not is_fingerprint(
+        values["installed_dependency_fingerprint"]
+    ):
         raise R2CiProvenanceError()
     if values["suite_fingerprint"] != fixed_suite_fingerprint_v2(kind):
         raise R2CiProvenanceError()
@@ -164,6 +178,8 @@ def _require_receipt_inputs(values):
 
 
 def _receipt_body(package, kind, values):
+    lock = values["workflow_lock"]
+    platform = "linux" if kind is CiProvenanceKindV2.PORTABLE else "windows"
     return {
         "receipt_type": "R2CiProvenanceReceiptV2",
         "status": CiProvenanceStatusV2.CI_PROVENANCE_VERIFIED.value,
@@ -174,9 +190,15 @@ def _receipt_body(package, kind, values):
         "selected_entry_count": package.selected_entry_count,
         "selected_byte_count": package.selected_byte_count,
         "workflow_lock_fingerprint": package.workflow_lock_fingerprint,
+        "dependency_lock_fingerprint": lock.dependency_lock_fingerprint,
+        "platform_lock_fingerprint": lock.dependency_lock.platform_fingerprint(platform),
         "runbook_fingerprint": package.runbook_fingerprint,
         "suite_fingerprint": values["suite_fingerprint"],
         "runner_fingerprint": values["runner_fingerprint"],
+        "installed_dependency_fingerprint": values["installed_dependency_fingerprint"],
+        "hash_locked_dependency_count": lock.dependency_lock.dependency_count,
+        "wheel_hash_count": lock.dependency_lock.wheel_hash_count // 2,
+        "portable_full_suite": int(kind is CiProvenanceKindV2.PORTABLE),
         "historical_package_count": 0,
         "required_skip_count": 0,
         "platform_divergence_count": 0,
@@ -202,7 +224,7 @@ def _require_bundle_inputs(package, lock, receipts):
         raise R2CiProvenanceError()
     expected = (package.final_commit_oid, package.final_tree_oid,
                 package.source_package_fingerprint, lock.lock_fingerprint,
-                package.runbook_fingerprint)
+                lock.dependency_lock_fingerprint, package.runbook_fingerprint)
     if any(_receipt_binding(item) != expected for item in ordered):
         raise R2CiProvenanceError()
     return ordered
@@ -210,7 +232,8 @@ def _require_bundle_inputs(package, lock, receipts):
 
 def _receipt_binding(item):
     return (item.final_commit_oid, item.final_tree_oid, item.source_package_fingerprint,
-            item.workflow_lock_fingerprint, item.runbook_fingerprint)
+            item.workflow_lock_fingerprint, item.dependency_lock_fingerprint,
+            item.runbook_fingerprint)
 
 
 def _bundle_body(package, lock, receipts):
@@ -221,6 +244,7 @@ def _bundle_body(package, lock, receipts):
         "final_tree_oid": package.final_tree_oid,
         "source_package_fingerprint": package.source_package_fingerprint,
         "workflow_lock_fingerprint": lock.lock_fingerprint,
+        "dependency_lock_fingerprint": lock.dependency_lock_fingerprint,
         "runbook_fingerprint": package.runbook_fingerprint,
         "provenance_receipt_count": 3,
         "historical_package_count": 0,
@@ -229,6 +253,9 @@ def _bundle_body(package, lock, receipts):
         "leakage_finding_count": 0,
         "failure_count": 0,
         "runner_fingerprint_count": 3,
+        "hash_locked_dependency_count": lock.dependency_lock.dependency_count,
+        "wheel_hash_count": lock.dependency_lock.wheel_hash_count,
+        "portable_full_suite_receipt_count": 1,
         "receipt_set_fingerprint": fingerprint("r2-ci-provenance-receipt-set-v2",
                                                [item.receipt_fingerprint for item in receipts]),
     }

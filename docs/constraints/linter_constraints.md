@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-02
+last_update: 2026-08-03
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -7,6 +7,33 @@ source_type: operation_guide
 ---
 
 # Static Linter Constraints
+
+## R2 Issue #102 terminal-review guards
+
+- Require exact observed remote commit/tree, source-package, runbook, and
+  workflow fingerprints to equal the frozen final-master binding.
+- Require isolated safe-path Python, the fixed no-argument Git adapter, a clean
+  tracked-and-untracked worktree with no assume-unchanged/skip-worktree entry,
+  exact local and fresh fixed-URL remote-master equality, a scrubbed Git
+  environment with replacement refs disabled, independent raw commit/tree/blob
+  hash verification before repository imports, exact current-script and
+  imported-module origins/bytes, and fourteen exact Git-common-dir receipt
+  filenames; reject path or receipt args.
+- Require exactly eight ordered, unique, same-binding gap proofs and the exact
+  #101 fourteen-gate coordinator; do not accept caller-supplied terminal or gate
+  receipts.
+- Require the exact Git-common-dir `reviewed-production-binding-v2.json`,
+  validate one concrete `ApprovedCutoverBindingV2` against the frozen master,
+  and bind its four registries plus production-composition evidence into the
+  final package. Missing/invalid input must use the fixed blocked status.
+- Derive every gap proof from the explicit exhaustive eight-gap/fourteen-gate
+  semantic partition; reject positional or partial gate pairing.
+- Recompute the terminal receipt and immutable review package; reject unknown,
+  stale, mixed, duplicate, skipped, leaking, or contract-changing evidence.
+- Fix `human_review_completed`, approval, execution-authority, #39, provider,
+  live-host, private-data, cleanup, and every finding count at zero.
+- Permit only `AWAITING_SINGLE_HUMAN_FINAL_REVIEW`; reject any `APPROVED` status
+  or approve/merge/execute/authorize method and keep authority types disjoint.
 
 ## R2 Issue #101 global-gate guards
 
@@ -18,6 +45,9 @@ source_type: operation_guide
   producer evidence is invalid.
 - Require coordinator, producer, evidence, and binding fingerprints to remain
   distinct, and derive every receipt from evidence inside the coordinator.
+- Require one fixed distinct Ed25519 public key per producer and a valid
+  signature over the complete canonical evidence body; raw fingerprints cannot
+  set `verified=1` or `self_certified=0`.
 - Reject any nonzero self-certified, required/unclassified skip, divergence,
   leakage, private-data, host-operation, provider-attempt, or #39-change count.
 - Keep the package pure and below file/function limits; no host, process,
@@ -35,6 +65,8 @@ source_type: operation_guide
 - Receipt construction requires exact final commit/tree, runbook hash, source-
   package hash, current package-semantics fingerprint, and same-binding #98
   proof. Stale or mixed evidence fails closed.
+- Require exactly fourteen decision rows and four R1 blocker-class completion
+  rows; bind both registry fingerprints and reject omission or duplication.
 - Retention reconciliation and human final review accept no command; the
   generated artifact, receipt, CI, and synthetic proof are not authority.
 
@@ -1379,5 +1411,27 @@ docs/constraints/architecture_constraints.md
   executable production path.
 - Production modules must not import a synthetic context, `testing.py`, a test
   binder, an issuer, or a private signing key.
-- Default fixed-verb entry returns `DORMANT_NO_EXTERNAL_ISSUER`; a valid future
-  V2 authority is verified before exactly one bound composition role.
+- Default fixed-verb entry returns `DORMANT_NO_EXTERNAL_ISSUER`. The only live
+  reachability seam is the exact nominal `bootstrap_v2.py` object injected by
+  the process launcher; it must hold the reviewed binding, exact frozen-review
+  receipt, binding-bound public roles, same-binding claims, and journal
+  identities, and must reject every testing-only synthetic bound role.
+- A valid V2 authority is verified before exactly one bound composition role;
+  no CLI/path/environment/bootstrap mapping may construct or select a role.
+  `main()` accepts no terminal or clock injection and uses only its exact
+  `SystemTerminal` plus module-owned system clock.
+- Production role fingerprints must bind normalized top-level function code,
+  defaults, keyword defaults, function state, recursively referenced globals and
+  builtins, and exact command-parameter type surfaces. Closed semantic frames
+  cover helper dependencies, referenced module non-dunder namespaces plus
+  executable loaded globals, non-built-in MRO-owner executable surfaces,
+  scalar/object constants, custom metaclass construction, object state, and
+  exact parameter-method loaded globals. Tests must prove alias/branch/helper/
+  container/cross-module, parameter helper/configuration, class-state,
+  constructor, `JSONEncoder`, and default-encoder drift fail before invocation.
+  Traversal-wide attribute closure must fail closed for accessed loaderful
+  nested modules through alias/helper/container paths; exact `type` descriptors
+  must bypass metaclass identity/namespace/MRO spoofing; module `__doc__` drift
+  must bind. Custom instance `__dict__` descriptors and custom/nonempty
+  dataclass metadata must be rejected without execution or iteration, dynamic
+  private-attribute string adapters must fail, and `re.LOCALE` is forbidden.

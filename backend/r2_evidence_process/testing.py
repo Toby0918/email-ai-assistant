@@ -15,12 +15,13 @@ from .contracts import (
 )
 from .entry import run_authorization_gate
 from .production_v2 import (
-    EvidenceProductionRoleV2,
+    _create_synthetic_role_v2,
     EvidenceProductionStatusV2,
     complete_reviewed_evidence_publication_v2,
     run_evidence_production_v2,
 )
-from backend.r2_production_binding import ApprovedCutoverBindingV2
+from backend.r2_production_binding import ApprovedCutoverBindingV2, ProductionCommandV2
+from backend.r2_production_binding.role_binding import _synthetic_bound_callable_v2
 from backend.r2_transaction_journal_v2 import R2JournalGenesisV2
 
 
@@ -189,7 +190,9 @@ class SyntheticEvidenceProductionV2:
         )
         if process._genesis is not None:
             process._head = process._genesis.head_fingerprint
-        process._role = EvidenceProductionRoleV2(process._publish_once)
+        process._role = _create_synthetic_role_v2(_synthetic_bound_callable_v2(
+            ProductionCommandV2.EVIDENCE_PUBLICATION, process._publish_once, process._binding
+        ))
         return process
 
     @property

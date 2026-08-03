@@ -17,11 +17,12 @@ from .contracts import (
 from .entry import run_authorization_gate
 from .production_v2 import (
     UNBOUND_REVERSE_PLAN_V2,
-    TransactionProductionRolesV2,
+    _create_synthetic_roles_v2,
     complete_transaction_action_v2,
     run_transaction_production_v2,
 )
 from backend.r2_production_binding import ApprovedCutoverBindingV2, ProductionCommandV2
+from backend.r2_production_binding.role_binding import _synthetic_bound_callable_v2
 from backend.r2_transaction_journal_v2 import R2JournalGenesisV2
 
 
@@ -214,12 +215,12 @@ class SyntheticTransactionProductionV2:
         }
         process._invoked = False
         process.total_action_acquisitions = 0
-        process._roles = TransactionProductionRolesV2(
-            *(
-                _action_callback(process, command)
-                for command in process._actions
+        process._roles = _create_synthetic_roles_v2(tuple(
+            _synthetic_bound_callable_v2(
+                command, _action_callback(process, command), process._binding
             )
-        )
+            for command in process._actions
+        ))
         return process
 
     def run(self, *, argv, terminal):

@@ -8,10 +8,11 @@ from backend.cutover_contracts import CutoverProfileV1
 from backend.r2_production_binding import ApprovedCutoverBindingV2, ProductionCommandV2
 from .entry import run_authorization_gate
 from .production_v2 import (
-    PreflightProductionRolesV2,
+    _create_synthetic_roles_v2,
     complete_preflight_read_v2,
     run_preflight_production_v2,
 )
+from backend.r2_production_binding.role_binding import _synthetic_bound_callable_v2
 
 
 class SyntheticPreflightProcess:
@@ -113,7 +114,10 @@ class SyntheticPreflightProductionV2:
             command: _callback(value, command)
             for command in tuple(ProductionCommandV2)[:6]
         }
-        value._roles = PreflightProductionRolesV2(*callbacks.values())
+        value._roles = _create_synthetic_roles_v2(tuple(
+            _synthetic_bound_callable_v2(command, callbacks[command], binding)
+            for command in callbacks
+        ))
         return value
 
     @property

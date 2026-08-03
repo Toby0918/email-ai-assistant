@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-02
+last_update: 2026-08-03
 status: active
 owner: "@tobyWang"
 review_cycle: as_needed
@@ -13,6 +13,8 @@ Generated from the executable R2 command catalog and state machine; do not hand 
 - Catalog fingerprint: `2ebcacc7c57df0341b11f7675666e4bc23b70df05885fcce9777f5edb45ed5a4`
 - State-machine fingerprint: `fd2a17d09970202682edaa7ee6bf946db8545e459ffe3304446f2e9acdb503b0`
 - Package-semantics fingerprint: `f2c0c35c94206f99eda0b86d76bf508b340df13ff3f21d558e1f922755b816ac`
+- Decision-registry fingerprint: `4ac5feffbdd30d088dd5f7b3629060cfe050a36b657392292e8c3da655afa383`
+- R1-blocker-resolution fingerprint: `1193dbdb051b849c6e4e3f5c52d72ef30ff89c2393fcc307947c10759303f439`
 - Default production result: `DORMANT_NO_EXTERNAL_ISSUER` until separately supplied valid authority.
 
 ## Executable command catalog
@@ -42,6 +44,36 @@ Generated from the executable R2 command catalog and state machine; do not hand 
 | `rollback_recovery` | `recovery-inspection`, `rollback` | `rollback`, `retention_reconciliation` | `tri_state_inspection`, `fresh_recovery_authority` |
 | `retention_reconciliation` | none | `human_final_review` | `object_level_retention_proof`, `zero_deletion_capability` |
 | `human_final_review` | none | terminal | `human_review_only`, `no_execution_authority` |
+
+## Issue #38 decision registry
+
+Every row is re-reviewed exactly once against the frozen final master; historical R1 values are not current authority.
+
+| # | Decision ID | Decision | R2 completion proof |
+| ---: | --- | --- | --- |
+| 1 | `R2-D38-01` | Maintenance window | final-master binding and human review |
+| 2 | `R2-D38-02` | Start stop and abort gates | unified journal and incident-stop proof |
+| 3 | `R2-D38-03` | Legacy source | Git-byte and exact-identity proof |
+| 4 | `R2-D38-04` | Container ACL | Windows-native ACL and parent-scope proof |
+| 5 | `R2-D38-05` | Evidence | reviewed create-only package and retention proof |
+| 6 | `R2-D38-06` | Worktrees | fourteen-ref eleven-worktree Git-byte proof |
+| 7 | `R2-D38-07` | Runtime | hash-locked dependency and Runtime publication proof |
+| 8 | `R2-D38-08` | LocalData | stopped create-only SQLite publication proof |
+| 9 | `R2-D38-09` | Browser extension | create-only CRX publication proof |
+| 10 | `R2-D38-10` | Config and providers | create-only Config and provider-disabled proof |
+| 11 | `R2-D38-11` | Preflight | six-verb production composition proof |
+| 12 | `R2-D38-12` | Post-cutover verification | two-start lifecycle and independent-audit proof |
+| 13 | `R2-D38-13` | Rollback | journal-derived LIFO legacy restoration proof |
+| 14 | `R2-D38-14` | Retention and no deletion | object ledger and zero-delete capability proof |
+
+## R1 blocker completion map
+
+| Historical blocker | Blocker class | R2 completion proof |
+| --- | --- | --- |
+| Issue #34 | real host audit composition | preflight production root and final-audit receipt |
+| Issue #35 | host baseline and evidence composition | evidence production root and verified package receipt |
+| Issue #36 | mixed worktree transaction and recovery | Git-byte receipt unified journal and rollback seal |
+| Issue #37 | managed unit publication and lifecycle | Runtime SQLite CRX Config and two-start receipts |
 
 ## Forward and recovery rules
 

@@ -1,9 +1,11 @@
-"""Nominal content-free evidence from one registered independent producer."""
+"""Externally signed evidence from one fixed independent gate producer."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
+
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 from ._canonical import canonical_json, fingerprint, is_fingerprint, strict_json_object
 from .binding import FinalMasterBindingV1
@@ -20,6 +22,11 @@ ZERO_GATE_FIELDS = (
     "required_skip_count", "unclassified_skip_count", "platform_divergence_count",
     "leakage_finding_count", "private_data_access_count", "real_host_operation_count",
     "provider_attempt_count", "issue39_code_change_count",
+)
+_SIGNED_FIELDS = (
+    "evidence_type", "binding_fingerprint", "gate", "producer", "review_domain",
+    "evidence_fingerprint", "producer_fingerprint", "verified", "self_certified",
+    *ZERO_GATE_FIELDS,
 )
 
 
@@ -42,15 +49,27 @@ class R2GlobalGateEvidenceV1:
     real_host_operation_count: int
     provider_attempt_count: int
     issue39_code_change_count: int
+    signature_hex: str = field(repr=False)
     evidence_record_fingerprint: str = field(repr=False)
 
     def __init__(self, *args, **kwargs):
-        raise TypeError("R2GlobalGateEvidenceV1 requires create()")
+        raise TypeError("R2GlobalGateEvidenceV1 requires from_signed_json()")
 
     @classmethod
-    def create(cls, **values):
+    def from_signed_json(cls, payload, *, binding):
         try:
-            return _allocate(_evidence_body(values))
+            source = strict_json_object(payload)
+            if payload != canonical_json(source) or set(source) != {*_SIGNED_FIELDS, "signature_hex"}:
+                raise FinalMasterClosureError()
+            body = {name: source[name] for name in _SIGNED_FIELDS}
+            registration = _validate_body(body, binding)
+            signature = bytes.fromhex(source["signature_hex"])
+            if len(signature) != 64:
+                raise FinalMasterClosureError()
+            Ed25519PublicKey.from_public_bytes(
+                registration.verification_public_key
+            ).verify(signature, canonical_json(body))
+            return _allocate({**body, "signature_hex": source["signature_hex"]})
         except FinalMasterClosureError:
             raise
         except Exception:
@@ -58,23 +77,7 @@ class R2GlobalGateEvidenceV1:
 
     @classmethod
     def from_json(cls, payload, *, binding):
-        try:
-            source = strict_json_object(payload)
-            result = cls.create(
-                binding=binding,
-                gate=ClosureGate(source["gate"]),
-                producer=GateEvidenceProducerV1(source["producer"]),
-                review_domain=ReviewDomainV1(source["review_domain"]),
-                evidence_fingerprint=source["evidence_fingerprint"],
-                producer_fingerprint=source["producer_fingerprint"],
-            )
-            if payload != canonical_json(source) or source != result.to_mapping():
-                raise FinalMasterClosureError()
-            return result
-        except FinalMasterClosureError:
-            raise
-        except Exception:
-            raise FinalMasterClosureError() from None
+        return cls.from_signed_json(payload, binding=binding)
 
     def to_mapping(self):
         result = {}
@@ -87,34 +90,46 @@ class R2GlobalGateEvidenceV1:
         return canonical_json(self.to_mapping())
 
 
-def _evidence_body(values):
-    expected = {"binding", "gate", "producer", "review_domain",
-                "evidence_fingerprint", "producer_fingerprint"}
-    if set(values) != expected or type(values["binding"]) is not FinalMasterBindingV1:
+def producer_fingerprint_v1(registration):
+    return fingerprint("r2-gate-producer-v1", {
+        "producer": registration.producer.value,
+        "verification_public_key_hex": registration.verification_public_key.hex(),
+    })
+
+
+def _validate_body(body, binding):
+    if type(binding) is not FinalMasterBindingV1:
         raise FinalMasterClosureError()
-    registration = next(
-        (item for item in gate_evidence_registry() if item.gate is values["gate"]), None
-    )
-    if registration is None or (values["producer"], values["review_domain"]) != (
-            registration.producer, registration.review_domain):
+    try:
+        gate = ClosureGate(body["gate"])
+        producer = GateEvidenceProducerV1(body["producer"])
+        domain = ReviewDomainV1(body["review_domain"])
+    except Exception:
+        raise FinalMasterClosureError() from None
+    registration = next((item for item in gate_evidence_registry() if item.gate is gate), None)
+    if registration is None or (producer, domain) != (
+        registration.producer, registration.review_domain
+    ):
         raise FinalMasterClosureError()
-    evidence, producer = values["evidence_fingerprint"], values["producer_fingerprint"]
-    if not is_fingerprint(evidence) or not is_fingerprint(producer):
-        raise FinalMasterClosureError()
-    if len({evidence, producer, values["binding"].binding_fingerprint}) != 3:
-        raise FinalMasterClosureError()
-    return {
-        "evidence_type": "R2GlobalGateEvidenceV1",
-        "binding_fingerprint": values["binding"].binding_fingerprint,
-        "gate": values["gate"].value,
-        "producer": values["producer"].value,
-        "review_domain": values["review_domain"].value,
-        "evidence_fingerprint": evidence,
-        "producer_fingerprint": producer,
+    expected = {
+        "evidence_type": "R2SignedGlobalGateEvidenceV1",
+        "binding_fingerprint": binding.binding_fingerprint,
+        "gate": gate.value,
+        "producer": producer.value,
+        "review_domain": domain.value,
+        "evidence_fingerprint": body["evidence_fingerprint"],
+        "producer_fingerprint": producer_fingerprint_v1(registration),
         "verified": 1,
         "self_certified": 0,
         **{name: 0 for name in ZERO_GATE_FIELDS},
     }
+    if body != expected or not is_fingerprint(body["evidence_fingerprint"]):
+        raise FinalMasterClosureError()
+    if body["evidence_fingerprint"] in {
+        binding.binding_fingerprint, expected["producer_fingerprint"]
+    }:
+        raise FinalMasterClosureError()
+    return registration
 
 
 def _allocate(body):
@@ -122,8 +137,10 @@ def _allocate(body):
     for name, item in body.items():
         enum = ClosureGate if name == "gate" else (
             GateEvidenceProducerV1 if name == "producer" else (
-                ReviewDomainV1 if name == "review_domain" else None))
+                ReviewDomainV1 if name == "review_domain" else None
+            )
+        )
         object.__setattr__(value, name, enum(item) if enum else item)
     object.__setattr__(value, "evidence_record_fingerprint",
-                       fingerprint("r2-global-gate-evidence-v1", body))
+                       fingerprint("r2-signed-global-gate-evidence-v1", body))
     return value

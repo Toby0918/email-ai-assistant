@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 
 from ._canonical import fingerprint, sha256
 from .errors import R2CiProvenanceError
+from .dependency_lock import R2DependencyLockV2
 
 
 _EXPECTED = {
@@ -24,12 +25,15 @@ class R2WorkflowLockV2:
     workflow_count: int
     action_count: int
     runner_count: int
+    dependency_lock: R2DependencyLockV2 = field(repr=False)
+    dependency_lock_fingerprint: str = field(repr=False)
     lock_fingerprint: str = field(repr=False)
 
     @classmethod
-    def create(cls, *, workflows):
+    def create(cls, *, workflows, dependency_locks):
         try:
             normalized, actions, runners = _normalize(workflows)
+            dependency_lock = R2DependencyLockV2.create(locks=dependency_locks)
             state = {
                 "workflows": [
                     {"path_fingerprint": sha256(path.encode("utf-8")),
@@ -38,8 +42,10 @@ class R2WorkflowLockV2:
                 ],
                 "actions": sorted(actions),
                 "runners": sorted(runners),
+                "dependency_lock_fingerprint": dependency_lock.lock_fingerprint,
             }
-            return cls(len(normalized), len(actions), len(runners),
+            return cls(len(normalized), len(actions), len(runners), dependency_lock,
+                       dependency_lock.lock_fingerprint,
                        fingerprint("r2-workflow-action-lock-v2", state))
         except R2CiProvenanceError:
             raise
@@ -56,13 +62,20 @@ def _normalize(workflows):
     if {path for path, _content in normalized} != _EXPECTED:
         raise R2CiProvenanceError()
     actions, runners = [], []
-    for _path, content in normalized:
+    for path, content in normalized:
         if type(content) is not bytes or not 1 <= len(content) <= 262_144:
             raise R2CiProvenanceError()
         text = content.decode("utf-8")
         if "-latest" in text or "continue-on-error: true" in text:
             raise R2CiProvenanceError()
         if "not found; skipping" in text or "if [ -f" in text:
+            raise R2CiProvenanceError()
+        if path.endswith("r2_provenance.yml") and (
+            text.count("--require-hashes") != 3
+            or text.count("--only-binary=:all:") != 3
+            or "requirements-ci-linux.lock" not in text
+            or text.count("requirements-ci-windows.lock") != 2
+        ):
             raise R2CiProvenanceError()
         actions.extend(_USES.findall(text))
         runners.extend(_RUNNER.findall(text))

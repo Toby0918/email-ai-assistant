@@ -11,13 +11,19 @@ from .state_machine import (
     operator_package_semantics_fingerprint_v2,
     operator_state_machine_v2,
 )
+from .review_registry import (
+    blocker_resolution_fingerprint_v2,
+    decision_registry_fingerprint_v2,
+    issue38_decision_registry_v2,
+    r1_blocker_resolution_registry_v2,
+)
 
 
 def render_r2_operator_runbook_v2():
     catalog = command_catalog_v2()
     rules = operator_state_machine_v2()
     lines = [
-        "---", "last_update: 2026-08-02", "status: active",
+        "---", "last_update: 2026-08-03", "status: active",
         'owner: "@tobyWang"', "review_cycle: as_needed",
         "source_type: operation_guide", "---", "",
         "# Final R2 Operator Runbook", "",
@@ -26,6 +32,8 @@ def render_r2_operator_runbook_v2():
         f"- Catalog fingerprint: `{_catalog_fingerprint()}`",
         f"- State-machine fingerprint: `{_state_fingerprint()}`",
         f"- Package-semantics fingerprint: `{operator_package_semantics_fingerprint_v2()}`",
+        f"- Decision-registry fingerprint: `{decision_registry_fingerprint_v2()}`",
+        f"- R1-blocker-resolution fingerprint: `{blocker_resolution_fingerprint_v2()}`",
         "- Default production result: `DORMANT_NO_EXTERNAL_ISSUER` until separately supplied valid authority.",
         "", "## Executable command catalog", "",
         "| # | Surface | Verb | Command | Effect | Acknowledgement | Max operations |",
@@ -34,6 +42,7 @@ def render_r2_operator_runbook_v2():
     lines.extend(_command_line(item) for item in catalog)
     lines.extend(["", "## State machine", "", "| Phase | Allowed commands | Next phases | Required evidence |", "| --- | --- | --- | --- |"])
     lines.extend(_state_line(item) for item in rules)
+    lines.extend(_review_sections())
     lines.extend(_fixed_sections())
     return ("\n".join(lines) + "\n").encode("utf-8")
 
@@ -60,6 +69,29 @@ def _state_line(item):
     next_phases = ", ".join(f"`{value.value}`" for value in item.next_phases) or "terminal"
     evidence = ", ".join(f"`{value}`" for value in item.required_evidence)
     return f"| `{item.phase.value}` | {commands} | {next_phases} | {evidence} |"
+
+
+def _review_sections():
+    lines = [
+        "", "## Issue #38 decision registry", "",
+        "Every row is re-reviewed exactly once against the frozen final master; historical R1 values are not current authority.",
+        "", "| # | Decision ID | Decision | R2 completion proof |",
+        "| ---: | --- | --- | --- |",
+    ]
+    lines.extend(
+        f"| {item.ordinal + 1} | `{item.decision_id}` | {item.title} | {item.completion_proof} |"
+        for item in issue38_decision_registry_v2()
+    )
+    lines.extend([
+        "", "## R1 blocker completion map", "",
+        "| Historical blocker | Blocker class | R2 completion proof |",
+        "| --- | --- | --- |",
+    ])
+    lines.extend(
+        f"| Issue #{item.issue} | {item.blocker_class} | {item.completion_proof} |"
+        for item in r1_blocker_resolution_registry_v2()
+    )
+    return lines
 
 
 def _fixed_sections():
