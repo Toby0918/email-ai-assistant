@@ -88,6 +88,30 @@ class R2CiProvenanceV2AdapterTests(unittest.TestCase):
         self.assertIn("scripts/reconcile_r2_ci_provenance.py", provenance)
         self.assertEqual(provenance.count("--require-hashes"), 3)
 
+    def test_committed_provenance_install_commands_are_yaml_safe(self):
+        provenance = (
+            ROOT / ".github" / "workflows" / "r2_provenance.yml"
+        ).read_text(encoding="utf-8")
+        commands = (
+            (
+                'run: "python -m pip install --only-binary=:all: '
+                '--require-hashes -r requirements-ci-linux.lock"',
+                1,
+            ),
+            (
+                'run: "python -m pip install --only-binary=:all: '
+                '--require-hashes -r requirements-ci-windows.lock"',
+                2,
+            ),
+        )
+
+        for command, expected_count in commands:
+            with self.subTest(command=command):
+                self.assertEqual(provenance.count(command), expected_count)
+        self.assertNotIn(
+            "run: python -m pip install --only-binary=:all: ", provenance
+        )
+
 
 def _workflow(runner: str, *, provenance: bool = False) -> str:
     return (
