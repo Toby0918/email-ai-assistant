@@ -11,10 +11,13 @@ from backend.r2_production_binding import (
     ApprovedCutoverBindingV2,
     DurableAuthorityClaimV2,
     ProductionCommandV2,
-    R2BoundProductionCallableV2,
-    bind_production_callable_v2,
     production_action_fingerprint_v2,
-    reverify_bound_production_callable_v2,
+)
+from backend.r2_production_composition import (
+    EvidenceAdapterOutcomeV1,
+    ProductionAdapterSlotV1,
+    R2BoundProductionAdapterV1,
+    reverify_bound_production_adapter_v1,
 )
 from backend.r2_production_binding.catalog import (
     OperatorSurfaceV2,
@@ -77,29 +80,12 @@ class ReviewedEvidencePublicationV2:
     created: int
 
 
-@dataclass(frozen=True, slots=True, init=False, repr=False)
-class EvidenceProductionRoleV2:
-    publish_reviewed_evidence: object = field(repr=False)
-
-    def __init__(self, *args, **kwargs):
-        raise TypeError("EvidenceProductionRoleV2 requires create()")
-
-    @classmethod
-    def create(cls, *, binding, publish_reviewed_evidence):
-        bound = bind_production_callable_v2(
-            binding=binding,
-            command=ProductionCommandV2.EVIDENCE_PUBLICATION,
-            callback=publish_reviewed_evidence,
-        )
-        return _allocate_role(bound)
-
-
 def run_evidence_production_v2(
     *,
     argv,
     terminal,
     binding,
-    role,
+    adapter,
     reviewed_evidence_fingerprint,
     durable_claims,
     expected_prior_journal_head_fingerprint,
@@ -133,7 +119,7 @@ def run_evidence_production_v2(
         return _blocked(EvidenceProductionStatusV2.BLOCKED_AUTHORITY)
     return _publish_and_bind_genesis(
         binding,
-        role,
+        adapter,
         claim,
         reviewed_evidence_fingerprint,
         journal_owner_fingerprint,
@@ -195,24 +181,16 @@ def complete_reviewed_evidence_publication_v2(
     return ReviewedEvidencePublicationV2(**values, publication_fingerprint=publication)
 
 
-def _publish_and_bind_genesis(binding, role, claim, review, owner, nonce, prior_head):
+def _publish_and_bind_genesis(
+    binding, adapter, claim, review, owner, nonce, prior_head
+):
     try:
-        if type(role) is not EvidenceProductionRoleV2:
-            raise TypeError
-        bound = reverify_bound_production_callable_v2(
-            binding=binding,
-            command=ProductionCommandV2.EVIDENCE_PUBLICATION,
-            bound=role.publish_reviewed_evidence,
+        publication = _publish_reviewed_evidence(
+            binding,
+            adapter,
+            claim,
+            review,
         )
-        publication = bound(binding, claim)
-        if (
-            type(publication) is not ReviewedEvidencePublicationV2
-            or publication.binding_fingerprint != binding.binding_fingerprint
-            or publication.authority_claim_fingerprint != claim.claim_fingerprint
-            or publication.reviewed_evidence_fingerprint != review
-            or publication.created != 1
-        ):
-            raise TypeError
     except Exception:
         return _blocked(EvidenceProductionStatusV2.BLOCKED_PUBLICATION)
     try:
@@ -238,6 +216,49 @@ def _publish_and_bind_genesis(binding, role, claim, review, owner, nonce, prior_
         genesis.head_fingerprint,
         genesis,
     )
+
+
+def _publish_reviewed_evidence(binding, adapter, claim, review):
+    if type(adapter) is not R2BoundProductionAdapterV1:
+        raise TypeError
+    bound = reverify_bound_production_adapter_v1(
+        binding=binding,
+        slot=ProductionAdapterSlotV1.EVIDENCE,
+        bound=adapter,
+    )
+    outcome = bound.invoke(binding=binding, claim=claim)
+    _require_evidence_outcome(outcome, review)
+    publication = complete_reviewed_evidence_publication_v2(
+        binding=binding,
+        claim=claim,
+        reviewed_evidence_fingerprint=outcome.reviewed_evidence_fingerprint,
+        evidence_identity_fingerprint=outcome.evidence_identity_fingerprint,
+        package_fingerprint=outcome.package_fingerprint,
+        manifest_fingerprint=outcome.manifest_fingerprint,
+    )
+    _require_evidence_publication(publication, binding, claim, review)
+    return publication
+
+
+def _require_evidence_outcome(outcome, review):
+    if (
+        type(outcome) is not EvidenceAdapterOutcomeV1
+        or outcome.reviewed_evidence_fingerprint != review
+        or outcome.provider_attempts != 0
+        or outcome.created != 1
+    ):
+        raise TypeError
+
+
+def _require_evidence_publication(publication, binding, claim, review):
+    if (
+        type(publication) is not ReviewedEvidencePublicationV2
+        or publication.binding_fingerprint != binding.binding_fingerprint
+        or publication.authority_claim_fingerprint != claim.claim_fingerprint
+        or publication.reviewed_evidence_fingerprint != review
+        or publication.created != 1
+    ):
+        raise TypeError
 
 
 def _read_ingress(terminal):
@@ -273,15 +294,3 @@ def _is_fingerprint(value):
         and len(value) == 64
         and all(character in "0123456789abcdef" for character in value)
     )
-
-
-def _allocate_role(bound):
-    if type(bound) is not R2BoundProductionCallableV2:
-        raise TypeError("R2_EVIDENCE_PRODUCTION_ROLE_INVALID")
-    result = object.__new__(EvidenceProductionRoleV2)
-    object.__setattr__(result, "publish_reviewed_evidence", bound)
-    return result
-
-
-def _create_synthetic_role_v2(bound):
-    return _allocate_role(bound)

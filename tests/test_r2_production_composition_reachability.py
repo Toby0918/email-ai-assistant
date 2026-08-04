@@ -45,19 +45,16 @@ class R2ProductionCompositionReachabilityTests(unittest.TestCase):
         expected = {
             "preflight": {
                 "PreflightProductionBootstrapV2",
-                "PreflightProductionRolesV2",
                 "dormant_preflight_production_v2",
                 "run_preflight_production_v2",
             },
             "evidence": {
                 "EvidenceProductionBootstrapV2",
-                "EvidenceProductionRoleV2",
                 "dormant_evidence_production_v2",
                 "run_evidence_production_v2",
             },
             "transaction": {
                 "TransactionProductionBootstrapV2",
-                "TransactionProductionRolesV2",
                 "dormant_transaction_production_v2",
                 "run_transaction_production_v2",
             },
@@ -69,6 +66,15 @@ class R2ProductionCompositionReachabilityTests(unittest.TestCase):
             )
             with self.subTest(root=root):
                 self.assertTrue(names.issubset(package.__all__))
+                self.assertTrue(
+                    set(package.__all__).isdisjoint(
+                        {
+                            "PreflightProductionRolesV2",
+                            "EvidenceProductionRoleV2",
+                            "TransactionProductionRolesV2",
+                        }
+                    )
+                )
                 parameters = set(
                     inspect.signature(
                         getattr(production, f"run_{root}_production_v2")
@@ -123,29 +129,29 @@ class R2ProductionCompositionReachabilityTests(unittest.TestCase):
     def test_normative_docs_pin_obsolete_lock_contraction(self):
         expected = {
             "docs/security/project_container_cutover_contracts.md": (
-                "Issue #91 production composition closure",
-                "valid future V2 authority",
-                "no-issuer dormancy",
+                "Issue #104 stateful Adapter binding remediation",
+                "old ten-callback role seam is removed",
+                "Production bootstraps reject synthetic bindings",
             ),
             "docs/constraints/architecture_constraints.md": (
-                "obsolete post-authorization locks",
-                "three executable V2 process roots",
+                "Issue #104 production Adapter binding remediation",
+                "stateful Adapter slots: preflight",
             ),
             "docs/constraints/linter_constraints.md": (
-                "R2 production composition closure guards",
-                "synthetic context",
+                "Issue #104 production Adapter guards",
+                "complete owning-module source",
             ),
             "docs/constraints/mechanical_rule_translation.md": (
-                "Issue #91 production-graph rules",
-                "test binder",
+                "Issue #104 production Adapter rules",
+                "fourteen gate keys",
             ),
             "docs/operations/project_structure.md": (
-                "three V2 executable roots",
-                "DORMANT_NO_EXTERNAL_ISSUER",
+                "Issue #104 V2 process-root Adapter reachability",
+                "removed callback-role seam",
             ),
             "docs/operations/testing_checklist.md": (
-                "test_r2_production_composition_reachability.py",
-                "obsolete V1 lock",
+                "Issue #104 production Adapter binding remediation",
+                "test_r2_production_adapter_binding_v1.py",
             ),
         }
         for relative, phrases in expected.items():

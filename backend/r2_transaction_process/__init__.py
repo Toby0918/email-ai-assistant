@@ -7,7 +7,6 @@ from .contracts import (
     TransactionProcessStatus,
 )
 from .production_v2 import (
-    TransactionProductionRolesV2,
     TransactionProductionStatusV2,
     dormant_transaction_production_v2,
     run_transaction_production_v2,
@@ -19,7 +18,6 @@ __all__ = [
     "TRANSACTION_VERBS",
     "TransactionProcessResult",
     "TransactionProcessStatus",
-    "TransactionProductionRolesV2",
     "TransactionProductionBootstrapV2",
     "TransactionProductionStatusV2",
     "dormant_transaction_production_v2",

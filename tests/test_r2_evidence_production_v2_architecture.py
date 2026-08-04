@@ -55,10 +55,10 @@ class R2EvidenceProductionV2ArchitectureTests(unittest.TestCase):
             "rmtree",
             "open(",
             "mailbox",
-            "provider",
             "vault",
         ):
             self.assertNotIn(forbidden, combined)
+        self.assertIn("outcome.provider_attempts != 0", production)
 
         imports = set()
         for path in (EVIDENCE / "production_v2.py", *JOURNAL.glob("*.py")):

@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-03
+last_update: 2026-08-04
 status: active
 owner: "@tobyWang"
 review_cycle: weekly
@@ -15,9 +15,9 @@ source_type: operation_guide
 
 | Field | Value |
 |---|---|
-| Generated on | 2026-08-03 |
+| Generated on | 2026-08-04 |
 | Current stage | multimodal_current_email_offline_ready_live_pending |
-| Git branch | codex/issues-86-102-r2-closure |
+| Git branch | codex/issue-104-r2-adapter-binding |
 | Git HEAD reference | Run `git rev-parse --short HEAD` in this workspace |
 | Working tree status | Run `git status --short --ignored` in this workspace |
 
@@ -67,6 +67,8 @@ Issue #59 final Project Container composition is offline implemented across `bac
 
 Issues #70-#83 dormant R2 cutover remediation are offline implemented across the additive R2 contract, fixed preflight/evidence/transaction process, main/manifest/database/Runtime/CRX/Config publication, independent-audit, validation-lifecycle, cross-stage recovery, and verification-evidence packages. The fixed no-argument `scripts/verify_r2_synthetic_topology.py` owns one fresh physical NTFS sandbox and composes preflight, evidence, quiescence, legacy anchor, nine-zone Container/main/whole-tree ACL, one repository, all eleven reviewed worktrees, four managed units, Start A with one `rule_fallback` result and one row, stop, independent stopped audit, Start B without analysis/write, independent final-running audit, and one terminal `CUTOVER_SUCCESS`. Preflight, evidence, and transaction use distinct real local TTY processes; execution and recovery remain distinct fixed verbs and all four authorization domains are nominally separate. The exact seven-semantics, two-directions, five-gaps matrix covers 70 fresh scopes. Obsolete batched managed publication, stale R1 verification, in-process operator substitution, self-certified audit, and legacy R2 success are mechanically unreachable. Fresh criteria, matrix, script, bundle, complete R2 surface, and package fingerprints are recorded as six deterministic evidence fingerprints; the accepted prototype fingerprint remains non-authorizing prior art. Portable tests make no NTFS, ACL, TTY, process-isolation, or native-durability claim. Every real entry remains `BLOCKED_NO_APPROVED_COMMAND`; no real host, provider, mailbox, vault, private data, or Issue #39 operation was accessed or run, and #38/#50/#39 remain unchanged.
 
+Issue #104 three-stateful-Adapter seam is implemented offline in `backend.r2_production_composition`. The process packages now accept three exact stateful Adapter slots covering six preflight commands, one evidence command, and three transaction commands; each call revalidates exact adapter type, immutable binding, command, underlying receipt chain, and result, and completion helpers run only after that validation. Adapter identity binds the exact type and complete owning-module source while dynamic instance state is excluded. A deterministic candidate derives the operation, operator roles, all ten adapter identities, and nominal roles from an exact final-master binding plus four unique verification public keys that must be disjoint from the fourteen gate keys. Production bootstraps accept only reviewed non-synthetic adapters; synthetic adapters are rejected by production bootstraps and remain confined to test-only binders. The old callback seam is removed rather than layered; the old callback seam is removed, not wrapped. All defaults remain dormant, no real Adapter instance or operation is created by this remediation, #105 remains blocked, and #38/#39 remain unchanged.
+
 The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器扩展, with current-message collection only after an explicit user click.
 
 ## Guardrails Established
@@ -98,6 +100,7 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 | `Create-only managed activation publication: docs/operations/issue57_managed_activation_publication_task_brief.md` | yes |
 | `Provider-disabled activation and legacy recovery transaction: docs/operations/issue58_provider_disabled_activation_recovery_task_brief.md` | yes |
 | `Project Container cutover contract security boundary: docs/security/project_container_cutover_contracts.md` | yes |
+| `R2 production Adapter binding remediation: docs/operations/r2_production_adapter_binding_remediation_task_brief.md` | yes |
 
 ## Key File Status
 
@@ -114,6 +117,16 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 | `backend/current_evidence/artifact_policy.py` | yes |
 | `backend/current_evidence/contract.py` | yes |
 | `backend/current_evidence/handoff.py` | yes |
+| `backend/r2_production_binding/_adapter_identity.py` | yes |
+| `backend/r2_production_binding/__init__.py` | yes |
+| `backend/r2_production_composition/__init__.py` | yes |
+| `backend/r2_production_composition/adapter_binding.py` | yes |
+| `backend/r2_production_composition/catalog.py` | yes |
+| `backend/r2_production_composition/preflight.py` | yes |
+| `backend/r2_production_composition/evidence.py` | yes |
+| `backend/r2_production_composition/transaction.py` | yes |
+| `backend/r2_production_composition/binding_candidate.py` | yes |
+| `docs/operations/r2_production_adapter_binding_remediation_task_brief.md` | yes |
 | `backend/cutover_contracts/__init__.py` | yes |
 | `backend/cutover_contracts/_canonical.py` | yes |
 | `backend/cutover_contracts/authorization.py` | yes |
@@ -594,6 +607,10 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 | `tests/test_r2_semantic_gap_matrix.py` | yes |
 | `tests/test_r2_verification_architecture.py` | yes |
 | `tests/test_r2_verification_evidence_contracts.py` | yes |
+| `tests/test_r2_production_adapter_binding_v1.py` | yes |
+| `tests/test_r2_production_composition_v1.py` | yes |
+| `tests/test_r2_production_composition_v1_architecture.py` | yes |
+| `tests/test_r2_production_binding_candidate_v1.py` | yes |
 | `tests/test_email_cleaner.py` | yes |
 | `tests/test_analyzer.py` | yes |
 | `tests/test_api.py` | yes |
@@ -631,7 +648,7 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 
 | Status | Count |
 |---|---:|
-| active | 107 |
+| active | 108 |
 | draft | 25 |
 | deprecated | 4 |
 | missing_front_matter | 0 |
@@ -669,6 +686,7 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 - Issue #58 only proves provider-disabled activation, committed-journal-driven rollback, and dedicated legacy recovery inside caller-owned synthetic sandboxes; receipts and tests do not authorize a real service probe or operation, Issue #59, Issues #38/#39, merge, or parent Spec closure.
 - Issue #59 only assembles three default-locked operator roots and a content-free receipt chain. Backend packages expose no executable test binder; test-only assembly owns every component TemporaryDirectory through one internal scope and rechecks it before every role or journal callback. Windows execution remains confined to caller-owned test sandboxes; no real command or authorization exists before #39. After merge, the final master invalidates R1 and requires all fourteen #38 approval items plus a new R2 before #39.
 - Issues #70-#83 only implement dormant R2 contracts and fresh synthetic Windows proof. The fixed verifier owns its NTFS sandbox and emits aggregate fingerprints/counts; it does not authorize Issue #39, a real command, any host operation, merge, or approval/closure of #38 or #50. The accepted prototype fingerprint remains non-authorizing prior art.
+- Issue #104 only replaces the rejected callback seam with three exact stateful Adapter slots. It does not authorize real-host operations, production artifacts, Issue #105, Issue #38 approval, Issue #39, push, merge, or closure.
 
 ## Notes for Agent
 

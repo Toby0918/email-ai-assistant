@@ -7,15 +7,17 @@ from backend.r2_final_master_closure import R2ReviewedProductionBindingReceiptV1
 from backend.r2_production_binding import (
     ApprovedCutoverBindingV2,
     DurableAuthorityClaimV2,
-    ProductionCommandV2,
-    require_reviewed_bound_production_callable_v2,
     require_reviewed_production_binding_receipt_v2,
+)
+from backend.r2_production_composition import (
+    ProductionAdapterSlotV1,
+    R2BoundProductionAdapterV1,
+    require_reviewed_bound_production_adapter_v1,
 )
 from backend.r2_production_binding._canonical import is_fingerprint
 
 from .production_v2 import (
     EvidenceProductionResultV2,
-    EvidenceProductionRoleV2,
     EvidenceProductionStatusV2,
     dormant_evidence_production_v2,
     run_evidence_production_v2,
@@ -27,7 +29,7 @@ from .terminal import SystemTerminal
 class EvidenceProductionBootstrapV2:
     binding: ApprovedCutoverBindingV2 = field(repr=False)
     reviewed_binding_receipt: R2ReviewedProductionBindingReceiptV1 = field(repr=False)
-    role: EvidenceProductionRoleV2 = field(repr=False)
+    adapter: R2BoundProductionAdapterV1 = field(repr=False)
     reviewed_evidence_fingerprint: str = field(repr=False)
     durable_claims: tuple[DurableAuthorityClaimV2, ...] = field(repr=False)
     expected_prior_journal_head_fingerprint: str = field(repr=False)
@@ -39,7 +41,7 @@ class EvidenceProductionBootstrapV2:
 
     @classmethod
     def create(
-        cls, *, binding, reviewed_binding_receipt, role,
+        cls, *, binding, reviewed_binding_receipt, adapter,
         reviewed_evidence_fingerprint, durable_claims,
         expected_prior_journal_head_fingerprint, journal_owner_fingerprint,
         genesis_nonce,
@@ -60,7 +62,7 @@ class EvidenceProductionBootstrapV2:
             argv=argv,
             terminal=SystemTerminal(),
             binding=self.binding,
-            role=self.role,
+            adapter=self.adapter,
             reviewed_evidence_fingerprint=self.reviewed_evidence_fingerprint,
             durable_claims=self.durable_claims,
             expected_prior_journal_head_fingerprint=(
@@ -100,15 +102,15 @@ def _require(values):
         or not _receipt_matches(
             values["binding"], values["reviewed_binding_receipt"]
         )
-        or type(values["role"]) is not EvidenceProductionRoleV2
+        or type(values["adapter"]) is not R2BoundProductionAdapterV1
         or not _claims_match(values["durable_claims"], values["binding"])
         or not all(is_fingerprint(values[name]) for name in fingerprints)
     ):
         raise TypeError("R2_EVIDENCE_PRODUCTION_BOOTSTRAP_INVALID")
-    require_reviewed_bound_production_callable_v2(
+    require_reviewed_bound_production_adapter_v1(
         binding=values["binding"],
-        command=ProductionCommandV2.EVIDENCE_PUBLICATION,
-        bound=values["role"].publish_reviewed_evidence,
+        slot=ProductionAdapterSlotV1.EVIDENCE,
+        bound=values["adapter"],
     )
 
 

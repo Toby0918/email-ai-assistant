@@ -249,3 +249,12 @@ exceptions, exception chains, contract repr details, deidentified text, opaque
 submission/source IDs, timestamps, receipts, inbox paths, keys, or repository
 state. A callback failure must be discarded without `logger.exception`,
 `exc_info=True`, traceback output, or dynamic exception interpolation.
+
+## 11. R2 production Adapter binding is silent
+
+The Issue #104 Adapter-binding and deterministic-candidate modules emit no log
+records. They must not print or log Adapter state, binding or role fingerprints,
+verification keys, authority claims, receipts, receipt chains, completion
+values, paths, environment values, host details, exception text, or traceback
+data. Validation failures cross the process boundary only through the existing
+fixed content-free blocked result.

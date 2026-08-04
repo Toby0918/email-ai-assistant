@@ -236,7 +236,7 @@ It therefore cannot enumerate or read ignored or private content. Public JSON
 contains only fixed types, counts, object IDs, and fingerprints. The final
 `R2GitByteStateReceiptV1` is final-master-bound evidence, never authority.
 
-## Issue #91 production composition closure
+## Issue #91 historical callback composition (superseded by Issue #104)
 
 The three executable V2 process roots now boot only their corresponding
 `production_v2` module. Each `main()` has one repo-owned nominal
@@ -311,6 +311,30 @@ each root accepts only its fixed verb catalog and returns
 `DORMANT_NO_EXTERNAL_ISSUER` with zero host operations. The executable
 production graph imports neither a synthetic context nor a test binder and
 contains no private signing key or issuer.
+
+## Issue #104 stateful Adapter binding remediation
+
+The production seam is now three exact stateful Adapter slots owned by
+`backend.r2_production_composition`: preflight, evidence, and transaction. The
+old ten-callback role seam is removed rather than retained beneath another
+layer. The new package adapts the already-protected Issue #59 compositions; it
+does not modify them or broaden their public constructors.
+
+Adapter identity commits exact command, authority domain, nominal Adapter type,
+and complete owning-module source. Runtime instance state is excluded from the
+reviewed fingerprint, but every call revalidates exact type, binding, command,
+surface, underlying receipt, and chain before an outcome is accepted. Completion
+helpers run only after the underlying outcome validates.
+
+The deterministic candidate builder derives all public binding values from one
+exact final-master binding and four unique verification public keys. Those keys
+must be disjoint from the fourteen gate keys. It cannot accept private keys,
+credentials, arbitrary fingerprints, paths, environment values, host readers,
+providers, mailbox/vault data, signatures, or production artifacts.
+
+Production bootstraps reject synthetic bindings, all no-issuer defaults remain
+dormant, and Issue #104 creates no real Adapter instance or host effect. It does
+not authorize Issue #105, approval or closure of #38, or any #39 operation.
 
 ## Issue #90 V2 single-action transaction process
 

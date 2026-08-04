@@ -2,46 +2,29 @@
 
 from __future__ import annotations
 
-from backend.cutover_composition_contracts import (
-    ApprovedCutoverBindingV1,
-    UNBOUND_FINGERPRINT,
-)
-from backend.cutover_composition_contracts.canonical import is_fingerprint
+from backend.cutover_composition_contracts import ApprovedCutoverBindingV1, UNBOUND_FINGERPRINT
+from backend.cutover_composition_contracts.canonical import fingerprint, is_fingerprint
 from backend.cutover_contracts import CutoverProfileV1
 
-from .contracts import (
-    TRANSACTION_VERBS,
-    TransactionProcessStatus,
-    result,
-)
+from .contracts import TRANSACTION_VERBS, TransactionProcessStatus, result
 from .entry import run_authorization_gate
-from .production_v2 import (
-    UNBOUND_REVERSE_PLAN_V2,
-    _create_synthetic_roles_v2,
-    complete_transaction_action_v2,
-    run_transaction_production_v2,
-)
+from .production_v2 import UNBOUND_REVERSE_PLAN_V2, run_transaction_production_v2
 from backend.r2_production_binding import ApprovedCutoverBindingV2, ProductionCommandV2
-from backend.r2_production_binding.role_binding import _synthetic_bound_callable_v2
+from backend.r2_production_composition import (
+    ProductionAdapterSlotV1,
+    TransactionAdapterOutcomeV1,
+)
+from backend.r2_production_composition.adapter_binding import (
+    _synthetic_bound_adapter_v1,
+)
 from backend.r2_transaction_journal_v2 import R2JournalGenesisV2
 
 
 class SyntheticTransactionProcess:
     __slots__ = (
-        "_actions",
-        "_binding",
-        "_claimed_crash",
-        "_claimed_envelopes",
-        "_execution_key",
-        "_head",
-        "_locked",
-        "_now",
-        "_operation",
-        "_owner",
-        "_plan",
-        "_profile",
-        "_recovery_key",
-        "action_acquisitions",
+        "_actions", "_binding", "_claimed_crash", "_claimed_envelopes",
+        "_execution_key", "_head", "_locked", "_now", "_operation",
+        "_owner", "_plan", "_profile", "_recovery_key", "action_acquisitions",
     )
 
     def __init__(self, *args: object, **kwargs: object) -> None:
@@ -180,17 +163,20 @@ def _require_context(values) -> None:
         raise ValueError("R2_TRANSACTION_SYNTHETIC_BINDING_INVALID")
 
 
+class _SyntheticTransactionAdapterV1:
+    __slots__ = ("_owner",)
+
+    def __init__(self, owner):
+        self._owner = owner
+
+    def invoke(self, **values):
+        return self._owner._perform(**values)
+
+
 class SyntheticTransactionProductionV2:
     __slots__ = (
-        "_actions",
-        "_binding",
-        "_genesis",
-        "_invoked",
-        "_now",
-        "_plan",
-        "_roles",
-        "_transition",
-        "total_action_acquisitions",
+        "_actions", "_binding", "_genesis", "_invoked", "_now", "_plan",
+        "_adapter", "_transition", "total_action_acquisitions",
     )
 
     def __init__(self, *args, **kwargs):
@@ -215,12 +201,11 @@ class SyntheticTransactionProductionV2:
         }
         process._invoked = False
         process.total_action_acquisitions = 0
-        process._roles = _create_synthetic_roles_v2(tuple(
-            _synthetic_bound_callable_v2(
-                command, _action_callback(process, command), process._binding
-            )
-            for command in process._actions
-        ))
+        process._adapter = _synthetic_bound_adapter_v1(
+            ProductionAdapterSlotV1.TRANSACTION,
+            _SyntheticTransactionAdapterV1(process),
+            process._binding,
+        )
         return process
 
     def run(self, *, argv, terminal):
@@ -238,7 +223,7 @@ class SyntheticTransactionProductionV2:
             argv=argv,
             terminal=terminal,
             binding=self._binding,
-            roles=self._roles,
+            adapter=self._adapter,
             durable_claims=(self._genesis.authority_claim,),
             current_journal_head_fingerprint=self._genesis.head_fingerprint,
             transition_instance_fingerprint=self._transition,
@@ -246,26 +231,41 @@ class SyntheticTransactionProductionV2:
             observed_at_epoch=self._now,
         )
 
-    def _perform(self, command, binding, claim, head, transition, plan):
-        if self._invoked or claim.command is not command:
+    def _perform(
+        self,
+        *,
+        binding,
+        claim,
+        journal_head_fingerprint,
+        transition_instance_fingerprint,
+        remaining_reverse_plan_fingerprint,
+    ):
+        command = claim.command
+        if self._invoked or binding is not self._binding:
             raise ValueError("R2_TRANSACTION_V2_SINGLE_ACTION_INVALID")
         self._invoked = True
         self.total_action_acquisitions += 1
         if self._actions[command]() != 1:
             raise ValueError("R2_TRANSACTION_V2_ACTION_FAILED")
-        return complete_transaction_action_v2(
-            binding,
-            claim,
-            head,
-            transition,
-            plan,
+        return TransactionAdapterOutcomeV1(
+            command,
+            fingerprint(
+                "r2-synthetic-transaction-chain-v1",
+                claim.claim_fingerprint,
+            ),
+            fingerprint(
+                "r2-synthetic-transaction-head-v1",
+                journal_head_fingerprint,
+            ),
+            fingerprint(
+                "r2-synthetic-transaction-terminal-v1",
+                claim.claim_fingerprint,
+            ),
+            transition_instance_fingerprint,
+            remaining_reverse_plan_fingerprint,
+            0,
+            1,
         )
-
-
-def _action_callback(process, command):
-    return lambda binding, claim, head, transition, plan: process._perform(
-        command, binding, claim, head, transition, plan
-    )
 
 
 def _require_v2_context(values):

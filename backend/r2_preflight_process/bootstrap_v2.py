@@ -7,16 +7,17 @@ from backend.r2_final_master_closure import R2ReviewedProductionBindingReceiptV1
 from backend.r2_production_binding import (
     ApprovedCutoverBindingV2,
     DurableAuthorityClaimV2,
-    ProductionCommandV2,
-    require_reviewed_bound_production_callable_v2,
     require_reviewed_production_binding_receipt_v2,
+)
+from backend.r2_production_composition import (
+    ProductionAdapterSlotV1,
+    R2BoundProductionAdapterV1,
+    require_reviewed_bound_production_adapter_v1,
 )
 from backend.r2_production_binding._canonical import is_fingerprint
 
 from .production_v2 import (
-    PREFLIGHT_PRODUCTION_VERBS_V2,
     PreflightProductionResultV2,
-    PreflightProductionRolesV2,
     PreflightProductionStatusV2,
     dormant_preflight_production_v2,
     run_preflight_production_v2,
@@ -28,7 +29,7 @@ from .terminal import SystemTerminal
 class PreflightProductionBootstrapV2:
     binding: ApprovedCutoverBindingV2 = field(repr=False)
     reviewed_binding_receipt: R2ReviewedProductionBindingReceiptV1 = field(repr=False)
-    roles: PreflightProductionRolesV2 = field(repr=False)
+    adapter: R2BoundProductionAdapterV1 = field(repr=False)
     durable_claims: tuple[DurableAuthorityClaimV2, ...] = field(repr=False)
     expected_prior_journal_head_fingerprint: str = field(repr=False)
 
@@ -37,7 +38,7 @@ class PreflightProductionBootstrapV2:
 
     @classmethod
     def create(
-        cls, *, binding, reviewed_binding_receipt, roles, durable_claims,
+        cls, *, binding, reviewed_binding_receipt, adapter, durable_claims,
         expected_prior_journal_head_fingerprint,
     ):
         values = locals()
@@ -56,7 +57,7 @@ class PreflightProductionBootstrapV2:
             argv=argv,
             terminal=SystemTerminal(),
             binding=self.binding,
-            roles=self.roles,
+            adapter=self.adapter,
             durable_claims=self.durable_claims,
             expected_prior_journal_head_fingerprint=(
                 self.expected_prior_journal_head_fingerprint
@@ -87,17 +88,16 @@ def _require(values):
         or not _receipt_matches(
             values["binding"], values["reviewed_binding_receipt"]
         )
-        or type(values["roles"]) is not PreflightProductionRolesV2
+        or type(values["adapter"]) is not R2BoundProductionAdapterV1
         or not _claims_match(values["durable_claims"], values["binding"])
         or not is_fingerprint(values["expected_prior_journal_head_fingerprint"])
     ):
         raise TypeError("R2_PREFLIGHT_PRODUCTION_BOOTSTRAP_INVALID")
-    for command in PREFLIGHT_PRODUCTION_VERBS_V2.values():
-        require_reviewed_bound_production_callable_v2(
-            binding=values["binding"],
-            command=command,
-            bound=values["roles"].select(command),
-        )
+    require_reviewed_bound_production_adapter_v1(
+        binding=values["binding"],
+        slot=ProductionAdapterSlotV1.PREFLIGHT,
+        bound=values["adapter"],
+    )
 
 
 def _claims_match(claims, binding):

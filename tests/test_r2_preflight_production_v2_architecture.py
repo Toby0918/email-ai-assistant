@@ -41,10 +41,10 @@ class R2PreflightProductionV2ArchitectureTests(unittest.TestCase):
             "unlink",
             "rmtree",
             "mailbox",
-            "provider",
             "vault",
         ):
             self.assertNotIn(forbidden, combined)
+        self.assertIn("outcome.provider_attempts != 0", source)
 
         imports = set()
         for path in (PREFLIGHT, AUTHORITY):

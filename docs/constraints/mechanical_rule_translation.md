@@ -1088,7 +1088,7 @@ private-data container, or authorization to migrate.
    filesystem, network, GitHub, cleanup, deletion, provider, mailbox, vault,
    credential, or private-data capability. Receipt types never enter
    `REAL_AUTHORIZATION_TYPES`.
-## Issue #91 production-graph rules
+## Historical Issue #91 callback rules (superseded by Issue #104)
 
 1. Parse each of the three executable process roots and require exactly one
    local `production_v2.main` import; reject an `entry` or `testing` import.
@@ -1116,4 +1116,28 @@ private-data container, or authorization to migrate.
    alias, branch, helper-return, container, cross-module, parameter helper/
    configuration, class-state, global-constructor, JSON encoder, and default-
    encoder drift all change identity; recompute immediately before dispatch and
-   again inside the wrapper.
+    again inside the wrapper.
+
+## Issue #104 production Adapter rules
+
+1. Parse `backend.r2_production_composition.catalog` and require exactly six
+   preflight commands, one evidence command, and three transaction commands,
+   each mapped to its exact nominal stateful Adapter type.
+2. Reject any production-process import or public export of the removed
+   callable-role implementation. Require each process and bootstrap to carry
+   one bound Adapter for its command family.
+3. Recompute Adapter identity from exact command, authority domain, type module,
+   qualified type name, and full owning-module source. Mutating instance state
+   alone must not change identity; changing the nominal type or module source
+   must fail before invocation.
+4. For every command, prove ordering is authority verification, Adapter
+   reverification, underlying invocation, underlying outcome validation,
+   completion creation, and completion validation. Wrong binding, command,
+   receipt, chain, or outcome must prevent completion.
+5. Build the deterministic candidate only from exact `FinalMasterBindingV1` and
+   four unique public verification keys. Recompute all derived operation,
+   operator, Adapter, and nominal-role fingerprints; reject duplicates and any
+   overlap with the fourteen gate keys.
+6. Prove default dormancy and production bootstrap rejection of synthetic
+   adapters. No real Adapter, host operation, signer, key, or artifact may be
+   created by the remediation.

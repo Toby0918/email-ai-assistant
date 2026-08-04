@@ -48,10 +48,10 @@ class R2TransactionProductionV2ArchitectureTests(unittest.TestCase):
             "retry",
             "cleanup",
             "mailbox",
-            "provider",
             "vault",
         ):
             self.assertNotIn(forbidden, source.lower())
+        self.assertIn("outcome.provider_attempts != 0", source)
 
         tree = ast.parse(PRODUCTION.read_text(encoding="utf-8"))
         self.assertFalse(any(isinstance(node, (ast.For, ast.While)) for node in ast.walk(tree)))
