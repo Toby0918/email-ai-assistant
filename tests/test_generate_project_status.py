@@ -789,6 +789,27 @@ class GenerateProjectStatusTests(unittest.TestCase):
         self.assertNotIn("remaining Task 9 gate is final master integration", report)
         self.assertNotIn("15/13/10/5", report)
 
+    def test_issue104_adapter_binding_remediation_is_reported(self) -> None:
+        module = load_script_module(SCRIPT, "generate_project_status_issue104")
+        report = module.build_project_status()
+
+        for marker in (
+            "Issue #104 three-stateful-Adapter seam",
+            "`backend.r2_production_composition`",
+            "three exact stateful Adapter slots",
+            "deterministic candidate",
+            "dynamic instance state is excluded",
+            "completion helpers run only after",
+            "synthetic adapters are rejected by production bootstraps",
+            "old callback seam is removed",
+            "#105 remains blocked",
+            "`backend/r2_production_composition/binding_candidate.py`",
+            "`tests/test_r2_production_adapter_binding_v1.py`",
+            "`docs/operations/r2_production_adapter_binding_remediation_task_brief.md`",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, report)
+
     def test_main_writes_requested_output(self) -> None:
         module = load_script_module(SCRIPT, "generate_project_status")
 

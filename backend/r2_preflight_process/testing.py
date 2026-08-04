@@ -6,13 +6,17 @@ from backend.cutover_composition_contracts import ApprovedCutoverBindingV1
 from backend.cutover_composition_contracts.canonical import fingerprint
 from backend.cutover_contracts import CutoverProfileV1
 from backend.r2_production_binding import ApprovedCutoverBindingV2, ProductionCommandV2
+from backend.r2_production_composition import (
+    PreflightAdapterOutcomeV1,
+    ProductionAdapterSlotV1,
+)
+from backend.r2_production_composition.adapter_binding import (
+    _synthetic_bound_adapter_v1,
+)
 from .entry import run_authorization_gate
 from .production_v2 import (
-    _create_synthetic_roles_v2,
-    complete_preflight_read_v2,
     run_preflight_production_v2,
 )
-from backend.r2_production_binding.role_binding import _synthetic_bound_callable_v2
 
 
 class SyntheticPreflightProcess:
@@ -93,8 +97,18 @@ def _require_context(profile, binding, operation, key, now) -> None:
         raise ValueError("R2_PREFLIGHT_SYNTHETIC_BINDING_INVALID")
 
 
+class _SyntheticPreflightAdapterV1:
+    __slots__ = ("_owner",)
+
+    def __init__(self, owner):
+        self._owner = owner
+
+    def invoke(self, *, binding, claim):
+        return self._owner._record(binding, claim)
+
+
 class SyntheticPreflightProductionV2:
-    __slots__ = ("_binding", "_counts", "_now", "_roles")
+    __slots__ = ("_adapter", "_binding", "_counts", "_now")
 
     def __init__(self, *args: object, **kwargs: object) -> None:
         raise TypeError("SyntheticPreflightProductionV2 requires create()")
@@ -110,14 +124,11 @@ class SyntheticPreflightProductionV2:
         value._binding = binding
         value._now = observed_at_epoch
         value._counts = {command: 0 for command in ProductionCommandV2}
-        callbacks = {
-            command: _callback(value, command)
-            for command in tuple(ProductionCommandV2)[:6]
-        }
-        value._roles = _create_synthetic_roles_v2(tuple(
-            _synthetic_bound_callable_v2(command, callbacks[command], binding)
-            for command in callbacks
-        ))
+        value._adapter = _synthetic_bound_adapter_v1(
+            ProductionAdapterSlotV1.PREFLIGHT,
+            _SyntheticPreflightAdapterV1(value),
+            binding,
+        )
         return value
 
     @property
@@ -130,17 +141,33 @@ class SyntheticPreflightProductionV2:
     def run(self, **values):
         return run_preflight_production_v2(
             binding=self._binding,
-            roles=self._roles,
+            adapter=self._adapter,
             observed_at_epoch=self._now,
             **values,
         )
 
-    def _record(self, command, binding, claim):
-        if claim.command is not command:
+    def _record(self, binding, claim):
+        if claim.command not in tuple(ProductionCommandV2)[:6]:
             raise ValueError("R2_PREFLIGHT_SYNTHETIC_V2_COMMAND_INVALID")
-        self._counts[command] += 1
-        return complete_preflight_read_v2(binding, claim)
+        self._counts[claim.command] += 1
+        return PreflightAdapterOutcomeV1(
+            claim.command,
+            _stage_for_command(claim.command),
+            fingerprint("r2-synthetic-preflight-receipt-v1", claim.command.value),
+            fingerprint("r2-synthetic-preflight-observation-v1", claim.command.value),
+            0,
+            1,
+        )
 
 
-def _callback(process, command):
-    return lambda binding, claim: process._record(command, binding, claim)
+def _stage_for_command(command):
+    from backend.cutover_composition_contracts import CompositionStage
+
+    return dict(zip(tuple(ProductionCommandV2)[:6], (
+        CompositionStage.CURRENT_TOPOLOGY,
+        CompositionStage.HOST_BASELINE,
+        CompositionStage.EVIDENCE_REVIEW,
+        CompositionStage.EVIDENCE_VERIFICATION,
+        CompositionStage.FINAL_AUDIT_READINESS,
+        CompositionStage.RECOVERY_INSPECTION,
+    ), strict=True))[command]

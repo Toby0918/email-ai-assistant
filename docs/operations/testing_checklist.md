@@ -1136,7 +1136,7 @@ vault/签名/密钥错误、schema/safety/grounding 违规、p95 超限、泄漏
 错误码和计数，并由本地负责人决定恢复或撤销。
 
 
-## Issue #91 production composition closure
+## Issue #104 production Adapter binding remediation
 
 1. Run `tests/test_r2_production_composition_reachability.py` and confirm all
    three executable roots import only their V2 entry.
@@ -1145,51 +1145,21 @@ vault/签名/密钥错误、schema/safety/grounding 违规、p95 超限、泄漏
 3. Confirm default fixed verbs return content-free no-issuer dormancy and that
    the existing #88-#90 positive/negative tests still prove one authorized
    composition acquisition and zero unauthorized acquisitions.
-4. Run `tests/test_r2_production_role_binding_v2.py`; require exact callable
-   semantic fingerprints for all three roots. Prove closures, bound methods,
-   defaults/globals/code drift, nested dynamic namespace access, imports, and
-   function-attribute access are rejected before a callback can run. Also prove
-   module/class drift through aliases, branches, helper returns and containers,
-   exact parameter-method and parameter-global drift, class-level object state,
-   custom metaclass/global constructor drift, cross-module dependencies,
-   cross-module instance/static/class methods, bound receiver graphs, and
-   built-in/method-wrapper receivers, shadowed slotted objects, Enum member state, global
-   staticmethod/property aliases, and
-   `JSONEncoder`/default-encoder drift all change identity before invocation.
-   Mutating `json.encoder.encode_basestring_ascii` must likewise change the
-   reviewed identity before `json.dumps` can run.
-   External module singleton methods, nested types, and types carried in
-   namespace containers must retain the same loaded-global dependency policy.
-   Re-exported functions, modules stored in singleton state, and hidden custom
-   metaclass or inherited-method construction must retain that policy too.
-   Accessed loaderful nested modules through aliases, helper returns, or
-   containers must fail closed, and an accessed external same-namespace
-   function must bind its loaded globals.
-   Class-state object graphs and owned-to-external transitions must preserve
-   the same behavior/implicit-value policy, while module `__getattr__` and
-   custom `ModuleType` subclasses fail closed.
-   Mutate module `__doc__`, class annotations, exact type names, dataclass field defaults,
-   spoofed `builtins` module labels, mounted nested-module values, IEEE NaN
-   payloads, complex values, and slice member types; every change must block
-   invocation. Reject unsupported module dunder reads, dynamic adapters for
-   private attribute strings, custom instance `__dict__` descriptors without
-   executing them, custom/nonempty dataclass metadata without iterating it, and
-   `re.LOCALE`. Confirm locale-independent regex and the
-   exact six-field CPython JSON scanner projection remain stable while other
-   incomplete opaque native state continues to fail closed.
-   Hidden custom-metaclass MRO/class state must drift the reviewed identity
-   before construction can observe it, while metaclass identity/namespace/MRO
-   accessors remain uncalled because exact `type` descriptors are used.
-   A function attached only to an external function's unused `__dict__` state
-   must remain a shallow code surface when its unrelated globals drift.
-   Require direct deep `StringIO`, `list_iterator`, `random.Random`, and
-   `itertools.count` globals to fail closed because their complete native state
-   cannot be proven.
-   Recompute the same callback while stdout is redirected and require an equal
-   fingerprint so unrelated mutable interpreter state cannot poison dispatch.
+4. Run `tests/test_r2_production_adapter_binding_v1.py`,
+   `tests/test_r2_production_composition_v1.py`,
+   `tests/test_r2_production_composition_v1_architecture.py`, and
+   `tests/test_r2_production_binding_candidate_v1.py`. Require exactly three
+   stateful Adapter slots for all ten commands, dynamic-state-independent type
+   identity, per-call binding/type/command/surface/receipt-chain reverification,
+   and completion only after the underlying outcome validates. Prove the
+   deterministic candidate derives every fingerprint from one exact final
+   master and four unique verification public keys disjoint from all fourteen
+   gate keys. Reject arbitrary fingerprints, paths, environment input, private
+   keys, host capability, and production artifacts.
 5. Run `tests/test_r2_production_bootstrap_v2.py`; prove all three `main()`
-   roots reach exactly one role with an exact reviewed nominal bootstrap and
-   matching frozen-review receipt plus valid TTY authority. Confirm `main()` has
-   no terminal/clock input and factories have no `**values`; synthetic roles,
+   roots reach exactly one Adapter with an exact reviewed nominal bootstrap and
+   matching frozen-review receipt, exact non-synthetic Adapter, plus valid TTY
+   authority. Confirm `main()` has
+   no terminal/clock input and factories have no `**values`; synthetic adapters,
    mismatched receipts, wrong bootstrap types, and absent input remain blocked
-   or dormant with zero role operations.
+   or dormant with zero Adapter operations.

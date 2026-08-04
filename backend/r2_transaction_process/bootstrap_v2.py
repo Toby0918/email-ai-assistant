@@ -7,15 +7,17 @@ from backend.r2_final_master_closure import R2ReviewedProductionBindingReceiptV1
 from backend.r2_production_binding import (
     ApprovedCutoverBindingV2,
     DurableAuthorityClaimV2,
-    ProductionCommandV2,
-    require_reviewed_bound_production_callable_v2,
     require_reviewed_production_binding_receipt_v2,
+)
+from backend.r2_production_composition import (
+    ProductionAdapterSlotV1,
+    R2BoundProductionAdapterV1,
+    require_reviewed_bound_production_adapter_v1,
 )
 from backend.r2_production_binding._canonical import is_fingerprint
 
 from .production_v2 import (
     TransactionProductionResultV2,
-    TransactionProductionRolesV2,
     TransactionProductionStatusV2,
     dormant_transaction_production_v2,
     run_transaction_production_v2,
@@ -27,7 +29,7 @@ from .terminal import SystemTerminal
 class TransactionProductionBootstrapV2:
     binding: ApprovedCutoverBindingV2 = field(repr=False)
     reviewed_binding_receipt: R2ReviewedProductionBindingReceiptV1 = field(repr=False)
-    roles: TransactionProductionRolesV2 = field(repr=False)
+    adapter: R2BoundProductionAdapterV1 = field(repr=False)
     durable_claims: tuple[DurableAuthorityClaimV2, ...] = field(repr=False)
     current_journal_head_fingerprint: str = field(repr=False)
     transition_instance_fingerprint: str = field(repr=False)
@@ -38,7 +40,7 @@ class TransactionProductionBootstrapV2:
 
     @classmethod
     def create(
-        cls, *, binding, reviewed_binding_receipt, roles, durable_claims,
+        cls, *, binding, reviewed_binding_receipt, adapter, durable_claims,
         current_journal_head_fingerprint, transition_instance_fingerprint,
         remaining_reverse_plan_fingerprint,
     ):
@@ -58,7 +60,7 @@ class TransactionProductionBootstrapV2:
             argv=argv,
             terminal=SystemTerminal(),
             binding=self.binding,
-            roles=self.roles,
+            adapter=self.adapter,
             durable_claims=self.durable_claims,
             current_journal_head_fingerprint=(
                 self.current_journal_head_fingerprint
@@ -100,21 +102,16 @@ def _require(values):
         or not _receipt_matches(
             values["binding"], values["reviewed_binding_receipt"]
         )
-        or type(values["roles"]) is not TransactionProductionRolesV2
+        or type(values["adapter"]) is not R2BoundProductionAdapterV1
         or not _claims_match(values["durable_claims"], values["binding"])
         or not all(is_fingerprint(values[name]) for name in fingerprints)
     ):
         raise TypeError("R2_TRANSACTION_PRODUCTION_BOOTSTRAP_INVALID")
-    for command in (
-        ProductionCommandV2.EXECUTE,
-        ProductionCommandV2.RESUME,
-        ProductionCommandV2.ROLLBACK,
-    ):
-        require_reviewed_bound_production_callable_v2(
-            binding=values["binding"],
-            command=command,
-            bound=values["roles"].select(command),
-        )
+    require_reviewed_bound_production_adapter_v1(
+        binding=values["binding"],
+        slot=ProductionAdapterSlotV1.TRANSACTION,
+        bound=values["adapter"],
+    )
 
 
 def _claims_match(claims, binding):

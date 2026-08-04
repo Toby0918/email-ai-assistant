@@ -11,9 +11,13 @@ from backend.r2_production_binding import (
     ApprovedCutoverBindingV2,
     DurableAuthorityClaimV2,
     ProductionCommandV2,
-    R2BoundProductionCallableV2,
-    bind_production_callable_v2,
-    reverify_bound_production_callable_v2,
+)
+from backend.r2_production_binding._canonical import is_fingerprint
+from backend.r2_production_composition import (
+    PreflightAdapterOutcomeV1,
+    ProductionAdapterSlotV1,
+    R2BoundProductionAdapterV1,
+    reverify_bound_production_adapter_v1,
 )
 from backend.r2_production_binding.catalog import (
     OperatorSurfaceV2,
@@ -64,55 +68,12 @@ class PreflightReadCompletionV2:
     read_operations: int
 
 
-@dataclass(frozen=True, slots=True, init=False, repr=False)
-class PreflightProductionRolesV2:
-    current_topology_preflight: object = field(repr=False)
-    host_baseline: object = field(repr=False)
-    evidence_review: object = field(repr=False)
-    evidence_verification: object = field(repr=False)
-    final_audit_readiness: object = field(repr=False)
-    recovery_inspection: object = field(repr=False)
-
-    def __init__(self, *args, **kwargs):
-        raise TypeError("PreflightProductionRolesV2 requires create()")
-
-    @classmethod
-    def create(cls, *, binding, **callbacks):
-        expected = tuple(PREFLIGHT_PRODUCTION_VERBS_V2.values())
-        if set(callbacks) != {item.value for item in expected}:
-            raise TypeError("R2_PREFLIGHT_PRODUCTION_ROLES_INVALID")
-        values = tuple(
-            bind_production_callable_v2(
-                binding=binding, command=command, callback=callbacks[command.value]
-            )
-            for command in expected
-        )
-        return _allocate_roles(values)
-
-    def select(self, command):
-        if type(command) is not ProductionCommandV2:
-            raise TypeError("R2_PREFLIGHT_PRODUCTION_ROLES_INVALID")
-        return dict(zip(PREFLIGHT_PRODUCTION_VERBS_V2.values(), self._values()))[
-            command
-        ]
-
-    def _values(self):
-        return (
-            self.current_topology_preflight,
-            self.host_baseline,
-            self.evidence_review,
-            self.evidence_verification,
-            self.final_audit_readiness,
-            self.recovery_inspection,
-        )
-
-
 def run_preflight_production_v2(
     *,
     argv,
     terminal,
     binding,
-    roles,
+    adapter,
     durable_claims,
     expected_prior_journal_head_fingerprint,
     observed_at_epoch,
@@ -137,7 +98,7 @@ def run_preflight_production_v2(
         )
     except Exception:
         return _blocked(PreflightProductionStatusV2.BLOCKED_AUTHORITY)
-    return _invoke_role(binding, roles, command, claim)
+    return _invoke_adapter(binding, adapter, command, claim)
 
 
 def dormant_preflight_production_v2(*, argv):
@@ -178,14 +139,26 @@ def complete_preflight_read_v2(binding, claim):
     )
 
 
-def _invoke_role(binding, roles, command, claim):
+def _invoke_adapter(binding, adapter, command, claim):
     try:
-        if type(roles) is not PreflightProductionRolesV2:
+        if type(adapter) is not R2BoundProductionAdapterV1:
             raise TypeError
-        role = reverify_bound_production_callable_v2(
-            binding=binding, command=command, bound=roles.select(command)
+        bound = reverify_bound_production_adapter_v1(
+            binding=binding,
+            slot=ProductionAdapterSlotV1.PREFLIGHT,
+            bound=adapter,
         )
-        completion = role(binding, claim)
+        outcome = bound.invoke(binding=binding, claim=claim)
+        if (
+            type(outcome) is not PreflightAdapterOutcomeV1
+            or outcome.command is not command
+            or not is_fingerprint(outcome.receipt_fingerprint)
+            or not is_fingerprint(outcome.observation_fingerprint)
+            or outcome.provider_attempts != 0
+            or outcome.read_operations != 1
+        ):
+            raise TypeError
+        completion = complete_preflight_read_v2(binding, claim)
         if (
             type(completion) is not PreflightReadCompletionV2
             or completion.binding_fingerprint != binding.binding_fingerprint
@@ -229,16 +202,3 @@ def _valid_argv(argv):
 
 def _blocked(status):
     return PreflightProductionResultV2(status, 0, 1, 0)
-
-
-def _allocate_roles(values):
-    if len(values) != 6 or any(type(item) is not R2BoundProductionCallableV2 for item in values):
-        raise TypeError("R2_PREFLIGHT_PRODUCTION_ROLES_INVALID")
-    result = object.__new__(PreflightProductionRolesV2)
-    for name, item in zip(PreflightProductionRolesV2.__dataclass_fields__, values):
-        object.__setattr__(result, name, item)
-    return result
-
-
-def _create_synthetic_roles_v2(values):
-    return _allocate_roles(values)

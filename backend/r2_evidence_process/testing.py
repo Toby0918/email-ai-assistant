@@ -15,13 +15,17 @@ from .contracts import (
 )
 from .entry import run_authorization_gate
 from .production_v2 import (
-    _create_synthetic_role_v2,
     EvidenceProductionStatusV2,
-    complete_reviewed_evidence_publication_v2,
     run_evidence_production_v2,
 )
 from backend.r2_production_binding import ApprovedCutoverBindingV2, ProductionCommandV2
-from backend.r2_production_binding.role_binding import _synthetic_bound_callable_v2
+from backend.r2_production_composition import (
+    EvidenceAdapterOutcomeV1,
+    ProductionAdapterSlotV1,
+)
+from backend.r2_production_composition.adapter_binding import (
+    _synthetic_bound_adapter_v1,
+)
 from backend.r2_transaction_journal_v2 import R2JournalGenesisV2
 
 
@@ -143,6 +147,16 @@ def _require_context(values) -> None:
         raise ValueError("R2_EVIDENCE_SYNTHETIC_BINDING_INVALID")
 
 
+class _SyntheticEvidenceAdapterV1:
+    __slots__ = ("_owner",)
+
+    def __init__(self, owner):
+        self._owner = owner
+
+    def invoke(self, *, binding, claim):
+        return self._owner._publish_once(binding, claim)
+
+
 class SyntheticEvidenceProductionV2:
     __slots__ = (
         "_attempted",
@@ -158,7 +172,7 @@ class SyntheticEvidenceProductionV2:
         "_owner",
         "_package",
         "_review",
-        "_role",
+        "_adapter",
     )
 
     def __init__(self, *args, **kwargs):
@@ -190,9 +204,11 @@ class SyntheticEvidenceProductionV2:
         )
         if process._genesis is not None:
             process._head = process._genesis.head_fingerprint
-        process._role = _create_synthetic_role_v2(_synthetic_bound_callable_v2(
-            ProductionCommandV2.EVIDENCE_PUBLICATION, process._publish_once, process._binding
-        ))
+        process._adapter = _synthetic_bound_adapter_v1(
+            ProductionAdapterSlotV1.EVIDENCE,
+            _SyntheticEvidenceAdapterV1(process),
+            process._binding,
+        )
         return process
 
     @property
@@ -204,7 +220,7 @@ class SyntheticEvidenceProductionV2:
             argv=argv,
             terminal=terminal,
             binding=self._binding,
-            role=self._role,
+            adapter=self._adapter,
             reviewed_evidence_fingerprint=self._review,
             durable_claims=self._durable_claims,
             expected_prior_journal_head_fingerprint=self._head,
@@ -224,13 +240,18 @@ class SyntheticEvidenceProductionV2:
         self._attempted = True
         if self._create() != 1:
             raise ValueError("R2_EVIDENCE_CREATE_ONLY_FAILED")
-        return complete_reviewed_evidence_publication_v2(
-            binding=binding,
-            claim=claim,
+        if (
+            binding is not self._binding
+            or claim.command is not ProductionCommandV2.EVIDENCE_PUBLICATION
+        ):
+            raise ValueError("R2_EVIDENCE_SYNTHETIC_V2_COMMAND_INVALID")
+        return EvidenceAdapterOutcomeV1(
             reviewed_evidence_fingerprint=self._review,
             evidence_identity_fingerprint=self._evidence,
             package_fingerprint=self._package,
             manifest_fingerprint=self._manifest,
+            provider_attempts=0,
+            created=1,
         )
 
 

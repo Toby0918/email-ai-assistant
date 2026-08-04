@@ -741,7 +741,7 @@ scripts/repository_leakage_scan.py
 snapshot filesystem 或 mailbox access。`frontend/` 仍仅在
 用户点击后读取当前可见邮件，公开 HTTP/SQLite/renderer schema 没有因为上述
 管理员工具而扩大。
-## Issue #91 V2 process-root reachability
+## Issue #104 V2 process-root Adapter reachability
 
 The three V2 executable roots are
 `backend.r2_preflight_process`, `backend.r2_evidence_process`, and
@@ -753,49 +753,25 @@ present but is outside the executable production graph.
 With no external issuer, every valid fixed verb returns
 `DORMANT_NO_EXTERNAL_ISSUER` and zero operations. Production imports no test
 binder, synthetic context, private signing key, or cross-root umbrella.
-`backend/r2_production_binding/role_binding.py` normalizes callable code
-identity with `_callable_identity.py`, `_frame_primitives.py`,
-`_semantic_identity.py`, `_type_identity.py`, fail-closed bytecode policy in
-`_static_code.py`, bounded
-executable-global traversal in `_module_identity.py`, and policy-specific
-per-fingerprint memoization in `_traversal.py`. The closed
-identity recursively binds helper globals/builtins plus referenced module
-namespaces and repository-owned/synthetic loaded dependencies, pinned external
-code surfaces, non-built-in executable type surfaces, scalar/object constants,
-custom metaclass construction, deep dictionary/exact-slot/bound-receiver state, and
-same-family or explicitly mounted method globals. Enum member state and global
-staticmethod/property aliases preserve the caller's deep policy; inherited
-external behavior methods bind loaded globals, while exact Enum auto-copied
-methods retain pinned code surfaces.
-Policy-specific digest
-references close
-cycles. Deep opaque/native values without provably complete dictionary/slot
-state, including native method/wrapper extension owners, fail closed, while
-shallow external function surfaces avoid making
-terminal streams or other mutable interpreter state part of implicit function
-state; unused functions attached only to implicit values remain code surfaces.
-External namespace object methods, nested types, and container-carried
-types still bind their loaded global behavior dependencies; aliases and
-re-exported functions, object-state modules, custom metaclasses, and other
-class-state/cross-module/parameter flows need no local attribute-flow
-inference. Custom metaclass frames include their complete non-built-in MRO and
-class state through exact `type` descriptor reads that bypass metaclass
-identity/namespace/MRO spoofing. Module `__getattr__` and custom `ModuleType`
-subclasses fail closed as dynamic namespaces, unsupported module dunders are
-rejected, and module `__doc__` is explicit. Accessed loaderful nested modules
-fail closed through direct/alias/helper/container paths; accessed external
-same-namespace functions bind globals. Exact built-in object identity, class
-names and runtime metadata, default-empty-only dataclass metadata, IEEE
-float/complex bytes, recursively typed slices, locale-independent regex state,
-and the closed six-field CPython JSON scanner projection are framed explicitly.
-Custom instance `__dict__` descriptors, custom metadata mappings, dynamic
-private-attribute adapters, and `re.LOCALE` fail before user behavior executes.
-Loaderless mounted nested modules bind values without absorbing the internal
-caches of unreferenced imported standard-library modules.
-It maps every command to its reviewed
-production role and rejects any callable whose recomputed fingerprint differs
-from the immutable binding. Each root's `bootstrap_v2.py` accepts only the exact reviewed
-binding, matching frozen-review receipt, binding-bound public roles,
-same-binding claims, and journal identities. `main()` reaches the existing run
-composition only through that nominal bootstrap and owns the exact system TTY
-and clock; test-only synthetic roles and terminal/clock injection fail closed.
+`backend/r2_production_composition/` is the Issue #104 deep module. Its catalog
+maps all ten commands into exactly three nominal stateful Adapter slots: six
+preflight commands, one evidence command, and three transaction commands. The
+package adapts the three protected Issue #59 composition roots without changing
+them. `adapter_binding.py` owns immutable binding and per-call reverification;
+`_adapter_identity.py` binds exact command, authority domain, Adapter type, and
+complete owning-module source while excluding dynamic instance state.
+
+`preflight.py`, `evidence.py`, and `transaction.py` validate the underlying
+composition binding, exact receipts, command-specific chain, and outcome before
+the process can create a completion. `binding_candidate.py` deterministically
+derives the operation, four operator roles, ten Adapter identities, and eight
+nominal roles from an exact final-master binding and four unique verification
+public keys disjoint from the fourteen gate keys.
+
+Each root's `bootstrap_v2.py` accepts only the exact reviewed binding, matching
+frozen-review receipt, one non-synthetic bound Adapter, same-binding claims, and
+journal identities. `main()` reaches the existing run composition only through
+that nominal bootstrap and owns the exact system TTY and clock. Test-only
+synthetic adapters remain local to `testing.py` and fail production bootstrap
+construction. The removed callback-role seam is not retained underneath the
+Adapter layer.

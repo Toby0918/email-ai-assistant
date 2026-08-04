@@ -11,9 +11,12 @@ from backend.r2_production_binding import (
     ApprovedCutoverBindingV2,
     DurableAuthorityClaimV2,
     ProductionCommandV2,
-    R2BoundProductionCallableV2,
-    bind_production_callable_v2,
-    reverify_bound_production_callable_v2,
+)
+from backend.r2_production_composition import (
+    ProductionAdapterSlotV1,
+    R2BoundProductionAdapterV1,
+    TransactionAdapterOutcomeV1,
+    reverify_bound_production_adapter_v1,
 )
 from backend.r2_production_binding.catalog import (
     OperatorSurfaceV2,
@@ -80,48 +83,12 @@ class TransactionActionCompletionV2:
     mutations: int
 
 
-@dataclass(frozen=True, slots=True, init=False, repr=False)
-class TransactionProductionRolesV2:
-    execute: object = field(repr=False)
-    resume: object = field(repr=False)
-    rollback: object = field(repr=False)
-
-    def __init__(self, *args, **kwargs):
-        raise TypeError("TransactionProductionRolesV2 requires create()")
-
-    @classmethod
-    def create(cls, *, binding, execute, resume, rollback):
-        callbacks = {
-            ProductionCommandV2.EXECUTE: execute,
-            ProductionCommandV2.RESUME: resume,
-            ProductionCommandV2.ROLLBACK: rollback,
-        }
-        return _allocate_roles(tuple(
-            bind_production_callable_v2(
-                binding=binding, command=command, callback=callbacks[command]
-            )
-            for command in callbacks
-        ))
-
-    def select(self, command):
-        if type(command) is not ProductionCommandV2:
-            raise TypeError("R2_TRANSACTION_PRODUCTION_ROLES_INVALID")
-        return {
-            ProductionCommandV2.EXECUTE: self.execute,
-            ProductionCommandV2.RESUME: self.resume,
-            ProductionCommandV2.ROLLBACK: self.rollback,
-        }[command]
-
-    def _values(self):
-        return self.execute, self.resume, self.rollback
-
-
 def run_transaction_production_v2(
     *,
     argv,
     terminal,
     binding,
-    roles,
+    adapter,
     durable_claims,
     current_journal_head_fingerprint,
     transition_instance_fingerprint,
@@ -155,7 +122,7 @@ def run_transaction_production_v2(
         return _blocked(TransactionProductionStatusV2.BLOCKED_AUTHORITY)
     return _invoke_action(
         binding,
-        roles,
+        adapter,
         claim,
         current_journal_head_fingerprint,
         transition_instance_fingerprint,
@@ -224,27 +191,21 @@ def complete_transaction_action_v2(
     )
 
 
-def _invoke_action(binding, roles, claim, head, transition, plan):
+def _invoke_action(binding, adapter, claim, head, transition, plan):
     try:
-        if type(roles) is not TransactionProductionRolesV2:
-            raise TypeError
-        role = reverify_bound_production_callable_v2(
-            binding=binding, command=claim.command, bound=roles.select(claim.command)
+        outcome = _invoke_transaction_adapter(
+            binding, adapter, claim, head, transition, plan
         )
-        completion = role(
-            binding, claim, head, transition, plan
+        completion = complete_transaction_action_v2(
+            binding,
+            claim,
+            head,
+            outcome.transition_instance_fingerprint,
+            outcome.remaining_reverse_plan_fingerprint,
         )
-        if (
-            type(completion) is not TransactionActionCompletionV2
-            or completion.binding_fingerprint != binding.binding_fingerprint
-            or completion.command is not claim.command
-            or completion.claim_fingerprint != claim.claim_fingerprint
-            or completion.prior_journal_head_fingerprint != head
-            or completion.transition_instance_fingerprint != transition
-            or completion.remaining_reverse_plan_fingerprint != plan
-            or completion.mutations != 1
-        ):
-            raise TypeError
+        _require_transaction_completion(
+            completion, binding, claim, head, transition, plan
+        )
     except Exception:
         return _blocked(TransactionProductionStatusV2.BLOCKED_ACTION)
     return TransactionProductionResultV2(
@@ -256,6 +217,56 @@ def _invoke_action(binding, roles, claim, head, transition, plan):
         head,
         completion.completion_fingerprint,
     )
+
+
+def _invoke_transaction_adapter(binding, adapter, claim, head, transition, plan):
+    if type(adapter) is not R2BoundProductionAdapterV1:
+        raise TypeError
+    bound = reverify_bound_production_adapter_v1(
+        binding=binding,
+        slot=ProductionAdapterSlotV1.TRANSACTION,
+        bound=adapter,
+    )
+    outcome = bound.invoke(
+        binding=binding,
+        claim=claim,
+        journal_head_fingerprint=head,
+        transition_instance_fingerprint=transition,
+        remaining_reverse_plan_fingerprint=plan,
+    )
+    _require_transaction_outcome(outcome, claim, transition, plan)
+    return outcome
+
+
+def _require_transaction_outcome(outcome, claim, transition, plan):
+    if (
+        type(outcome) is not TransactionAdapterOutcomeV1
+        or outcome.command is not claim.command
+        or not is_fingerprint(outcome.chain_fingerprint)
+        or not is_fingerprint(outcome.journal_head_fingerprint)
+        or not is_fingerprint(outcome.terminal_receipt_fingerprint)
+        or outcome.transition_instance_fingerprint != transition
+        or outcome.remaining_reverse_plan_fingerprint != plan
+        or outcome.provider_attempts != 0
+        or outcome.mutations != 1
+    ):
+        raise TypeError
+
+
+def _require_transaction_completion(
+    completion, binding, claim, head, transition, plan
+):
+    if (
+        type(completion) is not TransactionActionCompletionV2
+        or completion.binding_fingerprint != binding.binding_fingerprint
+        or completion.command is not claim.command
+        or completion.claim_fingerprint != claim.claim_fingerprint
+        or completion.prior_journal_head_fingerprint != head
+        or completion.transition_instance_fingerprint != transition
+        or completion.remaining_reverse_plan_fingerprint != plan
+        or completion.mutations != 1
+    ):
+        raise TypeError
 
 
 def _read_ingress(terminal):
@@ -283,15 +294,3 @@ def _valid_argv(argv):
 
 def _blocked(status):
     return TransactionProductionResultV2(status, 0, 1, 0)
-
-
-def _allocate_roles(values):
-    if len(values) != 3 or any(type(item) is not R2BoundProductionCallableV2 for item in values):
-        raise TypeError("R2_TRANSACTION_PRODUCTION_ROLES_INVALID")
-    result = object.__new__(TransactionProductionRolesV2)
-    object.__setattr__(result, "execute", values[0])
-    object.__setattr__(result, "resume", values[1])
-    object.__setattr__(result, "rollback", values[2])
-    return result
-def _create_synthetic_roles_v2(values):
-    return _allocate_roles(values)

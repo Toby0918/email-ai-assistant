@@ -1404,7 +1404,7 @@ tests/test_static_linter_constraints.py
 ```text
 docs/constraints/architecture_constraints.md
 ```
-## R2 production composition closure guards
+## Historical Issue #91 callback guards (superseded by Issue #104)
 
 - The three `r2_*_process/__main__.py` files must import only their local
   `production_v2.main`; the historical V1 `entry.py` lock must not be on the
@@ -1435,3 +1435,22 @@ docs/constraints/architecture_constraints.md
   must bind. Custom instance `__dict__` descriptors and custom/nonempty
   dataclass metadata must be rejected without execution or iteration, dynamic
   private-attribute string adapters must fail, and `re.LOCALE` is forbidden.
+
+## Issue #104 production Adapter guards
+
+- The executable process graph must import Adapter bindings from
+  `backend.r2_production_composition`; it must not expose or reconstruct the
+  removed callable-role seam.
+- The catalog must contain exactly ten command registrations grouped into three
+  Adapter slots: six preflight, one evidence, and three transaction commands.
+- Production Adapter identity must bind exact command, authority domain, type
+  module/qualified name, and complete owning-module source. It must not include
+  mutable Adapter instance state.
+- Every process must verify authority, reverify the Adapter, invoke it, validate
+  its underlying outcome, and only then invoke and validate the completion
+  helper. A failure at any step must remain content-free and fail closed.
+- Candidate construction accepts only exact final-master binding and four
+  verification public keys. Path, environment, private-key, signer, issuer,
+  credential, host, provider, vault, and artifact capabilities are forbidden.
+- Production bootstraps must reject the test-only synthetic marker. Production
+  modules must not import their local `testing.py` modules.

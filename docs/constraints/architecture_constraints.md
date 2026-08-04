@@ -1713,7 +1713,7 @@ tests/test_architecture_constraints.py
 ```
 
 如果只是业务功能变化，不得随意放宽架构约束。
-## Issue #91 production composition graph closure
+## Issue #91 historical callback composition (superseded by Issue #104)
 
 The three executable V2 process roots import `production_v2.main` directly.
 The obsolete post-authorization locks in the historical V1 `entry.py` modules
@@ -1798,3 +1798,34 @@ semantics stop at the existing immutable production-binding contracts.
 No executable root imports `testing.py`, accepts a synthetic context or test
 binder, or owns an issuer/private signing key. With no bootstrap the three
 executable V2 process roots return only `DORMANT_NO_EXTERNAL_ISSUER`.
+
+## Issue #104 production Adapter binding remediation
+
+Issue #104 removes the rejected callable-role seam and replaces it with one
+deep module, `backend.r2_production_composition`. The module owns exactly three
+stateful Adapter slots: preflight for six commands, evidence for one command,
+and transaction for three commands. Process packages receive one Adapter, not
+ten injected callbacks. The protected Issue #59 composition packages remain
+unchanged and mutually isolated.
+
+Every Adapter binding is nominal and immutable. Its identity binds the exact
+command, exact Adapter type, authority domain, module and qualified type name,
+and the SHA-256 of the complete owning-module source. Dynamic instance state is
+intentionally excluded from that fingerprint. Each invocation revalidates the
+current type identity, exact reviewed binding, command, Adapter surface,
+underlying composition binding, receipts, and receipt chain before accepting an
+outcome. A process calls its completion helper only after the underlying
+composition outcome has passed these validations.
+
+`build_production_binding_candidate_v1` is deterministic and accepts only an
+exact `FinalMasterBindingV1` plus four unique public verification keys. It
+derives the operation, four operator roles, ten Adapter identities, and eight
+nominal roles. The four keys must be pairwise distinct and disjoint from all
+fourteen gate keys. The candidate builder accepts no arbitrary fingerprint,
+path, environment, private key, credential, host, signer, or artifact input.
+
+Production bootstraps accept only exact reviewed non-synthetic Adapter bindings.
+Test-only synthetic adapters remain in the three local `testing.py` modules and
+are rejected by production bootstrap construction. Default entries remain
+`DORMANT_NO_EXTERNAL_ISSUER`; this remediation creates no real Adapter instance,
+performs no host operation, and does not authorize Issue #105, #38, or #39.

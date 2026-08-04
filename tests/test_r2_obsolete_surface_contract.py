@@ -10,25 +10,37 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 R2_PACKAGES = tuple((ROOT / "backend").glob("r2_*"))
+PRODUCTION_TRANSACTION_ADAPTER = (
+    ROOT / "backend" / "r2_production_composition" / "transaction.py"
+)
 
 
 class R2ObsoleteSurfaceContractTests(unittest.TestCase):
     def test_r2_surface_has_no_obsolete_batch_or_success_semantics(self):
-        source = "\n".join(
-            item.read_text(encoding="utf-8")
+        sources = {
+            item: item.read_text(encoding="utf-8")
             for package in R2_PACKAGES
             for item in package.glob("*.py")
-        )
+        }
+        source = "\n".join(sources.values())
         for forbidden in (
             "ManagedActivationReceiptSetV1",
             "ManagedActivationPhase",
-            "CUTOVER_SUCCEEDED",
             "deterministic_rules",
             "pip check",
             "from backend.cutover_service_lifecycle import",
-            "cutover_transaction_composition",
         ):
             self.assertNotIn(forbidden, source)
+        for reviewed_adapter_term in (
+            "CUTOVER_SUCCEEDED",
+            "cutover_transaction_composition",
+        ):
+            locations = tuple(
+                path
+                for path, content in sources.items()
+                if reviewed_adapter_term in content
+            )
+            self.assertEqual(locations, (PRODUCTION_TRANSACTION_ADAPTER,))
 
     def test_real_process_entries_never_import_synthetic_substitutes(self):
         for package_name in (
