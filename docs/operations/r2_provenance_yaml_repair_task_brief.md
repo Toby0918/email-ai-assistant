@@ -448,3 +448,19 @@ metadata 或 private data，不增加 real-host/provider/mailbox/vault capabilit
 - transport 修复后本地 reduced success path 零输出、exit 0；in-memory forced first-test
   failure 零输出、精确 exit 18，与公式一致。Actionlint 1.7.12 及 provenance
   contract/adapter/architecture 14 tests 均通过。
+
+## 24. 第七轮 PowerShell-owned ordinal transport
+
+- commit `e64bf8088fbfed68f5f55087ae0db73a6ba0caa7` 已 push。Hosted run
+  `31055797629` 的 probe 仍在 Python pipeline 行被 runner 归一化为 step exit 1，正式
+  verifier 未运行；因此仍未获得 test/category ordinal。
+- 第七轮不再让 Python 返回非零。Python 在全部 test streams 被重定向的条件下只向被
+  PowerShell command substitution 捕获的 stdout 写一个固定 integer，并始终 exit 0；
+  PowerShell 要求唯一值可解析且位于 0--250，然后由 PowerShell 自身 `exit N`。成功的
+  `0` 和失败 numeric code 均不直接打印，parse/interpreter failure 仍固定 exit 1。
+- ordinal 公式、suite、failure semantics、正式 verifier/receipt/reconciliation 与
+  real-host/private-data 边界均不变。
+- PowerShell-owned transport 的本地 reduced success path 为零直接输出、exit 0；固定
+  captured code 18 路径为零直接输出、精确 exit 18。Actionlint 1.7.12、provenance
+  contract/adapter/architecture 14 tests、repository-leakage 11 tests 和 actual leakage
+  scan 均通过。
