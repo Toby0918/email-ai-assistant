@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from pathlib import Path
 import re
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -153,6 +155,62 @@ class R2CiProvenanceV2AdapterTests(unittest.TestCase):
                     "sqlite3.sqlite_version_info == (3, 50, 4)", block
                 )
                 self.assertIn("$env:GITHUB_PATH", block)
+
+
+@unittest.skipUnless(sys.platform == "win32", "Windows NTFS/TTY/process proof")
+class R2CiProvenanceWindowsNativeAdapterTests(unittest.TestCase):
+    def test_ci_budgeted_script_proves_complete_topology_without_public_leakage(self):
+        completed = subprocess.run(
+            (
+                sys.executable,
+                "-B",
+                str(ROOT / "scripts" / "verify_r2_synthetic_topology.py"),
+            ),
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=300,
+            check=False,
+        )
+        value = json.loads(completed.stdout)
+        lowered = completed.stdout.lower()
+        self.assertEqual(
+            {
+                "process": (completed.returncode, completed.stderr),
+                "status": value["status"],
+                "counts": value["counts"],
+                "terminal_status": value["terminal_status"],
+                "provider_attempts": value["provider_attempts"],
+                "public_leakage": value["public_leakage"],
+                "real_host_operations": value["real_host_operations"],
+                "distinct_fingerprints": len(set(value["fingerprints"].values())),
+                "forbidden_public_text": tuple(
+                    item
+                    for item in ("d:\\", "c:\\", "appdata", "email", "private")
+                    if item in lowered
+                ),
+            },
+            {
+                "process": (0, ""),
+                "status": "R2_SYNTHETIC_VERIFICATION_COMPLETE",
+                "counts": {
+                    "authorization_domains": 4,
+                    "independent_audits": 2,
+                    "managed_units": 4,
+                    "process_types": 3,
+                    "project_container_zones": 9,
+                    "repositories": 1,
+                    "semantic_gap_cases": 70,
+                    "worktrees": 11,
+                },
+                "terminal_status": "CUTOVER_SUCCESS",
+                "provider_attempts": 0,
+                "public_leakage": 0,
+                "real_host_operations": 0,
+                "distinct_fingerprints": 6,
+                "forbidden_public_text": (),
+            },
+        )
 
 
 def _workflow(runner: str, *, provenance: bool = False) -> str:

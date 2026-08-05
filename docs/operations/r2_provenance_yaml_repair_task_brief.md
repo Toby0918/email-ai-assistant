@@ -18,7 +18,8 @@ Repair the R2 provenance workflow YAML parse failure.
 
 ## 3. 当前状态
 
-`implemented`（第二轮改动仅存在于本地 worktree，尚未 commit 或 push）
+`implemented`（第三轮 Windows-native timeout 修复仅存在于本地 worktree，尚未
+commit 或 push）
 
 ## 4. 任务目标
 
@@ -259,5 +260,55 @@ CI 修复；#105、dirty 主仓库、merge 和 issue 关闭仍保持禁止。Hos
 
 ### 19.6 尚未完成
 
-- 尚未 commit 或 push 第二轮改动；PR #107 的 hosted checks 尚未基于本地最终树重跑；
+- 第二轮改动已 commit/push 为 `5eb3b452967b07140f348c5b4086b4f7926ee652`；
+  hosted run `31042241886` 的 portable 和 independent Windows jobs 通过，
+  Windows-native job 以固定 `R2_CI_PROVENANCE_INVALID` 失败；
 - 未修改 #105，未触碰 dirty 主仓库，未 merge、转 Ready 或关闭任何 issue。
+
+## 20. 第三轮 Windows-native hosted timeout 修复
+
+### 20.1 诊断证据
+
+- 同一 hosted run 中，Windows-independent verifier（包含相同 Git-object package、
+  dependency fingerprint 和 leakage 阶段）约 26.9 秒完成；Windows-native verifier
+  约 177.5 秒失败，差值约 150.6 秒。
+- Windows-native fixed suite 中唯一的 120 秒子进程上限位于完整 synthetic topology
+  脚本 proof。前后 Windows-native 用例的约 30 秒预算加该 120 秒上限，与 hosted
+  差值吻合。verifier 按设计只公开固定失败码，因此该结论是由时序和排除实验支持的
+  最强诊断，不伪称取得了被抑制的私有异常文本。
+- 使用 Python 3.12.13、SQLite 3.50.4 和 Git 2.55.0.windows.3 复现：Git-object
+  package、31 个锁定依赖 fingerprint、leakage scan 及所有可在 `D:\Projects` 内
+  等价运行的 Windows proof 均通过。原 120 秒 topology proof 本地为 39.7 秒，限制为
+  两个逻辑核后为 42.0 秒；这证明行为正确，但不能代表 2 核 hosted VM 的 I/O 余量。
+
+### 20.2 最小修复
+
+- Windows-native closed suite 仍运行 35 条 proof；不删除完整 topology 行为。
+- 将原模块中的 120 秒 topology 脚本 test 替换为 provenance adapter 自有的同等
+  public-script proof。它校验完全相同的 aggregate counts、terminal status、零 provider、
+  零 leakage、零 real-host operation、六个 distinct fingerprints 和 forbidden public
+  text，并使用有界 300 秒 CI budget。
+- 原完整 topology 模块的其余五条 proof 继续逐条进入 closed suite。生产代码、原领域
+  测试、workflow 权限/runner/action pins、依赖锁和 receipt schema 均未改变。
+
+### 20.3 RED -> GREEN 与本地验证
+
+- 新增 registry seam 回归测试先在旧 Windows-native module registry 上 RED，修复后
+  GREEN。
+- 新 CI-budgeted topology proof 在 exact dependency venv 中通过：1 test，52.3 秒。
+- focused provenance suites：13 tests，passed。
+- provenance/architecture/static/mechanical suites：86 tests，passed。
+- maintenance/status/leakage guard suites：51 tests，passed。
+- Windows-native loader：35 tests，0 load errors。
+- checksum-verified official `actionlint` 1.7.12：exit 0。
+- maintenance scan：high 0；仅保留 19 个既有 low stale-doc findings。
+- repository leakage scan：0 findings；`git diff --check`：exit 0。
+- 未运行本地 full discovery：现有 root-anchor Windows fixtures 会在
+  `sys._base_executable` 的 C: 根创建临时目录，违反本任务持续有效的
+  `D:\Projects` placement boundary；不得把 focused 结果伪报为 full green。
+
+### 20.4 尚未完成与授权边界
+
+- 第三轮改动尚未 stage、commit 或 push；PR #107 hosted checks 尚未重跑。
+- 不运行 final-master verifier，不修改 #105，不触碰 dirty 主仓库，不 merge、不转
+  Ready，也不关闭任何 issue。commit、push 和 hosted rerun 仍需另行明确授权。
