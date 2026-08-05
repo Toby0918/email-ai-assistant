@@ -479,3 +479,18 @@ metadata 或 private data，不增加 real-host/provider/mailbox/vault capabilit
 - `python -c` transport 的本地 reduced success path 为 exit 0，captured code 18 为精确
   exit 18；actionlint 1.7.12、provenance contract/adapter/architecture 14 tests、actual
   repository leakage scan 与 `git diff --check` 均通过。
+
+## 26. 第九轮 fixed content-free marker transport
+
+- commit `82e370155fac376f2297fc398f2818934ecb0a6e` 已 push。Hosted run
+  `31056307955` 的 Windows job 仍显示通用 exit 1；完整 job log 证明 probe 只运行约
+  1.3 秒且没有 traceback，但 GitHub PowerShell wrapper 不保留任意非零 process code。
+- 第九轮在 failure 时只输出一个固定 ASCII marker
+  `R2_WINDOWS_NATIVE_PROBE_NNN` 后 exit 1。`NNN` 只能是既有 11--250 组合/未知码或
+  241--245 transport 码；不包含 test name、path、exception、traceback、Git metadata、
+  内容或 private data。成功仍零输出并继续正式 verifier。
+- 这是临时、content-free、synthetic-only 的 hosted diagnostic；取得 marker 后必须移除，
+  不得作为正式 receipt 或 closure evidence。其他 suite/receipt/authorization 边界不变。
+- 本地固定 captured code 18 只输出 `R2_WINDOWS_NATIVE_PROBE_018` 并 exit 1；success
+  code 0 零输出、exit 0。Actionlint 1.7.12、provenance contract/adapter/architecture
+  14 tests、actual repository leakage scan 与 `git diff --check` 均通过。

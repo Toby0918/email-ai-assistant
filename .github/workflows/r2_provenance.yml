@@ -153,18 +153,34 @@ jobs:
           finish(10 + (ordinal - 1) * 8 + category)
           '@
           $probeCodeText = python -B -c $probe
-          if ($LASTEXITCODE -ne 0) { exit 241 }
-          if ([string]::IsNullOrWhiteSpace([string]$probeCodeText)) {
-            exit 242
+          if ($LASTEXITCODE -ne 0) {
+            Write-Output "R2_WINDOWS_NATIVE_PROBE_241"
+            exit 1
           }
-          if ($probeCodeText -is [array]) { exit 243 }
+          if ([string]::IsNullOrWhiteSpace([string]$probeCodeText)) {
+            Write-Output "R2_WINDOWS_NATIVE_PROBE_242"
+            exit 1
+          }
+          if ($probeCodeText -is [array]) {
+            Write-Output "R2_WINDOWS_NATIVE_PROBE_243"
+            exit 1
+          }
           $probeCode = 0
           if (-not [int]::TryParse(
             [string]$probeCodeText,
             [ref]$probeCode
-          )) { exit 244 }
-          if ($probeCode -lt 0 -or $probeCode -gt 250) { exit 245 }
-          if ($probeCode -ne 0) { exit $probeCode }
+          )) {
+            Write-Output "R2_WINDOWS_NATIVE_PROBE_244"
+            exit 1
+          }
+          if ($probeCode -lt 0 -or $probeCode -gt 250) {
+            Write-Output "R2_WINDOWS_NATIVE_PROBE_245"
+            exit 1
+          }
+          if ($probeCode -ne 0) {
+            Write-Output ("R2_WINDOWS_NATIVE_PROBE_{0:D3}" -f $probeCode)
+            exit 1
+          }
       - name: Verify Windows native Git-object provenance
         id: provenance
         shell: pwsh
