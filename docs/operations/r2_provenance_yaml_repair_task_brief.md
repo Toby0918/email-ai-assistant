@@ -380,3 +380,54 @@ CI 修复；#105、dirty 主仓库、merge 和 issue 关闭仍保持禁止。Hos
 - 未运行 full discovery：其既有 root-anchor fixtures 会在 `C:\` 创建测试目录，与本轮
   synthetic artifacts 必须位于 `D:\Projects` 的 placement boundary 冲突；不得把该项
   伪报为 green。未运行 final-master verifier。
+
+## 22. 第五轮 Windows-native content-free ordinal diagnosis
+
+### 22.1 第四轮反证
+
+- commit `0518e7df1094da70b2f406f2e61e0807781ca9ba` 已 push；hosted run
+  `31052262227` 的 quality、portable 和 Windows-independent jobs 通过，Windows-native
+  verifier 仍在约 182 秒后返回固定 `R2_CI_PROVENANCE_INVALID`。
+- 同一重型 crash matrix 的 2,848 次真实 bound Git child 本地总耗时约 68.8 秒，最慢
+  0.151 秒，最大 stdout 2,647 bytes；process handle count 在初始增长后稳定于约
+  196--198。20 秒 child timeout 和 pipe ceiling 均未触发。因此第四轮把 20 秒 budget
+  当作根因的假设被反证，60 秒放宽及其回归必须撤销。
+- 使用与 hosted 相同的 Git `2.55.0.windows.3` 后，重型 method 及完整四-method
+  repository-manifest module 本地仍分别通过；Git version 假设也被反证。
+- Windows-native closed suite 前七个 modules 本地 29 tests 全部通过。逐 test 计时显示，
+  hosted 的稳定失败时间与
+  `test_reverse_manifest_and_worktree_gaps_resume_exactly` 的首个
+  `manifest_relocation / after_intent` subcase 精确相邻；十个 reverse subcases 本地各约
+  10--12 秒，但 Windows Server 2022 上的具体错误仍被固定公开错误码隐藏。
+
+### 22.2 第五轮 exact allowlist 与诊断边界
+
+- `.github/workflows/r2_provenance.yml`
+- `backend/cutover_repository_transaction/git_runner.py`
+- `tests/test_cutover_repository_transaction_windows_scope.py`
+- `docs/operations/r2_provenance_yaml_repair_task_brief.md`
+- `docs/operations/project_status_log.md`
+
+本轮先把 Git child timeout 和对应回归精确恢复到第四轮前状态，再在 Windows-native
+job 的正式 verifier 前加入一次临时 fail-fast ordinal probe。Probe 只运行 code-fixed
+suite 的前七个 synthetic-only modules，重定向并丢弃全部 test stdout/stderr/traceback，
+成功不输出；失败只用固定 numeric process exit code 区分非目标 test、十个固定 subcase
+或首个 subcase 的固定错误类别。它不输出 path、exception text、test content、Git
+metadata 或 private data，不增加 real-host/provider/mailbox/vault capability，也不改变
+正式 receipt/verifier/reconciliation 语义。获得 hosted ordinal 后必须移除 probe，并以
+新的 RED 回归修复真实 seam；不得把 diagnostic commit 当作 closure evidence。
+
+### 22.3 第五轮诊断提交前证据
+
+- actionlint 1.7.12：passed；provenance contract、adapter 和 architecture：14 tests，
+  0.645 秒，passed；`git diff --check`：passed。
+- workflow probe 的原样本地 success path 使用 Git `2.55.0.windows.3` 运行前七个
+  code-fixed modules：29 tests，431.5 秒，零输出、exit 0。
+- 撤销 timeout 后 complete Windows Git-runner scope：7 tests，29.494 秒，passed。
+- architecture/static/mechanical/provenance/repository-transaction constraints：94 tests，
+  17.570 秒，passed。
+- status log 已重生成且 bytes 未变化；status/maintenance/repository-leakage guards：
+  51 tests，5.229 秒，passed。
+- actual maintenance scan：high 0，仅有 19 个既有 low stale-doc findings；actual
+  repository leakage scan：0 findings。
+- full discovery 与 final-master verifier 仍按既有 placement/authorization 边界不运行。

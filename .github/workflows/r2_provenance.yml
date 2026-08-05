@@ -96,6 +96,74 @@ jobs:
           (Split-Path -Parent $python) >> $env:GITHUB_PATH
       - name: Install exact dependencies
         run: "python -m pip install --only-binary=:all: --require-hashes -r requirements-ci-windows.lock"
+      - name: Probe Windows-native fixed-suite ordinal
+        shell: pwsh
+        run: |
+          $probe = @'
+          import io
+          import unittest
+          from contextlib import redirect_stderr, redirect_stdout
+          from backend.r2_ci_provenance_v2 import (
+              CiProvenanceKindV2,
+              fixed_suite_v2,
+          )
+
+          names = fixed_suite_v2(CiProvenanceKindV2.WINDOWS_NATIVE)[:7]
+          suite = unittest.defaultTestLoader.loadTestsFromNames(names)
+          stream = io.StringIO()
+          with redirect_stdout(stream), redirect_stderr(stream):
+              result = unittest.TextTestRunner(
+                  stream=stream, verbosity=0, failfast=True
+              ).run(suite)
+          if result.wasSuccessful():
+              raise SystemExit(0)
+          problem = (result.failures + result.errors)[0]
+          test, detail = problem
+          case = getattr(test, "test_case", test)
+          expected = (
+              "tests.test_r2_repository_manifest_windows."
+              "R2RepositoryManifestWindowsTests."
+              "test_reverse_manifest_and_worktree_gaps_resume_exactly"
+          )
+          if case.id() != expected:
+              raise SystemExit(79)
+          params = getattr(test, "params", {})
+          boundary = getattr(params.get("boundary"), "value", "")
+          gap = getattr(params.get("gap"), "value", "")
+          gaps = (
+              "after_intent",
+              "after_effect",
+              "after_scan",
+              "after_observation",
+              "after_commit",
+          )
+          offset = 0 if boundary == "manifest_relocation" else 5
+          if gap not in gaps:
+              raise SystemExit(78)
+          ordinal = offset + gaps.index(gap) + 1
+          if ordinal != 1:
+              raise SystemExit(80 + ordinal)
+          categories = (
+              "repository_git_runner_invalid",
+              "synthetic_git_fixture_failed",
+              "repository_manifest_reverse_ambiguous",
+              "manifest_journal_invalid",
+              "CutoverHostMutationError",
+              "PermissionError",
+              "FileNotFoundError",
+              "RuntimeError not raised",
+              "AssertionError",
+              "OSError",
+          )
+          category = next(
+              (index for index, value in enumerate(categories, start=1)
+               if value in detail),
+              11,
+          )
+          raise SystemExit(100 + category)
+          '@
+          $probe | python -B -
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Verify Windows native Git-object provenance
         id: provenance
         shell: pwsh

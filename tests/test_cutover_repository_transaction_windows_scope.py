@@ -92,14 +92,6 @@ class RepositoryTransactionWindowsScopeTests(unittest.TestCase):
 
         self.assertGreaterEqual(tree.terminated, 1)
 
-    def test_bound_git_child_has_hosted_ci_budget_without_retry(self):
-        payload, returncode, waits, starts, terminated = _run_slow_git_child()
-
-        self.assertEqual((payload, returncode), (b"synthetic\n", 0))
-        self.assertEqual(waits, [60])
-        self.assertEqual(starts, 1)
-        self.assertGreaterEqual(len(terminated), 1)
-
     def test_review_rejects_unsafe_local_git_configuration(self):
         scenario = build_synthetic_repository_scenario()
         try:
@@ -232,55 +224,6 @@ class RepositoryTransactionWindowsScopeTests(unittest.TestCase):
                 _review_test_sandbox(scenario)
         finally:
             scenario.close()
-
-
-def _run_slow_git_child():
-    waits = []
-    terminated = []
-
-    def wait(timeout):
-        waits.append(timeout)
-        if timeout < 60:
-            raise TimeoutError
-        return 0
-
-    tree = SimpleNamespace(
-        popen_options=lambda: {},
-        attach=lambda _process: None,
-        finish=lambda _process: 0,
-        terminate=lambda _process: terminated.append(1),
-    )
-    process = SimpleNamespace(
-        stdout=io.BytesIO(b"synthetic\n"),
-        wait=wait,
-    )
-    identity = "a" * 64
-    content = "b" * 64
-    api = SimpleNamespace(
-        open_existing=lambda *_args, **_kwargs: object(),
-        observe=lambda _handle: SimpleNamespace(
-            object_identity_fingerprint=identity
-        ),
-        close=lambda _handle: None,
-    )
-    runner = SimpleNamespace(
-        executable=Path("C:/synthetic/git.exe"),
-        executable_identity=identity,
-        executable_content=content,
-    )
-    target = "backend.cutover_repository_transaction.git_runner"
-    with (
-        patch(
-            f"{target}._executable_content_fingerprint", return_value=content
-        ),
-        patch(f"{target}.ProcessTree.prepare", return_value=tree),
-        patch(f"{target}.WindowsHandleApi", return_value=api),
-        patch(f"{target}.subprocess.Popen", return_value=process) as popen,
-    ):
-        payload, returncode = _bounded_process(
-            runner, Path("C:/synthetic"), ("status",)
-        )
-    return payload, returncode, waits, popen.call_count, terminated
 
 
 if __name__ == "__main__":
