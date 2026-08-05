@@ -312,3 +312,71 @@ CI 修复；#105、dirty 主仓库、merge 和 issue 关闭仍保持禁止。Hos
 - 第三轮改动尚未 stage、commit 或 push；PR #107 hosted checks 尚未重跑。
 - 不运行 final-master verifier，不修改 #105，不触碰 dirty 主仓库，不 merge、不转
   Ready，也不关闭任何 issue。commit、push 和 hosted rerun 仍需另行明确授权。
+
+## 21. 第四轮 Windows-native transaction Git budget 修复
+
+### 21.1 新授权与 hosted 反馈
+
+- 操作员已授权持续修复 PR #107 的 hosted Windows-native failure；后续 hosted
+  failure 可直接继续修复，并在本地验证通过后 exact stage、commit、push。
+- commit `62051159691721d23c1b02fb2a23858a774c322c` 已 push。Hosted run
+  `31048584990` 的 quality、portable 和 Windows-independent jobs 通过；
+  Windows-native verifier 运行约 166 秒后仍返回固定
+  `R2_CI_PROVENANCE_INVALID`，reconciliation 因依赖失败而跳过。
+- 第三轮把失败归因于 topology test 的唯一 120 秒 outer timeout，证据不足。
+  Windows-native closed suite 在 topology 前先运行完整 repository-manifest module；
+  其中一个 crash-matrix method 本地执行 20 个 physical cases、320 次 fixture Git
+  调用并耗时约 177.8 秒。Fixture Git 调用总计约 23.2 秒、最慢约 0.124 秒；主要
+  时间位于 transaction/native path，其 bound Git child 仍使用固定 20 秒 wait。
+
+### 21.2 第四轮 initial exact allowlist
+
+- `backend/cutover_repository_transaction/git_runner.py`
+- `tests/test_cutover_repository_transaction_windows_scope.py`
+- `docs/operations/r2_provenance_yaml_repair_task_brief.md`
+- `docs/operations/project_status_log.md`
+
+### 21.3 RED -> GREEN 计划
+
+1. 在 transaction Windows scope tests 中通过真实 `_bounded_process` seam 和 fake
+   slow child 建立回归：20 秒预算必须 RED，固定 60 秒有界预算才可完成；仍验证
+   process-tree ownership、output ceiling 和 cleanup，不执行真实 Git 或 host mutation。
+2. 仅把 test-sandbox bound Git runner 的 child wait 从 20 秒提升到固定 60 秒；不增加
+   retry、shell、output、path、environment、Git capability 或 real-host surface。
+3. 运行 focused regression、affected repository-manifest tests、provenance/constraint/
+   maintenance/leakage checks；full discovery 仍受 `D:\Projects` placement boundary
+   限制，不得伪报。
+4. exact stage、commit、push 后观察 hosted checks；如仍失败，保留同一治理边界并
+   回到诊断反馈环。
+
+### 21.4 持续非目标
+
+- 不修改或启动 #105，不修改/批准/关闭 #38，不修改/启动 #39；
+- 不运行 final-master verifier，不访问 real host、provider、mailbox、vault、private
+  data、credential、私钥、VeraCrypt 或 `M:`；
+- 不触碰 dirty 主仓库，不 merge、不转 Ready、不关闭任何 issue。
+
+### 21.5 第四轮本地证据
+
+- fake slow-child regression 在原 20 秒预算上按预期 RED：1 test，0.001 秒，固定映射为
+  `repository_git_runner_invalid`；改为固定 60 秒后同一 test GREEN。
+- provenance contract、adapter public class、既有 process-tree/output-overflow guard
+  和新增 slow-child guard：14 tests，0.625 秒，passed。
+- 修改后真实 repository-manifest heavy crash matrix：1 test，20 个 physical cases，
+  176.0 秒，passed。
+- 60 秒 budget 仍只允许一次固定 Git child；未增加 retry、shell、output、path、
+  environment、Git verb 或 real-host capability，既有 process-tree termination 保持不变。
+- architecture/static/mechanical/provenance/repository-transaction constraints：94 tests，
+  最终重跑 18.342 秒，passed。
+- complete affected Windows Git-runner scope suite：8 tests，40.818 秒，passed。
+- status log 已重生成且 bytes 未变化；status/maintenance/repository-leakage guard
+  suites：51 tests，5.609 秒，passed。
+- actual maintenance scan：high 0；仅保留 19 个既有 low stale-doc findings。
+- actual repository leakage scan：0 findings。
+- actionlint 1.7.12、changed-Python AST parse 和 `git diff --check` 均通过。
+- 双轴 review 的 Spec 结果为 0 findings。Standards 没有 hard violation；指出的 adapter
+  test seam 和文件/函数规模风险已通过把回归移到现有 transaction Windows scope
+  test 消除：adapter file 249 行、transaction scope file 287 行、新 helper 47 行。
+- 未运行 full discovery：其既有 root-anchor fixtures 会在 `C:\` 创建测试目录，与本轮
+  synthetic artifacts 必须位于 `D:\Projects` 的 placement boundary 冲突；不得把该项
+  伪报为 green。未运行 final-master verifier。

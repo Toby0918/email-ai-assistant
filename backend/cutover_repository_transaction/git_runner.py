@@ -22,6 +22,7 @@ from .git_executable import (
 from .windows_identity import directory_identity, file_identity
 
 _MAX_OUTPUT = 1_000_000
+_GIT_PROCESS_TIMEOUT_SECONDS = 60
 _BRANCH = re.compile(r"refs/heads/worktree_[0-9]{2}")
 _UNSAFE_CONFIG = (
     "alias.",
@@ -191,7 +192,7 @@ def _bounded_process(runner, cwd, arguments):
             **tree.popen_options(),
         )
         tree.attach(process)
-        process.wait(timeout=20)
+        process.wait(timeout=_GIT_PROCESS_TIMEOUT_SECONDS)
         if process.stdout is None:
             _fail()
         payload = process.stdout.read(_MAX_OUTPUT + 1)
