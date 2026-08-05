@@ -464,3 +464,18 @@ metadata 或 private data，不增加 real-host/provider/mailbox/vault capabilit
   captured code 18 路径为零直接输出、精确 exit 18。Actionlint 1.7.12、provenance
   contract/adapter/architecture 14 tests、repository-leakage 11 tests 和 actual leakage
   scan 均通过。
+
+## 25. 第八轮 argument transport 与固定 transport ordinals
+
+- commit `ee7d3db41d5a9598a97481c08dc00809663a8f3e` 已 push。Hosted run
+  `31056116923` 的 probe 仍在约 1.3 秒后返回 1；job log 无 Python traceback，正式
+  verifier 未运行。该结果不能区分 interpreter failure、空/multiple captured stdout、
+  parse failure 或 range failure。
+- 第八轮把 Python source 从 stdin pipeline 改为单一 `python -B -c $probe` argument，
+  保留 Python-success/captured-integer/PowerShell-owned-exit 设计；并把五个 transport
+  failure branches 固定为 241（interpreter）、242（empty）、243（multiple）、
+  244（parse）和 245（range）。所有这些值仍是 content-free numeric diagnostics。
+- suite、组合 ordinal、正式 verifier/receipt/reconciliation 与所有授权边界不变。
+- `python -c` transport 的本地 reduced success path 为 exit 0，captured code 18 为精确
+  exit 18；actionlint 1.7.12、provenance contract/adapter/architecture 14 tests、actual
+  repository leakage scan 与 `git diff --check` 均通过。

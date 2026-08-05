@@ -152,14 +152,18 @@ jobs:
           )
           finish(10 + (ordinal - 1) * 8 + category)
           '@
-          $probeCodeText = $probe | python -B -
-          if ($LASTEXITCODE -ne 0) { exit 1 }
+          $probeCodeText = python -B -c $probe
+          if ($LASTEXITCODE -ne 0) { exit 241 }
+          if ([string]::IsNullOrWhiteSpace([string]$probeCodeText)) {
+            exit 242
+          }
+          if ($probeCodeText -is [array]) { exit 243 }
           $probeCode = 0
           if (-not [int]::TryParse(
             [string]$probeCodeText,
             [ref]$probeCode
-          )) { exit 1 }
-          if ($probeCode -lt 0 -or $probeCode -gt 250) { exit 1 }
+          )) { exit 244 }
+          if ($probeCode -lt 0 -or $probeCode -gt 250) { exit 245 }
           if ($probeCode -ne 0) { exit $probeCode }
       - name: Verify Windows native Git-object provenance
         id: provenance
