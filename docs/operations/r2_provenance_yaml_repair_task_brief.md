@@ -431,3 +431,20 @@ metadata 或 private data，不增加 real-host/provider/mailbox/vault capabilit
 - actual maintenance scan：high 0，仅有 19 个既有 low stale-doc findings；actual
   repository leakage scan：0 findings。
 - full discovery 与 final-master verifier 仍按既有 placement/authorization 边界不运行。
+
+## 23. 第六轮 ordinal transport 修复
+
+- diagnostic commit `72ce92504815a9bc6284177078cdc4bd33a78b43` 已 push。Hosted run
+  `31055337804` 的 probe 在约 1.1 秒内 fail-fast，但 GitHub-hosted PowerShell 把 Python
+  的非零 native exit 提升为通用 step exit 1；正式 verifier 尚未运行。因此该 run 只证明
+  首个 failure 很早且不在先前推断的 manifest 尾段，不能解释成 ordinal 1 或业务失败码。
+- 本地验证把 `$PSNativeCommandUseErrorActionPreference` 设为 false、立即保存
+  `$LASTEXITCODE` 后，可精确保留 Python exit 79。第六轮仅修复这条诊断 transport，并把
+  probe 映射收敛为前七 modules 的 29 个固定 test ordinals 乘以八个固定错误类别：
+  `10 + (ordinal - 1) * 8 + category`，范围 11--242；未知 test 固定为 250。
+- probe 仍重定向并丢弃全部 test stdout/stderr/traceback；numeric exit 不包含 path、异常
+  文本、测试内容或 private data。正式 verifier/receipt/reconciliation 与所有非目标边界
+  不变。得到 hosted code 后仍必须移除 probe，再实施真实 RED/GREEN 修复。
+- transport 修复后本地 reduced success path 零输出、exit 0；in-memory forced first-test
+  failure 零输出、精确 exit 18，与公式一致。Actionlint 1.7.12 及 provenance
+  contract/adapter/architecture 14 tests 均通过。
