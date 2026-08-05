@@ -136,6 +136,33 @@ jobs:
               ordinal = identifiers.index(case.id()) + 1
           except ValueError:
               finish(250)
+          if ordinal == 1:
+              host_codes = (
+                  "acl_authorization_rejected",
+                  "acl_compatibility_rejected",
+                  "acl_contract_invalid",
+                  "acl_descriptor_invalid",
+                  "acl_identity_changed",
+                  "acl_inheritance_rejected",
+                  "acl_journal_intent_required",
+                  "acl_policy_rejected",
+                  "filesystem_authorization_rejected",
+                  "filesystem_contract_invalid",
+                  "filesystem_identity_changed",
+                  "filesystem_journal_intent_required",
+                  "filesystem_no_clobber_rejected",
+                  "filesystem_reparse_rejected",
+                  "filesystem_scope_invalid",
+                  "filesystem_volume_mismatch",
+                  "host_platform_unsupported",
+                  "internal_error",
+              )
+              host_code = next(
+                  (index for index, value in enumerate(host_codes, start=1)
+                   if value in detail),
+                  19,
+              )
+              finish(200 + host_code)
           categories = (
               "repository_git_runner_invalid",
               "synthetic_git_fixture_failed",

@@ -494,3 +494,19 @@ metadata 或 private data，不增加 real-host/provider/mailbox/vault capabilit
 - 本地固定 captured code 18 只输出 `R2_WINDOWS_NATIVE_PROBE_018` 并 exit 1；success
   code 0 零输出、exit 0。Actionlint 1.7.12、provenance contract/adapter/architecture
   14 tests、actual repository leakage scan 与 `git diff --check` 均通过。
+
+## 27. 第十轮 allowlisted host-error ordinal
+
+- commit `02ec6a54c2fdb0547d4a12ddac2d76ad08c913ae` 已 push。Hosted run
+  `31056446767` 返回 `R2_WINDOWS_NATIVE_PROBE_015`：按固定公式精确表示前七 modules
+  的 test ordinal 1 与 error category 5，即
+  `R2MainPublicationWindowsTests.test_create_only_main_detects_then_repairs_preserved_dacls`
+  抛出 `CutoverHostMutationError`。先前 manifest/timeout 假设正式排除。
+- `CutoverHostMutationError` 自身只允许 `SAFE_ERROR_CODES`。第十轮仅在 ordinal 1 时把
+  18 个既有 allowlisted codes 依固定顺序映射到 marker 201--218，无法匹配则 219；
+  不输出 exception text、path 或 native error。其他 test/category 公式不变。
+- 取得具体 allowlisted code 后立即移除完整 probe；该诊断仍非正式 evidence，不改变
+  verifier/receipt/reconciliation 或任何 real-host/private-data 授权边界。
+- 本地映射检查确认 `acl_inheritance_rejected` 精确得到 206；actionlint 1.7.12、
+  provenance contract/adapter/architecture 14 tests、actual repository leakage scan 与
+  `git diff --check` 均通过。
