@@ -47,6 +47,7 @@ _PORTABLE_NATIVE_SKIP_REASONS = (
     "Windows real TTY proof",
     "Windows NTFS/TTY/process proof",
     "Windows junction contract",
+    "Windows sandbox evidence only; no Linux NTFS or ACL claim",
 )
 
 

@@ -16,6 +16,7 @@ from backend.r2_ci_provenance_v2 import (
     R2GitObjectSourcePackageV2,
     R2WorkflowLockV2,
     fixed_suite_fingerprint_v2,
+    portable_native_skip_reason_registry_v2,
 )
 
 
@@ -78,6 +79,12 @@ class R2CiProvenanceV2Tests(unittest.TestCase):
                         workflows=((".github/workflows/r2_provenance.yml", bad),),
                         dependency_locks=_dependency_locks(),
                     )
+
+    def test_portable_registry_excludes_the_windows_composition_evidence_test(self):
+        self.assertIn(
+            "Windows sandbox evidence only; no Linux NTFS or ACL claim",
+            portable_native_skip_reason_registry_v2(),
+        )
 
     def test_three_independent_receipts_reconcile_without_skips_or_divergence(self):
         receipts = tuple(

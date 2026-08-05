@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
+import re
 import subprocess
 import tempfile
 import unittest
@@ -112,6 +113,47 @@ class R2CiProvenanceV2AdapterTests(unittest.TestCase):
             "run: python -m pip install --only-binary=:all: ", provenance
         )
 
+    def test_windows_jobs_install_exact_hash_locked_python_and_sqlite(self):
+        provenance = (
+            ROOT / ".github" / "workflows" / "r2_provenance.yml"
+        ).read_text(encoding="utf-8")
+        python_url = (
+            "https://github.com/astral-sh/python-build-standalone/releases/"
+            "download/20260718/cpython-3.12.13%2B20260718-"
+            "x86_64-pc-windows-msvc-install_only.tar.gz"
+        )
+        python_sha256 = (
+            "56c9dd9681c4810cb8bfdec277ee2606d8ab17e678e5bc2bd138eb8098e330b6"
+        )
+        sqlite_url = "https://www.sqlite.org/2025/sqlite-dll-win-x64-3500400.zip"
+        sqlite_sha3_256 = (
+            "8454a8ef362b4b2d5a259a54948ed278ef943128bf1ba74b5cbd87ebc58e5b85"
+        )
+
+        self.assertEqual(provenance.count("uses: actions/setup-python@"), 2)
+        self.assertEqual(provenance.count(python_url), 2)
+        self.assertEqual(provenance.count(python_sha256), 2)
+        self.assertEqual(provenance.count(sqlite_url), 2)
+        self.assertEqual(provenance.count(sqlite_sha3_256), 2)
+        for job in (
+            "windows-native-provenance",
+            "windows-independent-provenance",
+        ):
+            with self.subTest(job=job):
+                block = _workflow_job_block(provenance, job)
+                self.assertNotIn("uses: actions/setup-python@", block)
+                self.assertIn(python_url, block)
+                self.assertIn(python_sha256, block)
+                self.assertIn(sqlite_url, block)
+                self.assertIn(sqlite_sha3_256, block)
+                self.assertIn("Get-FileHash", block)
+                self.assertIn("hashlib.sha3_256", block)
+                self.assertIn("sys.version_info[:3] == (3, 12, 13)", block)
+                self.assertIn(
+                    "sqlite3.sqlite_version_info == (3, 50, 4)", block
+                )
+                self.assertIn("$env:GITHUB_PATH", block)
+
 
 def _workflow(runner: str, *, provenance: bool = False) -> str:
     return (
@@ -127,6 +169,16 @@ def _workflow(runner: str, *, provenance: bool = False) -> str:
             if provenance else ""
         )
     )
+
+
+def _workflow_job_block(workflow: str, job: str) -> str:
+    match = re.search(
+        rf"(?ms)^  {re.escape(job)}:\n(.*?)(?=^  [A-Za-z0-9_-]+:\n|\Z)",
+        workflow,
+    )
+    if match is None:
+        raise AssertionError(f"missing workflow job: {job}")
+    return match.group(1)
 
 
 def _git(root: Path, *arguments: str) -> None:

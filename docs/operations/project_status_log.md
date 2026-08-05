@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-04
+last_update: 2026-08-05
 status: active
 owner: "@tobyWang"
 review_cycle: weekly
@@ -15,9 +15,9 @@ source_type: operation_guide
 
 | Field | Value |
 |---|---|
-| Generated on | 2026-08-04 |
+| Generated on | 2026-08-05 |
 | Current stage | multimodal_current_email_offline_ready_live_pending |
-| Git branch | codex/issue-104-r2-adapter-binding |
+| Git branch | codex/r2-provenance-yaml-fix |
 | Git HEAD reference | Run `git rev-parse --short HEAD` in this workspace |
 | Working tree status | Run `git status --short --ignored` in this workspace |
 
@@ -648,7 +648,7 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 
 | Status | Count |
 |---|---:|
-| active | 108 |
+| active | 109 |
 | draft | 25 |
 | deprecated | 4 |
 | missing_front_matter | 0 |
