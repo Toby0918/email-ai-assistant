@@ -527,3 +527,20 @@ metadata 或 private data，不增加 real-host/provider/mailbox/vault capabilit
 - 本地 identity-site 映射检查、actionlint 1.7.12、provenance
   contract/adapter/architecture 15 tests、actual repository leakage scan 与
   `git diff --check` 均通过。
+
+## 29. 第十二轮 root-capture condition ordinal
+
+- commit `f2c552d4c0dce53bb252380caa5d1937cbe14a02` 已 push。Hosted run
+  `31057064101`、Windows job `92476745734` 返回
+  `R2_WINDOWS_NATIVE_PROBE_220`，精确对应
+  `windows_acl_factory._build_state()` line 83 的首次临时 root security capture；失败
+  发生在受保护 Container 创建和 main publication 之前。
+- 第十二轮在相同 `TemporaryDirectory` prefix、marker、source 与 finance 目录布局上，
+  直接执行两次 handle observation。仅以固定 marker 区分 observation mismatch 238、
+  non-NTFS 239、non-fixed 246、reparse 247、normalized-path mismatch 248 和 native
+  failure 249；不输出 path、identity、filesystem value 或 exception detail。
+- 取得 condition 后立即移除完整 probe，并只在测试 fixture/path normalization seam
+  修复能够由最小回归证明的问题；不放宽生产 identity、NTFS、fixed-drive、reparse
+  或 no-clobber 检查。
+- 本地同构 root-capture contract 通过；actionlint 1.7.12、provenance 与文档架构
+  18 tests、actual repository leakage scan 与 `git diff --check` 均通过。
