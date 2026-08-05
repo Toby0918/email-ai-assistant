@@ -162,6 +162,33 @@ jobs:
                    if value in detail),
                   19,
               )
+              if host_code == 5:
+                  identity_sites = (
+                      ('windows_acl_factory.py", line 83,', 220),
+                      ('windows_acl_factory.py", line 69,', 221),
+                      ('windows_acl_adapter.py", line 272,', 222),
+                      ('source_acl_compatibility.py", line 56,', 223),
+                      ('windows_acl_apply.py", line 99,', 224),
+                      ('windows_acl_apply.py", line 114,', 225),
+                      ('r2_main_publication\\testing.py", line 43,', 226),
+                      ('r2_main_publication\\windows_dacl.py", line 215,', 227),
+                      ('r2_main_publication\\windows_dacl.py", line 162,', 228),
+                      ('r2_main_publication\\windows_dacl.py", line 166,', 229),
+                      ('windows_acl_adapter.py", line 150,', 230),
+                      ('windows_acl_adapter.py", line 157,', 231),
+                      ('windows_acl_adapter.py", line 228,', 232),
+                      ('windows_acl_adapter.py", line 249,', 233),
+                      ('source_acl_compatibility.py", line 29,', 234),
+                      ('windows_acl_adapter.py", line 279,', 235),
+                      ('windows_acl_apply.py", line 97,', 236),
+                      ('windows_acl_apply.py", line 105,', 237),
+                  )
+                  site_code = next(
+                      (code for marker, code in identity_sites
+                       if marker in detail),
+                      240,
+                  )
+                  finish(site_code)
               finish(200 + host_code)
           categories = (
               "repository_git_runner_invalid",

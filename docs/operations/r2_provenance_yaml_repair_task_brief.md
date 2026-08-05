@@ -510,3 +510,20 @@ metadata 或 private data，不增加 real-host/provider/mailbox/vault capabilit
 - 本地映射检查确认 `acl_inheritance_rejected` 精确得到 206；actionlint 1.7.12、
   provenance contract/adapter/architecture 14 tests、actual repository leakage scan 与
   `git diff --check` 均通过。
+
+## 28. 第十一轮 identity throw-site ordinal
+
+- commit `453777414f2d45d53805fc74b4a6f3596f36be11` 已 push。Hosted run
+  `31056716749`、Windows job `92475694689` 返回
+  `R2_WINDOWS_NATIVE_PROBE_205`，精确对应 ordinal 1 的既有安全错误码
+  `acl_identity_changed`；ACL policy、inheritance、authorization 与 filesystem
+  error code 均不匹配。
+- 同一目标测试在本地 exact Python 3.12.13 连续执行 200 次，33.8 秒内 200/200
+  通过。因此第十一轮仅把该安全错误码的 18 个静态 throw/caller site 映射为固定
+  marker 220--237，unknown 为 240；匹配只检查受版本控制文件名和行号，不输出
+  traceback、path、exception 或 native detail。
+- 取得 throw site 后立即移除完整 probe，并以最小回归修复 hosted-only 身份校验
+  偏差；该诊断不改变 verifier/receipt/reconciliation 或 real-host/private-data 边界。
+- 本地 identity-site 映射检查、actionlint 1.7.12、provenance
+  contract/adapter/architecture 15 tests、actual repository leakage scan 与
+  `git diff --check` 均通过。
