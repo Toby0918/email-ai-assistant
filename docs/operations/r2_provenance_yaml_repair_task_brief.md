@@ -599,3 +599,16 @@ metadata 或 private data，不增加 real-host/provider/mailbox/vault capabilit
   与 provenance/documentation 相关套件合计 20 tests 通过。Actionlint 1.7.12、actual
   repository leakage scan 与 `git diff --check` 均通过。
 - Static-linter/mechanical constraints 35 tests 通过。
+
+## 32. 第十四轮 diagnostic module resolution
+
+- Diagnostic commit `39f03fc3bd203d642c14da064704f5abc8c21b21` 已 push。Hosted run
+  `31059038707`、Windows job `92482693704` 在约 0.3 秒后返回 transport marker
+  `R2_WINDOWS_NATIVE_PROBE_241`；日志只有
+  `ModuleNotFoundError: No module named 'backend'`，35 项业务测试均未执行。
+- 原因是按文件路径执行 `tests/r2_windows_native_diagnostic.py` 时 Python 把
+  `sys.path[0]` 设为 `tests/`。Workflow 仅改为标准模块调用
+  `python -B -m tests.r2_windows_native_diagnostic`，使 repository root 保持在模块搜索
+  路径；probe 公式、输出限制、suite 与正式 verifier 均不变。
+- 本地 module resolution、两个 consumer architecture guards、actionlint 1.7.12、
+  actual repository leakage scan 与 `git diff --check` 均通过。

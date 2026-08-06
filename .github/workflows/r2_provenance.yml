@@ -99,7 +99,7 @@ jobs:
       - name: Probe remaining Windows-native fixed-suite ordinal
         shell: pwsh
         run: |
-          $probeCodeText = python -B tests/r2_windows_native_diagnostic.py
+          $probeCodeText = python -B -m tests.r2_windows_native_diagnostic
           if ($LASTEXITCODE -ne 0) {
             Write-Output "R2_WINDOWS_NATIVE_PROBE_241"
             exit 1
