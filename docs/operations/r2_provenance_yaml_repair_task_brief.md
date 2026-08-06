@@ -612,3 +612,20 @@ metadata 或 private data，不增加 real-host/provider/mailbox/vault capabilit
   路径；probe 公式、输出限制、suite 与正式 verifier 均不变。
 - 本地 module resolution、两个 consumer architecture guards、actionlint 1.7.12、
   actual repository leakage scan 与 `git diff --check` 均通过。
+
+## 33. 第十五轮 durable semantic case diagnostic
+
+- Diagnostic module-resolution commit
+  `3bfdae50f76935450db996589ec564bc794464cc` 已 push。Hosted run
+  `31059255229` 中 portable provenance 与 Windows-independent provenance 均通过；
+  Windows-native job `92483354561` 在 probe 中返回内容无关 marker
+  `R2_WINDOWS_NATIVE_PROBE_189`。
+- 该 marker 按上一轮公式精确解码为 fixed suite 第 30 项
+  `test_all_case_bindings_and_receipts_are_durable` 的 `RuntimeError`。这排除了第 31 项
+  shared-container 路径猜测，也证明前 29 项在 hosted Windows 上已通过。
+- 临时 probe 现只复现第 30 项的同一 70-case durable semantic matrix，并以固定数值
+  `1..70` 表示 RuntimeError case、`81..150` 表示 ValueError case、`161..230`
+  表示其他异常 case；不输出异常、路径、case 内容或数据。成功仍只输出 `0`。
+- 本地同一 70-case probe 输出 `0`；两个 consumer architecture guards 共 2 tests、
+  actionlint 1.7.12、actual repository leakage scan（0 findings）与
+  `git diff --check` 均通过。

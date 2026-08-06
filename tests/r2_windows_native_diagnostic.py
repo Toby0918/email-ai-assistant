@@ -1,60 +1,46 @@
-"""Temporary content-free ordinal probe for the fixed Windows-native suite."""
+"""Temporary content-free case probe for the durable semantic matrix."""
 
 from __future__ import annotations
 
-import io
-import unittest
-from contextlib import redirect_stderr, redirect_stdout
+import tempfile
+from pathlib import Path
 
-from backend.r2_ci_provenance_v2 import CiProvenanceKindV2, fixed_suite_v2
-
-
-def _test_cases(value):
-    for item in value:
-        if isinstance(item, unittest.TestSuite):
-            yield from _test_cases(item)
-        else:
-            yield item
-
-
-def _failure_category(result, detail: str) -> int:
-    if result.failures:
-        return 1
-    categories = (
-        "CutoverHostMutationError",
-        "RepositoryTransactionError",
-        "ValueError",
-        "RuntimeError",
-    )
-    return next(
-        (index for index, value in enumerate(categories, start=2) if value in detail),
-        6,
-    )
+from backend.r2_verification_evidence import semantic_gap_matrix
+from scripts.r2_semantic_case_journal import SemanticCaseJournal
+from scripts.r2_semantic_owning_effects import execute_owning_effect
 
 
 def main() -> int:
-    stream = io.StringIO()
-    with redirect_stdout(stream), redirect_stderr(stream):
-        names = fixed_suite_v2(CiProvenanceKindV2.WINDOWS_NATIVE)
-        suite = unittest.defaultTestLoader.loadTestsFromNames(names)
-        identifiers = tuple(test.id() for test in _test_cases(suite))
-        result = unittest.TextTestRunner(
-            stream=stream,
-            verbosity=0,
-            failfast=True,
-        ).run(suite)
-    if result.wasSuccessful():
-        print(0)
-        return 0
-    test, detail = (result.failures + result.errors)[0]
-    case = getattr(test, "test_case", test)
-    try:
-        ordinal = identifiers.index(case.id()) + 1
-    except ValueError:
-        print(250)
-        return 0
-    category = _failure_category(result, detail)
-    print(10 + (ordinal - 1) * 6 + category)
+    receipts = []
+    with tempfile.TemporaryDirectory(prefix="r2-durable-cases-") as raw:
+        sandbox = Path(raw)
+        for index, case in enumerate(semantic_gap_matrix()):
+            try:
+                root = sandbox / "semantic-gaps" / f"case-{index:02d}"
+                root.mkdir(parents=True)
+                journal = SemanticCaseJournal(
+                    root / "case.journal",
+                    case.semantic,
+                    case.direction,
+                    case.gap,
+                )
+                effect = lambda case=case, root=root: execute_owning_effect(
+                    case.semantic,
+                    root,
+                    case.direction,
+                    case.gap,
+                )
+                receipts.append(journal.execute(effect))
+            except RuntimeError:
+                print(index + 1)
+                return 0
+            except ValueError:
+                print(index + 81)
+                return 0
+            except Exception:
+                print(index + 161)
+                return 0
+    print(0 if len(receipts) == 70 and len(set(receipts)) == 70 else 240)
     return 0
 
 
