@@ -784,3 +784,40 @@ that nominal bootstrap and owns the exact system TTY and clock. Test-only
 synthetic adapters remain local to `testing.py` and fail production bootstrap
 construction. The removed callback-role seam is not retained underneath the
 Adapter layer.
+
+## Issue #105 public external-artifact issuance
+
+- `backend/r2_external_artifacts_v1/review_inputs.py`: closed nominal reviewed
+  inputs and the seven gate-specific public source-review contracts.
+- `backend/r2_external_artifacts_v1/derivation.py`: same-master direct/wrapper
+  validation, deterministic fourteen-gate derivation, and install-time
+  rederivation.
+- `backend/r2_external_artifacts_v1/unsigned_package.py`: immutable canonical
+  binding, unsigned bodies, provenance records, issuance manifest, round-trip,
+  and integrity validation.
+- `backend/r2_external_artifacts_v1/installer.py`: detached-signature parsing,
+  protected coordinator validation, fixed Git common-directory resolution, and
+  native atomic no-clobber publication with Windows path-independent file-ID
+  child oplocks requested immediately after requiring-oplock opens, a protected
+  read/execute-only DACL, `FileIdInfo`-bound same-handle name-plus-file-ID
+  directory enumeration, exact single-link/default-stream/ADS rejection,
+  delete-share exclusion, synchronous pending-I/O reap, and a calling-thread rename through
+  the preauthorized directory handle.
+- `backend/r2_external_artifacts_v1/__init__.py`: the small public facade with
+  two operations and nominal public values only.
+- `scripts/prepare_r2_external_artifacts.py`: the sole fixed `prepare`/`install`
+  CLI and sole package consumer allowed to freeze the current remote master.
+- `docs/operations/r2_external_artifact_issuance_task_brief.md`: implementation
+  authority, allowlist, acceptance, and human-boundary record.
+- `docs/operations/r2_external_artifact_issuance_runbook.md`: post-merge public
+  preparation, manifest review, external signing handoff, installation, and
+  protected-verifier operator sequence.
+- `tests/test_r2_external_artifacts_v1.py`,
+  `tests/test_r2_external_artifacts_v1_architecture.py`, and
+  `tests/test_prepare_r2_external_artifacts.py`: public behavior, provenance,
+  no-clobber, Windows oplock ordering, DACL/ADS and late-mutation windows,
+  event-handle cleanup, capability, architecture, and CLI guards.
+
+No normal backend runtime or frontend imports this package. It contains no
+private signer, real-host command, cleanup, overwrite, Issue #38 approval, or
+Issue #39 execution capability.

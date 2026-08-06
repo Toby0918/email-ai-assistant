@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-03
+last_update: 2026-08-06
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -1163,3 +1163,76 @@ vault/签名/密钥错误、schema/safety/grounding 违规、p95 超限、泄漏
    no terminal/clock input and factories have no `**values`; synthetic adapters,
    mismatched receipts, wrong bootstrap types, and absent input remain blocked
    or dormant with zero Adapter operations.
+
+## Issue #105 public external-artifact issuance
+
+1. Run `tests/test_r2_external_artifacts_v1.py`,
+   `tests/test_r2_external_artifacts_v1_architecture.py`, and
+   `tests/test_prepare_r2_external_artifacts.py`. Require one canonical reviewed
+   binding, fourteen fixed-order unsigned bodies, complete public provenance,
+   zero signatures at preparation, exact manifest confirmation, and fixed
+   content-free CLI failure.
+2. Prove preparation rejects arbitrary gate values, mixed master/binding,
+   duplicate or gate-key-overlapping authority keys, wrong source types,
+   noncanonical or reordered data, nonzero defect counts, incomplete source
+   reviews, forged public provenance, bool/float count substitutions, missing or
+   forged complete Windows receipts, and portable/Windows platform-lock collapse.
+3. Prove install rejects missing, extra, short, reordered, or invalid detached
+   signatures before filesystem access. Reuse the protected final-gate parser
+   tests for positive Ed25519 verification; do not add a production private key,
+   signing helper, or test production signature to this package.
+4. Prove validated publication creates exactly fifteen fixed files through one
+   no-replace directory commit, preserves exact bytes, rejects a second install,
+   exposes no partial final directory, and retains failed staging state without
+   cleanup, overwrite, retry, or deletion. Prove an old/moved master fails before
+   staging, a commit-boundary master move retains only staging, and a Windows
+   stage-name swap cannot replace the held source identity. On Windows, prove
+    path-independent file-ID RWH oplocks hold every child and a Read oplock holds
+    the namespace through the preopened exact directory handle. Prove a protected
+    child open uses `FILE_FLAG_OPEN_REPARSE_POINT` and every requiring-oplock open
+    is immediately followed by its oplock request before any other filesystem
+    operation on that object. Prove all pending input/output/`OVERLAPPED` storage
+    remains alive, then a read/execute-only DACL is applied through all sixteen
+    already-guarded handles before the quiet commit check. Prove bounded
+    `FileStreamInfo` rejects file and directory ADS and accepts only each child's
+    exact default stream; prove `FileStandardInfo` rejects a hard link added
+    during file-ID open and retains exactly one link through target validation.
+    Prove the directory handle denies delete sharing, its
+    `FileIdInfo` volume/file ID remains equal to the path identity, and exact
+    name-plus-file-ID namespace enumeration uses that same handle without
+    reopening child paths. Child writes, POSIX-style unlink/replacement, and unexpected-name
+   insertion admitted before lockdown must be detected by validation or a
+   signaled guard; attempts after lockdown must fail access. Exercise both the
+   quiet-check-to-rename and target-validation-to-release windows and prove the
+   final inventory and bytes remain exact. Prove the caller thread performs the
+   synchronous parent rename through the same preauthorized handle without
+   sequentially releasing any guard. Prove every file and event handle closes
+   exactly once, including API-lookup failures after event creation; bounded
+   read-path `CancelIoEx` is confined to same-handle reads. Every pending oplock
+   request must be cancelled and synchronously reaped before its storage or
+   handles are released. No controller or background commit exists.
+   Documentation must not claim owner-proof immutability: deliberate
+   ownership/DACL change, administrator/privileged mutation, and a foreign
+   write-capable handle pre-positioned before lockdown are external tamper and
+   fixed-verifier incident-stop conditions outside the trusted-operator install
+   guarantee.
+5. Run the affected R2 matrix:
+
+   ```text
+   python -m unittest tests.test_r2_production_adapter_binding_v1 tests.test_r2_production_composition_v1 tests.test_r2_production_composition_v1_architecture tests.test_r2_production_binding_candidate_v1
+   python -m unittest tests.test_r2_production_bootstrap_v2 tests.test_r2_production_composition_reachability tests.test_r2_preflight_production_v2 tests.test_r2_preflight_production_v2_architecture tests.test_r2_evidence_production_v2 tests.test_r2_evidence_production_v2_architecture tests.test_r2_transaction_production_v2 tests.test_r2_transaction_production_v2_architecture
+   python -m unittest tests.test_r2_external_artifacts_v1 tests.test_r2_external_artifacts_v1_architecture tests.test_prepare_r2_external_artifacts
+   python -m unittest tests.test_r2_production_binding_contracts tests.test_r2_production_binding_architecture tests.test_r2_final_master_review_v1 tests.test_r2_final_master_closure_contracts tests.test_r2_final_master_closure_architecture tests.test_r2_global_gates_v1
+   ```
+
+6. Then run full discovery, `compileall`, generated status, maintenance scan,
+   repository leakage scan, and `git diff --check` with the pinned Python
+   3.12.13 environment. Record portable versus Windows-native evidence exactly.
+7. Do not execute the actual `prepare` or `install` phase against production
+   inputs before merge. After merge, require clean fresh remote master, four
+   external public keys, exact reviewed outputs, human manifest confirmation,
+   and fourteen external signatures in order.
+8. Only after all fifteen files install, run the unchanged verifier with
+   `python -I -B scripts/verify_r2_final_master_closure.py`. The sole acceptable
+   phase result is `AWAITING_SINGLE_HUMAN_FINAL_REVIEW`; Issue #38 remains a
+   separate human decision and Issue #39 remains unchanged.

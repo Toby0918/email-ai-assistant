@@ -83,9 +83,17 @@ class R2OperatorRunbookV2ArchitectureTests(unittest.TestCase):
         consumers = []
         for root_name in ("frontend", "scripts"):
             for path in (ROOT / root_name).rglob("*"):
-                if path.is_file() and "r2_operator_runbook_v2" in path.read_text(encoding="utf-8", errors="ignore"):
+                if (
+                    path.is_file()
+                    and "__pycache__" not in path.parts
+                    and "r2_operator_runbook_v2"
+                    in path.read_text(encoding="utf-8", errors="ignore")
+                ):
                     consumers.append(path.relative_to(ROOT).as_posix())
-        self.assertEqual(consumers, [])
+        self.assertEqual(
+            consumers,
+            ["scripts/prepare_r2_external_artifacts.py"],
+        )
 
 
 if __name__ == "__main__":

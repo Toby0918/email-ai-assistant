@@ -959,6 +959,56 @@ class StaticLinterConstraintTests(unittest.TestCase):
             with self.subTest(marker=marker):
                 self.assertIn(marker, text)
 
+    def test_issue105_static_capability_rules_are_documented(self) -> None:
+        linter = read_text(ROOT / "docs" / "constraints" / "linter_constraints.md")
+        logging = read_text(ROOT / "docs" / "conventions" / "logging.md")
+        for marker in (
+            "Issue #105 public issuance guards",
+            "backend/r2_external_artifacts_v1/",
+            "prepare_unsigned_external_artifacts_v1",
+            "install_signed_external_artifacts_v1",
+            "private-key types",
+            "R2GlobalGateEvidenceV1.from_signed_json",
+            "R2GlobalGateCoordinatorV1.create",
+            "native no-replace directory commit",
+            "OpenFileById",
+            "FILE_FLAG_OPEN_REQUIRING_OPLOCK",
+            "FILE_FLAG_OPEN_REPARSE_POINT",
+            "one RWH\n  `FSCTL_REQUEST_OPLOCK`",
+            "one Read oplock",
+            "followed\n  immediately by its `FSCTL_REQUEST_OPLOCK`",
+            "pending input, output, `OVERLAPPED`",
+            "SetKernelObjectSecurity",
+            "protected read/execute-only DACL",
+            "FileStandardInfo",
+            "NumberOfLinks == 1",
+            "FileStreamInfo",
+            "`::$DATA` stream",
+            "name-plus-file-ID entries",
+            "GetFileInformationByHandleEx",
+            "`FileIdInfo`\n  volume/file ID",
+            "deny delete sharing",
+            "all sixteen guards",
+            "same preauthorized",
+            "same-handle guarded read",
+            "CancelIoEx",
+            "synchronously reaped",
+            "not an immutability boundary against",
+            "external tamper and verifier incident-stop conditions",
+            "exact verbs are `prepare` and `install`",
+            "AWAITING_SINGLE_HUMAN_FINAL_REVIEW",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, linter)
+        for marker in (
+            "R2 external-artifact issuance is silent",
+            "R2_EXTERNAL_ARTIFACT_INVALID",
+            "must not log or interpolate public\nkeys, signatures",
+            "logger.exception",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, logging)
+
     def test_docs_markdown_front_matter_status_uses_allowed_values(self) -> None:
         docs = ROOT / "docs"
         if not docs.exists():

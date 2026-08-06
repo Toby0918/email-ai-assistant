@@ -92,8 +92,11 @@ class R2RetentionLedgerV2ArchitectureTests(unittest.TestCase):
         self.assertEqual(
             sorted(consumers),
             [
+                "backend/r2_external_artifacts_v1/derivation.py",
+                "backend/r2_external_artifacts_v1/review_inputs.py",
                 "backend/r2_operator_runbook_v2/receipt.py",
                 "backend/r2_operator_runbook_v2/state_machine.py",
+                "scripts/prepare_r2_external_artifacts.py",
             ],
         )
 

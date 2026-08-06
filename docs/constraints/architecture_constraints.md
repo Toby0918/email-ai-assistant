@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-03
+last_update: 2026-08-06
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -1829,3 +1829,75 @@ Test-only synthetic adapters remain in the three local `testing.py` modules and
 are rejected by production bootstrap construction. Default entries remain
 `DORMANT_NO_EXTERNAL_ISSUER`; this remediation creates no real Adapter instance,
 performs no host operation, and does not authorize Issue #105, #38, or #39.
+
+## Issue #105 public external-artifact issuance
+
+`backend.r2_external_artifacts_v1` is one five-file deep module with two public
+operations. `prepare_unsigned_external_artifacts_v1` accepts one exact frozen
+master, four public authority verification keys, and nominal reviewed public
+inputs. It rebuilds the production binding and derives the fourteen global-gate
+values; callers cannot supply an evidence or production-role fingerprint.
+
+`install_signed_external_artifacts_v1` accepts only the immutable unsigned
+package, fourteen gate-ordered detached signatures, and the exact human-reviewed
+issuance-manifest fingerprint. It validates the closed package and provenance
+schemas, rederives every gate, uses the protected public-key evidence parser and
+coordinator, repeats a fixed read-only fresh-master observation before staging
+and immediately before commit, and publishes exactly fifteen canonical verifier
+files through one native directory no-replace commit. Windows opens every exact
+staged child by volume file ID with `FILE_FLAG_OPEN_REQUIRING_OPLOCK` and
+`FILE_FLAG_OPEN_REPARSE_POINT` and immediately requests its RWH
+`FSCTL_REQUEST_OPLOCK` before any other filesystem operation on that opened
+object. It retains the oplock input, output, `OVERLAPPED`, event, and handle,
+then validates the child's file ID, `FileStandardInfo` single-link state, sole
+default `::$DATA` stream, and exact bytes through the guarded handle. It likewise
+preopens the exact staging-directory path with read, delete, and DACL rights while
+denying delete sharing and immediately requests one Read oplock before any other filesystem
+operation on that opened directory. The handle's `FileIdInfo` volume/file ID is
+then bound to the before-and-after path identity. With all sixteen oplocks
+already pending, the installer applies one protected read/execute-only DACL
+through those bound handles and performs exact locked validation. Bounded
+`FileStreamInfo` queries require each child to retain only its default data
+stream and the directory to have no data stream. The exact namespace is
+re-enumerated as name plus file ID through `GetFileInformationByHandleEx` on the
+same directory handle, without reopening child paths after the directory oplock.
+A mutation admitted before lockdown must be observed by exact validation or
+break a guard; a mutation attempted after lockdown is denied.
+Every guard must remain quiet at the commit point. Because the child guards are
+file-ID handles and the directory handle was preauthorized, the calling thread
+can synchronously perform the same-handle `SetFileInformationByHandle`
+parent-directory rename without releasing a guard. All sixteen bound guards
+remain held through the exact target identity, inventory, and guarded-byte
+check, while the protected DACL continues to deny late mutations after release.
+There is no controller, background rename, or one-child-at-a-time release;
+pending oplock I/O is cancelled and synchronously reaped before its structures
+or handles are released, and read-path `CancelIoEx` is limited to a bounded read
+on the same guarded handle. Linux uses `renameat2(RENAME_NOREPLACE)`. The fixed Git
+common-directory destination is internal; there is no path, repository,
+destination, filename, environment, private-key, signer, issuer, credential, or
+host-command input.
+
+This Windows concurrency boundary assumes the trusted operator does not change
+object ownership or ACLs during installation and that no foreign write-capable
+handle was deliberately pre-positioned before lockdown. The DACL is not an
+immutability boundary against the file owner, an administrator, or a privileged
+process. An ownership/DACL change or such a pre-positioned handle is external
+tamper, invalidates the installation evidence, and requires incident stop at the
+unchanged verifier; repository tooling exposes no arbitrary ACL-reset surface.
+
+Only `scripts/prepare_r2_external_artifacts.py` may allocate or materialize a
+frozen-master observation. The installer has only its code-fixed, read-only
+commit guard for `HEAD`, tree, `origin/master`, clean state, the fixed GitHub
+master, and Git common directory; it exposes no Git command or repository input.
+The script has exactly `prepare` and `install` verbs, bounded canonical public
+stdin, canonical public stdout, and a fixed content-free failure.
+Normal runtime, frontend, cleanup, scheduler, and
+workflow code cannot import the package. The
+final-master closure package, protected verifier, and three Issue #59 composition
+roots remain unchanged.
+
+The repository owns no private signing capability and creates no production
+signature, real-host effect, Issue #38 decision, or Issue #39 authority. A
+post-merge clean fresh remote master, external public inputs, human manifest
+review, offline signatures, successful installation, and protected-verifier
+status `AWAITING_SINGLE_HUMAN_FINAL_REVIEW` remain distinct ordered gates.

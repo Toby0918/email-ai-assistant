@@ -2795,6 +2795,58 @@ class ArchitectureConstraintTests(unittest.TestCase):
         self.assertIn("Code-fixed create-only `python312._pth`", security)
         self.assertIn("Issues #58/#59", security)
 
+    def test_issue105_external_artifact_architecture_is_documented(self) -> None:
+        architecture = read_text(
+            ROOT / "docs" / "constraints" / "architecture_constraints.md"
+        )
+        security = read_text(
+            ROOT / "docs" / "security" / "project_container_cutover_contracts.md"
+        )
+
+        for marker in (
+            "Issue #105 public external-artifact issuance",
+            "backend.r2_external_artifacts_v1",
+            "two public\noperations",
+            "fourteen gate-ordered detached signatures",
+            "native directory no-replace commit",
+            "protected read/execute-only DACL",
+            "GetFileInformationByHandleEx",
+            "immediately requests its RWH",
+            "FileStandardInfo",
+            "FileStreamInfo",
+            "sole\ndefault `::$DATA` stream",
+            "name plus file ID",
+            "`FileIdInfo` volume/file ID",
+            "denying delete sharing",
+            "same-handle `SetFileInformationByHandle`",
+            "not an\nimmutability boundary against the file owner",
+            "synchronously reaped",
+            "Only `scripts/prepare_r2_external_artifacts.py`",
+            "Normal runtime, frontend, cleanup, scheduler, and\nworkflow code cannot import",
+            "AWAITING_SINGLE_HUMAN_FINAL_REVIEW",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, architecture)
+        for marker in (
+            "Issue #105 public external-artifact issuance boundary",
+            "seven direct and seven wrapper gate",
+            "does not own the offline signer",
+            "exactly fifteen canonical JSON files",
+            "protected read/execute-only DACL",
+            "protected DACL remains",
+            "immediately requests its RWH",
+            "FileStandardInfo",
+            "FileStreamInfo",
+            "exact names to their file IDs",
+            "`FileIdInfo` volume/file ID",
+            "denying delete sharing",
+            "not an immutability boundary against the file owner",
+            "single human Issue #38 review",
+            "Issue #39 authorization",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, security)
+
     def test_python_modules_do_not_contain_raw_secret_literals(self) -> None:
         secret_patterns = {
             "openai_key": r"\bsk-[A-Za-z0-9_-]{10,}",

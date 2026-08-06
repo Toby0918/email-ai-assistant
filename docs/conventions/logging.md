@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-22
+last_update: 2026-08-06
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -258,3 +258,14 @@ verification keys, authority claims, receipts, receipt chains, completion
 values, paths, environment values, host details, exception text, or traceback
 data. Validation failures cross the process boundary only through the existing
 fixed content-free blocked result.
+
+## 12. R2 external-artifact issuance is silent
+
+`backend.r2_external_artifacts_v1` emits no log or print records. The fixed CLI
+writes only the canonical public package, the fixed aggregate installation
+result, or `R2_EXTERNAL_ARTIFACT_INVALID`. It must not log or interpolate public
+keys, signatures, unsigned or signed bodies, reviewed outputs, provenance,
+manifest or binding fingerprints, Git paths/state, exception text, traceback,
+environment values, or retained staging details. Expected validation failure
+must remain content-free and must not use `logger.exception`, `exc_info=True`,
+or raw exception output.
