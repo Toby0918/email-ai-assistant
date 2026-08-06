@@ -93,7 +93,7 @@ class _World:
             prefix="issue79-synthetic-",
             dir=str(directory) if directory is not None else Path(sys.executable).anchor,
         )
-        self.root = Path(self.owner.name)
+        self.root = Path(self.owner.name).resolve(strict=True)
         config = self.root / "Config"
         config.mkdir()
         self.staging = config / "settings.env.prepare"

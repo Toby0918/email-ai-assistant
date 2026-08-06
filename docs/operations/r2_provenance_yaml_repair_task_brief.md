@@ -644,3 +644,23 @@ metadata 或 private data，不增加 real-host/provider/mailbox/vault capabilit
 - 本地前 23-case probe 输出 `0`；两个 consumer architecture guards 共 2 tests、
   actionlint 1.7.12、actual repository leakage scan（0 findings）与
   `git diff --check` 均通过。
+
+## 35. 第十七轮 hosted managed-config root fix
+
+- Error-code commit `1db78b9fc8f074a6f1ebe64d9c505ed63ad12e12` 已 push。Hosted
+  run `31059957251`、Windows-native job `92485535624` 返回实际 marker
+  `R2_WINDOWS_NATIVE_PROBE_011`，精确映射为 `managed_config_invalid`。
+- 第 23 case 首次调用 `read_managed_settings()`；其 `validate_file()` 明确要求
+  `path.resolve(strict=True) == path`。Hosted 临时根保留 short-name alias，而 config
+  `_World` 使用未规范化的 `Path(owner.name)`，因此稳定文件验证按设计 fail closed。
+  同一 hosted 环境此前已独立证明 TemporaryDirectory alias 与解析后路径不相等。
+- 最小修复只把 config Windows test fixture 的 owner-created root 改为
+  `Path(owner.name).resolve(strict=True)`；不放宽 `validate_file()`、不修改正常运行时或
+  production security contract。
+- 临时 probe 改为只执行已知故障点及其后的 fixed-suite 第 30..35 项。数值公式为
+  `10 + (ordinal - 30) * 6 + category`；category 仍为 assertion、host mutation、
+  repository transaction、ValueError、RuntimeError、other 六类。成功输出 `0`。
+- 本地 config Windows module 与原失败 durable semantic test 共 5 tests 通过；第
+  30..35 项 probe 在 107.8 秒后输出 `0`。两个 consumer architecture guards 共
+  2 tests、actionlint 1.7.12、actual repository leakage scan（0 findings）与
+  `git diff --check` 均通过。
