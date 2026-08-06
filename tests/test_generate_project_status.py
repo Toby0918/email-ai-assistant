@@ -802,10 +802,58 @@ class GenerateProjectStatusTests(unittest.TestCase):
             "completion helpers run only after",
             "synthetic adapters are rejected by production bootstraps",
             "old callback seam is removed",
-            "#105 remains blocked",
+            "#104 itself issued no artifact or authority",
             "`backend/r2_production_composition/binding_candidate.py`",
             "`tests/test_r2_production_adapter_binding_v1.py`",
             "`docs/operations/r2_production_adapter_binding_remediation_task_brief.md`",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, report)
+
+    def test_issue105_external_artifact_boundary_is_reported(self) -> None:
+        module = load_script_module(SCRIPT, "generate_project_status_issue105")
+        report = module.build_project_status()
+
+        for marker in (
+            "Issue #105 public external-artifact repository tooling",
+            "seven-direct plus seven-wrapper gate map",
+            "fourteen gate-ordered detached signatures",
+            "native atomic no-clobber commit",
+            "every file-ID child requiring-oplock open",
+            "immediately followed by their RWH or Read",
+            "pending input, output, `OVERLAPPED`",
+            "protected read/execute-only DACL",
+            "preopened exact directory requiring-oplock handle",
+            "denies delete sharing",
+            "`FileIdInfo` volume/file ID",
+            "Same-handle `FileStandardInfo`",
+            "retain exactly one link",
+            "Bounded `FileStreamInfo` validation",
+            "default `::$DATA` stream",
+            "Exact name-plus-file-ID namespace enumeration",
+            "without reopening child paths",
+            "all guards must remain quiet",
+            "caller synchronously renames through the preauthorized handle",
+            "target-validation-to-release",
+            "no controller, background commit, or sequential guard release",
+            "cancelled and synchronously reaped",
+            "not claimed as an immutability boundary",
+            "external tamper and verifier incident-stop conditions",
+            "production preparation must wait for the post-merge fresh master",
+            "external public inputs, human manifest review, offline signatures",
+            "AWAITING_SINGLE_HUMAN_FINAL_REVIEW",
+            "transitions it from `ready-for-agent` to `ready-for-human`",
+            "closure remains forbidden",
+            "Issue #38 is not approved or closed",
+            "Issue #39 remains unchanged",
+            "`backend/r2_external_artifacts_v1/installer.py`",
+            "`scripts/prepare_r2_external_artifacts.py`",
+            "`tests/test_r2_external_artifacts_v1.py`",
+            "`tests/test_r2_external_artifacts_v1_architecture.py`",
+            "`tests/test_prepare_r2_external_artifacts.py`",
+            "`docs/operations/r2_external_artifact_issuance_task_brief.md`",
+            "`docs/operations/r2_external_artifact_issuance_runbook.md`",
+            "offline external signer",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, report)

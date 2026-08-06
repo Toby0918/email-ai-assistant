@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-03
+last_update: 2026-08-06
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -1454,3 +1454,60 @@ docs/constraints/architecture_constraints.md
   credential, host, provider, vault, and artifact capabilities are forbidden.
 - Production bootstraps must reject the test-only synthetic marker. Production
   modules must not import their local `testing.py` modules.
+
+## Issue #105 public issuance guards
+
+- `backend/r2_external_artifacts_v1/` contains exactly `__init__.py`,
+  `review_inputs.py`, `derivation.py`, `unsigned_package.py`, and `installer.py`;
+  every file remains within 300 lines and every function within 50 lines.
+- Its public surface is limited to nominal review/package/result values plus
+  `prepare_unsigned_external_artifacts_v1` and
+  `install_signed_external_artifacts_v1`. Neither operation accepts a path,
+  root, destination, filename, key file, private key, arbitrary evidence
+  fingerprint, or production-role fingerprint.
+- Source guards reject private-key types, signing or key-generation calls,
+  replace/delete/cleanup capability, private-volume and clipboard references,
+  arbitrary credentials, and normal-runtime consumers. The installer must use
+  `R2GlobalGateEvidenceV1.from_signed_json`,
+  `R2GlobalGateCoordinatorV1.create`, and a native no-replace directory commit.
+- Only `scripts/prepare_r2_external_artifacts.py` may allocate or materialize a
+  frozen master. The backend installer may perform only the code-fixed read-only
+  fresh-master/common-directory commit guard, with no command or repository
+  input. Its Windows commit must use `OpenFileById` plus
+  `FILE_FLAG_OPEN_REQUIRING_OPLOCK` plus `FILE_FLAG_OPEN_REPARSE_POINT`: one RWH
+  `FSCTL_REQUEST_OPLOCK` for every exact child and one Read oplock on a preopened
+  exact staging-directory handle. Each requiring-oplock open must be followed
+  immediately by its `FSCTL_REQUEST_OPLOCK` before any other filesystem
+  operation on that opened object; the pending input, output, `OVERLAPPED`,
+  event, and handle must all remain alive.
+  The directory handle must deny delete sharing and its `FileIdInfo`
+  volume/file ID must equal the before-and-after path identity at open, commit,
+  rename, and target validation.
+  After all oplocks are pending it must use `SetKernelObjectSecurity` through
+  the sixteen bound handles to install a protected read/execute-only DACL. It
+  must validate child identities, `FileStandardInfo` `NumberOfLinks == 1`, and
+  bytes after lockdown; bounded
+  `FileStreamInfo` queries must prove each child has only its default
+  `::$DATA` stream and the directory has no stream. It must enumerate exact
+  name-plus-file-ID entries with `GetFileInformationByHandleEx` through the
+  directory handle without reopening child paths after the directory oplock,
+  require all sixteen guards to remain quiet at commit, and retain them while
+  the calling thread synchronously performs the same preauthorized
+  directory-handle `SetFileInformationByHandle` rename and validates the exact
+  target. Late ordinary write, replace, unlink, and namespace-insertion attempts
+  that require fresh access must be denied by the persistent DACL. It must never use a path-only or
+  background-thread rename, a controller, or a one-child-at-a-time guard
+  release. Pending oplock I/O must be cancelled and synchronously reaped before
+  its `OVERLAPPED`/output structures or handles are released. Read-path
+  `CancelIoEx` is allowed only to bound the same-handle guarded read.
+- Documentation must state that the DACL is not an immutability boundary against
+  the file owner, an administrator, a privileged process, an ownership/ACL
+  change, or a deliberately pre-positioned foreign write-capable handle. Those
+  are external tamper and verifier incident-stop conditions, not installer
+  success guarantees; the tool exposes no arbitrary ACL-reset surface.
+- The script's exact verbs are `prepare` and `install`; it has no argparse,
+  repository, destination, key-file, or private-key option.
+- Static documentation guards require the two-phase public-only boundary,
+  exact fifteen-file layout, retained failed staging state, unchanged protected
+  verifier, `AWAITING_SINGLE_HUMAN_FINAL_REVIEW` stop, separate Issue #38 human
+  review, and unchanged Issue #39 boundary.

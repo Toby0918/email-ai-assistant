@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-03
+last_update: 2026-08-06
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -1141,3 +1141,75 @@ private-data container, or authorization to migrate.
 6. Prove default dormancy and production bootstrap rejection of synthetic
    adapters. No real Adapter, host operation, signer, key, or artifact may be
    created by the remediation.
+
+## Issue #105 external-artifact rules
+
+1. Parse `backend/r2_external_artifacts_v1` and require the exact five-module
+   package and closed public exports. Enforce the repository-wide 300-line file
+   and 50-line function ceilings.
+2. Inspect both public function signatures and reject path, root, destination,
+   filename, key-file, private-key, arbitrary evidence-fingerprint, and
+   production-role-fingerprint inputs.
+3. Require the approved seven-direct plus seven-wrapper derivation map in exact
+   `ClosureGate` order. Parse closed source-review records, exact direct nominal
+   receipt types, exact source schemas, same-master bindings, zero-defect fields,
+   exact JSON scalar types, complete ordered Windows receipt bodies, distinct
+   portable/Windows platform locks, and cross-source CI/retention links; reject
+   caller-provided gate values.
+4. Require the unsigned package to bind one reviewed production binding,
+   fourteen unsigned bodies, fourteen public provenance records, exact file
+   hashes, zero signatures, and one domain-separated issuance manifest.
+5. Require install to confirm that exact manifest, accept exactly fourteen
+   ordered 64-byte detached signatures, rederive every gate, call the protected
+   `R2GlobalGateEvidenceV1.from_signed_json` parser and
+   `R2GlobalGateCoordinatorV1.create` coordinator, and preserve the canonical
+   signed-body schema accepted by the unchanged verifier.
+6. Scan production sources for private-key/sign/generate, delete/cleanup,
+   replace-capable publication, arbitrary destination, credential, private
+   volume, clipboard, and normal-runtime consumer capability. Require Windows
+   `OpenFileById` plus `FILE_FLAG_OPEN_REQUIRING_OPLOCK` and
+   `FILE_FLAG_OPEN_REPARSE_POINT`, one RWH `FSCTL_REQUEST_OPLOCK` per exact
+   child, one Read oplock on the preopened exact staging-directory handle that
+   denies delete sharing, exact `FileIdInfo` volume/file-ID equality with its
+   before-and-after path identity, and a protected read/execute-only DACL. Each
+   requiring-oplock open must be followed immediately by its
+   `FSCTL_REQUEST_OPLOCK`; keep the pending input, output, `OVERLAPPED`, event,
+   and handle alive, then apply the DACL through all sixteen already-guarded
+   handles with `SetKernelObjectSecurity`. Require bounded `FileStreamInfo`
+   checks proving that every child has only its default `::$DATA` stream and the
+   directory has none. Require same-handle guarded-byte reads with bounded
+   `CancelIoEx` and same-handle `FileStandardInfo` to keep every child at exactly
+   one link during initial, precommit, and target validation. Require
+   handle-relative name-plus-file-ID namespace enumeration with
+   `GetFileInformationByHandleEx`, a
+   quiet commit state, and a calling-thread synchronous rename through the same
+   preauthorized directory handle while all sixteen bound guards remain held.
+   Require every pending oplock request to be cancelled and synchronously reaped
+   before its `OVERLAPPED`, output storage, event, or file handle is released.
+   Require Linux `renameat2(RENAME_NOREPLACE)`; forbid path-only `MoveFileExW`,
+   `os.rename`, and `os.replace` fallbacks.
+7. Require exclusive staging writes, exact reread, fixed file inventory,
+   all-or-nothing directory publication, no overwrite, and retained failure
+   state. A Windows child write, POSIX-style unlink/replacement, or namespace
+   insertion admitted before DACL lockdown must be observed by exact validation
+   or signal a guard; any signaled precommit guard fails closed before the native
+   rename. The same operations attempted after lockdown must fail access and
+   cannot poison either the quiet-check-to-rename or target-validation-to-release
+   window. The parent rename must not break the bound guards, and no controller,
+   background commit, or sequential guard release may exist. Existing final or
+   staging state must fail closed without cleanup.
+   Recheck the same read-only fresh-master observation before staging and again
+   immediately before the native rename.
+   Treat the operator account and object-security policy as trusted during this
+   window. The DACL is not an immutability boundary against the file owner, an
+   administrator, a privileged process, explicit ownership/ACL change, or a
+   deliberately pre-positioned foreign write-capable handle. Documentation must
+   classify those as external tamper requiring verifier incident stop and must
+   not claim that repository tooling can defeat them.
+8. Parse the fixed CLI and require only `prepare`/`install`, bounded canonical
+   stdin, canonical public output, fixed content-free failure, internal fresh
+   remote-master freezing, and no path/key options. The installer may use only
+   its code-fixed read-only commit guard and exposes no raw Git command seam.
+9. Require runbook and generated status text to preserve the post-merge fresh-
+   master boundary, external offline signer, exact protected-verifier status,
+   separate Issue #38 human decision, and unchanged/unstarted Issue #39.

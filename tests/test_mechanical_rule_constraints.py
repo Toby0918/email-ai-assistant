@@ -192,6 +192,52 @@ class MechanicalRuleConstraintTests(unittest.TestCase):
         self.assertIn("Linux", ci)
         self.assertIn("Issues #58/#59", ci)
 
+    def test_issue105_mechanical_rules_are_documented(self) -> None:
+        mechanical = read_text(
+            ROOT / "docs" / "constraints" / "mechanical_rule_translation.md"
+        )
+        for marker in (
+            "Issue #105 external-artifact rules",
+            "seven-direct plus seven-wrapper derivation map",
+            "fourteen public provenance records",
+            "exactly fourteen\n   ordered 64-byte detached signatures",
+            "R2GlobalGateEvidenceV1.from_signed_json",
+            "OpenFileById",
+            "FILE_FLAG_OPEN_REQUIRING_OPLOCK",
+            "FILE_FLAG_OPEN_REPARSE_POINT",
+            "one RWH `FSCTL_REQUEST_OPLOCK`",
+            "one Read oplock",
+            "followed immediately by its",
+            "pending input, output",
+            "protected read/execute-only DACL",
+            "SetKernelObjectSecurity",
+            "FileStandardInfo",
+            "exactly\n   one link",
+            "FileStreamInfo",
+            "`::$DATA` stream",
+            "name-plus-file-ID namespace",
+            "same-handle guarded-byte reads",
+            "GetFileInformationByHandleEx",
+            "`FileIdInfo`",
+            "denies delete sharing",
+            "all sixteen bound guards",
+            "POSIX-style unlink/replacement",
+            "no controller,\n   background commit",
+            "CancelIoEx",
+            "synchronously reaped",
+            "MoveFileExW",
+            "renameat2(RENAME_NOREPLACE)",
+            "retained failure\n   state",
+            "signaled precommit guard fails closed",
+            "target-validation-to-release",
+            "not an immutability boundary against the file owner",
+            "external tamper requiring verifier incident stop",
+            "bounded canonical\n   stdin",
+            "unchanged/unstarted Issue #39",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, mechanical)
+
 
 if __name__ == "__main__":
     unittest.main()

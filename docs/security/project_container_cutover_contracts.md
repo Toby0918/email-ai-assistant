@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-03
+last_update: 2026-08-06
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -418,6 +418,72 @@ all durable prior claims and rejects stale, replayed, reordered, wrong-head, or
 mixed-binding claims. The contract is pure; a later unified journal owns the
 durable append and atomic single-use boundary. The claim is evidence of that
 append decision, not a new authorization issuer.
+
+## Issue #105 public external-artifact issuance boundary
+
+Issue #105 adds a public-only bridge from reviewed final-master evidence to the
+fixed protected-verifier artifact directory. Preparation accepts public
+verification keys and exact public reviewed outputs only. It deterministically
+rebuilds the production binding, derives seven direct and seven wrapper gate
+values, and emits one canonical binding plus fourteen unsigned bodies and their
+public provenance. A caller cannot select a gate evidence or production-role
+fingerprint.
+
+The repository does not own the offline signer. It exposes no private-key type,
+key generation, private-key file, signing method, credential, private volume,
+clipboard, provider, mailbox, vault, or real-host command. Detached signatures
+return only after a human has reviewed the exact issuance-manifest fingerprint.
+Preparation, tests, and manifest review are not signing or execution authority.
+
+Installation requires all fourteen gate-ordered Ed25519 signatures and
+revalidates the package, public provenance, production binding, same-master
+links, complete Windows receipt bodies, exact scalar types, gate bodies, pinned
+public keys, and global coordinator before any artifact staging or publication
+filesystem mutation. It repeats the fixed fresh-master observation before
+staging and immediately before commit.
+It resolves the fixed Git common-directory destination internally and publishes
+exactly fifteen canonical JSON files with exclusive writes and a native
+no-replace directory commit. Windows opens each exact staged child by volume
+file ID with `FILE_FLAG_OPEN_REQUIRING_OPLOCK` and
+`FILE_FLAG_OPEN_REPARSE_POINT`, then immediately requests its RWH
+`FSCTL_REQUEST_OPLOCK` before any other filesystem operation on that opened
+object. The pending input, output, `OVERLAPPED`, event, and handle remain alive
+while the child file ID, `FileStandardInfo` single-link state, sole default
+`::$DATA` stream, and exact bytes are validated. It preopens the exact staging-directory path with read, delete, and
+DACL rights while denying delete sharing and immediately requests one Read
+oplock. It then binds that handle's `FileIdInfo` volume/file ID to the
+before-and-after path identity and applies a protected read/execute-only DACL
+through all sixteen already-guarded handles. Bounded `FileStreamInfo` checks
+reject every child or directory alternate stream. Same-handle enumeration binds
+the exact names to their file IDs without reopening child paths after the
+directory oplock. An operation admitted before lockdown must be observed
+by validation or signal a guard; a child write, POSIX-style unlink/replacement,
+or unexpected-name insertion attempted after lockdown is denied. The calling
+thread synchronously performs the rename through the same preauthorized
+`SetFileInformationByHandle` directory handle while all sixteen guards remain
+held, then validates exact target identity, inventory, and bytes before
+releasing them. The protected DACL remains on the final directory, preventing a
+queued late operation from poisoning the release boundary. No controller,
+background commit, or sequential guard release exists. Pending oplock I/O is
+cancelled and synchronously reaped before storage or handles are released;
+read-path `CancelIoEx` only bounds a same-handle read. Existing or failed state is never overwritten, replaced,
+deleted, cleaned, or silently retried.
+
+The installation account and the repository object-security policy are trusted
+for this bounded operation. The protected DACL blocks ordinary mutations that
+need fresh access; it is not an immutability boundary against the file owner, an
+administrator, a privileged process, an explicit ownership/DACL change, or a
+deliberately pre-positioned foreign write-capable handle. Any such action is
+external tamper, invalidates the installation evidence, and requires incident
+stop when the unchanged verifier rechecks the artifacts. The tool exposes no
+owner, arbitrary DACL-reset, privilege, or foreign-handle input.
+
+The unchanged protected verifier runs only later on the clean post-merge fresh
+remote master. `AWAITING_SINGLE_HUMAN_FINAL_REVIEW` means the immutable R2-D38
+package is eligible for the separate single human Issue #38 review; it is not
+approval, cutover authority, or Issue #39 authorization. Until the external
+inputs, signatures, installation, verifier result, and immutable review package
+exist, Issue #105 remains open at its human boundary.
 
 ## Issue #86 finite final-master closure contract
 
