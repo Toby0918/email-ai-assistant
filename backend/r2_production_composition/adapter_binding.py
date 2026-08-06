@@ -11,6 +11,7 @@ from backend.r2_production_binding.claim import DurableAuthorityClaimV2
 from backend.r2_production_binding.errors import ProductionBindingError
 from backend.r2_production_binding.vocabulary import PublicKeyRoleV2
 from backend.r2_production_binding._adapter_identity import (
+    _require_adapter_type_surface_v1,
     production_adapter_fingerprint_v1,
 )
 from backend.r2_production_binding._canonical import fingerprint
@@ -22,6 +23,8 @@ class R2BoundProductionAdapterV1:
     binding_fingerprint: str = field(repr=False)
     implementation_fingerprints: tuple = field(repr=False)
     _adapter: object = field(repr=False)
+    _adapter_surface: tuple = field(repr=False)
+    _invoke: object = field(repr=False)
     _synthetic_test_only: bool = field(repr=False)
 
     def __init__(self, *args, **kwargs):
@@ -30,16 +33,20 @@ class R2BoundProductionAdapterV1:
         )
 
     def invoke(self, **kwargs):
-        return self._adapter.invoke(**kwargs)
+        if self._synthetic_test_only:
+            return self._invoke(**kwargs)
+        return self._invoke(self._adapter, **kwargs)
 
 
 def bind_production_adapter_v1(*, binding, adapter):
     try:
         if type(binding) is not ApprovedCutoverBindingV2:
             raise ProductionBindingError()
-        registrations = _registrations_for_adapter(type(adapter))
+        adapter_type = type(adapter)
+        registrations = _registrations_for_adapter(adapter_type)
         if not registrations or getattr(adapter, "_binding", None) is not binding:
             raise ProductionBindingError()
+        surface = _reviewed_surface_for_adapter(adapter_type)
         observed = tuple(
             (
                 item.command,
@@ -50,6 +57,7 @@ def bind_production_adapter_v1(*, binding, adapter):
             )
             for item in registrations
         )
+        _require_adapter_type_surface_v1(adapter_type, surface)
         expected = dict(binding.production_role_fingerprints)
         if any(
             expected[item.production_role] != value
@@ -65,6 +73,7 @@ def bind_production_adapter_v1(*, binding, adapter):
             binding,
             observed,
             adapter,
+            surface,
             False,
         )
     except ProductionBindingError:
@@ -110,7 +119,12 @@ def _require_synthetic_adapter_module(adapter):
 
 
 def _reverify_real_adapter(binding, slot, bound):
-    registrations = _registrations_for_adapter(type(bound._adapter))
+    adapter_type = type(bound._adapter)
+    reviewed_surface = _reviewed_surface_for_adapter(adapter_type)
+    if bound._invoke is not _invoke_from_surface(reviewed_surface):
+        raise ProductionBindingError()
+    _require_adapter_type_surface_v1(adapter_type, bound._adapter_surface)
+    registrations = _registrations_for_adapter(adapter_type)
     if (
         not registrations
         or registrations[0].slot is not slot
@@ -124,6 +138,7 @@ def _reverify_real_adapter(binding, slot, bound):
         )
         for item in registrations
     )
+    _require_adapter_type_surface_v1(adapter_type, bound._adapter_surface)
     expected = dict(binding.production_role_fingerprints)
     if observed != bound.implementation_fingerprints or any(
         expected[item.production_role] != value
@@ -152,15 +167,28 @@ def _synthetic_bound_adapter_v1(slot, adapter, binding):
         or not callable(getattr(adapter, "invoke", None))
     ):
         raise ProductionBindingError()
-    return _allocate_bound_adapter(slot, binding, (), adapter, True)
+    return _allocate_bound_adapter(slot, binding, (), adapter, (), True)
 
 
-def _allocate_bound_adapter(slot, binding, fingerprints, adapter, synthetic):
+def _allocate_bound_adapter(
+    slot,
+    binding,
+    fingerprints,
+    adapter,
+    surface,
+    synthetic,
+):
+    if synthetic:
+        invoke = adapter.invoke
+    else:
+        invoke = _invoke_from_surface(surface)
     value = object.__new__(R2BoundProductionAdapterV1)
     object.__setattr__(value, "slot", slot)
     object.__setattr__(value, "binding_fingerprint", binding.binding_fingerprint)
     object.__setattr__(value, "implementation_fingerprints", fingerprints)
     object.__setattr__(value, "_adapter", adapter)
+    object.__setattr__(value, "_adapter_surface", surface)
+    object.__setattr__(value, "_invoke", invoke)
     object.__setattr__(value, "_synthetic_test_only", synthetic)
     return value
 
@@ -173,6 +201,19 @@ def _registrations_for_adapter(adapter_type):
         for item in production_adapter_catalog_v1()
         if item.adapter_type is adapter_type
     )
+
+
+def _reviewed_surface_for_adapter(adapter_type):
+    from .catalog import _reviewed_adapter_surface_v1
+
+    return _reviewed_adapter_surface_v1(adapter_type)
+
+
+def _invoke_from_surface(surface):
+    targets = tuple(member for name, member in surface if name == "invoke")
+    if len(targets) != 1 or not callable(targets[0]):
+        raise ProductionBindingError()
+    return targets[0]
 
 
 def operator_subject_fingerprint_v1(verification_public_keys):

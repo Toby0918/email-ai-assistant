@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-03
+last_update: 2026-08-06
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -746,8 +746,9 @@ snapshot filesystem 或 mailbox access。`frontend/` 仍仅在
 The three V2 executable roots are
 `backend.r2_preflight_process`, `backend.r2_evidence_process`, and
 `backend.r2_transaction_process`. Each package's `__main__.py` imports only its
-local `production_v2.main`, while its public package exports the corresponding
-verifier-side dispatcher and bound role type. The historical V1 entry remains
+local `production_v2.main`. Its public package exports the exact V2 bootstrap,
+status, dormant dispatcher, and run dispatcher alongside the existing fixed V1
+contracts; it does not export a bound role type. The historical V1 entry remains
 present but is outside the executable production graph.
 
 With no external issuer, every valid fixed verb returns
@@ -757,9 +758,17 @@ binder, synthetic context, private signing key, or cross-root umbrella.
 maps all ten commands into exactly three nominal stateful Adapter slots: six
 preflight commands, one evidence command, and three transaction commands. The
 package adapts the three protected Issue #59 composition roots without changing
-them. `adapter_binding.py` owns immutable binding and per-call reverification;
-`_adapter_identity.py` binds exact command, authority domain, Adapter type, and
-complete owning-module source while excluding dynamic instance state.
+them. `catalog.py` freezes each reviewed Adapter's exact class-member objects and
+deterministic surface digest when the three Adapter modules load, captures the
+original registry identity independently, and rejects later registry rebinding.
+`adapter_binding.py` binds that reviewed snapshot, captures `invoke` directly
+from it, and owns per-call reverification of both the class surface and the
+captured target identity. `_adapter_identity.py` binds exact command, authority
+domain, Adapter type, complete owning-module source, and a path-independent
+projection of the live type's code, defaults, annotations, slots, and class
+namespace while excluding dynamic instance state. Descriptor replacement before
+or after binding, bound-target replacement, in-place code drift, and
+class-namespace drift therefore fail before the Adapter can act.
 
 `preflight.py`, `evidence.py`, and `transaction.py` validate the underlying
 composition binding, exact receipts, command-specific chain, and outcome before

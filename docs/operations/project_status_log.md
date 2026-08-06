@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-05
+last_update: 2026-08-06
 status: active
 owner: "@tobyWang"
 review_cycle: weekly
@@ -15,9 +15,9 @@ source_type: operation_guide
 
 | Field | Value |
 |---|---|
-| Generated on | 2026-08-05 |
+| Generated on | 2026-08-06 |
 | Current stage | multimodal_current_email_offline_ready_live_pending |
-| Git branch | codex/r2-provenance-yaml-fix |
+| Git branch | codex/issue-104-live-adapter-surface-fix |
 | Git HEAD reference | Run `git rev-parse --short HEAD` in this workspace |
 | Working tree status | Run `git status --short --ignored` in this workspace |
 
@@ -67,7 +67,7 @@ Issue #59 final Project Container composition is offline implemented across `bac
 
 Issues #70-#83 dormant R2 cutover remediation are offline implemented across the additive R2 contract, fixed preflight/evidence/transaction process, main/manifest/database/Runtime/CRX/Config publication, independent-audit, validation-lifecycle, cross-stage recovery, and verification-evidence packages. The fixed no-argument `scripts/verify_r2_synthetic_topology.py` owns one fresh physical NTFS sandbox and composes preflight, evidence, quiescence, legacy anchor, nine-zone Container/main/whole-tree ACL, one repository, all eleven reviewed worktrees, four managed units, Start A with one `rule_fallback` result and one row, stop, independent stopped audit, Start B without analysis/write, independent final-running audit, and one terminal `CUTOVER_SUCCESS`. Preflight, evidence, and transaction use distinct real local TTY processes; execution and recovery remain distinct fixed verbs and all four authorization domains are nominally separate. The exact seven-semantics, two-directions, five-gaps matrix covers 70 fresh scopes. Obsolete batched managed publication, stale R1 verification, in-process operator substitution, self-certified audit, and legacy R2 success are mechanically unreachable. Fresh criteria, matrix, script, bundle, complete R2 surface, and package fingerprints are recorded as six deterministic evidence fingerprints; the accepted prototype fingerprint remains non-authorizing prior art. Portable tests make no NTFS, ACL, TTY, process-isolation, or native-durability claim. Every real entry remains `BLOCKED_NO_APPROVED_COMMAND`; no real host, provider, mailbox, vault, private data, or Issue #39 operation was accessed or run, and #38/#50/#39 remain unchanged.
 
-Issue #104 three-stateful-Adapter seam is implemented offline in `backend.r2_production_composition`. The process packages now accept three exact stateful Adapter slots covering six preflight commands, one evidence command, and three transaction commands; each call revalidates exact adapter type, immutable binding, command, underlying receipt chain, and result, and completion helpers run only after that validation. Adapter identity binds the exact type and complete owning-module source while dynamic instance state is excluded. A deterministic candidate derives the operation, operator roles, all ten adapter identities, and nominal roles from an exact final-master binding plus four unique verification public keys that must be disjoint from the fourteen gate keys. Production bootstraps accept only reviewed non-synthetic adapters; synthetic adapters are rejected by production bootstraps and remain confined to test-only binders. The old callback seam is removed rather than layered; the old callback seam is removed, not wrapped. All defaults remain dormant, no real Adapter instance or operation is created by this remediation, #105 remains blocked, and #38/#39 remain unchanged.
+Issue #104 three-stateful-Adapter seam is implemented offline in `backend.r2_production_composition`. The process packages accept three exact stateful Adapter slots covering six preflight commands, one evidence command, and three transaction commands. The closed catalog freezes the reviewed member identities and deterministic surface digests when the Adapter modules load, captures the original registry identity independently, and rejects later registry rebinding. Binding captures `invoke` directly from that snapshot; each call revalidates exact Adapter type, immutable binding, command, live class-member identity, captured-target identity, deterministic code/default/annotation surface, underlying receipt chain, and result before the reviewed descriptor can run, and completion helpers run only after outcome validation. Adapter identity binds the exact type, complete owning-module source, and path-independent live type surface while dynamic instance state is excluded. A deterministic candidate derives the operation, operator roles, all ten Adapter identities, and nominal roles from an exact final-master binding plus four unique verification public keys that must be disjoint from the fourteen gate keys. Production bootstraps accept only reviewed non-synthetic Adapters; synthetic adapters are rejected by production bootstraps and remain confined to test-only binders. The old callback seam is removed, not wrapped. All defaults remain dormant, no real Adapter instance or operation is created by this remediation, #105 remains blocked, and #38/#39 remain unchanged.
 
 The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器扩展, with current-message collection only after an explicit user click.
 
