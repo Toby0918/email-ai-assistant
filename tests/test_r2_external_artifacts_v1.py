@@ -484,7 +484,7 @@ class R2ExternalArtifactsV1Tests(unittest.TestCase):
                 before,
             )
 
-    @unittest.skipUnless(os.name == "nt", "Windows file-ID commit provenance")
+    @unittest.skipUnless(os.name == "nt", "Windows NTFS sandbox required")
     def test_file_id_guards_cover_exact_children_on_calling_thread(self):
         manifest, files = "6" * 64, _fixed_install_files()
         with _temporary_directory(prefix="issue105-file-id-proof-") as raw:
@@ -525,7 +525,7 @@ class R2ExternalArtifactsV1Tests(unittest.TestCase):
             self.assertTrue(all(guard[0] is None for guard in captured["guards"]))
             self.assertTrue(all(guard[1] is None for guard in captured["guards"]))
 
-    @unittest.skipUnless(os.name == "nt", "Windows equivalent commit race")
+    @unittest.skipUnless(os.name == "nt", "Windows NTFS sandbox required")
     def test_equivalent_competing_rename_is_normalized_to_success(self):
         manifest, files = "9" * 64, _fixed_install_files()
         with _temporary_directory(prefix="issue105-equivalent-race-") as raw:
@@ -547,7 +547,7 @@ class R2ExternalArtifactsV1Tests(unittest.TestCase):
                 tuple(sorted(files)),
             )
 
-    @unittest.skipUnless(os.name == "nt", "Windows requiring-oplock ordering")
+    @unittest.skipUnless(os.name == "nt", "Windows integration only")
     def test_requiring_oplock_open_is_immediately_followed_by_request(self):
         files, calls = _fixed_install_files(), []
         with _temporary_directory(prefix="issue105-oplock-order-") as raw:
@@ -596,7 +596,7 @@ class R2ExternalArtifactsV1Tests(unittest.TestCase):
                 self.assertEqual(calls[index][0], "open")
                 self.assertEqual(calls[index + 1][:2], ("oplock", calls[index][1]))
 
-    @unittest.skipUnless(os.name == "nt", "Windows alternate-stream rejection")
+    @unittest.skipUnless(os.name == "nt", "Windows NTFS sandbox required")
     def test_file_and_directory_alternate_streams_fail_before_publication(self):
         files = _fixed_install_files()
         for location in ("file", "directory"):
@@ -616,7 +616,7 @@ class R2ExternalArtifactsV1Tests(unittest.TestCase):
                 finally:
                     _close_file_id_guards(guards)
 
-    @unittest.skipUnless(os.name == "nt", "Windows single-link handle invariant")
+    @unittest.skipUnless(os.name == "nt", "Windows NTFS sandbox required")
     def test_hardlink_added_during_file_id_open_fails_closed(self):
         files = _fixed_install_files()
         with _temporary_directory(prefix="issue105-hardlink-race-") as raw:
@@ -646,7 +646,7 @@ class R2ExternalArtifactsV1Tests(unittest.TestCase):
             self.assertEqual(injected, [True])
             self.assertTrue(alias.exists())
 
-    @unittest.skipUnless(os.name == "nt", "Windows file-ID commit guard")
+    @unittest.skipUnless(os.name == "nt", "Windows NTFS sandbox required")
     def test_file_id_oplocks_block_child_write_and_namespace_insertion(self):
         manifest, files = "a" * 64, _fixed_install_files()
         with _temporary_directory(prefix="issue105-file-id-guard-") as raw:
@@ -687,7 +687,7 @@ class R2ExternalArtifactsV1Tests(unittest.TestCase):
             self.assertEqual(completed, [])
             self.assertEqual(errors, [PermissionError, PermissionError])
 
-    @unittest.skipUnless(os.name == "nt", "Windows POSIX mutation guard")
+    @unittest.skipUnless(os.name == "nt", "Windows NTFS sandbox required")
     def test_file_id_oplocks_block_posix_unlink_and_replacement(self):
         files = _fixed_install_files()
         for operation in ("unlink", "replace"):
@@ -723,7 +723,7 @@ class R2ExternalArtifactsV1Tests(unittest.TestCase):
                     _close_file_id_guards(guards)
                 self.assertEqual(errors, [PermissionError])
 
-    @unittest.skipUnless(os.name == "nt", "Windows precommit mutation guard")
+    @unittest.skipUnless(os.name == "nt", "Windows NTFS sandbox required")
     def test_post_guard_namespace_mutation_is_denied_before_native_commit(self):
         manifest, files = "b" * 64, _fixed_install_files()
         with _temporary_directory(prefix="issue105-precommit-race-") as raw:
@@ -759,7 +759,7 @@ class R2ExternalArtifactsV1Tests(unittest.TestCase):
             self.assertTrue(target.is_dir())
             self.assertFalse(stage.exists())
 
-    @unittest.skipUnless(os.name == "nt", "Windows immutable commit boundary")
+    @unittest.skipUnless(os.name == "nt", "Windows NTFS sandbox required")
     def test_mutations_after_quiet_check_cannot_poison_commit(self):
         manifest, files = "c" * 64, _fixed_install_files()
         with _temporary_directory(prefix="issue105-post-quiet-") as raw:
@@ -814,7 +814,7 @@ class R2ExternalArtifactsV1Tests(unittest.TestCase):
                 tuple(sorted(files)),
             )
 
-    @unittest.skipUnless(os.name == "nt", "Windows immutable release boundary")
+    @unittest.skipUnless(os.name == "nt", "Windows NTFS sandbox required")
     def test_mutation_after_target_validation_cannot_poison_release(self):
         manifest, files = "d" * 64, _fixed_install_files()
         with _temporary_directory(prefix="issue105-pre-release-") as raw:
@@ -858,7 +858,7 @@ class R2ExternalArtifactsV1Tests(unittest.TestCase):
                 tuple(sorted(files)),
             )
 
-    @unittest.skipUnless(os.name == "nt", "Windows fixed-target name boundary")
+    @unittest.skipUnless(os.name == "nt", "Windows NTFS sandbox required")
     def test_target_rename_after_validation_is_denied_before_release(self):
         manifest, files = "f" * 64, _fixed_install_files()
         with _temporary_directory(prefix="issue105-target-name-release-") as raw:
@@ -892,7 +892,7 @@ class R2ExternalArtifactsV1Tests(unittest.TestCase):
             self.assertTrue(target.is_dir())
             self.assertFalse(moved.exists())
 
-    @unittest.skipUnless(os.name == "nt", "Windows stage identity binding")
+    @unittest.skipUnless(os.name == "nt", "Windows NTFS sandbox required")
     def test_stage_name_swap_is_rejected_before_native_commit(self):
         manifest, files = "7" * 64, _fixed_install_files()
         with _temporary_directory(prefix="issue105-stage-swap-") as raw:
@@ -918,7 +918,7 @@ class R2ExternalArtifactsV1Tests(unittest.TestCase):
             self.assertTrue(stage.is_dir())
             self.assertTrue(stage.with_name(f"{stage.name}.retained").is_dir())
 
-    @unittest.skipUnless(os.name == "nt", "Windows directory-handle identity binding")
+    @unittest.skipUnless(os.name == "nt", "Windows NTFS sandbox required")
     def test_directory_handle_name_swap_cannot_publish_wrong_identity(self):
         manifest, files = "e" * 64, _fixed_install_files()
         with _temporary_directory(prefix="issue105-directory-handle-swap-") as raw:
@@ -948,7 +948,7 @@ class R2ExternalArtifactsV1Tests(unittest.TestCase):
             self.assertEqual((stage / files[0][0]).read_bytes(), b"MALICIOUS")
             self.assertFalse(replacement.exists())
 
-    @unittest.skipUnless(os.name == "nt", "Windows file-ID guard cleanup")
+    @unittest.skipUnless(os.name == "nt", "Windows NTFS sandbox required")
     def test_file_id_open_failure_closes_every_prior_guard(self):
         manifest, files = "8" * 64, _fixed_install_files()
         with _temporary_directory(prefix="issue105-guard-failure-") as raw:
@@ -990,7 +990,7 @@ class R2ExternalArtifactsV1Tests(unittest.TestCase):
             self.assertEqual(closed.count(events[0]), 1)
             self.assertFalse((common / "r2-final-master-closure-v1").exists())
 
-    @unittest.skipUnless(os.name == "nt", "Windows oplock event cleanup")
+    @unittest.skipUnless(os.name == "nt", "Windows integration only")
     def test_oplock_api_lookup_failure_closes_created_event(self):
         from backend.r2_external_artifacts_v1 import installer
         event, closed = 987_654, []
@@ -1008,7 +1008,7 @@ class R2ExternalArtifactsV1Tests(unittest.TestCase):
             installer._request_oplock(123, 7)
         self.assertEqual(closed, [event])
 
-    @unittest.skipUnless(os.name == "nt", "Windows pending oplock rejection cleanup")
+    @unittest.skipUnless(os.name == "nt", "Windows integration only")
     def test_pending_oplock_rejection_cancels_and_reaps_before_event_close(self):
         from backend.r2_external_artifacts_v1 import installer
 
@@ -1065,7 +1065,7 @@ class R2ExternalArtifactsV1Tests(unittest.TestCase):
                     ],
                 )
 
-    @unittest.skipUnless(os.name == "nt", "Windows read event cleanup")
+    @unittest.skipUnless(os.name == "nt", "Windows integration only")
     def test_guarded_read_api_lookup_failure_closes_created_event(self):
         from backend.r2_external_artifacts_v1 import installer
         event, closed = 987_655, []
@@ -1089,7 +1089,7 @@ class R2ExternalArtifactsV1Tests(unittest.TestCase):
             installer._guarded_bytes_equal(123, b"x")
         self.assertEqual(closed, [event])
 
-    @unittest.skipUnless(os.name == "nt", "Windows pending oplock cleanup")
+    @unittest.skipUnless(os.name == "nt", "Windows integration only")
     def test_guard_cleanup_cancels_and_reaps_pending_oplock_before_close(self):
         from backend.r2_external_artifacts_v1 import installer
         overlapped, calls = installer._Overlapped(), []

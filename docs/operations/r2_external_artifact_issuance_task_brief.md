@@ -324,12 +324,12 @@ Changed files:
 - Modified tests/test_static_linter_constraints.py
 
 Test results:
-- Pinned Python 3.12.13 full discovery: 2775 tests, OK, 3 skipped.
-- Issue #105 package, architecture, and CLI: 42 tests, OK.
-- Affected R2 matrix: 15 + 31 + 42 + 48 tests, all OK.
+- Pinned Python 3.12.13 full discovery: 2776 tests, OK, 3 skipped.
+- Issue #105 package, architecture, and CLI: 43 tests, OK.
+- Affected R2 matrix: 15 + 31 + 43 + 48 tests, all OK.
 - Final maintenance/status/leakage/constraint guard group: 139 tests, OK.
 - Windows race repetitions: 160/160, OK.
-- Windows handle stress after 10-test warmup: 100 tests, 202 -> 202,
+- Windows handle stress after 10-test warmup: 100 tests, 200 -> 200,
   delta 0.
 - Generated status is exact; compileall and git diff checks exit 0.
 - Maintenance --fail-on-high exits 0 with 19 pre-existing low stale-doc

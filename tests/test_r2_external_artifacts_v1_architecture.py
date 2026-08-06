@@ -8,6 +8,7 @@ from pathlib import Path
 import unittest
 
 import backend.r2_external_artifacts_v1 as artifacts
+from backend.r2_ci_provenance_v2 import portable_native_skip_reason_registry_v2
 from backend.r2_external_artifacts_v1 import (
     install_signed_external_artifacts_v1,
     prepare_unsigned_external_artifacts_v1,
@@ -163,6 +164,28 @@ class R2ExternalArtifactsV1ArchitectureTests(unittest.TestCase):
                 if "r2_external_artifacts_v1" in text:
                     consumers.add(path.relative_to(ROOT).as_posix())
         self.assertEqual(consumers, allowed)
+
+    def test_native_skip_reasons_are_registered_for_portable_provenance(self):
+        tree = ast.parse(
+            (ROOT / "tests" / "test_r2_external_artifacts_v1.py").read_text(
+                encoding="utf-8"
+            )
+        )
+        reasons = {
+            node.args[1].value
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "skipUnless"
+            and len(node.args) > 1
+            and isinstance(node.args[1], ast.Constant)
+            and isinstance(node.args[1].value, str)
+        }
+        self.assertTrue(reasons)
+        self.assertLessEqual(
+            reasons,
+            set(portable_native_skip_reason_registry_v2()),
+        )
 
 
 if __name__ == "__main__":
