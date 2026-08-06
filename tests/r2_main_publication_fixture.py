@@ -60,7 +60,7 @@ def build_main_publication_scenario(
             prefix="issue74-main-publication-",
             dir=str(directory) if directory is not None else None,
         )
-        root = Path(owner.name)
+        root = Path(owner.name).resolve(strict=True)
     else:
         root = shared_root
     marker = root / ".codex-cutover-mutation-test-sandbox"

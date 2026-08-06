@@ -18,8 +18,8 @@ Repair the R2 provenance workflow YAML parse failure.
 
 ## 3. 当前状态
 
-`implemented`（第三轮 Windows-native timeout 修复仅存在于本地 worktree，尚未
-commit 或 push）
+`implemented`（YAML parse repair 已在 Draft PR #107；hosted normalized-path
+根因的 fixture-only 修复已完成本地验证、临时 probe 已删除，等待最终 hosted checks）
 
 ## 4. 任务目标
 
@@ -33,7 +33,8 @@ runner、action pin、权限、触发器和 provenance 行为不变。
 - 不运行 final-master verifier，不生成密钥、签名或 production artifact。
 - 不访问 real host、provider、mailbox、vault、private data、credential 或私钥。
 - 不改变 workflow jobs、命令语义、依赖、actions、runner 或 provenance 合约。
-- 不提交、push、创建 PR、merge 或关闭 issue；这些动作需要另行授权。
+- 除操作员已显式授权的本分支 exact stage/commit/push 外，不创建额外 PR、不 merge、
+  不转 Ready，也不关闭 issue。
 - 不触碰 dirty 主仓库。
 
 ## 6. 背景与依据
@@ -544,3 +545,34 @@ metadata 或 private data，不增加 real-host/provider/mailbox/vault capabilit
   或 no-clobber 检查。
 - 本地同构 root-capture contract 通过；actionlint 1.7.12、provenance 与文档架构
   18 tests、actual repository leakage scan 与 `git diff --check` 均通过。
+
+## 30. Hosted Windows temporary-path normalization 修复
+
+- commit `e3329f05ddc56056f0d977ae7408a8d87bd201c6` 已 push。Hosted run
+  `31057235867`、Windows job `92477281678` 返回
+  `R2_WINDOWS_NATIVE_PROBE_248`：两次对象 observation、NTFS、fixed drive 与 reparse
+  条件均通过，唯一失败条件是 caller 提供的 `TemporaryDirectory` path 与 handle-bound
+  normalized final path 不相等。
+- 生产 `WindowsSecurityApi`、`WindowsHandleApi` 的 exact-path、identity、NTFS、fixed
+  drive 与 reparse fail-closed 检查保持原样。修复仅位于两个创建自有默认 temp root
+  的 R2 测试 fixture：在生成任何 descendant path 或绑定受保护 adapter/transaction
+  之前，以 `resolve(strict=True)` 固定 owner-created root。Caller-owned `shared_root`
+  不做隐式规范化。
+- `r2_main_publication_fixture` 是已证实的首个失败点；同样的
+  `r2_repository_manifest_fixture` 会在第二个 fixed-suite module 进入严格 transaction
+  path validation，因此同步修复同一根因，避免把 hosted alias 传播到后续 paths。
+- `.github/workflows/r2_provenance.yml` 的整个临时 probe 已删除；所有 201--249 marker、
+  stdout/stderr capture 与 failfast diagnostic 均不保留在正式修复中。
+- Local exact Python 3.12.13 / Git 2.55.0.windows.3 验证：main publication 5 tests
+  9.494 秒、repository manifest 4 tests 307.466 秒、其余五个 Windows-native modules
+  20 tests 170.471 秒，前七个 fixed-suite modules 合计 29/29 passed。
+- architecture/static/mechanical/provenance/transaction/main/manifest constraints：110
+  tests，54.821 秒，passed；status/maintenance/repository-leakage guards：51 tests，
+  5.459 秒，passed。
+- status log 重生成后 bytes 未变化；actual maintenance scan 为 high 0、19 个既有 low
+  stale-doc findings；actual repository leakage scan 为 0。Actionlint 1.7.12、changed
+  Python AST parse 与 `git diff --check` 均通过。
+- Full discovery 与 final-master verifier 仍按既有 placement/authorization 边界不运行，
+  不把它们报告为本轮 green evidence。
+- 最终双轴只读 review：Spec 为 0 findings；Standards 指出的 active brief 顶部旧状态
+  已同步为本轮真实阶段，未发现其他 actionable finding。
