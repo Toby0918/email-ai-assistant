@@ -664,3 +664,22 @@ metadata 或 private data，不增加 real-host/provider/mailbox/vault capabilit
   30..35 项 probe 在 107.8 秒后输出 `0`。两个 consumer architecture guards 共
   2 tests、actionlint 1.7.12、actual repository leakage scan（0 findings）与
   `git diff --check` 均通过。
+
+## 36. 最终 hosted green 与 diagnostic cleanup
+
+- Root-fix commit `70ad71dd573cee55784d3deb2efe69ef42982e2f` 已 push。Hosted run
+  `31060234449` 全部通过：portable job `92486394484`、Windows-independent job
+  `92486394494`、Windows-native job `92486394517` 与 reconciliation job
+  `92487691976` 均为 success。
+- Windows-native 后段 probe 在 41 秒后通过；随后未修改的正式 Git-object verifier
+  在 6 分 50 秒后通过。这同时证明 35 项完整 fixed suite、native receipt 与
+  reconciliation exact same-package contract 成功。
+- 临时 workflow probe step 与 `tests/r2_windows_native_diagnostic.py` 已删除；最终
+  workflow 恢复为仅执行正式 verifier，不保留诊断 marker、额外测试入口或临时代码。
+- 最终 cleanup 后，本地 config Windows module 与 durable semantic regression 共
+  5 tests 通过；provenance contract/adapter 与两条 consumer architecture guards 共
+  15 tests 通过；actionlint 1.7.12 通过。项目状态生成器已执行且 status log
+  byte-identical。
+- 删除进入 exact index 后，maintenance scan 为 high 0（仅 19 个既有 low
+  stale-document findings）；actual repository leakage scan 为 0 findings；临时
+  diagnostic 文件/marker 引用为 0；cached `git diff --check` 通过。
