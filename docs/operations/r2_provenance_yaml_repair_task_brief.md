@@ -629,3 +629,18 @@ metadata 或 private data，不增加 real-host/provider/mailbox/vault capabilit
 - 本地同一 70-case probe 输出 `0`；两个 consumer architecture guards 共 2 tests、
   actionlint 1.7.12、actual repository leakage scan（0 findings）与
   `git diff --check` 均通过。
+
+## 34. 第十六轮 config publication error diagnostic
+
+- Case-probe commit `b652cc10c8c6ad5ee6ee82f5dc3a1de753b59803` 已 push。Hosted
+  run `31059756892`、Windows-native job `92484907991` 在约 4 秒内返回实际 marker
+  `R2_WINDOWS_NATIVE_PROBE_103`。
+- 当前编码精确表示 zero-based index 22（第 23 case）的 ValueError；matrix 公开合成
+  定义映射为 `publication / forward / after_effect`。前 22 cases 已通过，故障发生在
+  config publish 首次完成文件移动、身份/loader 校验或其 recover 路径。
+- 临时 probe 继续执行同一前 23 cases，但将第 23 case 的已知 config ValueError code
+  映射为固定数字 `1..14`，未知 ValueError 为 `20`、RuntimeError 为 `50`、其他异常为
+  `80`；此前 case 的任何回归映射为 `201..222`。日志仍不输出异常或路径。
+- 本地前 23-case probe 输出 `0`；两个 consumer architecture guards 共 2 tests、
+  actionlint 1.7.12、actual repository leakage scan（0 findings）与
+  `git diff --check` 均通过。
