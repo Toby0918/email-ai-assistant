@@ -18,6 +18,14 @@ def _r2(name):
     return "tests.test_" + "r2_" + name
 
 
+def _full_topology(method):
+    return (
+        _r2("full_topology_windows")
+        + ".R2FullTopologyWindowsTests."
+        + method
+    )
+
+
 _SUITES = {
     CiProvenanceKindV2.PORTABLE: ("discover:tests:portable-full-suite",),
     CiProvenanceKindV2.WINDOWS_NATIVE: (
@@ -28,7 +36,16 @@ _SUITES = {
         _r2("crx_publication_windows"),
         _r2("config_publication_windows"),
         _r2("validation_lifecycle_windows"),
-        _r2("full_topology_windows"),
+        _full_topology("test_all_case_bindings_and_receipts_are_durable"),
+        _full_topology("test_all_publications_share_one_physical_container"),
+        (
+            "tests.test_r2_ci_provenance_v2_adapter."
+            "R2CiProvenanceWindowsNativeAdapterTests."
+            "test_ci_budgeted_script_proves_complete_topology_without_public_leakage"
+        ),
+        _full_topology("test_portable_contract_makes_no_windows_claim"),
+        _full_topology("test_recovery_and_final_seal_gaps_have_exact_effect_counts"),
+        _full_topology("test_surface_closure_includes_dynamic_and_durable_implementations"),
     ),
     CiProvenanceKindV2.WINDOWS_INDEPENDENT: (
         _r2("preflight_process"),
@@ -47,6 +64,7 @@ _PORTABLE_NATIVE_SKIP_REASONS = (
     "Windows real TTY proof",
     "Windows NTFS/TTY/process proof",
     "Windows junction contract",
+    "Windows sandbox evidence only; no Linux NTFS or ACL claim",
 )
 
 

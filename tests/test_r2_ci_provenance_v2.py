@@ -15,7 +15,9 @@ from backend.r2_ci_provenance_v2 import (
     R2GitObjectEntryV2,
     R2GitObjectSourcePackageV2,
     R2WorkflowLockV2,
+    fixed_suite_v2,
     fixed_suite_fingerprint_v2,
+    portable_native_skip_reason_registry_v2,
 )
 
 
@@ -78,6 +80,49 @@ class R2CiProvenanceV2Tests(unittest.TestCase):
                         workflows=((".github/workflows/r2_provenance.yml", bad),),
                         dependency_locks=_dependency_locks(),
                     )
+
+    def test_portable_registry_excludes_the_windows_composition_evidence_test(self):
+        self.assertIn(
+            "Windows sandbox evidence only; no Linux NTFS or ACL claim",
+            portable_native_skip_reason_registry_v2(),
+        )
+
+    def test_windows_native_registry_uses_ci_budgeted_topology_script_proof(self):
+        self.assertEqual(
+            fixed_suite_v2(CiProvenanceKindV2.WINDOWS_NATIVE)[-6:],
+            (
+                (
+                    "tests.test_r2_full_topology_windows."
+                    "R2FullTopologyWindowsTests."
+                    "test_all_case_bindings_and_receipts_are_durable"
+                ),
+                (
+                    "tests.test_r2_full_topology_windows."
+                    "R2FullTopologyWindowsTests."
+                    "test_all_publications_share_one_physical_container"
+                ),
+                (
+                    "tests.test_r2_ci_provenance_v2_adapter."
+                    "R2CiProvenanceWindowsNativeAdapterTests."
+                    "test_ci_budgeted_script_proves_complete_topology_without_public_leakage"
+                ),
+                (
+                    "tests.test_r2_full_topology_windows."
+                    "R2FullTopologyWindowsTests."
+                    "test_portable_contract_makes_no_windows_claim"
+                ),
+                (
+                    "tests.test_r2_full_topology_windows."
+                    "R2FullTopologyWindowsTests."
+                    "test_recovery_and_final_seal_gaps_have_exact_effect_counts"
+                ),
+                (
+                    "tests.test_r2_full_topology_windows."
+                    "R2FullTopologyWindowsTests."
+                    "test_surface_closure_includes_dynamic_and_durable_implementations"
+                ),
+            ),
+        )
 
     def test_three_independent_receipts_reconcile_without_skips_or_divergence(self):
         receipts = tuple(

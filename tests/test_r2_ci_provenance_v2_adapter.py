@@ -3,8 +3,11 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from pathlib import Path
+import re
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -88,6 +91,127 @@ class R2CiProvenanceV2AdapterTests(unittest.TestCase):
         self.assertIn("scripts/reconcile_r2_ci_provenance.py", provenance)
         self.assertEqual(provenance.count("--require-hashes"), 3)
 
+    def test_committed_provenance_install_commands_are_yaml_safe(self):
+        provenance = (
+            ROOT / ".github" / "workflows" / "r2_provenance.yml"
+        ).read_text(encoding="utf-8")
+        commands = (
+            (
+                'run: "python -m pip install --only-binary=:all: '
+                '--require-hashes -r requirements-ci-linux.lock"',
+                1,
+            ),
+            (
+                'run: "python -m pip install --only-binary=:all: '
+                '--require-hashes -r requirements-ci-windows.lock"',
+                2,
+            ),
+        )
+
+        for command, expected_count in commands:
+            with self.subTest(command=command):
+                self.assertEqual(provenance.count(command), expected_count)
+        self.assertNotIn(
+            "run: python -m pip install --only-binary=:all: ", provenance
+        )
+
+    def test_windows_jobs_install_exact_hash_locked_python_and_sqlite(self):
+        provenance = (
+            ROOT / ".github" / "workflows" / "r2_provenance.yml"
+        ).read_text(encoding="utf-8")
+        python_url = (
+            "https://github.com/astral-sh/python-build-standalone/releases/"
+            "download/20260718/cpython-3.12.13%2B20260718-"
+            "x86_64-pc-windows-msvc-install_only.tar.gz"
+        )
+        python_sha256 = (
+            "56c9dd9681c4810cb8bfdec277ee2606d8ab17e678e5bc2bd138eb8098e330b6"
+        )
+        sqlite_url = "https://www.sqlite.org/2025/sqlite-dll-win-x64-3500400.zip"
+        sqlite_sha3_256 = (
+            "8454a8ef362b4b2d5a259a54948ed278ef943128bf1ba74b5cbd87ebc58e5b85"
+        )
+
+        self.assertEqual(provenance.count("uses: actions/setup-python@"), 2)
+        self.assertEqual(provenance.count(python_url), 2)
+        self.assertEqual(provenance.count(python_sha256), 2)
+        self.assertEqual(provenance.count(sqlite_url), 2)
+        self.assertEqual(provenance.count(sqlite_sha3_256), 2)
+        for job in (
+            "windows-native-provenance",
+            "windows-independent-provenance",
+        ):
+            with self.subTest(job=job):
+                block = _workflow_job_block(provenance, job)
+                self.assertNotIn("uses: actions/setup-python@", block)
+                self.assertIn(python_url, block)
+                self.assertIn(python_sha256, block)
+                self.assertIn(sqlite_url, block)
+                self.assertIn(sqlite_sha3_256, block)
+                self.assertIn("Get-FileHash", block)
+                self.assertIn("hashlib.sha3_256", block)
+                self.assertIn("sys.version_info[:3] == (3, 12, 13)", block)
+                self.assertIn(
+                    "sqlite3.sqlite_version_info == (3, 50, 4)", block
+                )
+                self.assertIn("$env:GITHUB_PATH", block)
+
+
+@unittest.skipUnless(sys.platform == "win32", "Windows NTFS/TTY/process proof")
+class R2CiProvenanceWindowsNativeAdapterTests(unittest.TestCase):
+    def test_ci_budgeted_script_proves_complete_topology_without_public_leakage(self):
+        completed = subprocess.run(
+            (
+                sys.executable,
+                "-B",
+                str(ROOT / "scripts" / "verify_r2_synthetic_topology.py"),
+            ),
+            cwd=ROOT,
+            capture_output=True,
+            text=True,
+            timeout=300,
+            check=False,
+        )
+        value = json.loads(completed.stdout)
+        lowered = completed.stdout.lower()
+        self.assertEqual(
+            {
+                "process": (completed.returncode, completed.stderr),
+                "status": value["status"],
+                "counts": value["counts"],
+                "terminal_status": value["terminal_status"],
+                "provider_attempts": value["provider_attempts"],
+                "public_leakage": value["public_leakage"],
+                "real_host_operations": value["real_host_operations"],
+                "distinct_fingerprints": len(set(value["fingerprints"].values())),
+                "forbidden_public_text": tuple(
+                    item
+                    for item in ("d:\\", "c:\\", "appdata", "email", "private")
+                    if item in lowered
+                ),
+            },
+            {
+                "process": (0, ""),
+                "status": "R2_SYNTHETIC_VERIFICATION_COMPLETE",
+                "counts": {
+                    "authorization_domains": 4,
+                    "independent_audits": 2,
+                    "managed_units": 4,
+                    "process_types": 3,
+                    "project_container_zones": 9,
+                    "repositories": 1,
+                    "semantic_gap_cases": 70,
+                    "worktrees": 11,
+                },
+                "terminal_status": "CUTOVER_SUCCESS",
+                "provider_attempts": 0,
+                "public_leakage": 0,
+                "real_host_operations": 0,
+                "distinct_fingerprints": 6,
+                "forbidden_public_text": (),
+            },
+        )
+
 
 def _workflow(runner: str, *, provenance: bool = False) -> str:
     return (
@@ -103,6 +227,16 @@ def _workflow(runner: str, *, provenance: bool = False) -> str:
             if provenance else ""
         )
     )
+
+
+def _workflow_job_block(workflow: str, job: str) -> str:
+    match = re.search(
+        rf"(?ms)^  {re.escape(job)}:\n(.*?)(?=^  [A-Za-z0-9_-]+:\n|\Z)",
+        workflow,
+    )
+    if match is None:
+        raise AssertionError(f"missing workflow job: {job}")
+    return match.group(1)
 
 
 def _git(root: Path, *arguments: str) -> None:

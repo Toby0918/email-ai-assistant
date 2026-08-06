@@ -28,7 +28,7 @@ def build_manifest_repository_scenario(
             prefix="issue56-synthetic-manifest-",
             dir=str(directory) if directory is not None else None,
         )
-        root = Path(owner.name)
+        root = Path(owner.name).resolve(strict=True)
         source = root / "Container"
     else:
         root = shared_root
