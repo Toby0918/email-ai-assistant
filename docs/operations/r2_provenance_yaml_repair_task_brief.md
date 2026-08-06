@@ -576,3 +576,26 @@ metadata 或 private data，不增加 real-host/provider/mailbox/vault capabilit
   不把它们报告为本轮 green evidence。
 - 最终双轴只读 review：Spec 为 0 findings；Standards 指出的 active brief 顶部旧状态
   已同步为本轮真实阶段，未发现其他 actionable finding。
+
+## 31. 第十三轮 remaining fixed-suite ordinal
+
+- 正式修复 commit `02985bebef65a448ea37dca9993ec9c2c4f666f5` 已 push。Hosted
+  run `31058377989` 的 quality-gates、portable 与 Windows-independent jobs 均通过；
+  Windows-native job `92480775521` 在正式 verifier 约 406 秒后仍返回固定
+  `R2_CI_PROVENANCE_INVALID`。它已越过先前首个 root-capture 失败，但固定公开错误不含
+  后续 test identity。
+- 临时 `tests/r2_windows_native_diagnostic.py` 只运行 code-fixed 的全部 35 个
+  Windows-native tests，重定向并丢弃 test stdout/stderr/traceback，failfast 后只输出
+  一个 integer。Marker 公式为 `10 + (ordinal - 1) * 6 + category`：category 1 为
+  unittest failure，2--5 为四个固定 exception class，6 为其他 error；范围 11--220，
+  unknown test 为 250。
+- Workflow 只调用该 `tests/` 入口，不直接导入 host-mutation 或 real-host package，避免
+  临时诊断成为 runtime/script/frontend/workflow consumer。Transport failure 仍固定为
+  241--244；不输出 test name、path、exception text、Git metadata 或 private data。
+- 取得 marker 后必须删除整个 workflow step 与临时 diagnostic file，再对精确 seam 建立
+  回归并修复；该 probe 不属于正式 closure evidence，也不改变 verifier/receipt 或任何
+  real-host/private-data 授权边界。
+- 临时入口 mapping/range 检查通过；两个曾被旧 inline probe 触发的 architecture guards
+  与 provenance/documentation 相关套件合计 20 tests 通过。Actionlint 1.7.12、actual
+  repository leakage scan 与 `git diff --check` 均通过。
+- Static-linter/mechanical constraints 35 tests 通过。
