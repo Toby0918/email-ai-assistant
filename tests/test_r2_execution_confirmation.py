@@ -88,6 +88,55 @@ _CLAIM_FIELDS = {
     "deletion_operation_count",
     "claim_fingerprint",
 }
+_PROCESS_SYNCHRONIZE_AND_TERMINATE = 0x00100001
+_WAIT_OBJECT_0 = 0
+_WAIT_TIMEOUT = 258
+
+
+def _windows_process_kernel():
+    import ctypes
+    from ctypes import wintypes
+
+    kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel.OpenProcess.argtypes = (wintypes.DWORD, wintypes.BOOL, wintypes.DWORD)
+    kernel.OpenProcess.restype = wintypes.HANDLE
+    kernel.WaitForSingleObject.argtypes = (wintypes.HANDLE, wintypes.DWORD)
+    kernel.WaitForSingleObject.restype = wintypes.DWORD
+    kernel.TerminateProcess.argtypes = (wintypes.HANDLE, wintypes.UINT)
+    kernel.TerminateProcess.restype = wintypes.BOOL
+    kernel.CloseHandle.argtypes = (wintypes.HANDLE,)
+    kernel.CloseHandle.restype = wintypes.BOOL
+    return kernel
+
+
+def _wait_for_cleanup_ready(controller, ready):
+    import time
+
+    deadline = time.monotonic() + 10
+    while not ready.is_file() and time.monotonic() < deadline:
+        if controller.poll() is not None:
+            raise AssertionError("cleanup controller stopped before worker readiness")
+        time.sleep(0.01)
+    if not ready.is_file():
+        raise AssertionError("cleanup worker readiness timed out")
+    return json.loads(ready.read_text(encoding="ascii"))
+
+
+def _close_worker_handle(kernel, worker_handle):
+    if not worker_handle:
+        return
+    try:
+        state = kernel.WaitForSingleObject(worker_handle, 0)
+        if state == _WAIT_TIMEOUT:
+            terminated = kernel.TerminateProcess(worker_handle, 4)
+            state = kernel.WaitForSingleObject(worker_handle, 5000)
+            if not terminated and state != _WAIT_OBJECT_0:
+                raise AssertionError("blocked worker fallback termination failed")
+        if state != _WAIT_OBJECT_0:
+            raise AssertionError("blocked worker survived cleanup")
+    finally:
+        if not kernel.CloseHandle(worker_handle):
+            raise AssertionError("blocked worker handle close failed")
 
 
 class R2ExecutionConfirmationTests(unittest.TestCase):
@@ -238,14 +287,11 @@ class R2ExecutionConfirmationTests(unittest.TestCase):
 
     @unittest.skipUnless(os.name == "nt", "Windows real TTY proof")
     def test_windows_real_console_proves_three_handles_and_exact_two_lines(self):
-        startup = subprocess.STARTUPINFO()
-        startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-        startup.wShowWindow = subprocess.SW_HIDE
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory) / "execution-confirmation-proof.json"
             completed = subprocess.run(
                 (
-                    os.fsdecode(Path(os.sys.executable)),
+                    os.fsdecode(Path(os.sys.executable).with_name("pythonw.exe")),
                     "-B",
                     "-m",
                     "tests.windows_real_tty_host",
@@ -253,11 +299,6 @@ class R2ExecutionConfirmationTests(unittest.TestCase):
                     str(target),
                 ),
                 cwd=Path(__file__).resolve().parents[1],
-                creationflags=subprocess.CREATE_NEW_CONSOLE,
-                startupinfo=startup,
-                stdin=subprocess.DEVNULL,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
                 timeout=20,
                 check=False,
             )
@@ -275,6 +316,49 @@ class R2ExecutionConfirmationTests(unittest.TestCase):
                     "stdout_write_count": 4,
                 },
             )
+
+    @unittest.skipUnless(os.name == "nt", "Windows real TTY proof")
+    def test_windows_controller_kill_closes_blocked_worker_job(self):
+        kernel = _windows_process_kernel()
+        controller, worker_handle = None, None
+        try:
+            with tempfile.TemporaryDirectory() as directory:
+                ready = Path(directory) / "blocked-worker-ready.json"
+                controller = subprocess.Popen(
+                    (
+                        os.fsdecode(Path(os.sys.executable).with_name("pythonw.exe")),
+                        "-B", "-m", "tests.windows_real_tty_host",
+                        "--controller-cleanup-proof", str(ready),
+                    ),
+                    cwd=Path(__file__).resolve().parents[1],
+                )
+                payload = _wait_for_cleanup_ready(controller, ready)
+                self.assertEqual(set(payload), {"pid", "request_type"})
+                self.assertEqual(
+                    payload["request_type"], "WindowsConsoleWorkerReadyV1"
+                )
+                self.assertIs(type(payload["pid"]), int)
+                worker_handle = kernel.OpenProcess(
+                    _PROCESS_SYNCHRONIZE_AND_TERMINATE, False, payload["pid"]
+                )
+                self.assertTrue(worker_handle)
+                self.assertEqual(
+                    kernel.WaitForSingleObject(worker_handle, 0), _WAIT_TIMEOUT
+                )
+                self.assertIsNone(controller.poll())
+                controller.kill()
+                controller.wait(timeout=5)
+                self.assertEqual(
+                    kernel.WaitForSingleObject(worker_handle, 5000), _WAIT_OBJECT_0
+                )
+        finally:
+            try:
+                if controller is not None and controller.poll() is None:
+                    controller.kill()
+                    controller.wait(timeout=5)
+            finally:
+                _close_worker_handle(kernel, worker_handle)
+
     def test_parsed_values_are_review_only_and_cannot_restore_live_capability(self):
         binding = production_binding()
         candidate = execution_candidate(binding)
