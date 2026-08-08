@@ -3,11 +3,8 @@
 from __future__ import annotations
 
 import hashlib
-import os
 import unittest
 from pathlib import Path
-from types import SimpleNamespace
-from unittest.mock import patch
 
 from backend.r2_ci_provenance_v2 import (
     CiProvenanceKindV2,
@@ -166,38 +163,6 @@ class R2CiProvenanceV2Tests(unittest.TestCase):
         )
         self.assertEqual(loader.errors, [])
         self.assertEqual(failed_tests, ())
-
-    def test_hosted_ordinal_probe_normalizes_subtests_and_is_exactly_gated(self):
-        from tests import test_close_r2_final_master as target
-
-        class Case:
-            def id(self):
-                return target._WINDOWS_INDEPENDENT_CASE_IDS[29]
-
-        result = SimpleNamespace(
-            failures=[(SimpleNamespace(test_case=Case()), "not emitted")],
-            errors=[], skipped=[], unexpectedSuccesses=[],
-        )
-        hosted = {
-            "GITHUB_ACTIONS": "true",
-            "GITHUB_JOB": "windows-independent-provenance",
-            "R2_CI_PROVENANCE_KIND": "windows_independent",
-        }
-        observed = []
-        with patch.dict(os.environ, hosted), patch.object(
-            target.os, "write", side_effect=lambda fd, value: observed.append((fd, value))
-        ):
-            target._probe_prior_windows_independent_result(result)
-        self.assertEqual(observed, [
-            (2, b"R2_WININD_HOSTED_FAILURE\n"),
-            (2, b"R2_WININD_HOSTED_CASE_30\n"),
-            (2, b"R2_WININD_HOSTED_PRIOR_NOT_CLEAN\n"),
-        ])
-        with patch.dict(os.environ, hosted | {"GITHUB_ACTIONS": "false"}), patch.object(
-            target.os, "write"
-        ) as write:
-            target._probe_prior_windows_independent_result(result)
-        write.assert_not_called()
 
     def test_three_independent_receipts_reconcile_without_skips_or_divergence(self):
         receipts = tuple(

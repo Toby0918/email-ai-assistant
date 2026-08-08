@@ -96,26 +96,6 @@ _CONTROLLER_PROBE_EVENTS = (
     "attach", "request_1", "write_1", "request_2", "write_2",
     "free", "process_wait", "tree_terminate",
 )
-_EXECUTION_FAILURE_STATES = {
-    (False, False, False): b"R2_EXECUTION_HOSTED_STATE_000\n",
-    (False, False, True): b"R2_EXECUTION_HOSTED_STATE_001\n",
-    (False, True, False): b"R2_EXECUTION_HOSTED_STATE_010\n",
-    (False, True, True): b"R2_EXECUTION_HOSTED_STATE_011\n",
-    (True, False, False): b"R2_EXECUTION_HOSTED_STATE_100\n",
-    (True, False, True): b"R2_EXECUTION_HOSTED_STATE_101\n",
-    (True, True, False): b"R2_EXECUTION_HOSTED_STATE_110\n",
-    (True, True, True): b"R2_EXECUTION_HOSTED_STATE_111\n",
-}
-_EXECUTION_REAL_CONSOLE_PROOF = {
-    "acknowledgement_line_count": 2,
-    "candidate_line_count": 1,
-    "confirmation_recorded": 1,
-    "console_identity_stable": 1,
-    "extra_line_rejected": 1,
-    "stderr_write_count": 0,
-    "stdin_stdout_stderr_console_verified": 1,
-    "stdout_write_count": 4,
-}
 
 
 class _ControllerProcessProbe:
@@ -186,19 +166,6 @@ def _close_worker_handle(kernel, worker_handle):
     finally:
         if not kernel.CloseHandle(worker_handle):
             raise AssertionError("blocked worker handle close failed")
-
-
-def _hosted_probe(marker):
-    if (
-        os.environ.get("GITHUB_ACTIONS") != "true"
-        or os.environ.get("GITHUB_JOB") != "windows-independent-provenance"
-        or os.environ.get("R2_CI_PROVENANCE_KIND") != "windows_independent"
-    ):
-        return
-    try:
-        os.write(2, marker)
-    except OSError:
-        pass
 
 
 class R2ExecutionConfirmationTests(unittest.TestCase):
@@ -381,55 +348,40 @@ class R2ExecutionConfirmationTests(unittest.TestCase):
 
     @unittest.skipUnless(os.name == "nt", "Windows real TTY proof")
     def test_windows_real_console_proves_three_handles_and_exact_two_lines(self):
-        _hosted_probe(b"R2_EXECUTION_HOSTED_START\n")
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory) / "execution-confirmation-proof.json"
-            requests = tuple(
-                target.with_name(target.name + f".input-{index}.json")
-                for index in (1, 2)
+            completed = subprocess.run(
+                (
+                    os.fsdecode(Path(os.sys.executable).with_name("pythonw.exe")),
+                    "-B",
+                    "-m",
+                    "tests.windows_real_tty_host",
+                    "--execution-confirmation-proof",
+                    str(target),
+                ),
+                cwd=Path(__file__).resolve().parents[1],
+                timeout=20,
+                check=False,
             )
-            try:
-                completed = subprocess.run(
-                    (
-                        os.fsdecode(Path(os.sys.executable).with_name("pythonw.exe")),
-                        "-B", "-m", "tests.windows_real_tty_host",
-                        "--execution-confirmation-proof", str(target),
-                    ),
-                    cwd=Path(__file__).resolve().parents[1],
-                    timeout=20,
-                    check=False,
-                )
-            except subprocess.TimeoutExpired:
-                _hosted_probe(b"R2_EXECUTION_HOSTED_TIMEOUT\n")
-                _hosted_probe(_EXECUTION_FAILURE_STATES[
-                    (requests[0].is_file(), requests[1].is_file(), target.is_file())
-                ])
-                raise
-            if completed.returncode != 0:
-                _hosted_probe(b"R2_EXECUTION_HOSTED_NONZERO\n")
-                _hosted_probe(_EXECUTION_FAILURE_STATES[
-                    (requests[0].is_file(), requests[1].is_file(), target.is_file())
-                ])
             self.assertEqual(completed.returncode, 0)
-            try:
-                self.assertEqual(
-                    json.loads(target.read_text(encoding="utf-8")),
-                    _EXECUTION_REAL_CONSOLE_PROOF,
-                )
-            except Exception:
-                _hosted_probe(b"R2_EXECUTION_HOSTED_PROOF_INVALID\n")
-                _hosted_probe(_EXECUTION_FAILURE_STATES[
-                    (requests[0].is_file(), requests[1].is_file(), target.is_file())
-                ])
-                raise
-        _hosted_probe(b"R2_EXECUTION_HOSTED_PASS\n")
+            self.assertEqual(
+                json.loads(target.read_text(encoding="utf-8")),
+                {
+                    "acknowledgement_line_count": 2,
+                    "candidate_line_count": 1,
+                    "confirmation_recorded": 1,
+                    "console_identity_stable": 1,
+                    "extra_line_rejected": 1,
+                    "stderr_write_count": 0,
+                    "stdin_stdout_stderr_console_verified": 1,
+                    "stdout_write_count": 4,
+                },
+            )
 
     @unittest.skipUnless(os.name == "nt", "Windows real TTY proof")
     def test_windows_controller_kill_closes_blocked_worker_job(self):
-        _hosted_probe(b"R2_CLEANUP_HOSTED_START\n")
         kernel = _windows_process_kernel()
         controller, worker_handle = None, None
-        failure_marker = b"R2_CLEANUP_HOSTED_READY_FAIL\n"
         try:
             with tempfile.TemporaryDirectory() as directory:
                 ready = Path(directory) / "blocked-worker-ready.json"
@@ -442,44 +394,31 @@ class R2ExecutionConfirmationTests(unittest.TestCase):
                     cwd=Path(__file__).resolve().parents[1],
                 )
                 payload = _wait_for_cleanup_ready(controller, ready)
-                failure_marker = b"R2_CLEANUP_HOSTED_PAYLOAD_FAIL\n"
                 self.assertEqual(set(payload), {"pid", "request_type"})
                 self.assertEqual(
                     payload["request_type"], "WindowsConsoleWorkerReadyV1"
                 )
                 self.assertIs(type(payload["pid"]), int)
-                failure_marker = b"R2_CLEANUP_HOSTED_OPEN_FAIL\n"
                 worker_handle = kernel.OpenProcess(
                     _PROCESS_SYNCHRONIZE_AND_TERMINATE, False, payload["pid"]
                 )
                 self.assertTrue(worker_handle)
-                failure_marker = b"R2_CLEANUP_HOSTED_NOT_BLOCKED\n"
                 self.assertEqual(
                     kernel.WaitForSingleObject(worker_handle, 0), _WAIT_TIMEOUT
                 )
-                failure_marker = b"R2_CLEANUP_HOSTED_CONTROLLER_FAIL\n"
                 self.assertIsNone(controller.poll())
                 controller.kill()
                 controller.wait(timeout=5)
-                failure_marker = b"R2_CLEANUP_HOSTED_WORKER_SURVIVED\n"
                 self.assertEqual(
                     kernel.WaitForSingleObject(worker_handle, 5000), _WAIT_OBJECT_0
                 )
-        except Exception:
-            _hosted_probe(failure_marker)
-            raise
         finally:
             try:
                 if controller is not None and controller.poll() is None:
                     controller.kill()
                     controller.wait(timeout=5)
             finally:
-                try:
-                    _close_worker_handle(kernel, worker_handle)
-                except Exception:
-                    _hosted_probe(b"R2_CLEANUP_HOSTED_FINALIZER_FAIL\n")
-                    raise
-        _hosted_probe(b"R2_CLEANUP_HOSTED_PASS\n")
+                _close_worker_handle(kernel, worker_handle)
 
     def test_parsed_values_are_review_only_and_cannot_restore_live_capability(self):
         binding = production_binding()
