@@ -26,6 +26,25 @@ from scripts import verify_r2_final_master_closure as verifier
 
 ACK = "CONFIRM_SOLO_MAINTAINER_CLOSURE_V1_NOT_ISSUE39_AUTHORITY"
 FINGERPRINT = "1" * 64
+_CLOSURE_FAILURE_STATES = {
+    (False, False): b"R2_CLOSURE_HOSTED_STATE_00\n",
+    (False, True): b"R2_CLOSURE_HOSTED_STATE_01\n",
+    (True, False): b"R2_CLOSURE_HOSTED_STATE_10\n",
+    (True, True): b"R2_CLOSURE_HOSTED_STATE_11\n",
+}
+_CLOSURE_REAL_CONSOLE_PROOF = {
+    "acknowledgement_count": 1,
+    "candidate_line_count": 1,
+    "exit_code": 0,
+    "fingerprint_count": 1,
+    "pending_check_count": 1,
+    "read_count": 2,
+    "receipt_line_count": 1,
+    "same_guard_object": 1,
+    "stable_console": 1,
+    "stderr_write_count": 1,
+    "stdout_write_count": 1,
+}
 
 
 def _hosted_probe(marker):
@@ -446,44 +465,20 @@ class CloseR2FinalMasterTests(unittest.TestCase):
                 )
             except subprocess.TimeoutExpired:
                 _hosted_probe(b"R2_CLOSURE_HOSTED_TIMEOUT\n")
-                _hosted_probe((
-                    b"R2_CLOSURE_HOSTED_STATE_11\n"
-                    if request.is_file() and target.is_file()
-                    else b"R2_CLOSURE_HOSTED_STATE_10\n"
-                    if request.is_file()
-                    else b"R2_CLOSURE_HOSTED_STATE_01\n"
-                    if target.is_file()
-                    else b"R2_CLOSURE_HOSTED_STATE_00\n"
-                ))
+                _hosted_probe(_CLOSURE_FAILURE_STATES[
+                    (request.is_file(), target.is_file())
+                ])
                 raise
             if completed.returncode != 0:
                 _hosted_probe(b"R2_CLOSURE_HOSTED_NONZERO\n")
-                _hosted_probe((
-                    b"R2_CLOSURE_HOSTED_STATE_11\n"
-                    if request.is_file() and target.is_file()
-                    else b"R2_CLOSURE_HOSTED_STATE_10\n"
-                    if request.is_file()
-                    else b"R2_CLOSURE_HOSTED_STATE_01\n"
-                    if target.is_file()
-                    else b"R2_CLOSURE_HOSTED_STATE_00\n"
-                ))
+                _hosted_probe(_CLOSURE_FAILURE_STATES[
+                    (request.is_file(), target.is_file())
+                ])
+            self.assertEqual(completed.returncode, 0)
             try:
-                self.assertEqual(completed.returncode, 0)
                 self.assertEqual(
                     json.loads(target.read_text(encoding="utf-8")),
-                    {
-                        "acknowledgement_count": 1,
-                        "candidate_line_count": 1,
-                        "exit_code": 0,
-                        "fingerprint_count": 1,
-                        "pending_check_count": 1,
-                        "read_count": 2,
-                        "receipt_line_count": 1,
-                        "same_guard_object": 1,
-                        "stable_console": 1,
-                        "stderr_write_count": 1,
-                        "stdout_write_count": 1,
-                    },
+                    _CLOSURE_REAL_CONSOLE_PROOF,
                 )
             except Exception:
                 _hosted_probe(b"R2_CLOSURE_HOSTED_PROOF_INVALID\n")

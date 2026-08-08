@@ -106,6 +106,16 @@ _EXECUTION_FAILURE_STATES = {
     (True, True, False): b"R2_EXECUTION_HOSTED_STATE_110\n",
     (True, True, True): b"R2_EXECUTION_HOSTED_STATE_111\n",
 }
+_EXECUTION_REAL_CONSOLE_PROOF = {
+    "acknowledgement_line_count": 2,
+    "candidate_line_count": 1,
+    "confirmation_recorded": 1,
+    "console_identity_stable": 1,
+    "extra_line_rejected": 1,
+    "stderr_write_count": 0,
+    "stdin_stdout_stderr_console_verified": 1,
+    "stdout_write_count": 4,
+}
 
 
 class _ControllerProcessProbe:
@@ -394,20 +404,11 @@ class R2ExecutionConfirmationTests(unittest.TestCase):
                 _hosted_probe(_EXECUTION_FAILURE_STATES[
                     (requests[0].is_file(), requests[1].is_file(), target.is_file())
                 ])
+            self.assertEqual(completed.returncode, 0)
             try:
-                self.assertEqual(completed.returncode, 0)
                 self.assertEqual(
                     json.loads(target.read_text(encoding="utf-8")),
-                    {
-                        "acknowledgement_line_count": 2,
-                        "candidate_line_count": 1,
-                        "confirmation_recorded": 1,
-                        "console_identity_stable": 1,
-                        "extra_line_rejected": 1,
-                        "stderr_write_count": 0,
-                        "stdin_stdout_stderr_console_verified": 1,
-                        "stdout_write_count": 4,
-                    },
+                    _EXECUTION_REAL_CONSOLE_PROOF,
                 )
             except Exception:
                 _hosted_probe(b"R2_EXECUTION_HOSTED_PROOF_INVALID\n")
