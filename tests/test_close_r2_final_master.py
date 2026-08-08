@@ -268,7 +268,7 @@ class CloseR2FinalMasterTests(unittest.TestCase):
             with self.subTest(name=name), tempfile.TemporaryDirectory() as directory:
                 common = Path(directory)
                 (common / name).mkdir()
-                with patch.object(
+                with patch.object(storage_adapter.os, "name", "nt"), patch.object(
                     storage_adapter, "_git_common_dir", return_value=common
                 ), patch.object(storage_adapter, "_commit_no_replace") as commit, \
                         self.assertRaises(SoloMaintainerClosureError) as caught:
@@ -409,7 +409,8 @@ class CloseR2FinalMasterTests(unittest.TestCase):
             def reject(*_payloads):
                 raise SoloMaintainerClosureError(ClosureErrorCode.MASTER_DRIFT)
 
-            with patch.object(storage_adapter, "_git_common_dir", return_value=common), \
+            with patch.object(storage_adapter.os, "name", "nt"), \
+                    patch.object(storage_adapter, "_git_common_dir", return_value=common), \
                     patch.object(storage_adapter, "_commit_no_replace", side_effect=commit), \
                     self.assertRaises(SoloMaintainerClosureError) as caught:
                 storage_adapter.CreateOnlyClosureStorage().publish(
@@ -434,6 +435,9 @@ class CloseR2FinalMasterTests(unittest.TestCase):
                 cwd=Path(__file__).resolve().parents[1],
                 creationflags=subprocess.CREATE_NEW_CONSOLE,
                 startupinfo=startup,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
                 timeout=20,
                 check=False,
             )

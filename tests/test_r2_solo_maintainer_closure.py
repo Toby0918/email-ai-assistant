@@ -548,7 +548,8 @@ class SoloMaintainerClosureTests(unittest.TestCase):
                 ".r2-solo-maintainer-closure-v1.stage-" + fingerprint_value
             )
             target = common / "r2-solo-maintainer-closure-v1"
-            with patch.object(storage_adapter, "_git_common_dir", return_value=common), \
+            with patch.object(storage_adapter.os, "name", "nt"), \
+                    patch.object(storage_adapter, "_git_common_dir", return_value=common), \
                     patch.object(storage_adapter, "_commit_no_replace", side_effect=commit), \
                     self.assertRaises(SoloMaintainerClosureError) as caught:
                 storage_adapter.CreateOnlyClosureStorage().publish(

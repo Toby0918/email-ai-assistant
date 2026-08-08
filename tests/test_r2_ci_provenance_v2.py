@@ -82,9 +82,21 @@ class R2CiProvenanceV2Tests(unittest.TestCase):
                     )
 
     def test_portable_registry_excludes_the_windows_composition_evidence_test(self):
-        self.assertIn(
-            "Windows sandbox evidence only; no Linux NTFS or ACL claim",
+        self.assertEqual(
             portable_native_skip_reason_registry_v2(),
+            (
+                "Windows integration only",
+                "Windows sandbox evidence",
+                "Windows sandbox required",
+                "Windows Job Object test",
+                "physical Windows claim",
+                "Windows NTFS sandbox required",
+                "Windows real TTY proof",
+                "Windows process proof",
+                "Windows NTFS/TTY/process proof",
+                "Windows junction contract",
+                "Windows sandbox evidence only; no Linux NTFS or ACL claim",
+            ),
         )
 
     def test_windows_native_registry_is_the_exact_issue_110_suite(self):

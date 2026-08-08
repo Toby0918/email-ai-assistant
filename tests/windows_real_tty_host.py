@@ -36,6 +36,7 @@ def run_execution_confirmation_proof(target):
     try:
         if os.name != "nt" or target.exists() or not target.parent.is_dir():
             return 3
+        _bind_real_console_streams()
         from backend.r2_production_binding import (
             ExecutionConfirmationError,
             ProductionCommandV2,
@@ -73,6 +74,7 @@ def run_closure_cli_proof(target):
     try:
         if os.name != "nt" or target.exists() or not target.parent.is_dir():
             return 3
+        _bind_real_console_streams()
         from backend.r2_solo_maintainer_closure import closure as closure_adapter
         from scripts import close_r2_final_master as cli
 
@@ -275,6 +277,36 @@ def _queue_console_input(value):
     )
     if accepted == 0 or written.value != len(records):
         raise RuntimeError("console input rejected")
+
+
+def _bind_real_console_streams():
+    from ctypes import wintypes
+    from msvcrt import get_osfhandle
+
+    streams = (
+        open("CONIN$", "r", encoding="utf-8", errors="strict"),
+        open("CONOUT$", "w", encoding="utf-8", errors="strict", buffering=1),
+        open("CONOUT$", "w", encoding="utf-8", errors="strict", buffering=1),
+    )
+    kernel = ctypes.windll.kernel32
+    get_mode = kernel.GetConsoleMode
+    get_mode.argtypes = (wintypes.HANDLE, ctypes.POINTER(wintypes.DWORD))
+    get_mode.restype = wintypes.BOOL
+    set_standard = kernel.SetStdHandle
+    set_standard.argtypes = (wintypes.DWORD, wintypes.HANDLE)
+    set_standard.restype = wintypes.BOOL
+    try:
+        for stream, identifier in zip(streams, (-10, -11, -12), strict=True):
+            handle = get_osfhandle(stream.fileno())
+            mode = wintypes.DWORD()
+            if (handle == -1 or get_mode(handle, ctypes.byref(mode)) != 1
+                    or set_standard(identifier & 0xFFFFFFFF, handle) != 1):
+                raise RuntimeError("console stream binding rejected")
+        sys.stdin, sys.stdout, sys.stderr = streams
+    except Exception:
+        for stream in streams:
+            stream.close()
+        raise
 
 
 def run_dormant_module(module, verb, workdir):

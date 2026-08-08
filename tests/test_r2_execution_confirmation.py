@@ -255,6 +255,9 @@ class R2ExecutionConfirmationTests(unittest.TestCase):
                 cwd=Path(__file__).resolve().parents[1],
                 creationflags=subprocess.CREATE_NEW_CONSOLE,
                 startupinfo=startup,
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
                 timeout=20,
                 check=False,
             )
