@@ -514,11 +514,14 @@ class CloseR2FinalMasterTests(unittest.TestCase):
         rename.assert_not_called()
 
     def test_windows_callback_failure_retains_stage_and_never_renames(self) -> None:
+        _hosted_probe(b"R2_CASE35_HOSTED_START\n")
         source = inspect.getsource(storage_adapter._windows_guarded_commit)
         self.assertIn("before_commit(*payloads)\n        _release_file_guards", source)
         self.assertIn("_require_parent_guard(guards[0], source, parent_acl)\n        if rename(", source)
         self.assertNotIn("renameat2", inspect.getsource(storage_adapter))
+        _hosted_probe(b"R2_CASE35_HOSTED_SOURCE_PASS\n")
         with tempfile.TemporaryDirectory() as directory:
+            _hosted_probe(b"R2_CASE35_HOSTED_TEMP_PASS\n")
             common = Path(directory)
             stage = common / (".r2-solo-maintainer-closure-v1.stage-" + FINGERPRINT)
             target = common / "r2-solo-maintainer-closure-v1"
@@ -536,9 +539,14 @@ class CloseR2FinalMasterTests(unittest.TestCase):
                 storage_adapter.CreateOnlyClosureStorage().publish(
                     b"manifest", b"receipt", FINGERPRINT, reject
                 )
+            _hosted_probe(b"R2_CASE35_HOSTED_REJECTION_PASS\n")
             self.assertEqual(caught.exception.code, ClosureErrorCode.MASTER_DRIFT)
+            _hosted_probe(b"R2_CASE35_HOSTED_CODE_PASS\n")
             self.assertTrue(stage.is_dir())
+            _hosted_probe(b"R2_CASE35_HOSTED_STAGE_PASS\n")
             self.assertFalse(target.exists())
+            _hosted_probe(b"R2_CASE35_HOSTED_TARGET_PASS\n")
+        _hosted_probe(b"R2_CASE35_HOSTED_CLEANUP_PASS\n")
 
     @unittest.skipUnless(os.name == "nt", "Windows real TTY proof")
     def test_windows_real_console_cli_proves_exact_two_reads_and_one_guard(self) -> None:
