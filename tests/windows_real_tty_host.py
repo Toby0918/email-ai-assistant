@@ -117,13 +117,13 @@ def _run_console_controller(target, worker_mode, requests, line_counts):
     try:
         tree = ProcessTree.prepare()
         process = _launch_console_worker(tree, worker_mode, target, requests)
+        if requests:
+            console = _attach_console_input(process.pid)
         for index, (request, count) in enumerate(
                 zip(requests, line_counts, strict=True), start=1):
             text = _wait_for_input_request(
                 process, request, index, count, work_deadline
             )
-            if console is None:
-                console = _attach_console_input(process.pid)
             _write_console_input(*console, text)
         if console is not None:
             attached, console = console, None

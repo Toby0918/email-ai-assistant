@@ -9,6 +9,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from backend.r2_production_binding import (
     ExecutionConfirmationCandidateV1,
@@ -91,6 +92,34 @@ _CLAIM_FIELDS = {
 _PROCESS_SYNCHRONIZE_AND_TERMINATE = 0x00100001
 _WAIT_OBJECT_0 = 0
 _WAIT_TIMEOUT = 258
+_CONTROLLER_PROBE_EVENTS = (
+    "attach", "request_1", "write_1", "request_2", "write_2",
+    "free", "process_wait", "tree_terminate",
+)
+
+
+class _ControllerProcessProbe:
+    pid = 123
+
+    def __init__(self, target, events):
+        self._target = target
+        self._events = events
+
+    def poll(self):
+        return None
+
+    def wait(self, timeout=None):
+        self._target.write_text("{}", encoding="ascii")
+        self._events.append("process_wait")
+        return 0
+
+
+class _ControllerTreeProbe:
+    def __init__(self, events):
+        self._events = events
+
+    def terminate(self, process):
+        self._events.append("tree_terminate")
 
 
 def _windows_process_kernel():
@@ -140,6 +169,38 @@ def _close_worker_handle(kernel, worker_handle):
 
 
 class R2ExecutionConfirmationTests(unittest.TestCase):
+    def test_console_controller_attaches_before_post_display_handoff(self):
+        from tests import windows_real_tty_host as host
+
+        events = []
+
+        def wait_for_request(process, path, round_number, line_count, deadline):
+            self.assertIn("attach", events)
+            events.append(f"request_{round_number}")
+            return "x\r" * line_count
+
+        def write_input(kernel, handle, text):
+            round_number = len([event for event in events if event.startswith("write_")]) + 1
+            self.assertEqual(events[-1], f"request_{round_number}")
+            events.append(f"write_{round_number}")
+
+        with tempfile.TemporaryDirectory() as directory:
+            target = Path(directory) / "execution-confirmation-proof.json"
+            process = _ControllerProcessProbe(target, events)
+            tree = _ControllerTreeProbe(events)
+            with patch.object(host.ProcessTree, "prepare", return_value=tree), \
+                    patch.object(host, "_launch_console_worker", return_value=process), \
+                    patch.object(host, "_attach_console_input", side_effect=(lambda pid: (
+                        events.append("attach") or (object(), object())
+                    ))), \
+                    patch.object(host, "_wait_for_input_request", side_effect=wait_for_request), \
+                    patch.object(host, "_write_console_input", side_effect=write_input), \
+                    patch.object(host, "_free_console", side_effect=(lambda console: events.append("free"))):
+                result = host.run_execution_confirmation_controller(target)
+
+        self.assertEqual(result, 0)
+        self.assertEqual(tuple(events), _CONTROLLER_PROBE_EVENTS)
+
     def test_candidate_and_claim_have_exact_closed_schemas(self):
         binding = production_binding()
         candidate = execution_candidate(binding)
