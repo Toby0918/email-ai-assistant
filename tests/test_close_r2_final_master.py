@@ -525,8 +525,42 @@ class CloseR2FinalMasterTests(unittest.TestCase):
             common = Path(directory)
             stage = common / (".r2-solo-maintainer-closure-v1.stage-" + FINGERPRINT)
             target = common / "r2-solo-maintainer-closure-v1"
+            conflict, write = storage_adapter._publication_conflict, storage_adapter._write_exclusive
+            exact, identity = storage_adapter._require_exact, storage_adapter._identity
+            write_markers = iter((
+                b"R2_CASE35_HOSTED_WRITE_1_PASS\n",
+                b"R2_CASE35_HOSTED_WRITE_2_PASS\n",
+            ))
+            identity_markers = iter(
+                f"R2_CASE35_HOSTED_IDENTITY_{index}_PASS\n".encode("ascii")
+                for index in range(1, 5)
+            )
+
+            def observe_conflict(*arguments):
+                result = conflict(*arguments)
+                _hosted_probe(
+                    b"R2_CASE35_HOSTED_CONFLICT_TRUE\n"
+                    if result else b"R2_CASE35_HOSTED_CONFLICT_FALSE\n"
+                )
+                return result
+
+            def observe_write(*arguments):
+                result = write(*arguments)
+                _hosted_probe(next(write_markers))
+                return result
+
+            def observe_exact(*arguments):
+                result = exact(*arguments)
+                _hosted_probe(b"R2_CASE35_HOSTED_EXACT_PASS\n")
+                return result
+
+            def observe_identity(*arguments):
+                result = identity(*arguments)
+                _hosted_probe(next(identity_markers))
+                return result
 
             def commit(_source, _target, _identity, payloads, before_commit):
+                _hosted_probe(b"R2_CASE35_HOSTED_COMMIT_ENTER\n")
                 before_commit(*payloads)
 
             def reject(*_payloads):
@@ -534,12 +568,32 @@ class CloseR2FinalMasterTests(unittest.TestCase):
 
             with patch.object(storage_adapter.os, "name", "nt"), \
                     patch.object(storage_adapter, "_git_common_dir", return_value=common), \
+                    patch.object(storage_adapter, "_publication_conflict", side_effect=observe_conflict), \
+                    patch.object(storage_adapter, "_write_exclusive", side_effect=observe_write), \
+                    patch.object(storage_adapter, "_require_exact", side_effect=observe_exact), \
+                    patch.object(storage_adapter, "_identity", side_effect=observe_identity), \
                     patch.object(storage_adapter, "_commit_no_replace", side_effect=commit), \
                     self.assertRaises(SoloMaintainerClosureError) as caught:
                 storage_adapter.CreateOnlyClosureStorage().publish(
                     b"manifest", b"receipt", FINGERPRINT, reject
                 )
             _hosted_probe(b"R2_CASE35_HOSTED_REJECTION_PASS\n")
+            _hosted_probe(
+                b"R2_CASE35_HOSTED_CODE_MASTER_DRIFT\n"
+                if caught.exception.code is ClosureErrorCode.MASTER_DRIFT
+                else b"R2_CASE35_HOSTED_CODE_PUBLICATION_REJECTED\n"
+                if caught.exception.code is ClosureErrorCode.PUBLICATION_REJECTED
+                else b"R2_CASE35_HOSTED_CODE_OTHER\n"
+            )
+            _hosted_probe(
+                b"R2_CASE35_HOSTED_STATE_11\n"
+                if stage.is_dir() and target.exists()
+                else b"R2_CASE35_HOSTED_STATE_10\n"
+                if stage.is_dir()
+                else b"R2_CASE35_HOSTED_STATE_01\n"
+                if target.exists()
+                else b"R2_CASE35_HOSTED_STATE_00\n"
+            )
             self.assertEqual(caught.exception.code, ClosureErrorCode.MASTER_DRIFT)
             _hosted_probe(b"R2_CASE35_HOSTED_CODE_PASS\n")
             self.assertTrue(stage.is_dir())
