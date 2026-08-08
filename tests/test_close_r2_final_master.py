@@ -550,6 +550,42 @@ class CloseR2FinalMasterTests(unittest.TestCase):
                 return result
 
             def observe_exact(*arguments):
+                directory, payloads = arguments
+                _hosted_probe(b"R2_CASE35_HOSTED_EXACT_START\n")
+                try:
+                    storage_adapter._safe_directory(directory)
+                except Exception:
+                    _hosted_probe(b"R2_CASE35_HOSTED_SAFE_DIRECTORY_FAIL\n")
+                    raise
+                _hosted_probe(b"R2_CASE35_HOSTED_SAFE_DIRECTORY_PASS\n")
+                names = tuple(sorted(item.name for item in directory.iterdir()))
+                _hosted_probe(
+                    b"R2_CASE35_HOSTED_NAMES_PASS\n"
+                    if names == tuple(sorted(storage_adapter._FILES))
+                    else b"R2_CASE35_HOSTED_NAMES_FAIL\n"
+                )
+                for index, (name, payload) in enumerate(
+                    zip(storage_adapter._FILES, payloads, strict=True), 1
+                ):
+                    metadata = os.lstat(directory / name)
+                    prefix = f"R2_CASE35_HOSTED_FILE_{index}_".encode("ascii")
+                    _hosted_probe(prefix + (
+                        b"REGULAR\n" if storage_adapter.stat.S_ISREG(metadata.st_mode)
+                        else b"NOT_REGULAR\n"
+                    ))
+                    _hosted_probe(prefix + (
+                        b"NLINK_1\n" if metadata.st_nlink == 1
+                        else b"NLINK_0\n" if metadata.st_nlink == 0
+                        else b"NLINK_OTHER\n"
+                    ))
+                    _hosted_probe(prefix + (
+                        b"REPARSE\n" if storage_adapter._is_reparse(metadata)
+                        else b"NOT_REPARSE\n"
+                    ))
+                    _hosted_probe(prefix + (
+                        b"BYTES_PASS\n" if (directory / name).read_bytes() == payload
+                        else b"BYTES_FAIL\n"
+                    ))
                 result = exact(*arguments)
                 _hosted_probe(b"R2_CASE35_HOSTED_EXACT_PASS\n")
                 return result
