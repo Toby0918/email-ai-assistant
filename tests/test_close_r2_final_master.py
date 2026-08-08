@@ -28,6 +28,13 @@ ACK = "CONFIRM_SOLO_MAINTAINER_CLOSURE_V1_NOT_ISSUE39_AUTHORITY"
 FINGERPRINT = "1" * 64
 
 
+def _hosted_probe(marker):
+    try:
+        os.write(2, marker)
+    except OSError:
+        pass
+
+
 class _Value:
     def __init__(self, payload: bytes, manifest_fingerprint: str = FINGERPRINT) -> None:
         self._payload = payload
@@ -422,35 +429,66 @@ class CloseR2FinalMasterTests(unittest.TestCase):
 
     @unittest.skipUnless(os.name == "nt", "Windows real TTY proof")
     def test_windows_real_console_cli_proves_exact_two_reads_and_one_guard(self) -> None:
+        _hosted_probe(b"R2_CLOSURE_HOSTED_START\n")
         with tempfile.TemporaryDirectory() as directory:
             target = Path(directory) / "closure-cli-proof.json"
-            completed = subprocess.run(
-                (
-                    os.fsdecode(Path(os.sys.executable).with_name("pythonw.exe")),
-                    "-B", "-m",
-                    "tests.windows_real_tty_host", "--closure-cli-proof", str(target),
-                ),
-                cwd=Path(__file__).resolve().parents[1],
-                timeout=20,
-                check=False,
-            )
-            self.assertEqual(completed.returncode, 0)
-            self.assertEqual(
-                json.loads(target.read_text(encoding="utf-8")),
-                {
-                    "acknowledgement_count": 1,
-                    "candidate_line_count": 1,
-                    "exit_code": 0,
-                    "fingerprint_count": 1,
-                    "pending_check_count": 1,
-                    "read_count": 2,
-                    "receipt_line_count": 1,
-                    "same_guard_object": 1,
-                    "stable_console": 1,
-                    "stderr_write_count": 1,
-                    "stdout_write_count": 1,
-                },
-            )
+            request = target.with_name(target.name + ".input-1.json")
+            try:
+                completed = subprocess.run(
+                    (
+                        os.fsdecode(Path(os.sys.executable).with_name("pythonw.exe")),
+                        "-B", "-m", "tests.windows_real_tty_host",
+                        "--closure-cli-proof", str(target),
+                    ),
+                    cwd=Path(__file__).resolve().parents[1],
+                    timeout=20,
+                    check=False,
+                )
+            except subprocess.TimeoutExpired:
+                _hosted_probe(b"R2_CLOSURE_HOSTED_TIMEOUT\n")
+                _hosted_probe((
+                    b"R2_CLOSURE_HOSTED_STATE_11\n"
+                    if request.is_file() and target.is_file()
+                    else b"R2_CLOSURE_HOSTED_STATE_10\n"
+                    if request.is_file()
+                    else b"R2_CLOSURE_HOSTED_STATE_01\n"
+                    if target.is_file()
+                    else b"R2_CLOSURE_HOSTED_STATE_00\n"
+                ))
+                raise
+            if completed.returncode != 0:
+                _hosted_probe(b"R2_CLOSURE_HOSTED_NONZERO\n")
+                _hosted_probe((
+                    b"R2_CLOSURE_HOSTED_STATE_11\n"
+                    if request.is_file() and target.is_file()
+                    else b"R2_CLOSURE_HOSTED_STATE_10\n"
+                    if request.is_file()
+                    else b"R2_CLOSURE_HOSTED_STATE_01\n"
+                    if target.is_file()
+                    else b"R2_CLOSURE_HOSTED_STATE_00\n"
+                ))
+            try:
+                self.assertEqual(completed.returncode, 0)
+                self.assertEqual(
+                    json.loads(target.read_text(encoding="utf-8")),
+                    {
+                        "acknowledgement_count": 1,
+                        "candidate_line_count": 1,
+                        "exit_code": 0,
+                        "fingerprint_count": 1,
+                        "pending_check_count": 1,
+                        "read_count": 2,
+                        "receipt_line_count": 1,
+                        "same_guard_object": 1,
+                        "stable_console": 1,
+                        "stderr_write_count": 1,
+                        "stdout_write_count": 1,
+                    },
+                )
+            except Exception:
+                _hosted_probe(b"R2_CLOSURE_HOSTED_PROOF_INVALID\n")
+                raise
+        _hosted_probe(b"R2_CLOSURE_HOSTED_PASS\n")
 
     def test_entry_signature_and_verbs_are_closed(self) -> None:
         self.assertEqual(tuple(inspect.signature(cli.main).parameters), ())
