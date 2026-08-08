@@ -189,6 +189,12 @@ def _close_worker_handle(kernel, worker_handle):
 
 
 def _hosted_probe(marker):
+    if (
+        os.environ.get("GITHUB_ACTIONS") != "true"
+        or os.environ.get("GITHUB_JOB") != "windows-independent-provenance"
+        or os.environ.get("R2_CI_PROVENANCE_KIND") != "windows_independent"
+    ):
+        return
     try:
         os.write(2, marker)
     except OSError:

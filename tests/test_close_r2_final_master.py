@@ -45,13 +45,107 @@ _CLOSURE_REAL_CONSOLE_PROOF = {
     "stderr_write_count": 1,
     "stdout_write_count": 1,
 }
+_WINDOWS_INDEPENDENT_CASE_IDS = tuple(
+    f"{case}.{method}"
+    for case, methods in (
+        ("tests.test_r2_preflight_production_v2.R2PreflightProductionV2Tests", (
+            "test_exact_six_verbs_are_catalogued_but_all_remain_dormant",
+            "test_no_argv_or_object_can_change_dormancy",
+        )),
+        ("tests.test_r2_evidence_production_v2.R2EvidenceProductionV2Tests", (
+            "test_no_argv_or_object_can_change_dormancy",
+            "test_single_publish_verb_is_catalogued_but_remains_dormant",
+        )),
+        ("tests.test_r2_transaction_production_v2.R2TransactionProductionV2Tests", (
+            "test_no_argv_can_change_dormancy",
+            "test_pure_completion_accepts_only_exact_v3_confirmation_binding",
+            "test_three_transaction_verbs_are_catalogued_but_all_remain_dormant",
+        )),
+        ("tests.test_r2_execution_confirmation.R2ExecutionConfirmationTests", (
+            "test_all_commands_derive_the_exact_domain_and_operator_role",
+            "test_candidate_and_claim_have_exact_closed_schemas",
+            "test_candidate_claim_and_acknowledgement_use_exact_domains",
+            "test_confirmation_requires_exact_fingerprint_ack_and_half_open_window",
+            "test_confirmation_uses_visible_single_reads_stable_console_and_is_single_use",
+            "test_console_controller_attaches_before_post_display_handoff",
+            "test_durable_validation_rejects_replay_stale_or_wrong_head",
+            "test_parsed_values_are_review_only_and_cannot_restore_live_capability",
+            "test_parsers_reject_noncanonical_duplicate_extra_or_v2_payloads",
+            "test_pending_third_line_is_rejected_and_consumes_candidate",
+            "test_prepare_does_not_read_console_and_handle_drift_consumes_candidate",
+            "test_windows_controller_kill_closes_blocked_worker_job",
+            "test_windows_real_console_proves_three_handles_and_exact_two_lines",
+        )),
+        ("tests.test_close_r2_final_master.CloseR2FinalMasterTests", (
+            "test_acl_lock_binds_each_kernel_canonicalized_descriptor",
+            "test_confirm_displays_candidate_then_reads_two_visible_lines_once",
+            "test_confirm_rejects_pending_third_line_before_writer",
+            "test_entry_signature_and_verbs_are_closed",
+            "test_invalid_argv_and_content_free_errors_have_one_stdout_line",
+            "test_nested_console_ceremony_reuses_the_exact_guard_object",
+            "test_parent_guard_failure_after_callback_blocks_rename",
+            "test_prepare_is_the_only_noninteractive_success_surface",
+            "test_storage_is_windows_only_before_git_path_access",
+            "test_storage_rejects_every_legacy_or_new_stage_before_create",
+            "test_verifier_cross_checks_every_receipt_manifest_link",
+            "test_verifier_rejects_any_argv_before_repository_access",
+            "test_verifier_rejects_case_insensitive_incident_siblings",
+            "test_visible_input_removes_only_one_terminal_newline_and_rejects_controls",
+            "test_windows_callback_failure_retains_stage_and_never_renames",
+            "test_windows_commit_linearizes_at_final_parent_observation",
+            "test_windows_real_console_cli_proves_exact_two_reads_and_one_guard",
+        )),
+    )
+    for method in methods
+)
+_WINDOWS_INDEPENDENT_CASE_MARKERS = {
+    case: f"R2_WININD_HOSTED_CASE_{index:02d}\n".encode("ascii")
+    for index, case in enumerate(_WINDOWS_INDEPENDENT_CASE_IDS, 1)
+}
 
 
 def _hosted_probe(marker):
+    if (
+        os.environ.get("GITHUB_ACTIONS") != "true"
+        or os.environ.get("GITHUB_JOB") != "windows-independent-provenance"
+        or os.environ.get("R2_CI_PROVENANCE_KIND") != "windows_independent"
+    ):
+        return
     try:
         os.write(2, marker)
     except OSError:
         pass
+
+
+def _windows_independent_case_marker(case):
+    parent = getattr(case, "test_case", case)
+    return _WINDOWS_INDEPENDENT_CASE_MARKERS.get(
+        parent.id(), b"R2_WININD_HOSTED_CASE_UNKNOWN\n"
+    )
+
+
+def _probe_prior_windows_independent_result(result):
+    if result is None:
+        _hosted_probe(b"R2_WININD_HOSTED_RESULT_UNAVAILABLE\n")
+        return
+    observed = False
+    for category, records in (
+        (b"R2_WININD_HOSTED_FAILURE\n", result.failures),
+        (b"R2_WININD_HOSTED_ERROR\n", result.errors),
+        (b"R2_WININD_HOSTED_SKIP\n", result.skipped),
+    ):
+        for case, _detail in records:
+            observed = True
+            _hosted_probe(category)
+            _hosted_probe(_windows_independent_case_marker(case))
+    for case in result.unexpectedSuccesses:
+        observed = True
+        _hosted_probe(b"R2_WININD_HOSTED_UNEXPECTED_SUCCESS\n")
+        _hosted_probe(_windows_independent_case_marker(case))
+    _hosted_probe(
+        b"R2_WININD_HOSTED_PRIOR_NOT_CLEAN\n"
+        if observed else b"R2_WININD_HOSTED_PRIOR_CLEAN\n"
+    )
 
 
 class _Value:
@@ -484,6 +578,9 @@ class CloseR2FinalMasterTests(unittest.TestCase):
                 _hosted_probe(b"R2_CLOSURE_HOSTED_PROOF_INVALID\n")
                 raise
         _hosted_probe(b"R2_CLOSURE_HOSTED_PASS\n")
+        _probe_prior_windows_independent_result(
+            getattr(getattr(self, "_outcome", None), "result", None)
+        )
 
     def test_entry_signature_and_verbs_are_closed(self) -> None:
         self.assertEqual(tuple(inspect.signature(cli.main).parameters), ())
