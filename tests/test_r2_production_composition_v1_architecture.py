@@ -64,7 +64,7 @@ class R2ProductionCompositionV1ArchitectureTests(unittest.TestCase):
     def test_candidate_builder_has_no_arbitrary_identity_or_host_input(self):
         self.assertEqual(
             tuple(inspect.signature(build_production_binding_candidate_v1).parameters),
-            ("final_master_binding", "verification_public_keys"),
+            ("final_master_binding",),
         )
         forbidden_parameters = {
             "operation_fingerprint",
@@ -74,6 +74,7 @@ class R2ProductionCompositionV1ArchitectureTests(unittest.TestCase):
             "root",
             "host",
             "private_key",
+            "verification_public_keys",
         }
         self.assertTrue(
             set(inspect.signature(build_production_binding_candidate_v1).parameters)
@@ -84,6 +85,10 @@ class R2ProductionCompositionV1ArchitectureTests(unittest.TestCase):
             "Ed25519PrivateKey",
             ".sign(",
             "private_bytes",
+            "PublicKeyRoleV2",
+            "verification_public_keys",
+            "ApprovedCutoverBindingV2",
+            "DurableAuthorityClaimV2",
             "subprocess",
             "socket",
             "open(",
@@ -93,22 +98,13 @@ class R2ProductionCompositionV1ArchitectureTests(unittest.TestCase):
         ):
             self.assertNotIn(forbidden, source)
 
-    def test_processes_validate_adapter_outcome_before_completion(self):
-        pairs = {
-            "r2_preflight_process": (
-                "completion",
-                "complete_preflight_read_v2",
-            ),
-            "r2_evidence_process": (
-                "publication",
-                "complete_reviewed_evidence_publication_v2",
-            ),
-            "r2_transaction_process": (
-                "completion",
-                "complete_transaction_action_v2",
-            ),
-        }
-        for package, (target, completion) in pairs.items():
+    def test_dormant_processes_cannot_import_or_reach_adapter_seam(self):
+        packages = (
+            "r2_preflight_process",
+            "r2_evidence_process",
+            "r2_transaction_process",
+        )
+        for package in packages:
             path = ROOT / "backend" / package / "production_v2.py"
             source = path.read_text(encoding="utf-8")
             tree = ast.parse(source)
@@ -118,11 +114,10 @@ class R2ProductionCompositionV1ArchitectureTests(unittest.TestCase):
                 if isinstance(node, ast.ImportFrom) and node.module
             }
             with self.subTest(package=package):
-                self.assertIn("backend.r2_production_composition", imports)
-                self.assertLess(
-                    source.index("outcome ="),
-                    source.index(target + " = " + completion + "("),
-                )
+                self.assertNotIn("backend.r2_production_composition", imports)
+                self.assertIn("DORMANT_NO_ISSUE39_APPROVAL", source)
+                self.assertNotIn("R2BoundProductionAdapterV1", source)
+                self.assertNotIn(".invoke(", source)
                 self.assertNotIn("role_binding", source)
 
 

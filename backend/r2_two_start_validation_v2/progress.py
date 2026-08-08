@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 
-from backend.r2_production_binding import DurableAuthorityClaimV2
+from backend.r2_production_binding import ExecutionConfirmationClaimV1
 from backend.r2_transaction_journal_v2 import EffectClassificationV2, R2TransactionJournalV2
 from backend.r2_transaction_journal_v2._canonical import fingerprint
 
@@ -33,15 +33,15 @@ class ValidationProgressV2:
         raise TypeError("ValidationProgressV2 is returned by fixed progress functions")
 
 
-def begin_next_validation_action_v2(*, journal, plan, claim):
+def begin_next_validation_action_v2(*, journal, plan, claim, observed_at_epoch, observed_monotonic_ns):
     try:
-        if type(plan) is not R2TwoStartValidationPlanV2 or type(journal) is not R2TransactionJournalV2 or journal.next_legal_action not in {"CLAIM_FRESH_AUTHORITY", "CLAIM_FRESH_AUTHORITY_OR_TERMINAL"}:
+        if type(plan) is not R2TwoStartValidationPlanV2 or type(journal) is not R2TransactionJournalV2 or journal.next_legal_action not in {"CLAIM_FRESH_EXECUTION_CONFIRMATION", "CLAIM_FRESH_EXECUTION_CONFIRMATION_OR_TERMINAL"}:
             raise TwoStartValidationError()
         transition = plan.next_transition(journal)
         if transition is None:
             raise TwoStartValidationError()
         _claim(journal, plan, claim, transition.command, transition.transition_instance_fingerprint)
-        result = journal.append_authority_claim(claim=claim, transition_instance_fingerprint=transition.transition_instance_fingerprint).append_intent(transition_instance_fingerprint=transition.transition_instance_fingerprint, pre_state_fingerprint=transition.pre_state_fingerprint, post_state_fingerprint=transition.post_state_fingerprint)
+        result = journal.append_execution_confirmation_claim(claim=claim, transition_instance_fingerprint=transition.transition_instance_fingerprint, observed_at_epoch=observed_at_epoch, observed_monotonic_ns=observed_monotonic_ns).append_intent(transition_instance_fingerprint=transition.transition_instance_fingerprint, pre_state_fingerprint=transition.pre_state_fingerprint, post_state_fingerprint=transition.post_state_fingerprint)
         return _progress(ValidationProgressStatusV2.VALIDATION_ACTION_PENDING, result, 0, 2)
     except TwoStartValidationError:
         raise
@@ -54,8 +54,8 @@ def commit_validation_action_v2(*, journal, plan, evidence):
         if type(plan) is not R2TwoStartValidationPlanV2 or type(journal) is not R2TransactionJournalV2 or journal.next_legal_action != "READ_ONLY_INSPECTION":
             raise TwoStartValidationError()
         transition = plan.next_transition(journal)
-        authority = journal.records[-2].authority_claim
-        if type(evidence) is not R2ValidationActionEvidenceV2 or transition is None or evidence.transition_instance_fingerprint != transition.transition_instance_fingerprint or evidence.claim_fingerprint != authority.claim_fingerprint or evidence.prior_journal_head_fingerprint != authority.prior_journal_head_fingerprint:
+        confirmation = journal.records[-2].execution_confirmation_claim
+        if type(evidence) is not R2ValidationActionEvidenceV2 or transition is None or evidence.transition_instance_fingerprint != transition.transition_instance_fingerprint or evidence.claim_fingerprint != confirmation.claim_fingerprint or evidence.prior_journal_head_fingerprint != confirmation.prior_journal_head_fingerprint:
             raise TwoStartValidationError()
         result = journal.append_effect_observation(transition_instance_fingerprint=transition.transition_instance_fingerprint, observed_state_fingerprint=evidence.observed_state_fingerprint, classification=EffectClassificationV2.EFFECT_PRESENT_EXACT).append_commit(transition_instance_fingerprint=transition.transition_instance_fingerprint, committed_state_fingerprint=evidence.observed_state_fingerprint)
         status = ValidationProgressStatusV2.VALIDATION_ACTIONS_COMPLETE if plan.committed_prefix_count(result) == 7 else ValidationProgressStatusV2.VALIDATION_ACTION_COMMITTED
@@ -67,7 +67,7 @@ def commit_validation_action_v2(*, journal, plan, evidence):
 
 
 def _claim(journal, plan, claim, command, transition):
-    if type(claim) is not DurableAuthorityClaimV2 or claim.command is not command or claim.prior_journal_head_fingerprint != journal.current_head_fingerprint or claim.action_fingerprint != lifecycle_action_fingerprint_v2(binding=plan._binding, plan=plan, command=command, journal_head_fingerprint=journal.current_head_fingerprint, transition_instance_fingerprint=transition):
+    if type(claim) is not ExecutionConfirmationClaimV1 or claim.command is not command or claim.prior_journal_head_fingerprint != journal.current_head_fingerprint or claim.transition_instance_fingerprint != transition or claim.remaining_reverse_plan_fingerprint != "0" * 64 or claim.action_fingerprint != lifecycle_action_fingerprint_v2(binding=plan._binding, plan=plan, command=command, journal_head_fingerprint=journal.current_head_fingerprint, transition_instance_fingerprint=transition):
         raise TwoStartValidationError()
 
 

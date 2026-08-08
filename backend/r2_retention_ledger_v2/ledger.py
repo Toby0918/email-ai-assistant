@@ -8,7 +8,7 @@ from enum import Enum
 
 from backend.r2_foundation_publication_v2 import R2FoundationPlanV2
 from backend.r2_managed_unit_publication_v2 import R2ManagedUnitPlanV2
-from backend.r2_production_binding import ApprovedCutoverBindingV2, ProductionRoleV2
+from backend.r2_production_binding import ApprovedCutoverBindingV3, ProductionRoleV2
 from backend.r2_rollback_recovery_v2 import R2RollbackPlanV2
 from backend.r2_transaction_journal_v2 import R2TransactionJournalV2, TerminalStateV2
 from backend.r2_transaction_journal_v2._canonical import (
@@ -172,7 +172,7 @@ def _project(binding, foundation_plan, managed_plan, validation_plan, rollback_p
 
 def _require_inputs(binding, foundation, managed, validation, rollback, journal):
     if (
-        type(binding) is not ApprovedCutoverBindingV2
+        type(binding) is not ApprovedCutoverBindingV3
         or type(foundation) is not R2FoundationPlanV2
         or type(managed) is not R2ManagedUnitPlanV2
         or type(validation) is not R2TwoStartValidationPlanV2
@@ -238,7 +238,7 @@ def _stage(rollback, journal):
     if completed == rollback.transition_count:
         return RetentionLedgerStageV2.ROLLBACK_COMPLETE
     if not tail:
-        return RetentionLedgerStageV2.FORWARD_COMMITTED if journal.next_legal_action == "CLAIM_FRESH_AUTHORITY_OR_TERMINAL" else RetentionLedgerStageV2.FORWARD_RECOVERY_REQUIRED
+        return RetentionLedgerStageV2.FORWARD_COMMITTED if journal.next_legal_action == "CLAIM_FRESH_EXECUTION_CONFIRMATION_OR_TERMINAL" else RetentionLedgerStageV2.FORWARD_RECOVERY_REQUIRED
     if tail[-1].record_type is JournalRecordTypeV2.RECOVERY_CLASSIFICATION:
         return RetentionLedgerStageV2.ROLLBACK_RECOVERY_CLASSIFIED
     return RetentionLedgerStageV2.ROLLBACK_IN_PROGRESS if completed else RetentionLedgerStageV2.ROLLBACK_PENDING

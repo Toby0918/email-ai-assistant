@@ -87,19 +87,26 @@ class R2CiProvenanceV2Tests(unittest.TestCase):
             portable_native_skip_reason_registry_v2(),
         )
 
-    def test_windows_native_registry_uses_ci_budgeted_topology_script_proof(self):
+    def test_windows_native_registry_is_the_exact_issue_110_suite(self):
         self.assertEqual(
-            fixed_suite_v2(CiProvenanceKindV2.WINDOWS_NATIVE)[-6:],
+            fixed_suite_v2(CiProvenanceKindV2.WINDOWS_NATIVE),
             (
+                "tests.test_r2_main_publication_windows",
+                "tests.test_r2_repository_manifest_windows",
+                "tests.test_r2_runtime_publication_windows",
+                "tests.test_r2_database_publication_windows",
+                "tests.test_r2_crx_publication_windows",
+                "tests.test_r2_config_publication_windows",
+                "tests.test_r2_validation_lifecycle_windows",
                 (
                     "tests.test_r2_full_topology_windows."
                     "R2FullTopologyWindowsTests."
-                    "test_all_case_bindings_and_receipts_are_durable"
+                    "test_all_ten_fixed_verbs_ignore_terminal_environment_and_artifacts"
                 ),
                 (
                     "tests.test_r2_full_topology_windows."
                     "R2FullTopologyWindowsTests."
-                    "test_all_publications_share_one_physical_container"
+                    "test_poison_bootstrap_workers_remain_dormant"
                 ),
                 (
                     "tests.test_r2_ci_provenance_v2_adapter."
@@ -109,20 +116,41 @@ class R2CiProvenanceV2Tests(unittest.TestCase):
                 (
                     "tests.test_r2_full_topology_windows."
                     "R2FullTopologyWindowsTests."
-                    "test_portable_contract_makes_no_windows_claim"
+                    "test_portable_contract_makes_no_windows_process_claim"
                 ),
                 (
                     "tests.test_r2_full_topology_windows."
                     "R2FullTopologyWindowsTests."
-                    "test_recovery_and_final_seal_gaps_have_exact_effect_counts"
-                ),
-                (
-                    "tests.test_r2_full_topology_windows."
-                    "R2FullTopologyWindowsTests."
-                    "test_surface_closure_includes_dynamic_and_durable_implementations"
+                    "test_surface_closure_uses_new_dormant_roots_not_removed_ingress"
                 ),
             ),
         )
+
+    def test_windows_independent_registry_is_the_exact_issue_110_suite(self):
+        self.assertEqual(
+            fixed_suite_v2(CiProvenanceKindV2.WINDOWS_INDEPENDENT),
+            (
+                "tests.test_r2_preflight_production_v2",
+                "tests.test_r2_evidence_production_v2",
+                "tests.test_r2_transaction_production_v2",
+                "tests.test_r2_execution_confirmation",
+                "tests.test_close_r2_final_master",
+            ),
+        )
+
+    def test_windows_registries_load_without_failed_tests(self):
+        loader = unittest.TestLoader()
+        registered = (
+            fixed_suite_v2(CiProvenanceKindV2.WINDOWS_NATIVE)
+            + fixed_suite_v2(CiProvenanceKindV2.WINDOWS_INDEPENDENT)
+        )
+        suite = loader.loadTestsFromNames(registered)
+        failed_tests = tuple(
+            test for test in _leaf_tests(suite)
+            if type(test).__name__ == "_FailedTest"
+        )
+        self.assertEqual(loader.errors, [])
+        self.assertEqual(failed_tests, ())
 
     def test_three_independent_receipts_reconcile_without_skips_or_divergence(self):
         receipts = tuple(
@@ -219,6 +247,14 @@ class R2CiProvenanceV2Tests(unittest.TestCase):
 def _blob_oid(content: bytes) -> str:
     framed = b"blob " + str(len(content)).encode("ascii") + b"\0" + content
     return hashlib.sha1(framed).hexdigest()
+
+
+def _leaf_tests(test):
+    if isinstance(test, unittest.TestSuite):
+        for child in test:
+            yield from _leaf_tests(child)
+        return
+    yield test
 
 
 def _entry(path: str, content: bytes) -> R2GitObjectEntryV2:

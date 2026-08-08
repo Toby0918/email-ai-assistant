@@ -7,7 +7,7 @@ import unittest
 
 from backend.r2_evidence_process.production_v2 import EVIDENCE_PRODUCTION_VERBS_V2
 from backend.r2_evidence_process.contracts import EVIDENCE_ACKNOWLEDGEMENT
-from backend.r2_final_master_closure import FinalMasterBindingV1
+from backend.r2_solo_maintainer_closure import FinalMasterBindingV1
 from backend.r2_operator_runbook_v2 import (
     OperatorCommandEffectV2,
     OperatorPhaseV2,
@@ -27,11 +27,10 @@ from backend.r2_operator_runbook_v2 import (
 from backend.r2_preflight_process.production_v2 import PREFLIGHT_PRODUCTION_VERBS_V2
 from backend.r2_preflight_process.contracts import PREFLIGHT_ACKNOWLEDGEMENT
 from backend.r2_production_binding import (
-    ApprovedCutoverBindingV2,
+    ApprovedCutoverBindingV3,
     OperatorRoleV2,
     ProductionCommandV2,
     ProductionRoleV2,
-    PublicKeyRoleV2,
 )
 from backend.r2_retention_ledger_v2 import R2RetentionLedgerV2, R2RetentionProofV2
 from backend.r2_transaction_process.production_v2 import TRANSACTION_PRODUCTION_VERBS_V2
@@ -121,7 +120,7 @@ class R2OperatorRunbookV2Tests(unittest.TestCase):
             (),
         )
         self.assertEqual(
-            by_phase[OperatorPhaseV2.HUMAN_FINAL_REVIEW].allowed_commands,
+            by_phase[OperatorPhaseV2.ISSUE38_FINAL_REVIEW].allowed_commands,
             (),
         )
         self.assertTrue(all(item.deletion_capability_count == 0 for item in rules))
@@ -133,7 +132,9 @@ class R2OperatorRunbookV2Tests(unittest.TestCase):
         text = rendered.decode("utf-8")
         for entry in command_catalog_v2():
             self.assertIn(f"`{entry.verb}`", text)
-        self.assertIn("DORMANT_NO_EXTERNAL_ISSUER", text)
+        self.assertIn("DORMANT_NO_ISSUE39_APPROVAL", text)
+        self.assertIn("CONFIRM_R2_ISSUE39_EXECUTION_V1_NOT_CLOSURE_ATTESTATION", text)
+        self.assertIn("ELIGIBLE_FOR_ISSUE38_FINAL_REVIEW", text)
         self.assertIn("LEGACY_FLAT_LAYOUT_RESTORED", text)
         self.assertIn("zero deletion capability", text)
         self.assertEqual(len(issue38_decision_registry_v2()), 14)
@@ -205,11 +206,10 @@ def _binding():
         runbook_fingerprint=runbook_document_fingerprint_v2(),
         workflow_fingerprint="5" * 64,
     )
-    return ApprovedCutoverBindingV2.create(
+    return ApprovedCutoverBindingV3.create(
         final_master_binding=final,
         operation_fingerprint="6" * 64,
         operator_role_fingerprints={role: f"{index + 10:064x}" for index, role in enumerate(OperatorRoleV2)},
-        verification_public_keys={role: bytes([index + 1]) * 32 for index, role in enumerate(PublicKeyRoleV2)},
         production_role_fingerprints={role: f"{index + 30:064x}" for index, role in enumerate(ProductionRoleV2)},
     )
 
@@ -222,11 +222,10 @@ def _stale_binding():
         runbook_fingerprint="d" * 64,
         workflow_fingerprint="e" * 64,
     )
-    return ApprovedCutoverBindingV2.create(
+    return ApprovedCutoverBindingV3.create(
         final_master_binding=final,
         operation_fingerprint="f" * 64,
         operator_role_fingerprints={role: f"{index + 80:064x}" for index, role in enumerate(OperatorRoleV2)},
-        verification_public_keys={role: bytes([index + 10]) * 32 for index, role in enumerate(PublicKeyRoleV2)},
         production_role_fingerprints={role: f"{index + 100:064x}" for index, role in enumerate(ProductionRoleV2)},
     )
 

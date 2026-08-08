@@ -1,63 +1,49 @@
-"""Immutable reviewed production binding for one frozen final master."""
+"""Immutable sole-maintainer production binding for one frozen master."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from ._binding_body import build_binding_body
 from ._canonical import (
     canonical_json,
     fingerprint,
     fingerprint_entries,
     is_fingerprint,
     parse_fingerprint_entries,
-    parse_public_key_entries,
     strict_json_object,
 )
-from ._binding_body import build_binding_body
 from .errors import ProductionBindingError
 from .vocabulary import (
     AuthorityDomainV2,
     OperatorRoleV2,
     ProductionCommandV2,
     ProductionRoleV2,
-    PublicKeyRoleV2,
 )
 
 
 _SCALAR_FIELDS = (
-    "binding_type",
-    "final_master_binding_fingerprint",
-    "final_commit_oid",
-    "final_tree_oid",
-    "closure_map_fingerprint",
-    "source_package_fingerprint",
-    "runbook_fingerprint",
-    "workflow_fingerprint",
-    "operation",
-    "operation_fingerprint",
-    "operator_role_registry_fingerprint",
-    "command_domain_registry_fingerprint",
-    "public_key_registry_fingerprint",
-    "production_role_registry_fingerprint",
-    "authority_domain_count",
-    "preflight_verb_count",
-    "process_root_count",
-    "local_ref_count",
-    "worktree_count",
-    "managed_unit_count",
-    "max_authority_validity_seconds",
+    "binding_type", "final_master_binding_fingerprint", "final_commit_oid",
+    "final_tree_oid", "closure_map_fingerprint", "source_package_fingerprint",
+    "runbook_fingerprint", "workflow_fingerprint", "operation_fingerprint",
+    "operator_role_registry_fingerprint", "command_domain_registry_fingerprint",
+    "production_role_registry_fingerprint", "execution_confirmation_policy",
+    "execution_confirmation_policy_fingerprint", "operator_role_count",
+    "command_count", "command_domain_count", "production_role_count",
+    "max_execution_confirmation_validity_seconds", "assurance_model",
+    "operator_count", "independent_reviewer_count", "external_signer_count",
+    "issue39_authority_count",
 )
 _BODY_FIELDS = (
     *_SCALAR_FIELDS,
     "operator_role_fingerprints",
     "command_domains",
-    "verification_public_keys",
     "production_role_fingerprints",
 )
 
 
 @dataclass(frozen=True, slots=True, init=False, repr=False)
-class ApprovedCutoverBindingV2:
+class ApprovedCutoverBindingV3:
     binding_type: str = field(repr=False)
     final_master_binding_fingerprint: str = field(repr=False)
     final_commit_oid: str = field(repr=False)
@@ -66,27 +52,29 @@ class ApprovedCutoverBindingV2:
     source_package_fingerprint: str = field(repr=False)
     runbook_fingerprint: str = field(repr=False)
     workflow_fingerprint: str = field(repr=False)
-    operation: str = field(repr=False)
     operation_fingerprint: str = field(repr=False)
     operator_role_registry_fingerprint: str = field(repr=False)
     command_domain_registry_fingerprint: str = field(repr=False)
-    public_key_registry_fingerprint: str = field(repr=False)
     production_role_registry_fingerprint: str = field(repr=False)
-    authority_domain_count: int
-    preflight_verb_count: int
-    process_root_count: int
-    local_ref_count: int
-    worktree_count: int
-    managed_unit_count: int
-    max_authority_validity_seconds: int
-    operator_role_fingerprints: tuple[tuple[OperatorRoleV2, str], ...] = field(repr=False)
-    command_domains: tuple[tuple[ProductionCommandV2, AuthorityDomainV2], ...] = field(repr=False)
-    verification_public_keys: tuple[tuple[PublicKeyRoleV2, bytes], ...] = field(repr=False)
-    production_role_fingerprints: tuple[tuple[ProductionRoleV2, str], ...] = field(repr=False)
+    execution_confirmation_policy: str
+    execution_confirmation_policy_fingerprint: str = field(repr=False)
+    operator_role_count: int
+    command_count: int
+    command_domain_count: int
+    production_role_count: int
+    max_execution_confirmation_validity_seconds: int
+    operator_role_fingerprints: tuple = field(repr=False)
+    command_domains: tuple = field(repr=False)
+    production_role_fingerprints: tuple = field(repr=False)
+    assurance_model: str
+    operator_count: int
+    independent_reviewer_count: int
+    external_signer_count: int
+    issue39_authority_count: int
     binding_fingerprint: str = field(repr=False)
 
     def __init__(self, *args: object, **kwargs: object) -> None:
-        raise TypeError("ApprovedCutoverBindingV2 requires create()")
+        raise TypeError("ApprovedCutoverBindingV3 requires create()")
 
     @classmethod
     def create(
@@ -95,14 +83,12 @@ class ApprovedCutoverBindingV2:
         final_master_binding: object,
         operation_fingerprint: object,
         operator_role_fingerprints: object,
-        verification_public_keys: object,
         production_role_fingerprints: object,
-    ) -> ApprovedCutoverBindingV2:
+    ) -> ApprovedCutoverBindingV3:
         body = build_binding_body(
             final_master_binding,
             operation_fingerprint,
             operator_role_fingerprints,
-            verification_public_keys,
             production_role_fingerprints,
         )
         return _construct(body)
@@ -113,28 +99,17 @@ class ApprovedCutoverBindingV2:
         payload: object,
         *,
         final_master_binding: object,
-    ) -> ApprovedCutoverBindingV2:
+    ) -> ApprovedCutoverBindingV3:
         try:
             source = strict_json_object(payload)
             if canonical_json(source) != payload:
                 raise ProductionBindingError()
             if set(source) != {*_BODY_FIELDS, "binding_fingerprint"}:
                 raise ProductionBindingError()
-            body = build_binding_body(
-                final_master_binding,
-                source["operation_fingerprint"],
-                parse_fingerprint_entries(
-                    source["operator_role_fingerprints"], OperatorRoleV2
-                ),
-                parse_public_key_entries(source["verification_public_keys"]),
-                parse_fingerprint_entries(
-                    source["production_role_fingerprints"], ProductionRoleV2
-                ),
-            )
+            body = _rebuild_body(source, final_master_binding)
             if any(source[name] != body[name] for name in _BODY_FIELDS):
                 raise ProductionBindingError()
-            expected = fingerprint("r2-approved-cutover-binding-v2", body)
-            if source["binding_fingerprint"] != expected:
+            if source["binding_fingerprint"] != _binding_fingerprint(body):
                 raise ProductionBindingError()
             return _construct(body)
         except ProductionBindingError:
@@ -150,10 +125,6 @@ class ApprovedCutoverBindingV2:
         body["command_domains"] = [
             {"command": command.value, "domain": domain.value}
             for command, domain in self.command_domains
-        ]
-        body["verification_public_keys"] = [
-            {"role": role.value, "public_key_hex": key.hex()}
-            for role, key in self.verification_public_keys
         ]
         body["production_role_fingerprints"] = fingerprint_entries(
             self.production_role_fingerprints
@@ -171,12 +142,9 @@ def production_action_fingerprint_v2(
     subject_fingerprint: object = None,
 ) -> str:
     if (
-        type(binding) is not ApprovedCutoverBindingV2
+        type(binding) is not ApprovedCutoverBindingV3
         or type(command) is not ProductionCommandV2
-        or not (
-            subject_fingerprint is None
-            or is_fingerprint(subject_fingerprint)
-        )
+        or not (subject_fingerprint is None or is_fingerprint(subject_fingerprint))
     ):
         raise ProductionBindingError()
     body = {
@@ -187,54 +155,53 @@ def production_action_fingerprint_v2(
     }
     if subject_fingerprint is not None:
         body["subject_fingerprint"] = subject_fingerprint
-    return fingerprint(
-        "r2-production-action-v2",
-        body,
+    return fingerprint("r2-production-action-v3", body)
+
+
+def _rebuild_body(source, final_master):
+    return build_binding_body(
+        final_master,
+        source["operation_fingerprint"],
+        parse_fingerprint_entries(
+            source["operator_role_fingerprints"], OperatorRoleV2
+        ),
+        parse_fingerprint_entries(
+            source["production_role_fingerprints"], ProductionRoleV2
+        ),
     )
 
 
-def _construct(body: dict[str, object]) -> ApprovedCutoverBindingV2:
-    value = object.__new__(ApprovedCutoverBindingV2)
+def _construct(body):
+    value = object.__new__(ApprovedCutoverBindingV3)
     for name in _SCALAR_FIELDS:
         object.__setattr__(value, name, body[name])
-    object.__setattr__(
-        value,
-        "operator_role_fingerprints",
-        tuple(
-            (OperatorRoleV2(entry["role"]), entry["fingerprint"])
-            for entry in body["operator_role_fingerprints"]
-        ),
-    )
-    object.__setattr__(
-        value,
-        "command_domains",
-        tuple(
-            (
-                ProductionCommandV2(entry["command"]),
-                AuthorityDomainV2(entry["domain"]),
-            )
-            for entry in body["command_domains"]
-        ),
-    )
-    object.__setattr__(
-        value,
-        "verification_public_keys",
-        tuple(
-            (PublicKeyRoleV2(entry["role"]), bytes.fromhex(entry["public_key_hex"]))
-            for entry in body["verification_public_keys"]
-        ),
-    )
-    object.__setattr__(
-        value,
-        "production_role_fingerprints",
-        tuple(
-            (ProductionRoleV2(entry["role"]), entry["fingerprint"])
-            for entry in body["production_role_fingerprints"]
-        ),
-    )
-    object.__setattr__(
-        value,
-        "binding_fingerprint",
-        fingerprint("r2-approved-cutover-binding-v2", body),
-    )
+    object.__setattr__(value, "operator_role_fingerprints", _operator_pairs(body))
+    object.__setattr__(value, "command_domains", _command_pairs(body))
+    object.__setattr__(value, "production_role_fingerprints", _role_pairs(body))
+    object.__setattr__(value, "binding_fingerprint", _binding_fingerprint(body))
     return value
+
+
+def _operator_pairs(body):
+    return tuple(
+        (OperatorRoleV2(item["role"]), item["fingerprint"])
+        for item in body["operator_role_fingerprints"]
+    )
+
+
+def _command_pairs(body):
+    return tuple(
+        (ProductionCommandV2(item["command"]), AuthorityDomainV2(item["domain"]))
+        for item in body["command_domains"]
+    )
+
+
+def _role_pairs(body):
+    return tuple(
+        (ProductionRoleV2(item["role"]), item["fingerprint"])
+        for item in body["production_role_fingerprints"]
+    )
+
+
+def _binding_fingerprint(body):
+    return fingerprint("r2-approved-cutover-binding-v3", body)

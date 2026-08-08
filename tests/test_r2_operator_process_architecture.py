@@ -1,4 +1,4 @@
-"""Mechanical capability guards for the Issue #71 process roots."""
+"""Issue #110 mechanical guards for physically dormant process roots."""
 
 from __future__ import annotations
 
@@ -9,105 +9,97 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 OPERATOR = ROOT / "backend" / "r2_operator_process"
-PREFLIGHT = ROOT / "backend" / "r2_preflight_process"
+ROOTS = tuple(
+    ROOT / "backend" / name
+    for name in (
+        "r2_preflight_process",
+        "r2_evidence_process",
+        "r2_transaction_process",
+    )
+)
+REMOVED = {
+    "backend/r2_operator_process/envelope.py",
+    "backend/r2_operator_process/dormant_context.py",
+    "backend/r2_preflight_process/entry.py",
+    "backend/r2_evidence_process/entry.py",
+    "backend/r2_transaction_process/entry.py",
+}
 
 
 class R2OperatorProcessArchitectureTests(unittest.TestCase):
-    def test_packages_have_only_the_reviewed_files(self) -> None:
+    def test_removed_authority_and_entry_surfaces_are_absent(self):
         self.assertEqual(
             {item.name for item in OPERATOR.glob("*.py")},
-            {"__init__.py", "envelope.py", "dormant_context.py", "production_v2.py"},
+            {"__init__.py", "production_v2.py"},
         )
-        self.assertEqual(
-            {item.name for item in PREFLIGHT.glob("*.py")},
-            {
-                "__init__.py",
-                "__main__.py",
-                "contracts.py",
-                "entry.py",
-                "terminal.py",
-                "testing.py",
-                "bootstrap_v2.py",
-                "production_v2.py",
-            },
-        )
+        self.assertTrue(all(not (ROOT / relative).exists() for relative in REMOVED))
 
-    def test_backend_contains_verification_but_no_signing_or_private_key(self) -> None:
-        source = "\n".join(
-            item.read_text(encoding="utf-8")
-            for root in (OPERATOR, PREFLIGHT)
-            for item in root.glob("*.py")
-        )
-        self.assertIn("Ed25519PublicKey", source)
-        for forbidden in (
-            "Ed25519PrivateKey",
-            ".sign(",
-            ".generate(",
-            "private_bytes",
-            "load_pem_private_key",
-            "subprocess",
-            "socket",
-            "requests",
-            "openai",
-            "mailbox",
-            "vault",
-        ):
-            self.assertNotIn(forbidden, source)
+    def test_each_main_imports_only_its_local_production_main(self):
+        for package in ROOTS:
+            tree = ast.parse((package / "__main__.py").read_text(encoding="utf-8"))
+            imports = [
+                node
+                for node in ast.walk(tree)
+                if isinstance(node, (ast.Import, ast.ImportFrom))
+            ]
+            with self.subTest(package=package.name):
+                self.assertEqual(len(imports), 1)
+                self.assertIsInstance(imports[0], ast.ImportFrom)
+                self.assertEqual(imports[0].module, "production_v2")
+                self.assertEqual(imports[0].level, 1)
+                self.assertEqual([alias.name for alias in imports[0].names], ["main"])
 
-    def test_preflight_root_has_no_umbrella_or_stronger_root_import(self) -> None:
-        imports = set()
-        for item in PREFLIGHT.glob("*.py"):
-            tree = ast.parse(item.read_text(encoding="utf-8"))
-            for node in ast.walk(tree):
-                if isinstance(node, ast.Import):
-                    imports.update(alias.name for alias in node.names)
-                elif isinstance(node, ast.ImportFrom) and node.module:
-                    imports.add(node.module)
-        for forbidden in (
-            "backend.migration_evidence_publication_composition",
-            "backend.cutover_transaction_composition",
-            "backend.cutover_host_mutation",
-            "backend.cutover_repository_transaction",
-            "backend.cutover_managed_activation",
-            "backend.cutover_service_lifecycle",
-        ):
-            self.assertNotIn(forbidden, imports)
-
-    def test_command_and_terminal_surface_is_closed(self) -> None:
-        contracts = (PREFLIGHT / "contracts.py").read_text(encoding="utf-8")
-        entry = (PREFLIGHT / "entry.py").read_text(encoding="utf-8")
-        terminal = (PREFLIGHT / "terminal.py").read_text(encoding="utf-8")
-        self.assertEqual(contracts.count('": "'), 6)
-        self.assertIn("tuple(sys.argv[1:])", entry)
-        self.assertIn("len(argv) == 1", entry)
-        self.assertNotIn("argparse", entry)
-        self.assertNotIn("os.environ", entry + terminal)
-        self.assertNotIn("Path(", entry + terminal)
-        self.assertEqual(
-            terminal.count("stream.isatty() is True"),
-            1,
+    def test_roots_are_disjoint_and_contain_no_removed_trust_model(self):
+        forbidden_text = (
+            "ApprovedCutoverBindingV2",
+            "DurableAuthorityClaimV2",
+            "PublicKeyRoleV2",
+            "ProductionAuthorityEnvelope",
+            "AuthorizationEnvelope",
+            "Ed25519",
+            "verify_production_authority",
+            "DORMANT_NO_EXTERNAL_ISSUER",
         )
-        self.assertIn(
-            "for stream in (sys.stdin, sys.stdout, sys.stderr)",
-            terminal,
-        )
+        for package in (OPERATOR, *ROOTS):
+            source = "\n".join(
+                item.read_text(encoding="utf-8") for item in package.glob("*.py")
+            )
+            imports = _imports(package)
+            with self.subTest(package=package.name):
+                for forbidden in forbidden_text:
+                    self.assertNotIn(forbidden, source)
+                self.assertFalse(
+                    {other.name for other in ROOTS if other != package} & imports
+                )
 
-    def test_only_tests_import_the_synthetic_binder(self) -> None:
-        consumers = []
-        needle = "backend.r2_preflight_process.testing"
-        for root_name in ("backend", "frontend", "scripts", ".github"):
-            root = ROOT / root_name
-            if not root.exists():
-                continue
-            for item in root.rglob("*"):
-                if item.is_file() and item.suffix in {".py", ".js", ".yml", ".yaml"}:
-                    try:
-                        source = item.read_text(encoding="utf-8")
-                    except UnicodeDecodeError:
-                        continue
-                    if needle in source:
-                        consumers.append(item.relative_to(ROOT).as_posix())
-        self.assertEqual(consumers, [])
+    def test_executable_graph_cannot_reach_input_confirmation_or_adapter(self):
+        for package in ROOTS:
+            source = "\n".join(
+                (package / name).read_text(encoding="utf-8")
+                for name in ("__init__.py", "__main__.py", "bootstrap_v2.py", "production_v2.py")
+            )
+            for forbidden in (
+                ".testing",
+                "SystemTerminal",
+                "read_acknowledgement",
+                "prepare_execution_confirmation",
+                "confirm_execution_confirmation",
+                "append_execution_confirmation_claim",
+                ".invoke(",
+            ):
+                with self.subTest(package=package.name, forbidden=forbidden):
+                    self.assertNotIn(forbidden, source)
+
+
+def _imports(package: Path) -> set[str]:
+    observed: set[str] = set()
+    for item in package.glob("*.py"):
+        for node in ast.walk(ast.parse(item.read_text(encoding="utf-8"))):
+            if isinstance(node, ast.Import):
+                observed.update(alias.name for alias in node.names)
+            elif isinstance(node, ast.ImportFrom) and node.module:
+                observed.add(node.module)
+    return observed
 
 
 if __name__ == "__main__":

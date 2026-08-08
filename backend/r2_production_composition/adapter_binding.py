@@ -6,15 +6,21 @@ from backend.cutover_composition_contracts import CompositionBindingV1
 from backend.cutover_composition_contracts.canonical import (
     fingerprint as composition_fingerprint,
 )
-from backend.r2_production_binding.binding import ApprovedCutoverBindingV2
-from backend.r2_production_binding.claim import DurableAuthorityClaimV2
-from backend.r2_production_binding.errors import ProductionBindingError
-from backend.r2_production_binding.vocabulary import PublicKeyRoleV2
+from backend.r2_production_binding.binding import ApprovedCutoverBindingV3
+from backend.r2_production_binding.execution_confirmation import (
+    ExecutionConfirmationClaimV1,
+)
+from backend.r2_production_binding.claim import (
+    _consume_execution_confirmation_attempt_v1,
+)
+from backend.r2_production_binding.errors import (
+    ExecutionConfirmationError,
+    ProductionBindingError,
+)
 from backend.r2_production_binding._adapter_identity import (
     _require_adapter_type_surface_v1,
     production_adapter_fingerprint_v1,
 )
-from backend.r2_production_binding._canonical import fingerprint
 
 
 @dataclass(frozen=True, slots=True, init=False, repr=False)
@@ -40,7 +46,7 @@ class R2BoundProductionAdapterV1:
 
 def bind_production_adapter_v1(*, binding, adapter):
     try:
-        if type(binding) is not ApprovedCutoverBindingV2:
+        if type(binding) is not ApprovedCutoverBindingV3:
             raise ProductionBindingError()
         adapter_type = type(adapter)
         registrations = _registrations_for_adapter(adapter_type)
@@ -100,7 +106,7 @@ def _require_bound_adapter_shell(binding, slot, bound):
     from .catalog import ProductionAdapterSlotV1
 
     if (
-        type(binding) is not ApprovedCutoverBindingV2
+        type(binding) is not ApprovedCutoverBindingV3
         or type(slot) is not ProductionAdapterSlotV1
         or type(bound) is not R2BoundProductionAdapterV1
         or bound.slot is not slot
@@ -163,7 +169,7 @@ def _synthetic_bound_adapter_v1(slot, adapter, binding):
 
     if (
         type(slot) is not ProductionAdapterSlotV1
-        or type(binding) is not ApprovedCutoverBindingV2
+        or type(binding) is not ApprovedCutoverBindingV3
         or not callable(getattr(adapter, "invoke", None))
     ):
         raise ProductionBindingError()
@@ -216,55 +222,39 @@ def _invoke_from_surface(surface):
     return targets[0]
 
 
-def operator_subject_fingerprint_v1(verification_public_keys):
-    if (
-        type(verification_public_keys) is not dict
-        or set(verification_public_keys) != set(PublicKeyRoleV2)
-        or any(
-            type(role) is not PublicKeyRoleV2
-            for role in verification_public_keys
-        )
-        or any(
-            type(key) is not bytes or len(key) != 32
-            for key in verification_public_keys.values()
-        )
-        or len(set(verification_public_keys.values())) != len(PublicKeyRoleV2)
-    ):
-        raise ProductionBindingError()
-    return fingerprint(
-        "r2-operator-subject-v2",
-        {
-            "verification_public_key_set": sorted(
-                key.hex() for key in verification_public_keys.values()
-            )
-        },
-    )
-
-
 def require_adapter_context_v1(binding, claim, composition_binding, commands):
-    if (
-        type(binding) is not ApprovedCutoverBindingV2
-        or type(claim) is not DurableAuthorityClaimV2
-        or claim.binding_fingerprint != binding.binding_fingerprint
-        or claim.command not in commands
-    ):
-        raise ProductionBindingError()
-    require_composition_binding_v1(binding, composition_binding)
+    try:
+        if (
+            type(binding) is not ApprovedCutoverBindingV3
+            or type(claim) is not ExecutionConfirmationClaimV1
+            or claim.production_binding_fingerprint != binding.binding_fingerprint
+            or claim.command not in commands
+        ):
+            raise ProductionBindingError()
+        require_composition_binding_v1(binding, composition_binding)
+        _consume_execution_confirmation_attempt_v1(claim)
+    except ProductionBindingError:
+        raise
+    except ExecutionConfirmationError:
+        raise ProductionBindingError() from None
 
 
 def require_composition_binding_v1(binding, composition_binding):
-    keys = dict(binding.verification_public_keys)
+    from .binding_candidate import _operator_subject_fingerprint
+
     expected_master = composition_fingerprint(
         "project-container-governing-master-v1",
         binding.final_commit_oid,
     )
     if (
-        type(binding) is not ApprovedCutoverBindingV2
+        type(binding) is not ApprovedCutoverBindingV3
         or type(composition_binding) is not CompositionBindingV1
         or composition_binding.operation_fingerprint
         != binding.operation_fingerprint
         or composition_binding.governing_master_fingerprint != expected_master
         or composition_binding.operator_fingerprint
-        != operator_subject_fingerprint_v1(keys)
+        != _operator_subject_fingerprint(
+            binding.final_master_binding_fingerprint
+        )
     ):
         raise ProductionBindingError()

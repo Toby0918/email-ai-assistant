@@ -36,21 +36,26 @@ _SUITES = {
         _r2("crx_publication_windows"),
         _r2("config_publication_windows"),
         _r2("validation_lifecycle_windows"),
-        _full_topology("test_all_case_bindings_and_receipts_are_durable"),
-        _full_topology("test_all_publications_share_one_physical_container"),
+        _full_topology(
+            "test_all_ten_fixed_verbs_ignore_terminal_environment_and_artifacts"
+        ),
+        _full_topology("test_poison_bootstrap_workers_remain_dormant"),
         (
             "tests.test_r2_ci_provenance_v2_adapter."
             "R2CiProvenanceWindowsNativeAdapterTests."
             "test_ci_budgeted_script_proves_complete_topology_without_public_leakage"
         ),
-        _full_topology("test_portable_contract_makes_no_windows_claim"),
-        _full_topology("test_recovery_and_final_seal_gaps_have_exact_effect_counts"),
-        _full_topology("test_surface_closure_includes_dynamic_and_durable_implementations"),
+        _full_topology("test_portable_contract_makes_no_windows_process_claim"),
+        _full_topology(
+            "test_surface_closure_uses_new_dormant_roots_not_removed_ingress"
+        ),
     ),
     CiProvenanceKindV2.WINDOWS_INDEPENDENT: (
-        _r2("preflight_process"),
-        _r2("evidence_process"),
-        _r2("transaction_process"),
+        _r2("preflight_production_v2"),
+        _r2("evidence_production_v2"),
+        _r2("transaction_production_v2"),
+        _r2("execution_confirmation"),
+        "tests.test_close_r2_final_master",
     ),
 }
 

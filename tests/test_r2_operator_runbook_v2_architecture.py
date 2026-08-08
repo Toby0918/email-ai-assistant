@@ -54,6 +54,21 @@ class R2OperatorRunbookV2ArchitectureTests(unittest.TestCase):
             self.assertTrue(imports.isdisjoint(forbidden_imports), path.name)
             self.assertTrue(calls.isdisjoint(forbidden_calls), path.name)
 
+    def test_package_uses_only_v3_and_execution_confirmation_terms(self):
+        source = "\n".join(
+            path.read_text(encoding="utf-8") for path in PACKAGE.glob("*.py")
+        )
+        self.assertIn("DORMANT_NO_ISSUE39_APPROVAL", source)
+        self.assertIn("ExecutionConfirmationClaimV1", source)
+        for forbidden in (
+            "ApprovedCutoverBindingV2",
+            "DurableAuthorityClaimV2",
+            "PublicKeyRoleV2",
+            "DORMANT_NO_EXTERNAL_ISSUER",
+            "fresh_authority",
+        ):
+            self.assertNotIn(forbidden, source)
+
     def test_only_three_dispatchers_consume_executable_catalog(self):
         consumers = []
         for path in sorted((ROOT / "backend").rglob("*.py")):
@@ -90,10 +105,7 @@ class R2OperatorRunbookV2ArchitectureTests(unittest.TestCase):
                     in path.read_text(encoding="utf-8", errors="ignore")
                 ):
                     consumers.append(path.relative_to(ROOT).as_posix())
-        self.assertEqual(
-            consumers,
-            ["scripts/prepare_r2_external_artifacts.py"],
-        )
+        self.assertEqual(consumers, [])
 
 
 if __name__ == "__main__":

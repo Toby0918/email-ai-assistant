@@ -7,7 +7,7 @@ from enum import Enum
 
 from backend.r2_foundation_publication_v2 import R2FoundationPlanV2
 from backend.r2_managed_unit_publication_v2 import R2ManagedUnitPlanV2
-from backend.r2_production_binding import ApprovedCutoverBindingV2, ProductionRoleV2
+from backend.r2_production_binding import ApprovedCutoverBindingV3, ProductionRoleV2
 from backend.r2_transaction_journal_v2 import R2TransactionJournalV2
 from backend.r2_transaction_journal_v2._canonical import (
     canonical_json,
@@ -67,7 +67,7 @@ class R2RollbackPlanV2:
     terminal_plan_fingerprint: str = field(repr=False)
     terminal_transition_instance_fingerprint: str = field(repr=False)
     plan_fingerprint: str = field(repr=False)
-    _binding: ApprovedCutoverBindingV2 = field(repr=False)
+    _binding: ApprovedCutoverBindingV3 = field(repr=False)
 
     def __init__(self, *args: object, **kwargs: object) -> None:
         raise TypeError("R2RollbackPlanV2 requires derive()")
@@ -161,7 +161,7 @@ def _derive(binding, foundation_plan, managed_plan, validation_plan, journal):
 
 def _require_inputs(binding, foundation, managed, validation, journal):
     if (
-        type(binding) is not ApprovedCutoverBindingV2
+        type(binding) is not ApprovedCutoverBindingV3
         or type(foundation) is not R2FoundationPlanV2
         or type(managed) is not R2ManagedUnitPlanV2
         or type(validation) is not R2TwoStartValidationPlanV2

@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 
-from backend.r2_production_binding import DurableAuthorityClaimV2, ProductionCommandV2
+from backend.r2_production_binding import ExecutionConfirmationClaimV1, ProductionCommandV2
 from backend.r2_transaction_journal_v2 import EffectClassificationV2, R2TransactionJournalV2
 from backend.r2_transaction_journal_v2._canonical import fingerprint, is_fingerprint
 from backend.r2_transaction_journal_v2.vocabulary import JournalRecordTypeV2
@@ -90,11 +90,11 @@ class ManagedProgressV2:
         raise TypeError("ManagedProgressV2 is returned by fixed progress functions")
 
 
-def begin_next_managed_action_v2(*, journal, plan, claim):
+def begin_next_managed_action_v2(*, journal, plan, claim, observed_at_epoch, observed_monotonic_ns):
     try:
         transition = _next(journal, plan)
         _require_claim(journal, plan, transition, claim, ProductionCommandV2.EXECUTE)
-        result = journal.append_authority_claim(claim=claim, transition_instance_fingerprint=transition.transition_instance_fingerprint).append_intent(transition_instance_fingerprint=transition.transition_instance_fingerprint, pre_state_fingerprint=transition.pre_state_fingerprint, post_state_fingerprint=transition.post_state_fingerprint)
+        result = journal.append_execution_confirmation_claim(claim=claim, transition_instance_fingerprint=transition.transition_instance_fingerprint, observed_at_epoch=observed_at_epoch, observed_monotonic_ns=observed_monotonic_ns).append_intent(transition_instance_fingerprint=transition.transition_instance_fingerprint, pre_state_fingerprint=transition.pre_state_fingerprint, post_state_fingerprint=transition.post_state_fingerprint)
         return _progress(ManagedProgressStatusV2.MANAGED_ACTION_PENDING, result, transition, None, 0, 2)
     except ManagedUnitPublicationError:
         raise
@@ -105,8 +105,8 @@ def begin_next_managed_action_v2(*, journal, plan, claim):
 def commit_managed_effect_v2(*, journal, plan, effect):
     try:
         transition = _pending(journal, plan)
-        authority = journal.records[-2].authority_claim
-        if type(effect) is not R2ManagedUnitEffectObservationV2 or effect.transition_instance_fingerprint != transition.transition_instance_fingerprint or effect.claim_fingerprint != authority.claim_fingerprint or effect.prior_journal_head_fingerprint != authority.prior_journal_head_fingerprint or effect.observed_state_fingerprint != transition.post_state_fingerprint:
+        confirmation = journal.records[-2].execution_confirmation_claim
+        if type(effect) is not R2ManagedUnitEffectObservationV2 or effect.transition_instance_fingerprint != transition.transition_instance_fingerprint or effect.claim_fingerprint != confirmation.claim_fingerprint or effect.prior_journal_head_fingerprint != confirmation.prior_journal_head_fingerprint or effect.observed_state_fingerprint != transition.post_state_fingerprint:
             raise ManagedUnitPublicationError()
         result = journal.append_effect_observation(transition_instance_fingerprint=transition.transition_instance_fingerprint, observed_state_fingerprint=effect.observed_state_fingerprint, classification=EffectClassificationV2.EFFECT_PRESENT_EXACT).append_commit(transition_instance_fingerprint=transition.transition_instance_fingerprint, committed_state_fingerprint=effect.observed_state_fingerprint)
         status = ManagedProgressStatusV2.MANAGED_UNITS_COMPLETE if plan.committed_prefix_count(result) == 8 else ManagedProgressStatusV2.MANAGED_ACTION_COMMITTED
@@ -132,14 +132,14 @@ def classify_managed_pending_v2(*, journal, plan, inspection):
         raise ManagedUnitPublicationError() from None
 
 
-def resume_managed_transition_v2(*, journal, plan, claim):
+def resume_managed_transition_v2(*, journal, plan, claim, observed_at_epoch, observed_monotonic_ns):
     try:
         transition = _classified(journal, plan)
         classification = journal.records[-1].effect_classification
         if classification is EffectClassificationV2.EFFECT_AMBIGUOUS:
             raise ManagedUnitPublicationError()
         _require_claim(journal, plan, transition, claim, ProductionCommandV2.RESUME)
-        result = journal.append_authority_claim(claim=claim, transition_instance_fingerprint=transition.transition_instance_fingerprint)
+        result = journal.append_execution_confirmation_claim(claim=claim, transition_instance_fingerprint=transition.transition_instance_fingerprint, observed_at_epoch=observed_at_epoch, observed_monotonic_ns=observed_monotonic_ns)
         if classification is EffectClassificationV2.EFFECT_ABSENT_EXACT:
             result = result.append_intent(transition_instance_fingerprint=transition.transition_instance_fingerprint, pre_state_fingerprint=transition.pre_state_fingerprint, post_state_fingerprint=transition.post_state_fingerprint)
             return _progress(ManagedProgressStatusV2.MANAGED_ACTION_PENDING, result, transition, classification, 0, 2)
@@ -153,15 +153,16 @@ def resume_managed_transition_v2(*, journal, plan, claim):
 
 
 def _require_claim(journal, plan, transition, claim, command):
-    if type(claim) is not DurableAuthorityClaimV2 or claim.command is not command or claim.prior_journal_head_fingerprint != journal.current_head_fingerprint:
+    remaining = plan.remaining_plan_fingerprint(transition)
+    if type(claim) is not ExecutionConfirmationClaimV1 or claim.command is not command or claim.prior_journal_head_fingerprint != journal.current_head_fingerprint or claim.transition_instance_fingerprint != transition.transition_instance_fingerprint or claim.remaining_reverse_plan_fingerprint != remaining:
         raise ManagedUnitPublicationError()
-    expected = transaction_action_fingerprint_v2(plan._binding, command, journal_head_fingerprint=journal.current_head_fingerprint, transition_instance_fingerprint=transition.transition_instance_fingerprint, remaining_reverse_plan_fingerprint=plan.remaining_plan_fingerprint(transition))
+    expected = transaction_action_fingerprint_v2(plan._binding, command, journal_head_fingerprint=journal.current_head_fingerprint, transition_instance_fingerprint=transition.transition_instance_fingerprint, remaining_reverse_plan_fingerprint=remaining)
     if claim.action_fingerprint != expected:
         raise ManagedUnitPublicationError()
 
 
 def _next(journal, plan):
-    if type(plan) is not R2ManagedUnitPlanV2 or type(journal) is not R2TransactionJournalV2 or journal.next_legal_action not in {"CLAIM_FRESH_AUTHORITY", "CLAIM_FRESH_AUTHORITY_OR_TERMINAL"}:
+    if type(plan) is not R2ManagedUnitPlanV2 or type(journal) is not R2TransactionJournalV2 or journal.next_legal_action not in {"CLAIM_FRESH_EXECUTION_CONFIRMATION", "CLAIM_FRESH_EXECUTION_CONFIRMATION_OR_TERMINAL"}:
         raise ManagedUnitPublicationError()
     transition = plan.next_transition(journal)
     if transition is None:

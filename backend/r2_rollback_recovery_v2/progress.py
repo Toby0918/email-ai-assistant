@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 
-from backend.r2_production_binding import DurableAuthorityClaimV2, ProductionCommandV2
+from backend.r2_production_binding import ExecutionConfirmationClaimV1, ProductionCommandV2
 from backend.r2_transaction_journal_v2 import (
     EffectClassificationV2,
     R2ReadOnlyInspectionReceiptV2,
@@ -44,11 +44,11 @@ class RollbackProgressV2:
         raise TypeError("RollbackProgressV2 is returned by fixed progress functions")
 
 
-def begin_next_rollback_action_v2(*, journal, plan, claim):
+def begin_next_rollback_action_v2(*, journal, plan, claim, observed_at_epoch, observed_monotonic_ns):
     try:
         transition = _next(journal, plan)
         _require_claim(journal, plan, transition, claim)
-        result = journal.append_authority_claim(claim=claim, transition_instance_fingerprint=transition.transition_instance_fingerprint).append_intent(transition_instance_fingerprint=transition.transition_instance_fingerprint, pre_state_fingerprint=transition.pre_state_fingerprint, post_state_fingerprint=transition.post_state_fingerprint)
+        result = journal.append_execution_confirmation_claim(claim=claim, transition_instance_fingerprint=transition.transition_instance_fingerprint, observed_at_epoch=observed_at_epoch, observed_monotonic_ns=observed_monotonic_ns).append_intent(transition_instance_fingerprint=transition.transition_instance_fingerprint, pre_state_fingerprint=transition.pre_state_fingerprint, post_state_fingerprint=transition.post_state_fingerprint)
         return _progress(RollbackProgressStatusV2.ROLLBACK_ACTION_PENDING, result, transition.transition_instance_fingerprint, None, 0, 2)
     except RollbackRecoveryError:
         raise
@@ -59,8 +59,8 @@ def begin_next_rollback_action_v2(*, journal, plan, claim):
 def commit_rollback_effect_v2(*, journal, plan, evidence):
     try:
         transition = _pending(journal, plan)
-        authority = journal.records[-2].authority_claim
-        if type(evidence) is not R2RollbackEffectEvidenceV2 or evidence.transition_instance_fingerprint != transition.transition_instance_fingerprint or evidence.claim_fingerprint != authority.claim_fingerprint or evidence.prior_journal_head_fingerprint != authority.prior_journal_head_fingerprint or evidence.remaining_plan_fingerprint != transition.remaining_plan_fingerprint:
+        confirmation = journal.records[-2].execution_confirmation_claim
+        if type(evidence) is not R2RollbackEffectEvidenceV2 or evidence.transition_instance_fingerprint != transition.transition_instance_fingerprint or evidence.claim_fingerprint != confirmation.claim_fingerprint or evidence.prior_journal_head_fingerprint != confirmation.prior_journal_head_fingerprint or evidence.remaining_plan_fingerprint != transition.remaining_plan_fingerprint:
             raise RollbackRecoveryError()
         result = journal.append_effect_observation(transition_instance_fingerprint=transition.transition_instance_fingerprint, observed_state_fingerprint=evidence.observed_state_fingerprint, classification=EffectClassificationV2.EFFECT_PRESENT_EXACT).append_commit(transition_instance_fingerprint=transition.transition_instance_fingerprint, committed_state_fingerprint=evidence.observed_state_fingerprint)
         status = RollbackProgressStatusV2.ROLLBACK_ACTIONS_COMPLETE if plan.completed_prefix_count(result) == plan.transition_count else RollbackProgressStatusV2.ROLLBACK_ACTION_COMMITTED
@@ -85,14 +85,14 @@ def classify_rollback_pending_v2(*, journal, plan, inspection):
         raise RollbackRecoveryError() from None
 
 
-def resume_rollback_transition_v2(*, journal, plan, claim):
+def resume_rollback_transition_v2(*, journal, plan, claim, observed_at_epoch, observed_monotonic_ns):
     try:
         transition = _classified(journal, plan)
         classification = journal.records[-1].effect_classification
         if classification is EffectClassificationV2.EFFECT_AMBIGUOUS:
             raise RollbackRecoveryError()
         _require_claim(journal, plan, transition, claim)
-        result = journal.append_authority_claim(claim=claim, transition_instance_fingerprint=transition.transition_instance_fingerprint)
+        result = journal.append_execution_confirmation_claim(claim=claim, transition_instance_fingerprint=transition.transition_instance_fingerprint, observed_at_epoch=observed_at_epoch, observed_monotonic_ns=observed_monotonic_ns)
         if classification is EffectClassificationV2.EFFECT_ABSENT_EXACT:
             result = result.append_intent(transition_instance_fingerprint=transition.transition_instance_fingerprint, pre_state_fingerprint=transition.pre_state_fingerprint, post_state_fingerprint=transition.post_state_fingerprint)
             return _progress(RollbackProgressStatusV2.ROLLBACK_ACTION_PENDING, result, transition.transition_instance_fingerprint, classification, 0, 2)
@@ -107,12 +107,12 @@ def resume_rollback_transition_v2(*, journal, plan, claim):
 
 def _require_claim(journal, plan, transition, claim):
     expected = transaction_action_fingerprint_v2(plan._binding, ProductionCommandV2.ROLLBACK, journal_head_fingerprint=journal.current_head_fingerprint, transition_instance_fingerprint=transition.transition_instance_fingerprint, remaining_reverse_plan_fingerprint=transition.remaining_plan_fingerprint)
-    if type(claim) is not DurableAuthorityClaimV2 or claim.command is not ProductionCommandV2.ROLLBACK or claim.prior_journal_head_fingerprint != journal.current_head_fingerprint or claim.action_fingerprint != expected:
+    if type(claim) is not ExecutionConfirmationClaimV1 or claim.command is not ProductionCommandV2.ROLLBACK or claim.prior_journal_head_fingerprint != journal.current_head_fingerprint or claim.transition_instance_fingerprint != transition.transition_instance_fingerprint or claim.remaining_reverse_plan_fingerprint != transition.remaining_plan_fingerprint or claim.action_fingerprint != expected:
         raise RollbackRecoveryError()
 
 
 def _next(journal, plan):
-    if type(plan) is not R2RollbackPlanV2 or type(journal) is not R2TransactionJournalV2 or journal.next_legal_action not in {"CLAIM_FRESH_AUTHORITY", "CLAIM_FRESH_AUTHORITY_OR_TERMINAL"}:
+    if type(plan) is not R2RollbackPlanV2 or type(journal) is not R2TransactionJournalV2 or journal.next_legal_action not in {"CLAIM_FRESH_EXECUTION_CONFIRMATION", "CLAIM_FRESH_EXECUTION_CONFIRMATION_OR_TERMINAL"}:
         raise RollbackRecoveryError()
     transition = plan.next_transition(journal)
     if transition is None:

@@ -7,7 +7,7 @@ from enum import Enum
 
 from backend.r2_managed_unit_publication_v2 import R2ManagedUnitPlanV2
 from backend.r2_production_binding import (
-    ApprovedCutoverBindingV2,
+    ApprovedCutoverBindingV3,
     ProductionCommandV2,
     ProductionRoleV2,
     production_action_fingerprint_v2,
@@ -72,7 +72,7 @@ class R2TwoStartValidationPlanV2:
     transitions: tuple[R2ValidationTransitionV2, ...] = field(repr=False)
     terminal_transition_instance_fingerprint: str = field(repr=False)
     plan_fingerprint: str = field(repr=False)
-    _binding: ApprovedCutoverBindingV2 = field(repr=False)
+    _binding: ApprovedCutoverBindingV3 = field(repr=False)
     _managed_plan: R2ManagedUnitPlanV2 = field(repr=False)
 
     def __init__(self, *args: object, **kwargs: object) -> None:
@@ -81,7 +81,7 @@ class R2TwoStartValidationPlanV2:
     @classmethod
     def create(cls, *, binding, managed_plan, transition_states, approved_identities_fingerprint):
         try:
-            if type(binding) is not ApprovedCutoverBindingV2 or type(managed_plan) is not R2ManagedUnitPlanV2 or managed_plan.binding_fingerprint != binding.binding_fingerprint or type(transition_states) is not tuple or len(transition_states) != 7 or any(not _pair(item) for item in transition_states) or not is_fingerprint(approved_identities_fingerprint):
+            if type(binding) is not ApprovedCutoverBindingV3 or type(managed_plan) is not R2ManagedUnitPlanV2 or managed_plan.binding_fingerprint != binding.binding_fingerprint or type(transition_states) is not tuple or len(transition_states) != 7 or any(not _pair(item) for item in transition_states) or not is_fingerprint(approved_identities_fingerprint):
                 raise TwoStartValidationError()
             return _build(binding, managed_plan, transition_states, approved_identities_fingerprint)
         except TwoStartValidationError:
@@ -143,7 +143,7 @@ class R2TwoStartValidationPlanV2:
 
 def lifecycle_action_fingerprint_v2(*, binding, plan, command, journal_head_fingerprint, transition_instance_fingerprint):
     try:
-        if type(binding) is not ApprovedCutoverBindingV2 or type(plan) is not R2TwoStartValidationPlanV2 or plan.binding_fingerprint != binding.binding_fingerprint or type(command) is not ProductionCommandV2 or not is_fingerprint(journal_head_fingerprint) or transition_instance_fingerprint not in {item.transition_instance_fingerprint for item in plan.transitions} | {plan.terminal_transition_instance_fingerprint}:
+        if type(binding) is not ApprovedCutoverBindingV3 or type(plan) is not R2TwoStartValidationPlanV2 or plan.binding_fingerprint != binding.binding_fingerprint or type(command) is not ProductionCommandV2 or not is_fingerprint(journal_head_fingerprint) or transition_instance_fingerprint not in {item.transition_instance_fingerprint for item in plan.transitions} | {plan.terminal_transition_instance_fingerprint}:
             raise TwoStartValidationError()
         subject = fingerprint("r2-lifecycle-action-subject-v2", {"plan_fingerprint": plan.plan_fingerprint, "journal_head_fingerprint": journal_head_fingerprint, "transition_instance_fingerprint": transition_instance_fingerprint})
         return production_action_fingerprint_v2(binding, command, subject_fingerprint=subject)

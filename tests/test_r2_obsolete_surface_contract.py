@@ -1,4 +1,4 @@
-"""R2 reachability contraction and real-entry locks for Issue #83."""
+"""Issue #110 removes legacy closure and command-authorization surfaces."""
 
 from __future__ import annotations
 
@@ -9,79 +9,81 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-R2_PACKAGES = tuple((ROOT / "backend").glob("r2_*"))
-PRODUCTION_TRANSACTION_ADAPTER = (
-    ROOT / "backend" / "r2_production_composition" / "transaction.py"
+REMOVED_PATHS = (
+    "backend/r2_final_master_closure",
+    "backend/r2_external_artifacts_v1",
+    "backend/r2_operator_process/envelope.py",
+    "backend/r2_operator_process/dormant_context.py",
+    "backend/r2_preflight_process/entry.py",
+    "backend/r2_evidence_process/entry.py",
+    "backend/r2_transaction_process/entry.py",
+    "scripts/prepare_r2_external_artifacts.py",
+    "tests/r2_preflight_process_fixture.py",
+    "tests/r2_evidence_process_fixture.py",
+    "tests/r2_transaction_process_fixture.py",
 )
 
 
 class R2ObsoleteSurfaceContractTests(unittest.TestCase):
-    def test_r2_surface_has_no_obsolete_batch_or_success_semantics(self):
-        sources = {
-            item: item.read_text(encoding="utf-8")
-            for package in R2_PACKAGES
-            for item in package.glob("*.py")
-        }
-        source = "\n".join(sources.values())
+    def test_removed_paths_are_physically_absent(self):
+        observed = []
+        for relative in REMOVED_PATHS:
+            path = ROOT / relative
+            if path.is_file() or (path.is_dir() and any(path.glob("*.py"))):
+                observed.append(relative)
+        self.assertEqual(observed, [])
+
+    def test_process_graph_has_no_v1_v2_trust_compatibility(self):
+        packages = (
+            ROOT / "backend" / "r2_operator_process",
+            ROOT / "backend" / "r2_preflight_process",
+            ROOT / "backend" / "r2_evidence_process",
+            ROOT / "backend" / "r2_transaction_process",
+        )
+        source = "\n".join(
+            path.read_text(encoding="utf-8")
+            for package in packages
+            for path in package.glob("*.py")
+        )
         for forbidden in (
-            "ManagedActivationReceiptSetV1",
-            "ManagedActivationPhase",
-            "deterministic_rules",
-            "pip check",
-            "from backend.cutover_service_lifecycle import",
+            "ApprovedCutoverBindingV2",
+            "DurableAuthorityClaimV2",
+            "PublicKeyRoleV2",
+            "R2ProductionAuthorityEnvelopeV2",
+            "verify_authorization_envelope",
+            "verify_production_authority_v2",
+            "DORMANT_NO_EXTERNAL_ISSUER",
         ):
             self.assertNotIn(forbidden, source)
-        for reviewed_adapter_term in (
-            "CUTOVER_SUCCEEDED",
-            "cutover_transaction_composition",
-        ):
-            locations = tuple(
-                path
-                for path, content in sources.items()
-                if reviewed_adapter_term in content
-            )
-            self.assertEqual(locations, (PRODUCTION_TRANSACTION_ADAPTER,))
 
-    def test_real_process_entries_never_import_synthetic_substitutes(self):
-        for package_name in (
-            "r2_preflight_process",
-            "r2_evidence_process",
-            "r2_transaction_process",
-        ):
-            entry = ROOT / "backend" / package_name / "entry.py"
-            source = entry.read_text(encoding="utf-8")
-            self.assertNotIn(".testing", source)
-            self.assertNotIn("Synthetic", source)
-            self.assertIn("BLOCKED_NO_APPROVED_COMMAND", source)
-
-    def test_all_three_v2_roots_are_dormant_without_an_external_issuer(self):
+    def test_all_three_module_roots_emit_exact_dormant_status(self):
         cases = (
             (
                 "backend.r2_preflight_process",
                 "current-topology",
-                "DORMANT_NO_EXTERNAL_ISSUER accepted=0 rejected=0 read_operations=0\n",
+                "DORMANT_NO_ISSUE39_APPROVAL accepted=0 rejected=0 read_operations=0\n",
             ),
             (
                 "backend.r2_evidence_process",
                 "publish",
-                "DORMANT_NO_EXTERNAL_ISSUER accepted=0 rejected=0 published=0\n",
+                "DORMANT_NO_ISSUE39_APPROVAL accepted=0 rejected=0 published=0\n",
             ),
             (
                 "backend.r2_transaction_process",
                 "execute",
-                "DORMANT_NO_EXTERNAL_ISSUER accepted=0 rejected=0 mutations=0\n",
+                "DORMANT_NO_ISSUE39_APPROVAL accepted=0 rejected=0 mutations=0\n",
             ),
         )
         for module, verb, expected in cases:
+            completed = subprocess.run(
+                (sys.executable, "-B", "-m", module, verb),
+                cwd=ROOT,
+                input="synthetic-unlock-attempt\n",
+                capture_output=True,
+                text=True,
+                check=False,
+            )
             with self.subTest(module=module):
-                completed = subprocess.run(
-                    (sys.executable, "-B", "-m", module, verb),
-                    cwd=ROOT,
-                    input="ignored\n",
-                    capture_output=True,
-                    text=True,
-                    check=False,
-                )
                 self.assertEqual((completed.returncode, completed.stderr), (0, ""))
                 self.assertEqual(completed.stdout, expected)
 

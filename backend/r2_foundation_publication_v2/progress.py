@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 
-from backend.r2_production_binding import DurableAuthorityClaimV2, ProductionCommandV2
+from backend.r2_production_binding import ExecutionConfirmationClaimV1, ProductionCommandV2
 from backend.r2_transaction_journal_v2 import (
     EffectClassificationV2,
     R2ReadOnlyInspectionReceiptV2,
@@ -88,13 +88,15 @@ class FoundationProgressV2:
         raise TypeError("FoundationProgressV2 is returned by fixed progress functions")
 
 
-def begin_next_foundation_action_v2(*, journal, plan, claim):
+def begin_next_foundation_action_v2(*, journal, plan, claim, observed_at_epoch, observed_monotonic_ns):
     try:
         transition = _next(journal, plan)
         _require_claim(journal, plan, transition, claim, (ProductionCommandV2.EXECUTE,))
-        result = journal.append_authority_claim(
+        result = journal.append_execution_confirmation_claim(
             claim=claim,
             transition_instance_fingerprint=transition.transition_instance_fingerprint,
+            observed_at_epoch=observed_at_epoch,
+            observed_monotonic_ns=observed_monotonic_ns,
         ).append_intent(
             transition_instance_fingerprint=transition.transition_instance_fingerprint,
             pre_state_fingerprint=transition.pre_state_fingerprint,
@@ -110,9 +112,9 @@ def begin_next_foundation_action_v2(*, journal, plan, claim):
 def commit_foundation_effect_v2(*, journal, plan, effect):
     try:
         transition = _pending(journal, plan)
-        authority = journal.records[-2].authority_claim
+        confirmation = journal.records[-2].execution_confirmation_claim
         expected_plan = plan.remaining_plan_fingerprint(transition)
-        if type(effect) is not R2FoundationEffectObservationV2 or effect.transition_instance_fingerprint != transition.transition_instance_fingerprint or effect.claim_fingerprint != authority.claim_fingerprint or effect.prior_journal_head_fingerprint != authority.prior_journal_head_fingerprint or effect.remaining_plan_fingerprint != expected_plan or effect.observed_state_fingerprint != transition.post_state_fingerprint:
+        if type(effect) is not R2FoundationEffectObservationV2 or effect.transition_instance_fingerprint != transition.transition_instance_fingerprint or effect.claim_fingerprint != confirmation.claim_fingerprint or effect.prior_journal_head_fingerprint != confirmation.prior_journal_head_fingerprint or effect.remaining_plan_fingerprint != expected_plan or effect.observed_state_fingerprint != transition.post_state_fingerprint:
             raise FoundationPublicationError()
         result = journal.append_effect_observation(
             transition_instance_fingerprint=transition.transition_instance_fingerprint,
@@ -149,16 +151,18 @@ def classify_foundation_pending_v2(*, journal, plan, inspection):
         raise FoundationPublicationError() from None
 
 
-def resume_foundation_transition_v2(*, journal, plan, claim):
+def resume_foundation_transition_v2(*, journal, plan, claim, observed_at_epoch, observed_monotonic_ns):
     try:
         transition = _classified(journal, plan)
         classification = journal.records[-1].effect_classification
         if classification is EffectClassificationV2.EFFECT_AMBIGUOUS:
             raise FoundationPublicationError()
         _require_claim(journal, plan, transition, claim, (ProductionCommandV2.RESUME,))
-        result = journal.append_authority_claim(
+        result = journal.append_execution_confirmation_claim(
             claim=claim,
             transition_instance_fingerprint=transition.transition_instance_fingerprint,
+            observed_at_epoch=observed_at_epoch,
+            observed_monotonic_ns=observed_monotonic_ns,
         )
         if classification is EffectClassificationV2.EFFECT_ABSENT_EXACT:
             result = result.append_intent(
@@ -180,21 +184,22 @@ def resume_foundation_transition_v2(*, journal, plan, claim):
 
 
 def _require_claim(journal, plan, transition, claim, commands):
-    if type(claim) is not DurableAuthorityClaimV2 or claim.command not in commands or claim.prior_journal_head_fingerprint != journal.current_head_fingerprint:
+    remaining = plan.remaining_plan_fingerprint(transition)
+    if type(claim) is not ExecutionConfirmationClaimV1 or claim.command not in commands or claim.prior_journal_head_fingerprint != journal.current_head_fingerprint or claim.transition_instance_fingerprint != transition.transition_instance_fingerprint or claim.remaining_reverse_plan_fingerprint != remaining:
         raise FoundationPublicationError()
     expected = transaction_action_fingerprint_v2(
         plan._binding,
         claim.command,
         journal_head_fingerprint=journal.current_head_fingerprint,
         transition_instance_fingerprint=transition.transition_instance_fingerprint,
-        remaining_reverse_plan_fingerprint=plan.remaining_plan_fingerprint(transition),
+        remaining_reverse_plan_fingerprint=remaining,
     )
     if claim.action_fingerprint != expected:
         raise FoundationPublicationError()
 
 
 def _next(journal, plan):
-    if type(plan) is not R2FoundationPlanV2 or type(journal) is not R2TransactionJournalV2 or journal.next_legal_action not in {"CLAIM_FRESH_AUTHORITY", "CLAIM_FRESH_AUTHORITY_OR_TERMINAL"}:
+    if type(plan) is not R2FoundationPlanV2 or type(journal) is not R2TransactionJournalV2 or journal.next_legal_action not in {"CLAIM_FRESH_EXECUTION_CONFIRMATION", "CLAIM_FRESH_EXECUTION_CONFIRMATION_OR_TERMINAL"}:
         raise FoundationPublicationError()
     transition = plan.next_transition(journal)
     if transition is None:

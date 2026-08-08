@@ -1,4 +1,4 @@
-"""Closed evidence command and public aggregate results."""
+"""Pure historical evidence result plus latent fixed command vocabulary."""
 
 from __future__ import annotations
 
@@ -15,11 +15,11 @@ class EvidenceProcessStatus(str, Enum):
     BLOCKED_COMMAND = "BLOCKED_COMMAND"
     BLOCKED_TTY = "BLOCKED_TTY"
     BLOCKED_ACKNOWLEDGEMENT = "BLOCKED_ACKNOWLEDGEMENT"
-    BLOCKED_ENVELOPE = "BLOCKED_ENVELOPE"
-    BLOCKED_AUTHORIZATION = "BLOCKED_AUTHORIZATION"
+    BLOCKED_EXECUTION_CONFIRMATION = "BLOCKED_EXECUTION_CONFIRMATION"
+    BLOCKED_FINGERPRINT = "BLOCKED_FINGERPRINT"
     BLOCKED_REPLAY = "BLOCKED_REPLAY"
-    BLOCKED_PUBLICATION = "BLOCKED_PUBLICATION"
-    BLOCKED_NO_APPROVED_COMMAND = "BLOCKED_NO_APPROVED_COMMAND"
+    BLOCKED_ACTION = "BLOCKED_ACTION"
+    DORMANT_NO_ISSUE39_APPROVAL = "DORMANT_NO_ISSUE39_APPROVAL"
 
 
 @dataclass(frozen=True, slots=True)
@@ -42,17 +42,9 @@ class EvidenceProcessResult:
 
 
 def result(status: EvidenceProcessStatus) -> EvidenceProcessResult:
-    accepted = int(
-        status
-        in {
-            EvidenceProcessStatus.PUBLISHED,
-            EvidenceProcessStatus.BLOCKED_NO_APPROVED_COMMAND,
-        }
-    )
-    published = int(status is EvidenceProcessStatus.PUBLISHED)
-    return EvidenceProcessResult(
-        status=status,
-        accepted=accepted,
-        rejected=1 - accepted,
-        published=published,
-    )
+    if type(status) is not EvidenceProcessStatus:
+        raise TypeError("R2_EVIDENCE_RESULT_INVALID")
+    if status is EvidenceProcessStatus.DORMANT_NO_ISSUE39_APPROVAL:
+        return EvidenceProcessResult(status, 0, 0, 0)
+    accepted = int(status is EvidenceProcessStatus.PUBLISHED)
+    return EvidenceProcessResult(status, accepted, 1 - accepted, accepted)

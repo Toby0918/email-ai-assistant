@@ -1,53 +1,54 @@
 """Immutable, length-framed, append-only R2 transaction journal."""
-
 from __future__ import annotations
-
 from dataclasses import dataclass, field
-
 from backend.r2_production_binding import (
-    ApprovedCutoverBindingV2,
-    DurableAuthorityClaimV2,
+    ApprovedCutoverBindingV3,
+    ExecutionConfirmationClaimV1,
     ProductionCommandV2,
-    validate_new_authority_claim,
+    validate_new_execution_confirmation_claim,
 )
-
+from backend.r2_production_binding.claim import _begin_execution_confirmation_append_v1, _complete_execution_confirmation_append_v1, validate_reconstructed_execution_confirmation_claim
 from .errors import JournalV2Error
 from .genesis import R2JournalGenesisV2
 from .record import R2JournalRecordV2, ZERO_FINGERPRINT
 from .vocabulary import EffectClassificationV2, JournalRecordTypeV2
-
-
 _MAX_FRAME = 128 * 1024
-
-
 @dataclass(frozen=True, slots=True, init=False, repr=False)
 class R2TransactionJournalV2:
-    _binding: ApprovedCutoverBindingV2 = field(repr=False)
+    _binding: ApprovedCutoverBindingV3 = field(repr=False)
     genesis: R2JournalGenesisV2 = field(repr=False)
     records: tuple[R2JournalRecordV2, ...] = field(repr=False)
-
     def __init__(self, *args: object, **kwargs: object) -> None:
         raise TypeError("R2TransactionJournalV2 requires create()")
-
     @classmethod
-    def create(cls, *, binding: object, genesis: object) -> R2TransactionJournalV2:
+    def create(cls, *, binding: object, genesis: object, observed_at_epoch: object,
+               observed_monotonic_ns: object) -> R2TransactionJournalV2:
         try:
-            if type(binding) is not ApprovedCutoverBindingV2 or type(genesis) is not R2JournalGenesisV2:
+            if type(binding) is not ApprovedCutoverBindingV3 or type(genesis) is not R2JournalGenesisV2:
                 raise JournalV2Error()
             if R2JournalGenesisV2.from_json(genesis.to_canonical_json(), binding=binding) != genesis:
                 raise JournalV2Error()
-            return _construct(binding, genesis, ())
+            claim = genesis.execution_confirmation_claim
+            _begin_execution_confirmation_append_v1(claim)
+            validate_new_execution_confirmation_claim(
+                binding=binding, candidate=claim, durable_claims=(),
+                observed_at_epoch=observed_at_epoch,
+                observed_monotonic_ns=observed_monotonic_ns,
+                expected_prior_journal_head_fingerprint=genesis.pre_genesis_head_fingerprint,
+            )
+            result = _construct(binding, genesis, ())
+            _complete_execution_confirmation_append_v1(claim, result)
+            return result
         except JournalV2Error:
             raise
         except Exception:
             raise JournalV2Error() from None
-
     @classmethod
     def from_framed_bytes(cls, payload: object, *, binding: object) -> R2TransactionJournalV2:
         try:
             frames = _decode_frames(payload)
             genesis = R2JournalGenesisV2.from_json(frames[0], binding=binding)
-            journal = cls.create(binding=binding, genesis=genesis)
+            journal = _construct(binding, genesis, ())
             for frame in frames[1:]:
                 record = R2JournalRecordV2.from_json(frame, binding=binding)
                 journal = journal._append_existing(record)
@@ -56,27 +57,22 @@ class R2TransactionJournalV2:
             raise
         except Exception:
             raise JournalV2Error() from None
-
     @property
     def binding_fingerprint(self) -> str:
         return self.genesis.binding_fingerprint
-
     @property
     def journal_owner_fingerprint(self) -> str:
         return self.genesis.journal_owner_fingerprint
-
     @property
     def current_head_fingerprint(self) -> str:
         return self.genesis.head_fingerprint if not self.records else self.records[-1].head_fingerprint
-
     @property
     def record_count(self) -> int:
         return len(self.records) + 1
-
     @property
-    def durable_authority_claims(self) -> tuple[DurableAuthorityClaimV2, ...]:
-        return (self.genesis.authority_claim,) + tuple(
-            record.authority_claim
+    def execution_confirmation_claims(self) -> tuple[ExecutionConfirmationClaimV1, ...]:
+        return (self.genesis.execution_confirmation_claim,) + tuple(
+            record.execution_confirmation_claim
             for record in self.records
             if record.record_type is JournalRecordTypeV2.AUTHORITY_CLAIM
         )
@@ -84,7 +80,7 @@ class R2TransactionJournalV2:
     @property
     def next_legal_action(self) -> str:
         if not self.records:
-            return "CLAIM_FRESH_AUTHORITY"
+            return "CLAIM_FRESH_EXECUTION_CONFIRMATION"
         last = self.records[-1]
         if last.record_type is JournalRecordTypeV2.AUTHORITY_CLAIM:
             if len(self.records) >= 2 and self.records[-2].record_type is JournalRecordTypeV2.RECOVERY_CLASSIFICATION:
@@ -98,38 +94,42 @@ class R2TransactionJournalV2:
                 return "APPEND_COMMIT"
             if last.effect_classification is EffectClassificationV2.EFFECT_AMBIGUOUS:
                 return "INCIDENT_STOP"
-            return "CLAIM_FRESH_AUTHORITY"
+            return "CLAIM_FRESH_EXECUTION_CONFIRMATION"
         if last.record_type is JournalRecordTypeV2.COMMIT:
-            return "CLAIM_FRESH_AUTHORITY_OR_TERMINAL"
+            return "CLAIM_FRESH_EXECUTION_CONFIRMATION_OR_TERMINAL"
         if last.record_type is JournalRecordTypeV2.RECOVERY_CLASSIFICATION:
             if last.effect_classification is EffectClassificationV2.EFFECT_AMBIGUOUS:
                 return "INCIDENT_STOP"
-            return "CLAIM_FRESH_AUTHORITY"
+            return "CLAIM_FRESH_EXECUTION_CONFIRMATION"
         if last.record_type is JournalRecordTypeV2.TERMINAL_STATE:
             return "NONE"
-        return "CLAIM_FRESH_AUTHORITY"
+        return "CLAIM_FRESH_EXECUTION_CONFIRMATION"
 
     def to_framed_bytes(self) -> bytes:
-        frames = (self.genesis.to_canonical_json(),) + tuple(
-            record.to_canonical_json() for record in self.records
-        )
+        frames = (self.genesis.to_canonical_json(),) + tuple(record.to_canonical_json() for record in self.records)
         return b"".join(f"{len(frame):08x}:".encode("ascii") + frame + b"\n" for frame in frames)
 
-    def append_authority_claim(self, *, claim: object, transition_instance_fingerprint: object) -> R2TransactionJournalV2:
+    def append_execution_confirmation_claim(self, *, claim: object, transition_instance_fingerprint: object, observed_at_epoch: object, observed_monotonic_ns: object) -> R2TransactionJournalV2:
         try:
-            validate_new_authority_claim(
+            _begin_execution_confirmation_append_v1(claim)
+            if claim.transition_instance_fingerprint != transition_instance_fingerprint:
+                raise JournalV2Error()
+            validate_new_execution_confirmation_claim(
                 binding=self._binding,
                 candidate=claim,
-                durable_claims=self.durable_authority_claims,
-                observed_at_epoch=claim.claimed_at_epoch,
+                durable_claims=self.execution_confirmation_claims,
+                observed_at_epoch=observed_at_epoch,
+                observed_monotonic_ns=observed_monotonic_ns,
                 expected_prior_journal_head_fingerprint=self.current_head_fingerprint,
             )
             record = self._new_record(
                 JournalRecordTypeV2.AUTHORITY_CLAIM,
                 transition_instance_fingerprint,
-                authority_claim=claim,
+                execution_confirmation_claim=claim,
             )
-            return self._append_existing(record)
+            result = self._append_existing(record)
+            _complete_execution_confirmation_append_v1(claim, result)
+            return result
         except JournalV2Error:
             raise
         except Exception:
@@ -189,7 +189,7 @@ class R2TransactionJournalV2:
             "record_sequence": len(self.records) + 1,
             "predecessor_head_fingerprint": self.current_head_fingerprint,
             "transition_instance_fingerprint": transition,
-            "authority_claim": None,
+            "execution_confirmation_claim": None,
             "pre_state_fingerprint": ZERO_FINGERPRINT,
             "post_state_fingerprint": ZERO_FINGERPRINT,
             "observed_state_fingerprint": ZERO_FINGERPRINT,
@@ -207,7 +207,7 @@ class R2TransactionJournalV2:
 
 
 def _validate_transition(journal, record):
-    if type(record) is not R2JournalRecordV2 or record.record_sequence != len(journal.records) + 1 or record.predecessor_head_fingerprint != journal.current_head_fingerprint or record.journal_owner_fingerprint != journal.journal_owner_fingerprint:
+    if type(record) is not R2JournalRecordV2 or record.record_sequence != len(journal.records) + 1 or record.predecessor_head_fingerprint != journal.current_head_fingerprint or record.journal_owner_fingerprint != journal.journal_owner_fingerprint or (record.record_type is JournalRecordTypeV2.AUTHORITY_CLAIM and record.execution_confirmation_claim.transition_instance_fingerprint != record.transition_instance_fingerprint):
         raise JournalV2Error()
     previous = journal.records[-1] if journal.records else None
     _validate_record_kind(journal, record, previous)
@@ -222,7 +222,7 @@ def _validate_record_kind(journal, record, previous):
             raise JournalV2Error()
         if previous is not None and previous.record_type is JournalRecordTypeV2.RECOVERY_CLASSIFICATION and previous.effect_classification is EffectClassificationV2.EFFECT_AMBIGUOUS:
             raise JournalV2Error()
-        validate_new_authority_claim(binding=journal._binding, candidate=record.authority_claim, durable_claims=journal.durable_authority_claims, observed_at_epoch=record.authority_claim.claimed_at_epoch, expected_prior_journal_head_fingerprint=journal.current_head_fingerprint)
+        validate_reconstructed_execution_confirmation_claim(binding=journal._binding, candidate=record.execution_confirmation_claim, durable_claims=journal.execution_confirmation_claims, expected_prior_journal_head_fingerprint=journal.current_head_fingerprint)
     elif record.record_type is JournalRecordTypeV2.INTENT:
         if previous is None or previous.record_type is not JournalRecordTypeV2.AUTHORITY_CLAIM or record.transition_instance_fingerprint != previous.transition_instance_fingerprint:
             raise JournalV2Error()
@@ -265,13 +265,13 @@ def _validate_record_kind(journal, record, previous):
         raise JournalV2Error()
 
 
-def _valid_intent_after_classification(classified, authority, intent):
+def _valid_intent_after_classification(classified, confirmation, intent):
     return (
         classified.effect_classification is EffectClassificationV2.EFFECT_ABSENT_EXACT
         and (
             intent.transition_instance_fingerprint
             == classified.transition_instance_fingerprint
-            or authority.authority_claim.command is ProductionCommandV2.ROLLBACK
+            or confirmation.execution_confirmation_claim.command is ProductionCommandV2.ROLLBACK
         )
     )
 

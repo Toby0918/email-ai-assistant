@@ -44,17 +44,26 @@ KEY_FILES = [
     "backend/r2_production_composition/transaction.py",
     "backend/r2_production_composition/binding_candidate.py",
     "docs/operations/r2_production_adapter_binding_remediation_task_brief.md",
-    "backend/r2_external_artifacts_v1/__init__.py",
-    "backend/r2_external_artifacts_v1/review_inputs.py",
-    "backend/r2_external_artifacts_v1/derivation.py",
-    "backend/r2_external_artifacts_v1/unsigned_package.py",
-    "backend/r2_external_artifacts_v1/installer.py",
-    "scripts/prepare_r2_external_artifacts.py",
-    "tests/test_r2_external_artifacts_v1.py",
-    "tests/test_r2_external_artifacts_v1_architecture.py",
-    "tests/test_prepare_r2_external_artifacts.py",
-    "docs/operations/r2_external_artifact_issuance_task_brief.md",
-    "docs/operations/r2_external_artifact_issuance_runbook.md",
+    "backend/r2_solo_maintainer_closure/__init__.py",
+    "backend/r2_solo_maintainer_closure/_canonical.py",
+    "backend/r2_solo_maintainer_closure/contracts.py",
+    "backend/r2_solo_maintainer_closure/evidence.py",
+    "backend/r2_solo_maintainer_closure/hosted_evidence.py",
+    "backend/r2_solo_maintainer_closure/local_evidence.py",
+    "backend/r2_solo_maintainer_closure/repository.py",
+    "backend/r2_solo_maintainer_closure/storage.py",
+    "backend/r2_solo_maintainer_closure/closure.py",
+    "backend/r2_production_binding/execution_confirmation.py",
+    "scripts/close_r2_final_master.py",
+    "scripts/verify_r2_final_master_closure.py",
+    "tests/test_r2_solo_maintainer_closure.py",
+    "tests/test_r2_solo_maintainer_closure_architecture.py",
+    "tests/test_close_r2_final_master.py",
+    "tests/test_r2_execution_confirmation.py",
+    "tests/test_r2_execution_confirmation_architecture.py",
+    "docs/operations/r2_solo_maintainer_closure_task_brief.md",
+    "docs/operations/r2_solo_maintainer_closure_runbook.md",
+    "docs/decisions/0010-solo-maintainer-closure-and-execution-confirmation.md",
     "backend/cutover_contracts/__init__.py",
     "backend/cutover_contracts/_canonical.py",
     "backend/cutover_contracts/authorization.py",
@@ -647,12 +656,16 @@ GUARDRAILS = [
         "docs/operations/r2_production_adapter_binding_remediation_task_brief.md",
     ),
     (
-        "R2 public external-artifact issuance boundary",
-        "docs/operations/r2_external_artifact_issuance_task_brief.md",
+        "R2 Solo Maintainer Closure boundary",
+        "docs/operations/r2_solo_maintainer_closure_task_brief.md",
     ),
     (
-        "R2 external-artifact issuance operator sequence",
-        "docs/operations/r2_external_artifact_issuance_runbook.md",
+        "R2 Solo Maintainer Closure operator sequence",
+        "docs/operations/r2_solo_maintainer_closure_runbook.md",
+    ),
+    (
+        "Solo Maintainer Closure and execution-confirmation decision",
+        "docs/decisions/0010-solo-maintainer-closure-and-execution-confirmation.md",
     ),
 ]
 
@@ -709,8 +722,8 @@ HARD_BOUNDARIES = [
     "Issue #58 only proves provider-disabled activation, committed-journal-driven rollback, and dedicated legacy recovery inside caller-owned synthetic sandboxes; receipts and tests do not authorize a real service probe or operation, Issue #59, Issues #38/#39, merge, or parent Spec closure.",
     "Issue #59 only assembles three default-locked operator roots and a content-free receipt chain. Backend packages expose no executable test binder; test-only assembly owns every component TemporaryDirectory through one internal scope and rechecks it before every role or journal callback. Windows execution remains confined to caller-owned test sandboxes; no real command or authorization exists before #39. After merge, the final master invalidates R1 and requires all fourteen #38 approval items plus a new R2 before #39.",
     "Issues #70-#83 only implement dormant R2 contracts and fresh synthetic Windows proof. The fixed verifier owns its NTFS sandbox and emits aggregate fingerprints/counts; it does not authorize Issue #39, a real command, any host operation, merge, or approval/closure of #38 or #50. The accepted prototype fingerprint remains non-authorizing prior art.",
-    "Issue #104 only replaces the rejected callback seam with three exact stateful Adapter slots. It does not itself authorize real-host operations, production artifacts, Issue #38 approval, Issue #39, or closure.",
-    "Issue #105 repository tooling only prepares public unsigned final-master artifacts and verifies externally returned detached signatures before fixed no-clobber installation. Four external authority public keys, exact reviewed outputs, human manifest confirmation, the offline external signer, all fourteen signatures, post-merge installation, and the protected final verifier remain separate gates. It never approves or closes Issue #38 and gives no authority to Issue #39.",
+    "Issue #104 retains three exact stateful Adapter slots and owning-module source identity, but Issue #110 keeps every production Adapter path dormant before lookup. Neither issue authorizes a host operation, production artifact, Issue #38 approval, Issue #39, or closure.",
+    "Issue #110 replaces the legacy V1 external-signature path with two strict Solo Maintainer Closure files and a dormant V3 execution-confirmation seam. Current no-ruleset state blocks live prepare/confirm/verifier; the future ruleset, Issue #38 decision, and future Issue #39 code/authority each require separate approval. No closure evidence authorizes host/provider/mailbox/vault/private-data access, cleanup, push, or merge.",
 ]
 
 
@@ -879,6 +892,39 @@ def render_next_steps(stage: str) -> str:
     return "\n".join(f"{index}. {step}" for index, step in enumerate(steps, start=1))
 
 
+def _normalize_status_snapshot(value: str) -> bytes:
+    """Canonicalize only the three environment-dependent snapshot fields."""
+    if type(value) is not str or not value.endswith("\n"):
+        raise ValueError("invalid status snapshot")
+    if "\r" in value:
+        if value.count("\r\n") != value.count("\n"):
+            raise ValueError("invalid status line endings")
+        value = value.replace("\r\n", "\n")
+    lines = value.splitlines()
+
+    def field(prefix: str, suffix: str = "") -> tuple[int, str]:
+        matches = [(index, line) for index, line in enumerate(lines)
+                   if line.startswith(prefix) and (not suffix or line.endswith(suffix))]
+        if len(matches) != 1:
+            raise ValueError("invalid status field")
+        index, line = matches[0]
+        end = len(line) - len(suffix) if suffix else len(line)
+        return index, line[len(prefix):end]
+
+    update_index, updated = field("last_update: ")
+    generated_index, generated = field("| Generated on | ", " |")
+    branch_index, branch = field("| Git branch | ", " |")
+    if (date.fromisoformat(updated).isoformat() != updated or updated != generated
+            or not 0 < len(branch) <= 128 or branch != branch.strip()
+            or any(not 32 <= ord(character) <= 126 or character == "|"
+                   for character in branch)):
+        raise ValueError("invalid status dynamic value")
+    lines[update_index] = "last_update: <snapshot-date>"
+    lines[generated_index] = "| Generated on | <snapshot-date> |"
+    lines[branch_index] = "| Git branch | <snapshot-branch> |"
+    return ("\n".join(lines) + "\n").encode("utf-8")
+
+
 def build_project_status() -> str:
     git = get_git_status()
     files = collect_file_status(KEY_FILES)
@@ -956,9 +1002,9 @@ Issue #59 final Project Container composition is offline implemented across `bac
 
 Issues #70-#83 dormant R2 cutover remediation are offline implemented across the additive R2 contract, fixed preflight/evidence/transaction process, main/manifest/database/Runtime/CRX/Config publication, independent-audit, validation-lifecycle, cross-stage recovery, and verification-evidence packages. The fixed no-argument `scripts/verify_r2_synthetic_topology.py` owns one fresh physical NTFS sandbox and composes preflight, evidence, quiescence, legacy anchor, nine-zone Container/main/whole-tree ACL, one repository, all eleven reviewed worktrees, four managed units, Start A with one `rule_fallback` result and one row, stop, independent stopped audit, Start B without analysis/write, independent final-running audit, and one terminal `CUTOVER_SUCCESS`. Preflight, evidence, and transaction use distinct real local TTY processes; execution and recovery remain distinct fixed verbs and all four authorization domains are nominally separate. The exact seven-semantics, two-directions, five-gaps matrix covers 70 fresh scopes. Obsolete batched managed publication, stale R1 verification, in-process operator substitution, self-certified audit, and legacy R2 success are mechanically unreachable. Fresh criteria, matrix, script, bundle, complete R2 surface, and package fingerprints are recorded as six deterministic evidence fingerprints; the accepted prototype fingerprint remains non-authorizing prior art. Portable tests make no NTFS, ACL, TTY, process-isolation, or native-durability claim. Every real entry remains `BLOCKED_NO_APPROVED_COMMAND`; no real host, provider, mailbox, vault, private data, or Issue #39 operation was accessed or run, and #38/#50/#39 remain unchanged.
 
-Issue #104 three-stateful-Adapter seam is implemented offline in `backend.r2_production_composition`. The process packages accept three exact stateful Adapter slots covering six preflight commands, one evidence command, and three transaction commands. The closed catalog freezes the reviewed member identities and deterministic surface digests when the Adapter modules load, captures the original registry identity independently, and rejects later registry rebinding. Binding captures `invoke` directly from that snapshot; each call revalidates exact Adapter type, immutable binding, command, live class-member identity, captured-target identity, deterministic code/default/annotation surface, underlying receipt chain, and result before the reviewed descriptor can run, and completion helpers run only after outcome validation. Adapter identity binds the exact type, complete owning-module source, and path-independent live type surface while dynamic instance state is excluded. A deterministic candidate derives the operation, operator roles, all ten Adapter identities, and nominal roles from an exact final-master binding plus four unique verification public keys that must be disjoint from the fourteen gate keys. Production bootstraps accept only reviewed non-synthetic Adapters; synthetic adapters are rejected by production bootstraps and remain confined to test-only binders. The old callback seam is removed, not wrapped. All defaults remain dormant, no real Adapter instance or operation is created by this remediation, and #104 itself issued no artifact or authority; #38/#39 remain unchanged.
+Issue #104 three-stateful-Adapter seam remains implemented offline in `backend.r2_production_composition`. The catalog retains three exact stateful Adapter slots covering six preflight commands, one evidence command, and three transaction commands. Binding captures and immediately reverifies command/domain, nominal type, complete owning-module source, class surface, registry and target identity; mutable instance state remains excluded. Underlying receipt/outcome validation still precedes completion. Issue #110 replaces candidate key/signature/envelope inputs with the exact Solo Maintainer final-master binding and closed `ApprovedCutoverBindingV3` structural facts. Synthetic Adapters remain testing-only, while every production root stops at `DORMANT_NO_ISSUE39_APPROVAL` before Adapter lookup. No real Adapter or host operation is created, and #38/#39 remain unchanged.
 
-Issue #105 public external-artifact repository tooling is implemented in `backend.r2_external_artifacts_v1` and `scripts/prepare_r2_external_artifacts.py`. Preparation rebuilds one exact production-binding candidate from a fresh frozen master plus four unique gate-key-disjoint public authority keys, validates exact reviewed public inputs, and derives the approved seven-direct plus seven-wrapper gate map into one canonical binding, fourteen fixed-order unsigned bodies, public provenance, file hashes, and a domain-separated issuance manifest. Installation confirms the exact human-reviewed manifest, reparses and rederives the entire package, verifies fourteen gate-ordered detached signatures through the protected public-key parser and global coordinator, and publishes exactly fifteen canonical verifier files to the internally fixed Git common-directory location through a native atomic no-clobber commit. On Windows, every file-ID child requiring-oplock open and the preopened exact directory requiring-oplock handle are immediately followed by their RWH or Read `FSCTL_REQUEST_OPLOCK` before any other filesystem operation on that opened object; pending input, output, `OVERLAPPED`, events, and handles remain alive. The directory handle denies delete sharing and is bound by `FileIdInfo` volume/file ID. With all sixteen oplocks pending, a protected read/execute-only DACL is applied through the bound handles. Same-handle `FileStandardInfo` requires every child to retain exactly one link through initial, precommit, and target validation. Bounded `FileStreamInfo` validation requires each child to have only its default `::$DATA` stream and the directory to have no stream. Exact name-plus-file-ID namespace enumeration uses that same directory handle without reopening child paths; all guards must remain quiet before the caller synchronously renames through the preauthorized handle, and all remain held through exact target identity, inventory, link, stream, and guarded-byte validation. Late ordinary mutation attempts requiring fresh access are denied across both the quiet-check-to-rename and target-validation-to-release windows. There is no controller, background commit, or sequential guard release; every pending oplock request is cancelled and synchronously reaped before its storage or handles are released. The DACL is not claimed as an immutability boundary against the trusted file owner, administrator, privileged process, explicit object-security change, or deliberately pre-positioned foreign write-capable handle; those are external tamper and verifier incident-stop conditions. The five-file deep module has no private-key, signer, key generator, path selector, cleanup, delete, overwrite, normal-runtime, or real-host command capability. The repository implementation is complete, but production preparation must wait for the post-merge fresh master; external public inputs, human manifest review, offline signatures, actual installation, protected-verifier status `AWAITING_SINGLE_HUMAN_FINAL_REVIEW`, and the immutable R2-D38-01 through R2-D38-14 package remain pending human/external gates. Issue #105 remains open throughout: repository merge transitions it from `ready-for-agent` to `ready-for-human`, while closure remains forbidden until those external gates finish. Issue #38 is not approved or closed, and Issue #39 remains unchanged.
+Issue #110 Solo Maintainer Closure is implemented in `backend.r2_solo_maintainer_closure`, `backend.r2_production_binding`, and `scripts/close_r2_final_master.py`. The strict two-file trust model binds one frozen clean master, the five exact GitHub Actions hosted checks, fourteen evidence records, eight ordered gap proofs, one exact active master-ruleset snapshot, one canonical manifest, and one Solo Maintainer Attestation with assurance counts one operator and zero independent/external/hosted-human reviewers. Private typed local proofs bind canonical values, relevant frozen blobs, same-SHA hosted records/job steps, and fresh status/maintenance/leakage observations without claiming durable runtime receipt instances. `ApprovedCutoverBindingV3` removes V2 public keys, signatures, envelopes, and issuers; execution confirmation binds closure, attestation, exact action/journal/plan/TTY/time facts and a create-only durable claim, but remains unreachable from production. The legacy final-master/global-gate/external-artifact/signature paths are removed rather than retained as aliases. Current live no-ruleset state intentionally blocks actual prepare, confirm, and protected verification until a separately approved GitHub-state change. Closure and CI evidence do not approve Issue #38, create or approve a ruleset, authorize or execute Issue #39, mutate a real host, access provider/mailbox/vault/private data, clean retained stages, push, or merge.
 
 The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器扩展, with current-message collection only after an explicit user click.
 

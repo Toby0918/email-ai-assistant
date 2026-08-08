@@ -26,19 +26,14 @@ _GIT_OPTIONS = (
 
 def main():
     try:
-        if not sys.flags.isolated or not sys.flags.safe_path:
+        if len(sys.argv) != 1 or not sys.flags.isolated or not sys.flags.safe_path:
             raise ValueError
-        success, result = _verify_fixed_repository()
+        result = _verify_fixed_repository()
     except Exception:
-        success, result = False, ("BLOCKED_FROZEN_MASTER", 14, 0)
-    if success:
-        sys.stdout.buffer.write(result + b"\n")
-        return 0
-    sys.stdout.write(
-        f"{result[0]} missing={result[1]} invalid={result[2]} "
-        "eligibility=0 approval=0 authority=0\n"
-    )
-    return 2
+        sys.stdout.write('{"status":"R2_SOLO_MAINTAINER_CLOSURE_INVALID"}\n')
+        return 2
+    sys.stdout.buffer.write(result + b"\n")
+    return 0
 
 
 def _verify_fixed_repository():
@@ -75,17 +70,21 @@ def _verify_materialized(materialized, head, remote, tree, descriptors):
         raise ValueError
     sys.path.insert(0, str(materialized))
     try:
-        from backend.r2_final_master_closure import (
+        from backend.r2_solo_maintainer_closure import (
             FinalMasterBindingV1,
-            R2GlobalGateEvidenceV1,
-            gate_evidence_registry,
+            SoloMaintainerAttestationReceiptV1,
+            SoloMaintainerClosureCandidateV1,
+            SoloMaintainerClosureManifestV1,
         )
-        from backend.r2_final_master_closure._canonical import fingerprint
-        from backend.r2_final_master_closure.final_review import (
-            _assemble_review_package,
+        from backend.r2_solo_maintainer_closure._canonical import (
+            canonical_json,
+            fingerprint,
         )
-        from backend.r2_final_master_closure.frozen_master import (
-            _allocate as _allocate_frozen,
+        from backend.r2_solo_maintainer_closure.closure import _manifest
+        from backend.r2_solo_maintainer_closure.repository import (
+            FixedGitHubPort,
+            RepositorySnapshotV1,
+            _local_sources,
         )
         from backend.r2_ci_provenance_v2 import (
             R2GitObjectEntryV2,
@@ -93,8 +92,10 @@ def _verify_materialized(materialized, head, remote, tree, descriptors):
         )
         from backend.r2_ci_provenance_v2._canonical import sha256
         from backend.r2_production_binding import (
-            ApprovedCutoverBindingV2,
-            reviewed_production_binding_receipt_v2,
+            ApprovedCutoverBindingV3,
+        )
+        from backend.r2_production_composition import (
+            build_production_binding_candidate_v1,
         )
         from scripts.r2_ci_provenance_support import (
             _workflow_lock,
@@ -134,91 +135,119 @@ def _verify_materialized(materialized, head, remote, tree, descriptors):
             runbook_fingerprint=package.runbook_fingerprint,
             workflow_fingerprint=lock.lock_fingerprint,
         )
-        frozen = _allocate_frozen(binding, {
-            "observation_type": "R2FrozenRemoteMasterV1",
-            "status": "FROZEN_REMOTE_MASTER_VERIFIED",
-            "binding_fingerprint": binding.binding_fingerprint,
-            "remote_ref_fingerprint": fingerprint("r2-frozen-remote-ref-v1", {
-                "remote_url": _REMOTE_URL,
-                "ref": _REMOTE_REF,
-                "commit": remote,
-            }),
-            "final_commit_oid": binding.final_commit_oid,
-            "final_tree_oid": binding.final_tree_oid,
-            "source_package_fingerprint": binding.source_package_fingerprint,
-            "runbook_fingerprint": binding.runbook_fingerprint,
-            "workflow_fingerprint": binding.workflow_fingerprint,
-            "exact_match": 1,
-            "historical_master_count": 0,
-            "dirty_path_count": 0,
-        })
-        production_result = _read_reviewed_production_binding(
-            binding, ApprovedCutoverBindingV2
+        production = build_production_binding_candidate_v1(
+            final_master_binding=binding
         )
-        if not production_result[0]:
-            return production_result
-        production_receipt = reviewed_production_binding_receipt_v2(
-            binding, production_result[1]
+        if type(production) is not ApprovedCutoverBindingV3:
+            raise ValueError
+        workflow_oids = {
+            path: oid for path, _mode, oid, _content in descriptors
+            if path in {
+                PurePosixPath(".github/workflows/agent_guardrails.yml"),
+                PurePosixPath(".github/workflows/r2_provenance.yml"),
+            }
+        }
+        repository = RepositorySnapshotV1.create(
+            final_master_binding=binding,
+            production_binding=production,
+            source_fingerprints=_local_sources(
+                binding, production,
+                tuple((path.as_posix(), mode, oid, content)
+                      for path, mode, oid, content in descriptors),
+            ),
+            workflow_blob_oids={path.as_posix(): oid for path, oid in workflow_oids.items()},
+            root=materialized,
+            tracked_paths=tuple(sorted(path.as_posix() for path, *_rest in descriptors)),
         )
-        result = _read_external_evidence(
-            binding,
-            frozen,
-            production_receipt,
-            gate_evidence_registry(),
-            R2GlobalGateEvidenceV1,
-            _assemble_review_package,
+        github = FixedGitHubPort().collect(repository)
+        manifest_payload, receipt_payload = _read_new_artifacts()
+        manifest = SoloMaintainerClosureManifestV1.from_json(manifest_payload)
+        receipt = SoloMaintainerAttestationReceiptV1.from_json(receipt_payload)
+        if _manifest(repository, github).to_canonical_json() != manifest_payload:
+            raise ValueError
+        candidate = SoloMaintainerClosureCandidateV1.create(
+            manifest, receipt.prepared_at_epoch
         )
+        _require_receipt_links(manifest, receipt, candidate)
+        if (
+            not receipt.prepared_at_epoch <= receipt.confirmed_at_epoch
+            < receipt.expires_at_epoch
+        ):
+            raise ValueError
+        result = _review_package(canonical_json, fingerprint, manifest, receipt)
         _require_materialized_module_origins(materialized)
         return result
     finally:
         sys.path.remove(str(materialized))
 
 
-def _read_reviewed_production_binding(binding, binding_type):
-    path = (
-        _git_common_dir()
-        / "r2-final-master-closure-v1"
-        / "reviewed-production-binding-v2.json"
+def _read_new_artifacts():
+    common = _git_common_dir()
+    _safe_component_metadata(common, stat.S_ISDIR)
+    forbidden = ("r2-final-master-closure-v1", ".r2-final-master-closure-v1.stage-",
+                 ".r2-solo-maintainer-closure-v1.stage-")
+    if any((name := item.name.casefold()) == forbidden[0]
+           or name.startswith(forbidden[1:]) for item in common.iterdir()):
+        raise ValueError
+    directory = common / "r2-solo-maintainer-closure-v1"
+    expected = (
+        "solo-maintainer-closure-manifest-v1.json",
+        "solo-maintainer-attestation-receipt-v1.json",
     )
-    try:
-        payload = path.read_bytes()
-    except FileNotFoundError:
-        return False, ("BLOCKED_MISSING_REVIEWED_PRODUCTION_BINDING", 1, 0)
-    except Exception:
-        return False, ("BLOCKED_MISSING_REVIEWED_PRODUCTION_BINDING", 0, 1)
-    try:
-        value = binding_type.from_json(
-            payload, final_master_binding=binding
-        )
-    except Exception:
-        return False, ("BLOCKED_MISSING_REVIEWED_PRODUCTION_BINDING", 0, 1)
-    return True, value
+    _safe_component_metadata(directory, stat.S_ISDIR)
+    if tuple(sorted(item.name for item in directory.iterdir())) != tuple(sorted(expected)):
+        raise ValueError
+    payloads = []
+    for name in expected:
+        path = directory / name
+        before = _safe_component_metadata(path, stat.S_ISREG)
+        with path.open("rb") as stream:
+            opened = os.fstat(stream.fileno())
+            payload = stream.read(2 * 1024 * 1024 + 1)
+        after = _safe_component_metadata(path, stat.S_ISREG)
+        if (before.st_nlink != 1 or len(payload) > 2 * 1024 * 1024
+                or _file_identity(before) != _file_identity(opened)
+                or _file_identity(before) != _file_identity(after)):
+            raise ValueError
+        payloads.append(payload)
+    if tuple(sorted(item.name for item in directory.iterdir())) != tuple(sorted(expected)):
+        raise ValueError
+    return tuple(payloads)
 
 
-def _read_external_evidence(
-    binding, frozen, production_receipt, registry, evidence_type, assemble
-):
-    directory = _git_common_dir() / "r2-final-master-closure-v1"
-    evidence, missing, invalid = [], 0, 0
-    for index, registration in enumerate(registry, start=1):
-        path = directory / f"{index:02d}-{registration.gate.value}.json"
-        try:
-            payload = path.read_bytes()
-        except FileNotFoundError:
-            missing += 1
-            continue
-        except Exception:
-            invalid += 1
-            continue
-        try:
-            evidence.append(evidence_type.from_signed_json(payload, binding=binding))
-        except Exception:
-            invalid += 1
-    if missing or invalid:
-        return False, ("BLOCKED_MISSING_EXTERNAL_GATE_EVIDENCE", missing, invalid)
-    return True, assemble(
-        frozen, production_receipt, tuple(evidence)
-    ).to_canonical_json()
+def _review_package(canonical, identity, manifest, receipt):
+    body = {
+        "package_type": "R2FinalMasterReviewPackageV2",
+        "status": "ELIGIBLE_FOR_ISSUE38_FINAL_REVIEW",
+        "manifest_fingerprint": manifest.manifest_fingerprint,
+        "receipt_fingerprint": receipt.receipt_fingerprint,
+        "final_commit_oid": manifest.final_commit_oid,
+        "final_tree_oid": manifest.final_tree_oid,
+        "hosted_evidence_count": 5,
+        "evidence_record_count": 14,
+        "gap_proof_count": 8,
+        "solo_maintainer_attestation_count": 1,
+        "approval_count": 0,
+        "execution_authority_count": 0,
+        "issue39_authority_count": 0,
+    }
+    body["review_package_fingerprint"] = identity(
+        "r2-solo-maintainer-closure-evidence-set-v1", body
+    )
+    return canonical(body)
+
+
+def _require_receipt_links(manifest, receipt, candidate):
+    names = (
+        "manifest_fingerprint", "final_master_binding_fingerprint",
+        "final_commit_oid", "final_tree_oid", "source_package_fingerprint",
+        "production_binding_fingerprint", "github_guardrail_snapshot_fingerprint",
+        "hosted_evidence_set_fingerprint", "evidence_set_fingerprint",
+        "gap_proof_set_fingerprint",
+    )
+    if (receipt.candidate_fingerprint != candidate.candidate_fingerprint
+            or any(getattr(receipt, name) != getattr(manifest, name) for name in names)):
+        raise ValueError
 
 
 def _materialize_head(head, target):
@@ -592,6 +621,7 @@ def _git_environment():
         "GIT_CONFIG_NOSYSTEM": "1",
         "GIT_CONFIG_GLOBAL": os.devnull,
         "GIT_NO_REPLACE_OBJECTS": "1",
+        "GIT_OPTIONAL_LOCKS": "0",
         "GIT_TERMINAL_PROMPT": "0",
         "GCM_INTERACTIVE": "Never",
         "LC_ALL": "C",

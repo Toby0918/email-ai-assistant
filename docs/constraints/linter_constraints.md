@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-06
+last_update: 2026-08-08
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -8,50 +8,43 @@ source_type: operation_guide
 
 # Static Linter Constraints
 
-## R2 Issue #102 terminal-review guards
+## R2 Issue #110 Solo Maintainer Closure guards
 
-- Require exact observed remote commit/tree, source-package, runbook, and
-  workflow fingerprints to equal the frozen final-master binding.
-- Require isolated safe-path Python, the fixed no-argument Git adapter, a clean
-  tracked-and-untracked worktree with no assume-unchanged/skip-worktree entry,
-  exact local and fresh fixed-URL remote-master equality, a scrubbed Git
-  environment with replacement refs disabled, independent raw commit/tree/blob
-  hash verification before repository imports, exact current-script and
-  imported-module origins/bytes, and fourteen exact Git-common-dir receipt
-  filenames; reject path or receipt args.
-- Require exactly eight ordered, unique, same-binding gap proofs and the exact
-  #101 fourteen-gate coordinator; do not accept caller-supplied terminal or gate
-  receipts.
-- Require the exact Git-common-dir `reviewed-production-binding-v2.json`,
-  validate one concrete `ApprovedCutoverBindingV2` against the frozen master,
-  and bind its four registries plus production-composition evidence into the
-  final package. Missing/invalid input must use the fixed blocked status.
-- Derive every gap proof from the explicit exhaustive eight-gap/fourteen-gate
-  semantic partition; reject positional or partial gate pairing.
-- Recompute the terminal receipt and immutable review package; reject unknown,
-  stale, mixed, duplicate, skipped, leaking, or contract-changing evidence.
-- Fix `human_review_completed`, approval, execution-authority, #39, provider,
-  live-host, private-data, cleanup, and every finding count at zero.
-- Permit only `AWAITING_SINGLE_HUMAN_FINAL_REVIEW`; reject any `APPROVED` status
-  or approve/merge/execute/authorize method and keep authority types disjoint.
-
-## R2 Issue #101 global-gate guards
-
-- Require exactly fourteen gate registrations, fourteen unique producer roles,
-  and complete seven-domain Standards/Spec/security/documentation/mechanical/
-  leakage/operator-review coverage.
-- Require the evidence tuple to follow the closed gate order and every record
-  to bind the same final master; missing, duplicate, stale, mixed, or shared-
-  producer evidence is invalid.
-- Require coordinator, producer, evidence, and binding fingerprints to remain
-  distinct, and derive every receipt from evidence inside the coordinator.
-- Require one fixed distinct Ed25519 public key per producer and a valid
-  signature over the complete canonical evidence body; raw fingerprints cannot
-  set `verified=1` or `self_certified=0`.
-- Reject any nonzero self-certified, required/unclassified skip, divergence,
-  leakage, private-data, host-operation, provider-attempt, or #39-change count.
-- Keep the package pure and below file/function limits; no host, process,
-  network, path, provider, mailbox, vault, private-data, or authority import.
+- `backend/r2_solo_maintainer_closure/` must contain exactly nine Python
+  files with an explicit public export set. Imports are limited to the standard
+  library, internal package modules and exact approved seams: `repository.py`
+  may use the read-only CI source/workflow and production-composition values;
+  `evidence.py` may use the V3 binding value; and private `local_evidence.py`
+  may use pure CI-suite/runbook registries plus fixed read-only project-status,
+  maintenance and leakage modules. `closure.py` owns the fixed terminal/clock
+  ceremony, and `storage.py` alone publishes.
+- Every closure JSON value uses strict canonical ASCII JSON: duplicate,
+  unknown, missing, noncanonical, NaN, infinity, lone-surrogate, and bool-as-int
+  inputs fail closed. Each fingerprint is the SHA-256 of its exact domain,
+  a NUL byte, and the canonical body without its own fingerprint.
+- Pin exactly five successful GitHub Actions hosted-check records, fourteen
+  evidence records, eight dependency-ordered gap proofs, one exact active
+  master-ruleset snapshot, and one same-binding manifest. Defect, skip,
+  divergence, leakage, private-data, provider, host-operation, approval,
+  execution, cleanup, and Issue #39 counters must all be zero.
+- Hosted evidence is accepted only for `master` `push` runs at the exact frozen
+  commit, with the five fixed check names and GitHub Actions app id `15368`.
+  The four provenance checks share one run and attempt, and reconciliation
+  depends on the other three verifier jobs. Only the code-fixed public
+  `https://api.github.com` endpoint is permitted; there is no credential,
+  caller URL, custom endpoint, or fallback surface.
+- The guardrail snapshot requires exactly one active master ruleset, zero
+  bypass actors, deletion and non-fast-forward protection, strict required
+  status checks for those five app-bound contexts, the approved pull-request
+  rule, and absent classic branch protection. A missing, layered, stale, or
+  mismatched guardrail state blocks closure.
+- The fixed no-argument verifier retains the Issue #102 safe-path and raw-Git
+  chain, accepts only the new manifest and attestation files in the fixed Git
+  common directory, and rejects every legacy V1 external/signature artifact,
+  fallback, compatibility parser, or alternate trust model.
+- Solo attestation records one operator and zero independent, external, and
+  hosted-human reviewers. It is evidence, not Issue #38 approval, production
+  authority, a ruleset mutation, Issue #39 authorization, or execution.
 
 ## R2 generated-runbook guards
 
@@ -159,57 +152,57 @@ source_type: operation_guide
 - The pure package must not gain path, filesystem, Git runner, process,
   ignored/private content, cleanup, or authority capability.
 
-## R2 V2 single-action transaction guards
+## R2 execution-confirmed single-action guards
 
-- The fixed command map is exactly execute, resume, and rollback; no umbrella,
-  path, selector, batch, force, shell, retry, or direction input exists.
-- The signed action binds exact binding, command/domain/operator/key, journal
-  head, transition instance, and applicable reverse-plan fingerprint.
-- One invocation consumes one authority, selects at most one role, and accepts
-  only a completion with exactly one mutation; there is no retry or second role.
-- Wrong action/domain/binding/head/transition/plan/sequence/signature/replay/time
-  must fail before the action callback increments.
-- Production modules contain no private key, issuer, delete, overwrite, repair,
-  cleanup, provider, mailbox, vault, credential, or private-data capability.
+- The fixed command map contains exactly ten commands across the preflight,
+  evidence, and transaction domains. There is no umbrella, path, selector,
+  batch, force, shell, retry, direction, signer, key, or envelope input.
+- An execution confirmation binds the V3 binding, closure manifest and solo
+  attestation, exact command/action, prior journal head and next sequence,
+  transition instance, remaining-plan fingerprint, and applicable reverse-plan
+  fingerprint. Wrong or stale facts fail before any Adapter attempt.
+- One append creates one journal claim; the first Adapter attempt consumes it.
+  There is no replay, retry, second Adapter, process-local claimed set, or
+  effect-before-append path.
+- Production modules contain no private key, signature, issuer, delete,
+  overwrite, repair, cleanup, provider, mailbox, vault, credential, or
+  private-data capability.
 
-## R2 V2 evidence and genesis guards
+## R2 execution-confirmed evidence and genesis guards
 
-- The evidence production root accepts only `publish`; it has no path, target,
-  profile, selector, force, shell, or arbitrary payload input.
-- Verification must compare the reviewed-evidence action fingerprint before
-  acquiring the create-only role.
-- The exact publication completion must bind claim, review, evidence identity,
-  package, and manifest before canonical genesis construction.
-- Genesis must reconstruct its embedded durable claim from canonical bytes and
-  reject mixed binding, final master, identity, prior head, sequence, replay,
+- Evidence publication retains exactly one fixed `publish` command and no
+  path, target, profile, selector, force, shell, or arbitrary payload input.
+- The exact completion binds the consumed execution-confirmation claim, review,
+  evidence identity, package, and manifest before canonical genesis creation.
+- Genesis reconstructs its embedded claim from canonical bytes and rejects
+  mixed binding, closure, attestation, identity, prior head, sequence, replay,
   duplicate key, or fingerprint drift.
-- Production modules contain no private key, issuer, deletion, overwrite,
-  cleanup, provider, mailbox, vault, credential, or private-data capability.
+- These contracts are testable dormant primitives only; Issue #110 does not
+  make the production process graph reachable.
 
-## R2 V2 preflight dispatcher guards
+## R2 execution-confirmed preflight guards
 
-- The production dispatcher must expose exactly six fixed preflight verbs and
-  select exactly one matching read-only role after V2 verification.
-- It must reject wrong binding, command, domain, operator/key role, action,
-  prior head, sequence, signature, replay, and stale authority before role
-  selection.
-- It must contain no private signing key, issuer, path/selector, host mutation,
-  evidence publication, transaction, provider, mailbox, vault, or private
-  payload surface.
-- With no external issuer, the fixed dormant entry performs zero role calls and
-  returns only `DORMANT_NO_EXTERNAL_ISSUER`.
+- The catalog retains exactly six fixed read-only preflight commands and one
+  Adapter per matching command/domain after V3 and execution-confirmation
+  validation.
+- Wrong binding, closure, attestation, command, action, prior head, sequence,
+  transition, remaining plan, reverse plan, acknowledgement, replay, or time
+  facts fail before Adapter selection in focused contract tests.
+- Production roots remain unconditionally `DORMANT_NO_ISSUE39_APPROVAL` before
+  TTY, candidate, confirmation, and Adapter access. There is no live unlock in
+  Issue #110.
 
-## R2 production binding V2 guards
+## R2 production binding V3 guards
 
-- The V2 binding package may import only the standard library and the pure
-  final-master closure package.
-- It must not contain private-key construction, signing, filesystem, database,
-  process, network, provider, mailbox, vault, or host capability.
+- The package may import only the standard library and the stable structural
+  final-master value from `backend.r2_solo_maintainer_closure`.
+- It must not contain key construction, signatures, envelopes, filesystem,
+  database, process, network, provider, mailbox, vault, or host capability.
 - Public signatures must not accept paths, shell commands, adapters, callbacks,
-  private keys, secrets, environment values, or arbitrary authority issuers.
-- A durable single-use authority claim must bind the exact prior journal head,
-  sequence, command/domain, operator/key roles, action nonce, and envelope
-  nonce; process-local claimed sets are forbidden.
+  keys, secrets, environment values, issuer objects, or arbitrary authority.
+- The V3 binding pins four domains, ten commands, eighteen production roles,
+  the final-master binding, and assurance counts `1/0/0`. Execution-confirmation
+  claims carry durable single-use journal facts; there are no V2 aliases.
 
 本文件定义项目的自定义静态检查规则。  
 它的目的不是替代单元测试，而是把容易被 Agent 忽略的工程边界变成可执行检查。
@@ -1173,27 +1166,23 @@ adapter, signer, issuer, path selector, or executable test binder.
 
 ## Issue #71 static process and authorization rules
 
-Static checks pin the dedicated preflight package, exact six-verb mapping,
-one-argument command signature, fixed acknowledgement and result fields, and
-the absence of an option parser, umbrella selector, arbitrary subprocess,
-shell, PowerShell, filesystem selector, environment authorization reader, or
-authorization-file reader. The executable root must not import the future
-evidence or transaction roots, and normal runtime, frontend, scripts, cleanup,
-scheduler, and workflows must not consume it.
+Static checks pin the dedicated preflight package, exact six-verb catalog, fixed
+result fields, and the absence of an option parser, umbrella selector,
+subprocess, shell, PowerShell, filesystem selector, environment authorization
+reader, or authorization-file reader. Its executable root remains physically
+isolated from the evidence and transaction roots, and normal runtime, frontend,
+scripts, cleanup, scheduler, and workflows must not consume it.
 
-The shared operator-envelope package may import only canonical helpers, pure
-cutover authorization contracts, base64, and the pinned Ed25519 public
-verifier. Static guards reject private-key imports, signing or key-generation
-calls, durable authorization storage, key files, issuer code, network/provider/
-mailbox/vault/private-store consumers, and dynamic loading. The preflight
-consumer is allowlisted explicitly in the cutover-contract architecture guard.
+The historical operator-envelope surface is removed. Static guards reject V1
+or V2 envelope, key, signature, issuer, compatibility, and fallback code. The
+V3 binding and execution-confirmation values are capability-free; a future
+Issue #39 allowlist is required before any production consumer may make them
+reachable.
 
-Focused tests pin wrong/extra argv rejection before TTY access, all three TTY
-checks before acknowledgement, exact acknowledgement before one bounded hidden
-read, canonical signature and domain validation, binding/lifetime drift,
-single-use replay, cross-domain rejection, fixed public fields, redirected
-stream rejection, and the unchanged pre-#39 lock. Only the win32-gated fresh
-console test may claim real TTY evidence; portable tests make no such claim.
+Focused tests pin unconditional `DORMANT_NO_ISSUE39_APPROVAL` before TTY,
+candidate, confirmation, Adapter, or callback access, fixed public fields, and
+redirected-stream irrelevance. Windows console tests exercise only dormant
+behavior; no Issue #110 test claims real execution authority.
 
 ## Issue #72 static evidence-process rules
 
@@ -1205,25 +1194,24 @@ option parsers, arbitrary subprocess or filesystem calls, environment/file
 authorization ingress, signing code, and any normal-runtime synthetic-binder
 consumer.
 
-Behavior tests require domain/type/operation agreement, confirmed-review
-agreement, expiry and replay rejection before capability acquisition,
-create-only one-shot publication, fixed public counts, redirected stream
-rejection, and the unchanged real lock. The only real-TTY and OS-process claim
-comes from the win32-gated fresh-console test; portable cases remain pure
-contract and injected-callback evidence.
+Behavior tests retain pure execution-confirmation domain/type/operation,
+closure, attestation, expiry, and replay contracts, but the production root
+returns `DORMANT_NO_ISSUE39_APPROVAL` before capability acquisition. Portable
+and Windows cases make no live publication or Issue #39 authority claim.
 
 ## Issue #73 static transaction-process rules
 
 Static guards pin the exact third package and its `execute`, `resume`, and
-`rollback` verbs, reject all path/Profile/journal/recovery-target/force/shell/
-PowerShell/Git inputs, and prove no preflight/evidence root import or normal
-synthetic-binder consumer exists. The signed context must name approved
-binding, owner, current head, remaining plan, boundary epoch, and crash nonce.
+`rollback` catalog verbs, reject all path/Profile/journal/recovery-target/
+force/shell/PowerShell/Git inputs, and prove no preflight/evidence root import
+or normal synthetic-binder consumer exists. The pure dormant confirmation
+schema names the V3 binding, closure, attestation, current head, next sequence,
+remaining plan, transition, reverse plan, and one action nonce.
 
-Behavior tests cover execution/recovery domain separation, wrong phase,
-head/plan/clock drift, expiry, envelope replay, crash-nonce reuse, exactly one
-action acquisition, fixed public counts, redirected streams, fresh-console
-process execution, and the unchanged pre-#39 real lock.
+Behavior tests cover structural execution/recovery domain separation and
+replay/fingerprint blocks without invoking an Adapter. Production behavior is
+exactly `DORMANT_NO_ISSUE39_APPROVAL`; no fresh-console case executes a host
+action in Issue #110.
 
 ## Issue #74 static main-publication rules
 
@@ -1369,27 +1357,30 @@ module/function bounds continue to apply.
 
 ## 14. 修改规则
 
-## R2 final-master closure guards
+## R2 Solo Maintainer Closure guards
 
-Static and architecture checks must keep
-`backend/r2_final_master_closure/` pure and content-free. Its public export set
-must be explicit; absolute imports are limited to standard-library immutable
-value, enum, canonical JSON, and SHA-256 helpers. The package must not import or
-reference cutover authority issuers/types, host/process/filesystem/network/Git
-adapters, provider, mailbox, vault, credential, private data, SQLite, frontend,
-workflow mutation, GitHub issue creation, cleanup, or deletion capability.
+Static and architecture checks must pin the exact nine-file
+`backend/r2_solo_maintainer_closure/` inventory, explicit `__all__`, controlled
+imports, and capability split. Canonical contracts remain pure; `repository.py`
+alone uses fixed read-only Git/GitHub acquisition, private `local_evidence.py`
+alone reruns frozen-tree-bound status/maintenance/leakage observations, and
+`storage.py` alone publishes the two code-fixed create-only files.
+No module may gain provider, mailbox, vault, private-data, credential, signer,
+private-key, cleanup, deletion, overwrite, Issue #38 approval, ruleset mutation,
+or Issue #39 execution capability.
 
-Mechanical checks pin exactly eight dependency-ordered gap registrations,
-exactly fourteen gate kinds, and the closed eight-value finding taxonomy. The
-terminal receipt must bind the exact final commit/tree, closure map, source
-package, runbook, workflow family, eight gap proofs, and fourteen same-binding
-gate receipts. It must reject missing, duplicate, unknown, reordered, stale,
-mixed, self-certified, skipped, leaking, cleanup-capable, provider-active,
-real-host-active, or #39-code-changing evidence.
+Mechanical checks pin five hosted checks, fourteen evidence kinds, eight
+dependency-ordered gap proofs, the exact guardrail snapshot, and the manifest
+and attestation schemas. All records must bind one commit, tree, source package,
+runbook, workflow family, guardrail fingerprint, and V3 production binding.
+Missing, duplicate, unknown, reordered, stale, mixed, skipped, leaking,
+provider-active, host-active, approval-bearing, execution-bearing, or legacy V1
+evidence fails closed.
 
-Closure binding, proof, gate, and terminal receipt types must remain disjoint
-from `REAL_AUTHORIZATION_TYPES`; static guards reject any receipt-to-authority,
-receipt-to-command, receipt-to-ticket, or receipt-to-host-effect conversion.
+The protected verifier must retain its fixed no-argument raw-Git trust chain.
+It validates only the same new manifest and attestation files, rejects every
+legacy V1 external/signature surface, and never converts evidence into an
+authority, command, ticket, ruleset change, host effect, or cleanup action.
 
 如果新增或修改 linter 规则，必须同步更新：
 
@@ -1411,15 +1402,16 @@ docs/constraints/architecture_constraints.md
   executable production path.
 - Production modules must not import a synthetic context, `testing.py`, a test
   binder, an issuer, or a private signing key.
-- Default fixed-verb entry returns `DORMANT_NO_EXTERNAL_ISSUER`. The only live
-  reachability seam is the exact nominal `bootstrap_v2.py` object injected by
-  the process launcher; it must hold the reviewed binding, exact frozen-review
-  receipt, binding-bound public roles, same-binding claims, and journal
-  identities, and must reject every testing-only synthetic bound role.
-- A valid V2 authority is verified before exactly one bound composition role;
-  no CLI/path/environment/bootstrap mapping may construct or select a role.
-  `main()` accepts no terminal or clock injection and uses only its exact
-  `SystemTerminal` plus module-owned system clock.
+- Default fixed-verb entry returns `DORMANT_NO_ISSUE39_APPROVAL` before any TTY
+  read, candidate construction, acknowledgement parsing, Adapter lookup, or
+  Adapter verification/invocation. No CLI argument, path, environment value,
+  artifact, acknowledgement, bootstrap mapping, or synthetic marker can unlock
+  this state.
+- `ApprovedCutoverBindingV3` and the execution-confirmation contracts remain
+  dormant primitives outside the production process graph. A future Issue #39
+  code allowlist and separate authorization are required before any live path
+  may validate a confirmation and invoke exactly one Adapter. `main()` accepts
+  no terminal or clock injection.
 - Production role fingerprints must bind normalized top-level function code,
   defaults, keyword defaults, function state, recursively referenced globals and
   builtins, and exact command-parameter type surfaces. Closed semantic frames
@@ -1449,65 +1441,46 @@ docs/constraints/architecture_constraints.md
 - Every process must verify authority, reverify the Adapter, invoke it, validate
   its underlying outcome, and only then invoke and validate the completion
   helper. A failure at any step must remain content-free and fail closed.
-- Candidate construction accepts only exact final-master binding and four
-  verification public keys. Path, environment, private-key, signer, issuer,
-  credential, host, provider, vault, and artifact capabilities are forbidden.
+- Candidate construction accepts only the exact final-master binding and the
+  closed V3 structural facts. It accepts no verification key, signature,
+  envelope, path, environment, private-key, signer, issuer, credential, host,
+  provider, vault, artifact, or arbitrary identity capability.
 - Production bootstraps must reject the test-only synthetic marker. Production
   modules must not import their local `testing.py` modules.
 
-## Issue #105 public issuance guards
+## Issue #110 Solo Maintainer Closure and execution-confirmation guards
 
-- `backend/r2_external_artifacts_v1/` contains exactly `__init__.py`,
-  `review_inputs.py`, `derivation.py`, `unsigned_package.py`, and `installer.py`;
-  every file remains within 300 lines and every function within 50 lines.
-- Its public surface is limited to nominal review/package/result values plus
-  `prepare_unsigned_external_artifacts_v1` and
-  `install_signed_external_artifacts_v1`. Neither operation accepts a path,
-  root, destination, filename, key file, private key, arbitrary evidence
-  fingerprint, or production-role fingerprint.
-- Source guards reject private-key types, signing or key-generation calls,
-  replace/delete/cleanup capability, private-volume and clipboard references,
-  arbitrary credentials, and normal-runtime consumers. The installer must use
-  `R2GlobalGateEvidenceV1.from_signed_json`,
-  `R2GlobalGateCoordinatorV1.create`, and a native no-replace directory commit.
-- Only `scripts/prepare_r2_external_artifacts.py` may allocate or materialize a
-  frozen master. The backend installer may perform only the code-fixed read-only
-  fresh-master/common-directory commit guard, with no command or repository
-  input. Its Windows commit must use `OpenFileById` plus
-  `FILE_FLAG_OPEN_REQUIRING_OPLOCK` plus `FILE_FLAG_OPEN_REPARSE_POINT`: one RWH
-  `FSCTL_REQUEST_OPLOCK` for every exact child and one Read oplock on a preopened
-  exact staging-directory handle. Each requiring-oplock open must be followed
-  immediately by its `FSCTL_REQUEST_OPLOCK` before any other filesystem
-  operation on that opened object; the pending input, output, `OVERLAPPED`,
-  event, and handle must all remain alive.
-  The directory handle must deny delete sharing and its `FileIdInfo`
-  volume/file ID must equal the before-and-after path identity at open, commit,
-  rename, and target validation.
-  After all oplocks are pending it must use `SetKernelObjectSecurity` through
-  the sixteen bound handles to install a protected read/execute-only DACL. It
-  must validate child identities, `FileStandardInfo` `NumberOfLinks == 1`, and
-  bytes after lockdown; bounded
-  `FileStreamInfo` queries must prove each child has only its default
-  `::$DATA` stream and the directory has no stream. It must enumerate exact
-  name-plus-file-ID entries with `GetFileInformationByHandleEx` through the
-  directory handle without reopening child paths after the directory oplock,
-  require all sixteen guards to remain quiet at commit, and retain them while
-  the calling thread synchronously performs the same preauthorized
-  directory-handle `SetFileInformationByHandle` rename and validates the exact
-  target. Late ordinary write, replace, unlink, and namespace-insertion attempts
-  that require fresh access must be denied by the persistent DACL. It must never use a path-only or
-  background-thread rename, a controller, or a one-child-at-a-time guard
-  release. Pending oplock I/O must be cancelled and synchronously reaped before
-  its `OVERLAPPED`/output structures or handles are released. Read-path
-  `CancelIoEx` is allowed only to bound the same-handle guarded read.
-- Documentation must state that the DACL is not an immutability boundary against
-  the file owner, an administrator, a privileged process, an ownership/ACL
-  change, or a deliberately pre-positioned foreign write-capable handle. Those
-  are external tamper and verifier incident-stop conditions, not installer
-  success guarantees; the tool exposes no arbitrary ACL-reset surface.
-- The script's exact verbs are `prepare` and `install`; it has no argparse,
-  repository, destination, key-file, or private-key option.
-- Static documentation guards require the two-phase public-only boundary,
-  exact fifteen-file layout, retained failed staging state, unchanged protected
-  verifier, `AWAITING_SINGLE_HUMAN_FINAL_REVIEW` stop, separate Issue #38 human
-  review, and unchanged Issue #39 boundary.
+- `scripts/close_r2_final_master.py` exposes exactly `prepare` and `confirm`.
+  `prepare` performs no TTY read and no write. `confirm` is Windows-only and
+  requires real stdin/stdout/stderr consoles, stable `GetConsoleMode` handles,
+  the exact manifest fingerprint, and the exact acknowledgement, each shown or
+  read once within the half-open 300-second wall/monotonic window.
+- The CLI has no repository, destination, endpoint, credential, key, signer,
+  issuer, clipboard, cleanup, or arbitrary filename option. It must not claim
+  to prevent operating-system paste or terminal capture. It has no clipboard API.
+- Publication is limited to the exact manifest and attestation filenames under
+  `<git-common-dir>/r2-solo-maintainer-closure-v1/`. Staging and final creation
+  are no-replace and all-or-nothing; a collision or failure retains the stage
+  and never overwrites, deletes, or cleans up an existing object.
+- Static guards pin the final stable parent/child/DACL/oplock observation and
+  immediately following exact-target no-replace rename as the publication
+  linearization boundary. No guard may claim atomic arbitrary-sibling exclusion
+  against an uncooperative writer. A legacy or other-stage sibling created
+  strictly after that linearization is a
+  subsequent incident rejected by the verifier.
+  No Git-common DACL mutation, kernel filter, or volume lock is authorized.
+- `ApprovedCutoverBindingV3` removes all signature/key/envelope semantics while
+  preserving exact command, domain, production-role, Adapter, final-master, and
+  assurance facts. `ExecutionConfirmationV1` binds the exact closure manifest,
+  solo attestation, command/action, prior journal head and sequence, transition,
+  remaining/reverse plan, same-real-TTY acknowledgement, and a 300-second
+  validity window. Append is create-only, attempt consumes it, and replay fails.
+- The old final-master closure, global-gate, external-artifact, signature,
+  envelope, dormant-context, and process-entry surfaces must be recursively
+  absent. No compatibility export, dual parser, fallback, or OR trust path is
+  permitted.
+- Static documentation guards preserve the separate approval boundaries:
+  closure evidence does not approve Issue #38, create or approve a ruleset,
+  authorize or execute Issue #39, mutate a host, access provider/mailbox/vault
+  data, or perform cleanup. The future ruleset and future Issue #39 code path
+  each require a separate GitHub-state approval.

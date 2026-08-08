@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from backend.r2_production_binding import ApprovedCutoverBindingV2
+from backend.r2_production_binding import ApprovedCutoverBindingV3
 
 from ._canonical import canonical_json, fingerprint, is_fingerprint, strict_json_object
 from .errors import JournalV2Error
@@ -99,7 +99,7 @@ class R2ReadOnlyInspectionReceiptV2:
             first = R2StateObservationV2.from_json(canonical_json(source["first_observation"]))
             second = R2StateObservationV2.from_json(canonical_json(source["second_observation"]))
             value = inspect_pending_transition_v2(journal=journal, first_observation=first, second_observation=second)
-            if type(binding) is not ApprovedCutoverBindingV2 or binding.binding_fingerprint != value.binding_fingerprint or canonical_json(source) != payload or source != value.to_mapping():
+            if type(binding) is not ApprovedCutoverBindingV3 or binding.binding_fingerprint != value.binding_fingerprint or canonical_json(source) != payload or source != value.to_mapping():
                 raise JournalV2Error()
             return value
         except JournalV2Error:
@@ -160,9 +160,12 @@ def inspect_pending_transition_v2(*, journal: object, first_observation: object,
 
 def _classify(observation, intent):
     if observation.pre_state_match and not observation.post_state_match and observation.observed_state_fingerprint == intent.pre_state_fingerprint:
-        return EffectClassificationV2.EFFECT_ABSENT_EXACT, "RE" + "TRY_WITH_FRESH_AUTHORITY"
+        return (
+            EffectClassificationV2.EFFECT_ABSENT_EXACT,
+            "RE" + "TRY_WITH_FRESH_EXECUTION_CONFIRMATION",
+        )
     if observation.post_state_match and not observation.pre_state_match and observation.observed_state_fingerprint == intent.post_state_fingerprint:
-        return EffectClassificationV2.EFFECT_PRESENT_EXACT, "COMMIT_WITH_FRESH_AUTHORITY"
+        return EffectClassificationV2.EFFECT_PRESENT_EXACT, "COMMIT_WITH_FRESH_EXECUTION_CONFIRMATION"
     if not observation.pre_state_match and not observation.post_state_match and observation.observed_state_fingerprint not in {intent.pre_state_fingerprint, intent.post_state_fingerprint}:
         return EffectClassificationV2.EFFECT_AMBIGUOUS, "INCIDENT_STOP"
     raise JournalV2Error()

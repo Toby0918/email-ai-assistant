@@ -20,11 +20,10 @@ from backend.cutover_composition_contracts.authorization_sequence import (
     _create_test_authorization_sequence,
 )
 from backend.cutover_contracts import CutoverProfileV1, TestSandboxAuthorizationV1
-from backend.r2_final_master_closure import FinalMasterBindingV1
+from backend.r2_solo_maintainer_closure import FinalMasterBindingV1
 from backend.r2_production_binding import (
-    DurableAuthorityClaimV2,
+    ProductionBindingError,
     ProductionCommandV2,
-    PublicKeyRoleV2,
     production_action_fingerprint_v2,
 )
 from backend.r2_production_binding._canonical import fingerprint
@@ -46,6 +45,11 @@ from tests.cutover_composition_binders import (
 )
 from tests.cutover_composition_fixtures import JOURNAL_OWNER, stage_receipt
 from tests.cutover_contract_fixtures import valid_profile_body
+from tests.r2_execution_confirmation_fixture import (
+    appended_execution_claim,
+    execution_candidate,
+    execution_claim,
+)
 
 
 class R2ProductionCompositionV1Tests(unittest.TestCase):
@@ -94,25 +98,36 @@ class R2ProductionCompositionV1Tests(unittest.TestCase):
         self.assertIs(outcome.stage, CompositionStage.CURRENT_TOPOLOGY)
         self.assertEqual(outcome.read_operations, 1)
         self.assertEqual(outcome.provider_attempts, 0)
+        with self.assertRaises(ProductionBindingError):
+            adapter.invoke(binding=binding, claim=claim)
+
+    def test_confirmed_claim_without_journal_append_cannot_reach_adapter(self):
+        binding, composition, scope = _preflight_context()
+        self.addCleanup(scope.close)
+        candidate = execution_candidate(
+            binding,
+            command=ProductionCommandV2.CURRENT_TOPOLOGY_PREFLIGHT,
+        )
+        claim = execution_claim(binding, candidate=candidate)
+        adapter = PreflightProductionAdapterV1.create(
+            binding=binding,
+            composition=composition,
+            evidence_publication_receipt=None,
+            recovery_receipt=None,
+        )
+
+        with self.assertRaises(ProductionBindingError):
+            adapter.invoke(binding=binding, claim=claim)
 
     def test_transaction_adapter_returns_validated_terminal_chain_outcome(self):
-        binding, composition, initial, scope = _transaction_context()
+        binding, composition, _initial, scope = _transaction_context()
         self.addCleanup(scope.close)
         transition = "5" * 64
         plan = "0" * 64
         command = ProductionCommandV2.EXECUTE
-        action = _transaction_action_fingerprint(
-            binding,
-            command,
-            journal_head_fingerprint=initial.journal_head_fingerprint,
-            transition_instance_fingerprint=transition,
-            remaining_reverse_plan_fingerprint=plan,
-        )
         claim = _claim(
             binding,
             command,
-            action_fingerprint=action,
-            prior_head=initial.journal_head_fingerprint,
             journal_owner=JOURNAL_OWNER,
         )
         adapter = TransactionProductionAdapterV1.create(
@@ -123,7 +138,7 @@ class R2ProductionCompositionV1Tests(unittest.TestCase):
         outcome = adapter.invoke(
             binding=binding,
             claim=claim,
-            journal_head_fingerprint=initial.journal_head_fingerprint,
+            journal_head_fingerprint=claim.prior_journal_head_fingerprint,
             transition_instance_fingerprint=transition,
             remaining_reverse_plan_fingerprint=plan,
         )
@@ -133,6 +148,39 @@ class R2ProductionCompositionV1Tests(unittest.TestCase):
         self.assertEqual(outcome.transition_instance_fingerprint, transition)
         self.assertEqual(outcome.remaining_reverse_plan_fingerprint, plan)
         self.assertNotEqual(outcome.chain_fingerprint, "")
+
+    def test_failed_adapter_attempt_still_consumes_confirmation(self):
+        binding, composition, _initial, scope = _transaction_context()
+        self.addCleanup(scope.close)
+        transition = "5" * 64
+        plan = "0" * 64
+        command = ProductionCommandV2.EXECUTE
+        claim = _claim(
+            binding,
+            command,
+            journal_owner=JOURNAL_OWNER,
+        )
+        adapter = TransactionProductionAdapterV1.create(
+            binding=binding,
+            composition=composition,
+        )
+
+        with self.assertRaises(ProductionBindingError):
+            adapter.invoke(
+                binding=binding,
+                claim=claim,
+                journal_head_fingerprint="f" * 64,
+                transition_instance_fingerprint=transition,
+                remaining_reverse_plan_fingerprint=plan,
+            )
+        with self.assertRaises(ProductionBindingError):
+            adapter.invoke(
+                binding=binding,
+                claim=claim,
+                journal_head_fingerprint=claim.prior_journal_head_fingerprint,
+                transition_instance_fingerprint=transition,
+                remaining_reverse_plan_fingerprint=plan,
+            )
 
     def test_evidence_adapter_returns_validated_publication_outcome(self):
         binding, composition, review, scope = _evidence_context()
@@ -175,17 +223,14 @@ def _preflight_context():
         runbook_fingerprint="d" * 64,
         workflow_fingerprint="e" * 64,
     )
-    keys = {
-        role: bytes([index + 17]) * 32
-        for index, role in enumerate(PublicKeyRoleV2)
-    }
     binding = build_production_binding_candidate_v1(
         final_master_binding=final_master,
-        verification_public_keys=keys,
     )
     profile_body = valid_profile_body()
     profile_body["governing_master_commit"] = _FINAL_COMMIT
-    profile_body["operator_fingerprint"] = operator_subject_fingerprint_v1(keys)
+    profile_body["operator_fingerprint"] = operator_subject_fingerprint_v1(
+        final_master
+    )
     profile = CutoverProfileV1.create(profile_body)
     authorizations = tuple(
         TestSandboxAuthorizationV1.create(
@@ -241,26 +286,27 @@ def _claim(
     command,
     *,
     subject_fingerprint=None,
-    action_fingerprint=None,
-    prior_head="4" * 64,
     journal_owner="3" * 64,
 ):
-    action = action_fingerprint or production_action_fingerprint_v2(
-        binding, command, subject_fingerprint=subject_fingerprint
-    )
-    return DurableAuthorityClaimV2.create(
-        binding=binding,
+    action_factory = None
+    if command in {
+        ProductionCommandV2.EXECUTE,
+        ProductionCommandV2.RESUME,
+        ProductionCommandV2.ROLLBACK,
+    }:
+        action_factory = lambda head: _transaction_action_fingerprint(
+            binding,
+            command,
+            journal_head_fingerprint=head,
+            transition_instance_fingerprint="5" * 64,
+            remaining_reverse_plan_fingerprint="0" * 64,
+        )
+    return appended_execution_claim(
+        binding,
         command=command,
-        action_fingerprint=action,
-        authority_fingerprint="1" * 64,
-        envelope_nonce="2" * 64,
-        journal_owner_fingerprint=journal_owner,
-        prior_journal_head_fingerprint=prior_head,
-        claim_sequence=1,
-        issued_at_epoch=100,
-        not_before_epoch=101,
-        expires_at_epoch=200,
-        claimed_at_epoch=102,
+        subject_fingerprint=subject_fingerprint,
+        action_factory=action_factory,
+        journal_owner=journal_owner,
     )
 
 
@@ -272,17 +318,14 @@ def _evidence_context():
         runbook_fingerprint="d" * 64,
         workflow_fingerprint="e" * 64,
     )
-    keys = {
-        role: bytes([index + 17]) * 32
-        for index, role in enumerate(PublicKeyRoleV2)
-    }
     binding = build_production_binding_candidate_v1(
         final_master_binding=final_master,
-        verification_public_keys=keys,
     )
     profile_body = valid_profile_body()
     profile_body["governing_master_commit"] = _FINAL_COMMIT
-    profile_body["operator_fingerprint"] = operator_subject_fingerprint_v1(keys)
+    profile_body["operator_fingerprint"] = operator_subject_fingerprint_v1(
+        final_master
+    )
     profile = CutoverProfileV1.create(profile_body)
     authorizations = tuple(
         TestSandboxAuthorizationV1.create(
@@ -430,17 +473,12 @@ def _candidate_composition_binding():
         runbook_fingerprint="d" * 64,
         workflow_fingerprint="e" * 64,
     )
-    keys = {
-        role: bytes([index + 17]) * 32
-        for index, role in enumerate(PublicKeyRoleV2)
-    }
     binding = build_production_binding_candidate_v1(
         final_master_binding=final_master,
-        verification_public_keys=keys,
     )
     body = valid_profile_body()
     body["governing_master_commit"] = _FINAL_COMMIT
-    body["operator_fingerprint"] = operator_subject_fingerprint_v1(keys)
+    body["operator_fingerprint"] = operator_subject_fingerprint_v1(final_master)
     profile = CutoverProfileV1.create(body)
     authorizations = tuple(
         TestSandboxAuthorizationV1.create(
