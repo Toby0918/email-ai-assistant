@@ -1,6 +1,6 @@
-"""Internal construction and validation for the reviewed V2 binding body."""
+"""Internal construction and validation for the V3 binding body."""
 
-from backend.r2_final_master_closure import FinalMasterBindingV1
+from backend.r2_solo_maintainer_closure.contracts import FinalMasterBindingV1
 
 from ._canonical import fingerprint, fingerprint_entries, is_fingerprint
 from .errors import ProductionBindingError
@@ -8,18 +8,22 @@ from .vocabulary import (
     OperatorRoleV2,
     ProductionCommandV2,
     ProductionRoleV2,
-    PublicKeyRoleV2,
     authority_domain_for_command_v2,
 )
 
 
-def build_binding_body(final_master, operation, operators, keys, roles):
-    _validate_inputs(final_master, operation, operators, keys, roles)
-    operator_body, command_body, key_body, role_body = _registry_bodies(
-        operators, keys, roles
-    )
+CONFIRMATION_POLICY = "SOLE_MAINTAINER_FRESH_TTY_CONFIRMATION_V1"
+CONFIRMATION_ACKNOWLEDGEMENT = (
+    "CONFIRM_R2_ISSUE39_EXECUTION_V1_NOT_CLOSURE_ATTESTATION"
+)
+CONFIRMATION_WINDOW_SECONDS = 300
+
+
+def build_binding_body(final_master, operation, operators, roles):
+    _validate_inputs(final_master, operation, operators, roles)
+    operator_body, command_body, role_body = _registry_bodies(operators, roles)
     return {
-        "binding_type": "ApprovedCutoverBindingV2",
+        "binding_type": "ApprovedCutoverBindingV3",
         "final_master_binding_fingerprint": final_master.binding_fingerprint,
         "final_commit_oid": final_master.final_commit_oid,
         "final_tree_oid": final_master.final_tree_oid,
@@ -27,76 +31,85 @@ def build_binding_body(final_master, operation, operators, keys, roles):
         "source_package_fingerprint": final_master.source_package_fingerprint,
         "runbook_fingerprint": final_master.runbook_fingerprint,
         "workflow_fingerprint": final_master.workflow_fingerprint,
-        "operation": "r2_project_container_cutover",
         "operation_fingerprint": operation,
         "operator_role_registry_fingerprint": fingerprint(
-            "r2-operator-role-registry-v2", operator_body
+            "r2-operator-role-registry-v3", operator_body
         ),
         "command_domain_registry_fingerprint": fingerprint(
-            "r2-command-domain-registry-v2", command_body
-        ),
-        "public_key_registry_fingerprint": fingerprint(
-            "r2-public-key-registry-v2", key_body
+            "r2-command-domain-registry-v3", command_body
         ),
         "production_role_registry_fingerprint": fingerprint(
-            "r2-production-role-registry-v2", role_body
+            "r2-production-role-registry-v3", role_body
         ),
-        "authority_domain_count": 4,
-        "preflight_verb_count": 6,
-        "process_root_count": 3,
-        "local_ref_count": 14,
-        "worktree_count": 11,
-        "managed_unit_count": 4,
-        "max_authority_validity_seconds": 300,
+        "execution_confirmation_policy": CONFIRMATION_POLICY,
+        "execution_confirmation_policy_fingerprint": _policy_fingerprint(),
+        "operator_role_count": 4,
+        "command_count": 10,
+        "command_domain_count": 4,
+        "production_role_count": 18,
+        "max_execution_confirmation_validity_seconds": 300,
         "operator_role_fingerprints": operator_body,
         "command_domains": command_body,
-        "verification_public_keys": key_body,
         "production_role_fingerprints": role_body,
+        "assurance_model": "SOLE_MAINTAINER_SELF_REVIEW",
+        "operator_count": 1,
+        "independent_reviewer_count": 0,
+        "external_signer_count": 0,
+        "issue39_authority_count": 0,
     }
 
 
-def _registry_bodies(operators, keys, roles):
+def _registry_bodies(operators, roles):
     operator_values = tuple((role, operators[role]) for role in OperatorRoleV2)
-    key_values = tuple((role, keys[role]) for role in PublicKeyRoleV2)
     role_values = tuple((role, roles[role]) for role in ProductionRoleV2)
-    commands = tuple(
-        (command, authority_domain_for_command_v2(command))
-        for command in ProductionCommandV2
-    )
-    operator_body = fingerprint_entries(operator_values)
     command_body = [
-        {"command": command.value, "domain": domain.value}
-        for command, domain in commands
+        {
+            "command": command.value,
+            "domain": authority_domain_for_command_v2(command).value,
+        }
+        for command in ProductionCommandV2
     ]
-    key_body = [
-        {"role": role.value, "public_key_hex": key.hex()}
-        for role, key in key_values
-    ]
-    return operator_body, command_body, key_body, fingerprint_entries(role_values)
+    return (
+        fingerprint_entries(operator_values),
+        command_body,
+        fingerprint_entries(role_values),
+    )
 
 
-def _validate_inputs(final_master, operation, operators, keys, roles) -> None:
+def _policy_fingerprint():
+    return fingerprint(
+        "r2-execution-confirmation-policy-v1",
+        {
+            "confirmation_policy": CONFIRMATION_POLICY,
+            "confirmation_acknowledgement": CONFIRMATION_ACKNOWLEDGEMENT,
+            "confirmation_window_seconds": CONFIRMATION_WINDOW_SECONDS,
+            "single_use": 1,
+            "assurance_model": "SOLE_MAINTAINER_SELF_REVIEW",
+            "operator_count": 1,
+            "independent_reviewer_count": 0,
+            "external_signer_count": 0,
+            "issue39_authority_count": 0,
+        },
+    )
+
+
+def _validate_inputs(final_master, operation, operators, roles):
     if (
         type(final_master) is not FinalMasterBindingV1
         or not is_fingerprint(operation)
         or not _exact_enum_mapping(operators, OperatorRoleV2)
-        or not _exact_enum_mapping(keys, PublicKeyRoleV2)
         or not _exact_enum_mapping(roles, ProductionRoleV2)
     ):
         raise ProductionBindingError()
-    fingerprints = (*operators.values(), *roles.values())
-    public_keys = tuple(keys.values())
+    values = (*operators.values(), *roles.values())
     if (
-        not all(is_fingerprint(value) for value in fingerprints)
-        or len(set(fingerprints)) != len(fingerprints)
-        or any(type(value) is not bytes or len(value) != 32 for value in public_keys)
-        or any(value == bytes(32) for value in public_keys)
-        or len(set(public_keys)) != len(public_keys)
+        not all(is_fingerprint(value) for value in values)
+        or len(set(values)) != len(values)
     ):
         raise ProductionBindingError()
 
 
-def _exact_enum_mapping(value, enum_type) -> bool:
+def _exact_enum_mapping(value, enum_type):
     return (
         type(value) is dict
         and set(value) == set(enum_type)

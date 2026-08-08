@@ -1,4 +1,4 @@
-"""Dedicated fixed-verb evidence-publication process."""
+"""Physically isolated, unconditionally dormant evidence process."""
 
 from .contracts import (
     EVIDENCE_ACKNOWLEDGEMENT,
@@ -7,18 +7,21 @@ from .contracts import (
     EvidenceProcessStatus,
 )
 from .production_v2 import (
+    EVIDENCE_PRODUCTION_VERBS_V2,
+    EvidenceProductionResultV2,
     EvidenceProductionStatusV2,
     dormant_evidence_production_v2,
     run_evidence_production_v2,
 )
-from .bootstrap_v2 import EvidenceProductionBootstrapV2
+
 
 __all__ = [
     "EVIDENCE_ACKNOWLEDGEMENT",
+    "EVIDENCE_PRODUCTION_VERBS_V2",
     "EVIDENCE_VERBS",
     "EvidenceProcessResult",
     "EvidenceProcessStatus",
-    "EvidenceProductionBootstrapV2",
+    "EvidenceProductionResultV2",
     "EvidenceProductionStatusV2",
     "dormant_evidence_production_v2",
     "run_evidence_production_v2",

@@ -1,10 +1,10 @@
-"""Internal content-free fingerprints for the V2 transaction dispatcher."""
+"""Pure fingerprints retained for latent V3 transaction contracts."""
 
 import hashlib
 import json
 
 from backend.r2_production_binding import (
-    ApprovedCutoverBindingV2,
+    ApprovedCutoverBindingV3,
     ProductionCommandV2,
     production_action_fingerprint_v2,
 )
@@ -45,26 +45,17 @@ def transaction_action_fingerprint_v2(
     transition_instance_fingerprint,
     remaining_reverse_plan_fingerprint,
 ):
+    values = (
+        journal_head_fingerprint,
+        transition_instance_fingerprint,
+        remaining_reverse_plan_fingerprint,
+    )
     if (
-        type(binding) is not ApprovedCutoverBindingV2
+        type(binding) is not ApprovedCutoverBindingV3
         or type(command) is not ProductionCommandV2
         or command not in _TRANSACTION_COMMANDS
-        or not all(
-            is_fingerprint(value)
-            for value in (
-                journal_head_fingerprint,
-                transition_instance_fingerprint,
-                remaining_reverse_plan_fingerprint,
-            )
-        )
-        or (
-            command is ProductionCommandV2.ROLLBACK
-            and remaining_reverse_plan_fingerprint == UNBOUND_REVERSE_PLAN_V2
-        )
-        or (
-            command is not ProductionCommandV2.ROLLBACK
-            and remaining_reverse_plan_fingerprint != UNBOUND_REVERSE_PLAN_V2
-        )
+        or not all(is_fingerprint(value) for value in values)
+        or not _valid_reverse_plan(command, remaining_reverse_plan_fingerprint)
     ):
         raise ValueError("R2_TRANSACTION_ACTION_BINDING_INVALID")
     subject = fingerprint(
@@ -72,7 +63,9 @@ def transaction_action_fingerprint_v2(
         {
             "journal_head_fingerprint": journal_head_fingerprint,
             "transition_instance_fingerprint": transition_instance_fingerprint,
-            "remaining_reverse_plan_fingerprint": remaining_reverse_plan_fingerprint,
+            "remaining_reverse_plan_fingerprint": (
+                remaining_reverse_plan_fingerprint
+            ),
         },
     )
     return production_action_fingerprint_v2(
@@ -80,3 +73,9 @@ def transaction_action_fingerprint_v2(
         command,
         subject_fingerprint=subject,
     )
+
+
+def _valid_reverse_plan(command, plan):
+    if command is ProductionCommandV2.ROLLBACK:
+        return plan != UNBOUND_REVERSE_PLAN_V2
+    return plan == UNBOUND_REVERSE_PLAN_V2

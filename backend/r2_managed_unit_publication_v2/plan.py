@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 from backend.r2_foundation_publication_v2 import R2FoundationPlanV2
-from backend.r2_production_binding import ApprovedCutoverBindingV2, ProductionRoleV2
+from backend.r2_production_binding import ApprovedCutoverBindingV3, ProductionRoleV2
 from backend.r2_transaction_journal_v2 import R2TransactionJournalV2
 from backend.r2_transaction_journal_v2._canonical import (
     canonical_json,
@@ -71,7 +71,7 @@ class R2ManagedUnitPlanV2:
     unit_count: int
     transitions: tuple[R2ManagedUnitTransitionV2, ...] = field(repr=False)
     plan_fingerprint: str = field(repr=False)
-    _binding: ApprovedCutoverBindingV2 = field(repr=False)
+    _binding: ApprovedCutoverBindingV3 = field(repr=False)
     _foundation_plan: R2FoundationPlanV2 = field(repr=False)
 
     def __init__(self, *args: object, **kwargs: object) -> None:
@@ -85,7 +85,7 @@ class R2ManagedUnitPlanV2:
                 "database_states", "crx_states", "config_states",
             }
             binding, foundation = values.get("binding"), values.get("foundation_plan")
-            if set(values) != expected or type(binding) is not ApprovedCutoverBindingV2 or type(foundation) is not R2FoundationPlanV2 or foundation.binding_fingerprint != binding.binding_fingerprint:
+            if set(values) != expected or type(binding) is not ApprovedCutoverBindingV3 or type(foundation) is not R2FoundationPlanV2 or foundation.binding_fingerprint != binding.binding_fingerprint:
                 raise ManagedUnitPublicationError()
             pairs = tuple(
                 pair
@@ -158,7 +158,7 @@ class R2ManagedUnitPlanV2:
 
 
 def _build_plan(binding, foundation, pairs):
-    if type(binding) is not ApprovedCutoverBindingV2 or type(foundation) is not R2FoundationPlanV2 or len(pairs) != 8 or any(not _valid_pair(pair) for pair in pairs):
+    if type(binding) is not ApprovedCutoverBindingV3 or type(foundation) is not R2FoundationPlanV2 or len(pairs) != 8 or any(not _valid_pair(pair) for pair in pairs):
         raise ManagedUnitPublicationError()
     definitions = tuple((unit, phase, _OWNERS[unit]) for unit in ManagedUnitV2 for phase in ManagedUnitPhaseV2)
     predecessor = foundation.transitions[-1].transition_instance_fingerprint

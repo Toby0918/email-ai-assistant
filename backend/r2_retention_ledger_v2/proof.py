@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from backend.r2_production_binding import ApprovedCutoverBindingV2
+from backend.r2_production_binding import ApprovedCutoverBindingV3
 from backend.r2_transaction_journal_v2 import R2TransactionJournalV2
 from backend.r2_transaction_journal_v2._canonical import canonical_json, fingerprint, strict_json_object
 
@@ -64,7 +64,7 @@ class R2RetentionProofV2:
 
 def _require(binding, ledger, journal):
     zero_fields = ("untracked_artifact_count", "deletion_capability_count", "overwrite_capability_count", "prune_capability_count", "automatic_expiry_capability_count", "private_payload_field_count")
-    if type(binding) is not ApprovedCutoverBindingV2 or type(ledger) is not R2RetentionLedgerV2 or type(journal) is not R2TransactionJournalV2 or ledger.binding_fingerprint != binding.binding_fingerprint or ledger.journal_head_fingerprint != journal.current_head_fingerprint or ledger.journal_record_count != journal.record_count or ledger.entry_count != len(ledger.entries) or sum(ledger.kind_counts.values()) != ledger.entry_count:
+    if type(binding) is not ApprovedCutoverBindingV3 or type(ledger) is not R2RetentionLedgerV2 or type(journal) is not R2TransactionJournalV2 or ledger.binding_fingerprint != binding.binding_fingerprint or ledger.journal_head_fingerprint != journal.current_head_fingerprint or ledger.journal_record_count != journal.record_count or ledger.entry_count != len(ledger.entries) or sum(ledger.kind_counts.values()) != ledger.entry_count:
         raise RetentionLedgerError()
     if any(getattr(ledger, name) != 0 for name in zero_fields) or len({item.entry_fingerprint for item in ledger.entries}) != ledger.entry_count:
         raise RetentionLedgerError()

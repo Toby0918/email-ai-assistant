@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from backend.r2_production_binding import ApprovedCutoverBindingV2
+from backend.r2_production_binding import ApprovedCutoverBindingV3
 
 from .canonical import canonical, fingerprint
 from ._git_byte_validation_v2 import GitByteStateError
@@ -43,7 +43,7 @@ class R2GitByteStateReceiptV1:
     @classmethod
     def create(cls, *, binding, reviewed_snapshot, observed_snapshot):
         if (
-            type(binding) is not ApprovedCutoverBindingV2
+            type(binding) is not ApprovedCutoverBindingV3
             or type(reviewed_snapshot) is not GitByteSnapshotV2
             or type(observed_snapshot) is not GitByteSnapshotV2
             or reviewed_snapshot.binding_fingerprint != binding.binding_fingerprint
@@ -76,7 +76,7 @@ class R2GitByteStateReceiptV1:
 
 def _build_receipt(binding, snapshot):
     if (
-        type(binding) is not ApprovedCutoverBindingV2
+        type(binding) is not ApprovedCutoverBindingV3
         or type(snapshot) is not GitByteSnapshotV2
         or snapshot.binding_fingerprint != binding.binding_fingerprint
         or snapshot.final_master_binding_fingerprint

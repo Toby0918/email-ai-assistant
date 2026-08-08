@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 
-from backend.r2_production_binding import ApprovedCutoverBindingV2
+from backend.r2_production_binding import ApprovedCutoverBindingV3
 
 from .canonical import canonical, fingerprint, is_fingerprint
 from ._git_byte_validation_v2 import GitByteStateError, is_oid, sha256
@@ -139,7 +139,7 @@ class GitByteSnapshotV2:
 
 
 def _build_snapshot(binding, repository, selected, refs, common, originals, recreated):
-    if type(binding) is not ApprovedCutoverBindingV2 or not is_fingerprint(repository):
+    if type(binding) is not ApprovedCutoverBindingV3 or not is_fingerprint(repository):
         raise GitByteStateError()
     selected = tuple(sorted(selected, key=lambda item: item.path_fingerprint))
     common = tuple(common)

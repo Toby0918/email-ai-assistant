@@ -24,7 +24,7 @@ from tests.test_r2_foundation_publication_v2 import (
     _plan as _foundation_plan,
 )
 from tests.test_r2_managed_unit_publication_v2 import _complete_foundation, _managed_plan
-from tests.test_r2_transaction_journal_v2 import _binding
+from tests.test_r2_transaction_journal_v2 import _binding, _live_append_observation
 from tests.test_r2_two_start_validation_v2 import _validation_plan
 
 
@@ -55,11 +55,11 @@ class R2RollbackCrashMatrixV2Tests(unittest.TestCase):
             transition = plan.transitions[0]
             claim = rollback_claim(self.binding, plan, prefix, transition)
             if record.record_type is JournalRecordTypeV2.COMMIT:
-                started = begin_next_rollback_action_v2(journal=prefix, plan=plan, claim=claim)
+                started = begin_next_rollback_action_v2(journal=prefix, plan=plan, claim=claim, **_live_append_observation())
                 self.assertIs(started.status, RollbackProgressStatusV2.ROLLBACK_ACTION_PENDING)
             else:
                 with self.assertRaisesRegex(ValueError, "R2_ROLLBACK_RECOVERY_INVALID"):
-                    begin_next_rollback_action_v2(journal=prefix, plan=plan, claim=claim)
+                    begin_next_rollback_action_v2(journal=prefix, plan=plan, claim=claim, **_live_append_observation())
 
     def test_exact_forward_pre_switches_to_fresh_rollback_authority(self):
         binding = _binding()
@@ -68,17 +68,17 @@ class R2RollbackCrashMatrixV2Tests(unittest.TestCase):
         managed = _managed_plan(binding, foundation)
         validation = _validation_plan(binding, managed)
         forward = managed.transitions[0]
-        pending = begin_next_managed_action_v2(journal=journal, plan=managed, claim=_forward_claim(binding, managed, journal, forward))
+        pending = begin_next_managed_action_v2(journal=journal, plan=managed, claim=_forward_claim(binding, managed, journal, forward), **_live_append_observation())
         plan_at_intent = rollback_plan(binding, foundation, managed, validation, pending.journal)
         transition = plan_at_intent.transitions[0]
         with self.assertRaisesRegex(ValueError, "R2_ROLLBACK_RECOVERY_INVALID"):
-            begin_next_rollback_action_v2(journal=pending.journal, plan=plan_at_intent, claim=rollback_claim(binding, plan_at_intent, pending.journal, transition))
+            begin_next_rollback_action_v2(journal=pending.journal, plan=plan_at_intent, claim=rollback_claim(binding, plan_at_intent, pending.journal, transition), **_live_append_observation())
         observed = inspection(pending.journal, forward.pre_state_fingerprint, pre=True)
         proof = R2ManagedRecoveryInspectionV2.create(binding=binding, transition=forward, inspection=observed, acl_conformance_fingerprint="c" * 64, semantic_conformance_fingerprint="d" * 64, acl_exact=True, semantic_exact=True)
         classified = classify_managed_pending_v2(journal=pending.journal, plan=managed, inspection=proof)
         plan = rollback_plan(binding, foundation, managed, validation, classified.journal)
         transition = plan.transitions[0]
-        started = begin_next_rollback_action_v2(journal=classified.journal, plan=plan, claim=rollback_claim(binding, plan, classified.journal, transition))
+        started = begin_next_rollback_action_v2(journal=classified.journal, plan=plan, claim=rollback_claim(binding, plan, classified.journal, transition), **_live_append_observation())
         self.assertIs(started.status, RollbackProgressStatusV2.ROLLBACK_ACTION_PENDING)
 
 

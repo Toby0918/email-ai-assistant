@@ -1,4 +1,4 @@
-"""Fixed error for reviewed R2 production binding contracts."""
+"""Fixed content-free production-binding contract failures."""
 
 
 class ProductionBindingError(ValueError):
@@ -6,6 +6,6 @@ class ProductionBindingError(ValueError):
         super().__init__(code)
 
 
-class AuthorityClaimError(ValueError):
+class ExecutionConfirmationError(ValueError):
     def __init__(self) -> None:
-        super().__init__("R2_AUTHORITY_CLAIM_INVALID")
+        super().__init__("R2_EXECUTION_CONFIRMATION_INVALID")

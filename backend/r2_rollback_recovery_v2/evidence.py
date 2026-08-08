@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from backend.r2_production_binding import ApprovedCutoverBindingV2, ProductionCommandV2
+from backend.r2_production_binding import ApprovedCutoverBindingV3, ProductionCommandV2
 from backend.r2_transaction_journal_v2 import R2TransactionJournalV2
 from backend.r2_transaction_journal_v2._canonical import fingerprint, is_fingerprint
 from backend.r2_transaction_process.production_v2 import TransactionActionCompletionV2
@@ -79,7 +79,7 @@ class R2LegacyRestorationEvidenceV2:
 
 def _require_effect(binding, transition, completion, values):
     required = {"observed_state_fingerprint", "retained_objects_fingerprint", "failed_container_retained", "partial_objects_retained", "destructive_operations"}
-    if type(binding) is not ApprovedCutoverBindingV2 or type(transition) is not R2RollbackTransitionV2 or type(completion) is not TransactionActionCompletionV2 or set(values) != required:
+    if type(binding) is not ApprovedCutoverBindingV3 or type(transition) is not R2RollbackTransitionV2 or type(completion) is not TransactionActionCompletionV2 or set(values) != required:
         raise RollbackRecoveryError()
     if completion.binding_fingerprint != binding.binding_fingerprint or completion.command is not ProductionCommandV2.ROLLBACK or completion.transition_instance_fingerprint != transition.transition_instance_fingerprint or completion.remaining_reverse_plan_fingerprint != transition.remaining_plan_fingerprint or completion.mutations != 1:
         raise RollbackRecoveryError()
@@ -89,7 +89,7 @@ def _require_effect(binding, transition, completion, values):
 
 def _require_legacy(binding, plan, journal, values):
     required = {"legacy_topology_fingerprint", "legacy_service_health_fingerprint", "legacy_acl_audit_fingerprint", "git_worktree_audit_fingerprint", "original_identity_count", "git_relationship_count", "retained_failed_container_count", "destructive_operations", "provider_attempts", "legacy_analysis_writes", "independent_read_count"}
-    if type(binding) is not ApprovedCutoverBindingV2 or type(plan) is not R2RollbackPlanV2 or type(journal) is not R2TransactionJournalV2 or set(values) != required or plan.binding_fingerprint != binding.binding_fingerprint or plan.completed_prefix_count(journal) != plan.transition_count:
+    if type(binding) is not ApprovedCutoverBindingV3 or type(plan) is not R2RollbackPlanV2 or type(journal) is not R2TransactionJournalV2 or set(values) != required or plan.binding_fingerprint != binding.binding_fingerprint or plan.completed_prefix_count(journal) != plan.transition_count:
         raise RollbackRecoveryError()
     if not all(is_fingerprint(values[name]) for name in required if name.endswith("fingerprint")):
         raise RollbackRecoveryError()

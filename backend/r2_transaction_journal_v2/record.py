@@ -5,8 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from backend.r2_production_binding import (
-    ApprovedCutoverBindingV2,
-    DurableAuthorityClaimV2,
+    ApprovedCutoverBindingV3,
+    ExecutionConfirmationClaimV1,
 )
 
 from ._canonical import canonical_json, fingerprint, is_fingerprint, strict_json_object
@@ -23,7 +23,7 @@ _FIELDS = (
     "record_sequence",
     "predecessor_head_fingerprint",
     "transition_instance_fingerprint",
-    "authority_claim",
+    "execution_confirmation_claim",
     "pre_state_fingerprint",
     "post_state_fingerprint",
     "observed_state_fingerprint",
@@ -43,7 +43,9 @@ class R2JournalRecordV2:
     record_sequence: int
     predecessor_head_fingerprint: str = field(repr=False)
     transition_instance_fingerprint: str = field(repr=False)
-    authority_claim: DurableAuthorityClaimV2 | None = field(repr=False)
+    execution_confirmation_claim: ExecutionConfirmationClaimV1 | None = field(
+        repr=False
+    )
     pre_state_fingerprint: str = field(repr=False)
     post_state_fingerprint: str = field(repr=False)
     observed_state_fingerprint: str = field(repr=False)
@@ -72,10 +74,10 @@ class R2JournalRecordV2:
             source = strict_json_object(payload)
             if canonical_json(source) != payload or set(source) != {*_FIELDS, "head_fingerprint"}:
                 raise JournalV2Error()
-            raw_claim = source["authority_claim"]
+            raw_claim = source["execution_confirmation_claim"]
             claim = None
             if raw_claim is not None:
-                claim = DurableAuthorityClaimV2.from_json(
+                claim = ExecutionConfirmationClaimV1.from_json(
                     canonical_json(raw_claim), binding=binding
                 )
             body, parsed_claim = _build_body(
@@ -85,7 +87,7 @@ class R2JournalRecordV2:
                 record_sequence=source["record_sequence"],
                 predecessor_head_fingerprint=source["predecessor_head_fingerprint"],
                 transition_instance_fingerprint=source["transition_instance_fingerprint"],
-                authority_claim=claim,
+                execution_confirmation_claim=claim,
                 pre_state_fingerprint=source["pre_state_fingerprint"],
                 post_state_fingerprint=source["post_state_fingerprint"],
                 observed_state_fingerprint=source["observed_state_fingerprint"],
@@ -107,8 +109,10 @@ class R2JournalRecordV2:
     def to_mapping(self) -> dict[str, object]:
         body = {name: getattr(self, name) for name in _FIELDS}
         body["record_type"] = self.record_type.value
-        body["authority_claim"] = (
-            None if self.authority_claim is None else self.authority_claim.to_mapping()
+        body["execution_confirmation_claim"] = (
+            None
+            if self.execution_confirmation_claim is None
+            else self.execution_confirmation_claim.to_mapping()
         )
         body["effect_classification"] = (
             "" if self.effect_classification is None else self.effect_classification.value
@@ -122,8 +126,8 @@ class R2JournalRecordV2:
         return canonical_json(self.to_mapping())
 
 
-def _build_body(*, binding, record_type, authority_claim=None, **values):
-    if type(binding) is not ApprovedCutoverBindingV2:
+def _build_body(*, binding, record_type, execution_confirmation_claim=None, **values):
+    if type(binding) is not ApprovedCutoverBindingV3:
         raise JournalV2Error()
     record_type = JournalRecordTypeV2(record_type)
     required = {
@@ -149,16 +153,22 @@ def _build_body(*, binding, record_type, authority_claim=None, **values):
     terminal = values["terminal_state"]
     classification = None if classification == "" else EffectClassificationV2(classification)
     terminal = None if terminal == "" else TerminalStateV2(terminal)
-    _require_shape(record_type, authority_claim, classification, terminal, values)
+    _require_shape(
+        record_type, execution_confirmation_claim, classification, terminal, values
+    )
     return {
         "record_type": record_type.value,
         "binding_fingerprint": binding.binding_fingerprint,
         "final_master_binding_fingerprint": binding.final_master_binding_fingerprint,
         **values,
-        "authority_claim": None if authority_claim is None else authority_claim.to_mapping(),
+        "execution_confirmation_claim": (
+            None
+            if execution_confirmation_claim is None
+            else execution_confirmation_claim.to_mapping()
+        ),
         "effect_classification": "" if classification is None else classification.value,
         "terminal_state": "" if terminal is None else terminal.value,
-    }, authority_claim
+    }, execution_confirmation_claim
 
 
 def _require_shape(kind, claim, classification, terminal, values):
@@ -169,7 +179,7 @@ def _require_shape(kind, claim, classification, terminal, values):
     )}
     valid = False
     if kind is JournalRecordTypeV2.AUTHORITY_CLAIM:
-        valid = type(claim) is DurableAuthorityClaimV2 and all(zeros.values()) and classification is None and terminal is None
+        valid = type(claim) is ExecutionConfirmationClaimV1 and all(zeros.values()) and classification is None and terminal is None
     elif kind is JournalRecordTypeV2.INTENT:
         valid = claim is None and not zeros["pre_state_fingerprint"] and not zeros["post_state_fingerprint"] and zeros["observed_state_fingerprint"] and zeros["inspection_receipt_fingerprint"] and zeros["terminal_evidence_fingerprint"] and values["pre_state_fingerprint"] != values["post_state_fingerprint"] and classification is None and terminal is None
     elif kind is JournalRecordTypeV2.EFFECT_OBSERVATION:
@@ -193,7 +203,7 @@ def _construct(body, claim):
     }
     for name in _FIELDS:
         item = body[name]
-        if name == "authority_claim":
+        if name == "execution_confirmation_claim":
             item = claim
         elif name in enums:
             item = None if item == "" else enums[name](item)

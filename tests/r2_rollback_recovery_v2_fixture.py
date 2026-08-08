@@ -1,6 +1,6 @@
 """Shared synthetic builders for Issue #97 tests."""
 
-from backend.r2_production_binding import DurableAuthorityClaimV2, ProductionCommandV2
+from backend.r2_production_binding import ProductionCommandV2
 from backend.r2_rollback_recovery_v2 import (
     R2RollbackEffectEvidenceV2,
     R2RollbackPlanV2,
@@ -16,13 +16,18 @@ from backend.r2_two_start_validation_v2 import (
     begin_next_validation_action_v2,
     commit_validation_action_v2,
 )
-from tests.test_r2_foundation_publication_v2 import OWNER, _plan, _restart
+from tests.test_r2_foundation_publication_v2 import _plan, _restart
 from tests.test_r2_managed_unit_publication_v2 import (
     _commit_one,
     _complete_foundation,
     _managed_plan,
 )
-from tests.test_r2_transaction_journal_v2 import NOW, _binding
+from tests.test_r2_transaction_journal_v2 import (
+    NOW,
+    _binding,
+    _confirmed_claim,
+    _live_append_observation,
+)
 from tests.test_r2_two_start_validation_v2 import (
     _claim as _validation_claim,
     _evidence as _validation_evidence,
@@ -47,7 +52,8 @@ def complete_forward_journal(binding=None):
             transition.command,
         )
         pending = begin_next_validation_action_v2(
-            journal=journal, plan=validation, claim=claim
+            journal=journal, plan=validation, claim=claim,
+            **_live_append_observation(),
         )
         evidence = _validation_evidence(
             binding,
@@ -78,8 +84,6 @@ def rollback_claim(binding, plan, journal, transition):
         journal,
         transition.transition_instance_fingerprint,
         transition.remaining_plan_fingerprint,
-        500,
-        700,
     )
 
 
@@ -90,8 +94,6 @@ def terminal_claim(binding, plan, journal):
         journal,
         plan.terminal_transition_instance_fingerprint,
         plan.terminal_plan_fingerprint,
-        900,
-        1100,
     )
 
 
@@ -105,7 +107,12 @@ def complete_rollback(binding, plan, journal):
     for transition in plan.transitions:
         prior = journal.current_head_fingerprint
         claim = rollback_claim(binding, plan, journal, transition)
-        pending = begin_next_rollback_action_v2(journal=journal, plan=plan, claim=claim)
+        pending = begin_next_rollback_action_v2(
+            journal=journal,
+            plan=plan,
+            claim=claim,
+            **_live_append_observation(),
+        )
         completion = complete_transaction_action_v2(
             binding,
             claim,
@@ -136,7 +143,7 @@ def journal_prefix(journal, binding, record_count):
     )
 
 
-def _claim(binding, plan, journal, transition, remaining, authority_offset, nonce_offset):
+def _claim(binding, plan, journal, transition, remaining):
     action = transaction_action_fingerprint_v2(
         binding,
         ProductionCommandV2.ROLLBACK,
@@ -144,18 +151,14 @@ def _claim(binding, plan, journal, transition, remaining, authority_offset, nonc
         transition_instance_fingerprint=transition,
         remaining_reverse_plan_fingerprint=remaining,
     )
-    sequence = len(journal.durable_authority_claims) + 1
-    return DurableAuthorityClaimV2.create(
+    sequence = len(journal.execution_confirmation_claims) + 1
+    return _confirmed_claim(
         binding=binding,
         command=ProductionCommandV2.ROLLBACK,
         action_fingerprint=action,
-        authority_fingerprint=f"{sequence + authority_offset:064x}",
-        envelope_nonce=f"{sequence + nonce_offset:064x}",
-        journal_owner_fingerprint=OWNER,
-        prior_journal_head_fingerprint=journal.current_head_fingerprint,
+        head=journal.current_head_fingerprint,
+        transition=transition,
+        remaining_reverse_plan_fingerprint=remaining,
         claim_sequence=sequence,
-        issued_at_epoch=NOW - 10,
-        not_before_epoch=NOW - 5,
-        expires_at_epoch=NOW + 60,
-        claimed_at_epoch=NOW,
+        confirmed_at_epoch=NOW,
     )

@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-27
+last_update: 2026-08-08
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -375,7 +375,27 @@ Evidence publication composition.
 [ ] Issue #58 real lifecycle construction requires exact external cutover and recovery authorizations and remains `BLOCKED_NO_APPROVED_COMMAND` before Issue #39.
 ```
 
-## 22. 执行后记录
+## 22. Issue #110 Solo Maintainer Closure / Execution Confirmation checklist
+
+Complete this section whenever a task changes final-closure evidence, the Solo
+Maintainer Attestation, production-binding authority, or Execution Confirmation.
+
+```text
+[ ] `backend.r2_solo_maintainer_closure` contains exactly nine files and exposes only the parameterless `prepare()` and `confirm(...)` public seam.
+[ ] Closure binds exactly five hosted check records and one exact GitHub guardrail snapshot; frozen master, GitHub Actions app, required checks, active ruleset, bypass, and classic-protection state all fail closed on drift.
+[ ] Closure preserves fourteen gates and eight ordered gap proofs; every finding, skip, divergence, leakage, private-data, provider, host-effect, cleanup, deletion, overwrite, failure, approval, execution, and Issue #39 count remains zero.
+[ ] `confirm()` uses stable real Windows console handles, two once-only visible exact inputs, and one-use wall-clock plus monotonic-clock freshness over a half-open 300-second interval.
+[ ] Publication remains create-only/no-replace, rejects target, legacy, and stage collisions, performs no repair, overwrite, deletion, or cleanup, and any partial stage remains for incident review.
+[ ] The no-argument protected verifier recomputes Git and canonical evidence independently, accepts only the manifest and Solo Maintainer Attestation, and rejects every legacy V1 external/signature artifact.
+[ ] `ApprovedCutoverBindingV3` completely replaces V2 and preserves one operator, zero independent reviewers, zero external signers, and no public-key/signature/envelope authority input.
+[ ] Every Execution Confirmation binds the exact V3 binding, closure evidence, command/action, durable journal head, next sequence, transition, and remaining reverse plan; its claim is append-before-attempt and the attempt consumes it even on failure.
+[ ] Restart accepts historical reconstruction from exact durable journal records only; no reconstructed historical claim becomes fresh authority.
+[ ] Every production process root unconditionally returns `DORMANT_NO_ISSUE39_APPROVAL` before reading argv, TTY, clocks, candidates, artifacts, bootstraps, or Adapters.
+[ ] Closure and Execution Confirmation preserve zero Issue #38 approval and zero Issue #39 authority or execution; neither can derive or substitute for either approval.
+[ ] Validation remains synthetic/offline only and grants no authority to access or mutate a real host, provider, mailbox, vault, private data, signer, or cleanup surface.
+```
+
+## 23. 执行后记录
 
 任务完成后填写。
 

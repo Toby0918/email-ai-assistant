@@ -1,16 +1,12 @@
-"""Detached host for one signed transaction TTY child."""
+"""Detached Windows probe proving terminal input cannot unlock transaction."""
 
 from __future__ import annotations
 
 import json
-import os
-import subprocess
 import sys
 from pathlib import Path
 
-from backend.r2_transaction_process import TRANSACTION_ACKNOWLEDGEMENT
-from tests.r2_transaction_process_fixture import valid_hidden_envelope
-from tests.windows_real_tty_host import _inject_console_input
+from tests.windows_real_tty_host import run_dormant_module
 
 
 def main() -> int:
@@ -18,58 +14,18 @@ def main() -> int:
         return 2
     target = Path(sys.argv[1])
     verb = sys.argv[2] if len(sys.argv) == 3 else "execute"
-    if verb not in {"execute", "rollback"}:
+    if verb not in {"execute", "resume", "rollback"}:
         return 2
     if target.exists() or not target.parent.is_dir():
         return 3
-    try:
-        result = _run_operator(verb, target.parent)
-    except Exception:
-        result = {"status": "rejected", "exit_code": -1}
+    result = run_dormant_module(
+        "backend.r2_transaction_process", verb, target.parent
+    )
     target.write_text(
         json.dumps(result, sort_keys=True, separators=(",", ":")),
         encoding="utf-8",
     )
     return 0
-
-
-def _run_operator(verb="execute", workdir=None) -> dict[str, object]:
-    root = Path(__file__).resolve().parents[1]
-    workdir = Path(workdir) if workdir is not None else root
-    environment = dict(os.environ)
-    environment["PYTHONPATH"] = str(root)
-    python = Path(sys.executable).with_name("python.exe")
-    startup = subprocess.STARTUPINFO()
-    startup.dwFlags |= subprocess.STARTF_USESHOWWINDOW
-    startup.wShowWindow = subprocess.SW_HIDE
-    process = subprocess.Popen(
-        (
-            str(python),
-            "-B",
-            "-m",
-            "backend.r2_transaction_process",
-            verb,
-        ),
-        cwd=workdir,
-        env=environment,
-        creationflags=subprocess.CREATE_NEW_CONSOLE,
-        startupinfo=startup,
-        close_fds=True,
-    )
-    try:
-        _inject_console_input(
-            process.pid,
-            TRANSACTION_ACKNOWLEDGEMENT
-            + "\r"
-            + valid_hidden_envelope(verb)
-            + "\r",
-        )
-        exit_code = process.wait(timeout=10)
-    except Exception:
-        process.kill()
-        process.wait(timeout=5)
-        raise
-    return {"status": "complete", "exit_code": exit_code}
 
 
 if __name__ == "__main__":

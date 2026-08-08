@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 
-from backend.r2_production_binding import ApprovedCutoverBindingV2
+from backend.r2_production_binding import ApprovedCutoverBindingV3
 from backend.r2_retention_ledger_v2 import R2RetentionProofV2
 from backend.r2_transaction_journal_v2._canonical import canonical_json, fingerprint, is_fingerprint, strict_json_object
 
@@ -88,7 +88,7 @@ def _require(values):
     if set(values) != required:
         raise OperatorRunbookError()
     binding, retention = values["binding"], values["retention_proof"]
-    if type(binding) is not ApprovedCutoverBindingV2 or type(retention) is not R2RetentionProofV2 or retention.binding_fingerprint != binding.binding_fingerprint:
+    if type(binding) is not ApprovedCutoverBindingV3 or type(retention) is not R2RetentionProofV2 or retention.binding_fingerprint != binding.binding_fingerprint:
         raise OperatorRunbookError()
     if values["document"] != render_r2_operator_runbook_v2() or binding.runbook_fingerprint != runbook_document_fingerprint_v2() or values["source_package_fingerprint"] != binding.source_package_fingerprint or values["package_semantics_fingerprint"] != operator_package_semantics_fingerprint_v2() or not is_fingerprint(values["source_package_fingerprint"]):
         raise OperatorRunbookError()
