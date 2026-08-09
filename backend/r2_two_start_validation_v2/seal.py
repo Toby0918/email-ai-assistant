@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from backend.r2_production_binding import DurableAuthorityClaimV2, ProductionCommandV2
+from backend.r2_production_binding import ExecutionConfirmationClaimV1, ProductionCommandV2
 from backend.r2_transaction_journal_v2 import R2TransactionJournalV2, TerminalStateV2
 from backend.r2_transaction_journal_v2._canonical import fingerprint, is_fingerprint
 
@@ -43,15 +43,15 @@ class R2FinalSealObservationV2:
             raise TwoStartValidationError() from None
 
 
-def seal_cutover_success_v2(*, journal, plan, validation, observation, claim):
+def seal_cutover_success_v2(*, journal, plan, validation, observation, claim, observed_at_epoch, observed_monotonic_ns):
     try:
-        if type(journal) is not R2TransactionJournalV2 or type(plan) is not R2TwoStartValidationPlanV2 or type(validation) is not R2TwoStartValidationReceiptV2 or type(observation) is not R2FinalSealObservationV2 or plan.committed_prefix_count(journal) != 7 or journal.next_legal_action != "CLAIM_FRESH_AUTHORITY_OR_TERMINAL" or validation.journal_head_fingerprint != journal.current_head_fingerprint or observation.validation_receipt_fingerprint != validation.receipt_fingerprint or observation.journal_head_fingerprint != journal.current_head_fingerprint:
+        if type(journal) is not R2TransactionJournalV2 or type(plan) is not R2TwoStartValidationPlanV2 or type(validation) is not R2TwoStartValidationReceiptV2 or type(observation) is not R2FinalSealObservationV2 or plan.committed_prefix_count(journal) != 7 or journal.next_legal_action != "CLAIM_FRESH_EXECUTION_CONFIRMATION_OR_TERMINAL" or validation.journal_head_fingerprint != journal.current_head_fingerprint or observation.validation_receipt_fingerprint != validation.receipt_fingerprint or observation.journal_head_fingerprint != journal.current_head_fingerprint:
             raise TwoStartValidationError()
         transition = plan.terminal_transition_instance_fingerprint
         expected = lifecycle_action_fingerprint_v2(binding=plan._binding, plan=plan, command=ProductionCommandV2.RESUME, journal_head_fingerprint=journal.current_head_fingerprint, transition_instance_fingerprint=transition)
-        if type(claim) is not DurableAuthorityClaimV2 or claim.command is not ProductionCommandV2.RESUME or claim.prior_journal_head_fingerprint != journal.current_head_fingerprint or claim.action_fingerprint != expected:
+        if type(claim) is not ExecutionConfirmationClaimV1 or claim.command is not ProductionCommandV2.RESUME or claim.prior_journal_head_fingerprint != journal.current_head_fingerprint or claim.transition_instance_fingerprint != transition or claim.remaining_reverse_plan_fingerprint != "0" * 64 or claim.action_fingerprint != expected:
             raise TwoStartValidationError()
-        result = journal.append_authority_claim(claim=claim, transition_instance_fingerprint=transition).append_terminal_state(transition_instance_fingerprint=transition, final_state_fingerprint=observation.final_state_fingerprint, terminal_state=TerminalStateV2.CUTOVER_SUCCESS, terminal_evidence_fingerprint=observation.observation_fingerprint)
+        result = journal.append_execution_confirmation_claim(claim=claim, transition_instance_fingerprint=transition, observed_at_epoch=observed_at_epoch, observed_monotonic_ns=observed_monotonic_ns).append_terminal_state(transition_instance_fingerprint=transition, final_state_fingerprint=observation.final_state_fingerprint, terminal_state=TerminalStateV2.CUTOVER_SUCCESS, terminal_evidence_fingerprint=observation.observation_fingerprint)
         return _progress(ValidationProgressStatusV2.CUTOVER_SUCCESS, result, 0, 2)
     except TwoStartValidationError:
         raise

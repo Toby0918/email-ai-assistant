@@ -1,4 +1,4 @@
-"""Capability and documentation guards for production binding V2."""
+"""Capability and documentation guards for production binding V3."""
 
 from __future__ import annotations
 
@@ -17,6 +17,14 @@ PACKAGE = ROOT / "backend" / "r2_production_binding"
 
 class R2ProductionBindingArchitectureTests(unittest.TestCase):
     def test_package_files_exports_and_authority_separation_are_exact(self):
+        from backend.r2_solo_maintainer_closure import (
+            FinalMasterBindingV1 as PublicFinalMasterBindingV1,
+        )
+        from backend.r2_solo_maintainer_closure.contracts import (
+            FinalMasterBindingV1 as ContractFinalMasterBindingV1,
+        )
+
+        self.assertIs(PublicFinalMasterBindingV1, ContractFinalMasterBindingV1)
         self.assertEqual(
             {path.name for path in PACKAGE.glob("*.py")},
             {
@@ -35,6 +43,7 @@ class R2ProductionBindingArchitectureTests(unittest.TestCase):
                 "claim.py",
                 "catalog.py",
                 "errors.py",
+                "execution_confirmation.py",
                 "vocabulary.py",
                 "review.py",
             },
@@ -42,23 +51,23 @@ class R2ProductionBindingArchitectureTests(unittest.TestCase):
         self.assertEqual(
             set(production_binding.__all__),
             {
-                "ApprovedCutoverBindingV2",
-                "AuthorityClaimError",
+                "ApprovedCutoverBindingV3",
                 "AuthorityDomainV2",
-                "DurableAuthorityClaimV2",
+                "ExecutionConfirmationCandidateV1",
+                "ExecutionConfirmationClaimV1",
+                "ExecutionConfirmationError",
                 "OperatorRoleV2",
                 "ProductionBindingError",
                 "ProductionCommandV2",
                 "ProductionRoleV2",
-                "PublicKeyRoleV2",
                 "authority_domain_for_command_v2",
+                "confirm_execution_confirmation_v1",
+                "prepare_execution_confirmation_v1",
                 "production_action_fingerprint_v2",
-                "validate_new_authority_claim",
                 "production_adapter_fingerprint_v1",
-                "production_composition_evidence_fingerprint_v2",
-                "require_reviewed_production_binding_v2",
-                "require_reviewed_production_binding_receipt_v2",
-                "reviewed_production_binding_receipt_v2",
+                "production_composition_evidence_fingerprint_v3",
+                "require_reviewed_production_binding_v3",
+                "validate_new_execution_confirmation_claim",
             },
         )
         exported_types = {
@@ -68,7 +77,7 @@ class R2ProductionBindingArchitectureTests(unittest.TestCase):
         }
         self.assertTrue(exported_types.isdisjoint(REAL_AUTHORIZATION_TYPES))
 
-    def test_package_has_verification_values_but_no_issuer_or_host_capability(self):
+    def test_only_fixed_confirmation_runtime_has_bounded_console_capability(self):
         allowed_absolute = {
             "__future__",
             "builtins",
@@ -83,16 +92,9 @@ class R2ProductionBindingArchitectureTests(unittest.TestCase):
             "struct",
             "types",
             "sys",
-            "backend.r2_final_master_closure",
+            "backend.r2_solo_maintainer_closure.contracts",
         }
-        forbidden_calls = {
-            "open",
-            "print",
-            "exec",
-            "eval",
-            "compile",
-            "__import__",
-        }
+        forbidden_calls = {"open", "print", "exec", "eval", "compile", "__import__"}
         source = ""
         for path in sorted(PACKAGE.glob("*.py")):
             text = path.read_text(encoding="utf-8")
@@ -117,10 +119,18 @@ class R2ProductionBindingArchitectureTests(unittest.TestCase):
                 if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
             }
             with self.subTest(path=path.name):
-                self.assertLessEqual(imports, allowed_absolute)
+                allowed = set(allowed_absolute)
+                if path.name == "review.py":
+                    allowed.update({"ctypes", "msvcrt", "os", "threading", "time"})
+                self.assertLessEqual(imports, allowed)
                 self.assertTrue(calls.isdisjoint(forbidden_calls))
         for forbidden in (
-            "Ed25519PrivateKey",
+            "ApprovedCutoverBindingV2",
+            "DurableAuthorityClaimV2",
+            "PublicKeyRoleV2",
+            "verification_public_keys",
+            "public_key_registry_fingerprint",
+            "Ed25519",
             ".sign(",
             "private_bytes",
             "subprocess",
@@ -130,57 +140,57 @@ class R2ProductionBindingArchitectureTests(unittest.TestCase):
             "openai",
             "mailbox",
             "vault",
-            "_CLAIMED",
         ):
             self.assertNotIn(forbidden, source)
 
-    def test_public_interface_accepts_no_private_key_path_or_command_text(self):
-        for value in (
-            production_binding.ApprovedCutoverBindingV2.create,
-            production_binding.DurableAuthorityClaimV2.create,
-            production_binding.validate_new_authority_claim,
-        ):
-            parameters = set(inspect.signature(value).parameters)
+    def test_public_interfaces_accept_no_key_path_or_command_text(self):
+        values = (
+            production_binding.ApprovedCutoverBindingV3.create,
+            production_binding.prepare_execution_confirmation_v1,
+            production_binding.confirm_execution_confirmation_v1,
+            production_binding.validate_new_execution_confirmation_claim,
+        )
+        forbidden = {
+            "private_key",
+            "signing_key",
+            "verification_public_keys",
+            "path",
+            "root",
+            "argv",
+            "shell",
+            "git_command",
+            "issue39_approval",
+        }
+        for value in values:
             self.assertTrue(
-                parameters.isdisjoint(
-                    {
-                        "private_key",
-                        "signing_key",
-                        "path",
-                        "root",
-                        "argv",
-                        "shell",
-                        "git_command",
-                    }
-                )
+                set(inspect.signature(value).parameters).isdisjoint(forbidden)
             )
 
-    def test_normative_docs_pin_binding_and_fresh_process_claim_contracts(self):
+    def test_normative_docs_pin_v3_and_dormant_confirmation_contracts(self):
         expected = {
             "docs/security/project_container_cutover_contracts.md": (
-                "ApprovedCutoverBindingV2",
-                "DurableAuthorityClaimV2",
-                "no private signing keys",
+                "ApprovedCutoverBindingV3",
+                "ExecutionConfirmationClaimV1",
             ),
             "docs/constraints/architecture_constraints.md": (
                 "backend/r2_production_binding",
-                "fresh-process reconstruction",
+                "SOLE_MAINTAINER_SELF_REVIEW",
             ),
             "docs/constraints/linter_constraints.md": (
-                "R2 production binding V2 guards",
-                "durable single-use",
+                "ApprovedCutoverBindingV3",
+                "DORMANT_NO_ISSUE39_APPROVAL",
             ),
             "docs/constraints/mechanical_rule_translation.md": (
-                "Issue #87 reviewed production binding V2 rules",
-                "four authority domains",
+                "Execution Confirmation",
+                "issue39_authority_count=0",
             ),
             "docs/operations/project_structure.md": (
                 "backend/r2_production_binding/",
-                "DurableAuthorityClaimV2",
+                "ExecutionConfirmationClaimV1",
             ),
             "docs/operations/testing_checklist.md": (
-                "test_r2_production_binding_contracts.py",
-                "test_r2_production_binding_architecture.py",
+                "tests.test_r2_execution_confirmation",
+                "tests.test_r2_execution_confirmation_architecture",
             ),
         }
         for relative, phrases in expected.items():

@@ -959,51 +959,59 @@ class StaticLinterConstraintTests(unittest.TestCase):
             with self.subTest(marker=marker):
                 self.assertIn(marker, text)
 
-    def test_issue105_static_capability_rules_are_documented(self) -> None:
+    def test_issue110_static_capability_rules_are_documented(self) -> None:
+        architecture = read_text(
+            ROOT / "docs" / "constraints" / "architecture_constraints.md"
+        )
         linter = read_text(ROOT / "docs" / "constraints" / "linter_constraints.md")
+        tooling = read_text(ROOT / "docs" / "constraints" / "tooling_constraints.md")
         logging = read_text(ROOT / "docs" / "conventions" / "logging.md")
         for marker in (
-            "Issue #105 public issuance guards",
-            "backend/r2_external_artifacts_v1/",
-            "prepare_unsigned_external_artifacts_v1",
-            "install_signed_external_artifacts_v1",
-            "private-key types",
-            "R2GlobalGateEvidenceV1.from_signed_json",
-            "R2GlobalGateCoordinatorV1.create",
-            "native no-replace directory commit",
-            "OpenFileById",
-            "FILE_FLAG_OPEN_REQUIRING_OPLOCK",
-            "FILE_FLAG_OPEN_REPARSE_POINT",
-            "one RWH\n  `FSCTL_REQUEST_OPLOCK`",
-            "one Read oplock",
-            "followed\n  immediately by its `FSCTL_REQUEST_OPLOCK`",
-            "pending input, output, `OVERLAPPED`",
-            "SetKernelObjectSecurity",
-            "protected read/execute-only DACL",
-            "FileStandardInfo",
-            "NumberOfLinks == 1",
-            "FileStreamInfo",
-            "`::$DATA` stream",
-            "name-plus-file-ID entries",
-            "GetFileInformationByHandleEx",
-            "`FileIdInfo`\n  volume/file ID",
-            "deny delete sharing",
-            "all sixteen guards",
-            "same preauthorized",
-            "same-handle guarded read",
-            "CancelIoEx",
-            "synchronously reaped",
-            "not an immutability boundary against",
-            "external tamper and verifier incident-stop conditions",
-            "exact verbs are `prepare` and `install`",
-            "AWAITING_SINGLE_HUMAN_FINAL_REVIEW",
+            "final stable parent/child/DACL/oplock observation",
+            "exact-target no-replace rename",
+            "strictly after that linearization",
+            "subsequent incident",
+            "no atomic arbitrary-sibling exclusion",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, architecture)
+        for marker in (
+            "Issue #110 Solo Maintainer Closure and execution-confirmation guards",
+            "`scripts/close_r2_final_master.py` exposes exactly `prepare` and `confirm`",
+            "real stdin/stdout/stderr consoles",
+            "half-open 300-second wall/monotonic window",
+            "no clipboard API",
+            "exact manifest and attestation filenames",
+            "no-replace and all-or-nothing",
+            "retains the stage",
+            "`ApprovedCutoverBindingV3` removes all signature/key/envelope semantics",
+            "attempt consumes it",
+            "old final-master closure, global-gate, external-artifact",
+            "No compatibility export, dual parser, fallback",
+            "separate approval boundaries",
+            "future ruleset and future Issue #39 code path",
+            "final stable parent/child/DACL/oplock observation",
+            "exact-target no-replace rename",
+            "No guard may claim atomic arbitrary-sibling exclusion",
+            "strictly after that linearization",
+            "subsequent incident rejected by the verifier",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, linter)
         for marker in (
-            "R2 external-artifact issuance is silent",
-            "R2_EXTERNAL_ARTIFACT_INVALID",
-            "must not log or interpolate public\nkeys, signatures",
+            "`repository.py` alone may consume the approved read-only provenance",
+            "`local_evidence.py` alone may",
+            "approved pure CI-suite/runbook registries",
+            "uncooperative writer",
+            "no atomic arbitrary-sibling exclusion",
+            "Git-common DACL mutation, kernel filter, or volume lock",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, tooling)
+        for marker in (
+            "R2 Solo Maintainer Closure is silent",
+            "manifest or attestation bodies/fingerprints",
+            "retained staging details",
             "logger.exception",
         ):
             with self.subTest(marker=marker):

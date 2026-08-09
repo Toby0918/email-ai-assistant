@@ -6,7 +6,6 @@ import hashlib
 import json
 
 from .errors import ProductionBindingError
-from .vocabulary import PublicKeyRoleV2
 
 
 def canonical_json(value: object) -> bytes:
@@ -79,23 +78,6 @@ def parse_fingerprint_entries(value: object, enum_type: object) -> dict:
         ):
             raise ProductionBindingError()
         result[expected] = entry["fingerprint"]
-    return result
-
-
-def parse_public_key_entries(value: object) -> dict[PublicKeyRoleV2, bytes]:
-    if type(value) is not list or len(value) != len(PublicKeyRoleV2):
-        raise ProductionBindingError()
-    result = {}
-    for expected, entry in zip(PublicKeyRoleV2, value, strict=True):
-        if type(entry) is not dict or set(entry) != {"role", "public_key_hex"}:
-            raise ProductionBindingError()
-        try:
-            key = bytes.fromhex(entry["public_key_hex"])
-        except (TypeError, ValueError):
-            raise ProductionBindingError() from None
-        if entry["role"] != expected.value or key.hex() != entry["public_key_hex"]:
-            raise ProductionBindingError()
-        result[expected] = key
     return result
 
 

@@ -1,12 +1,12 @@
-"""Canonical final-master and evidence-bound journal genesis."""
+"""Canonical V3 and Execution Confirmation-bound journal genesis."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 
 from backend.r2_production_binding import (
-    ApprovedCutoverBindingV2,
-    DurableAuthorityClaimV2,
+    ApprovedCutoverBindingV3,
+    ExecutionConfirmationClaimV1,
     ProductionCommandV2,
     production_action_fingerprint_v2,
 )
@@ -24,7 +24,7 @@ _FIELDS = (
     "final_tree_oid",
     "operation_fingerprint",
     "production_role_registry_fingerprint",
-    "public_key_registry_fingerprint",
+    "execution_confirmation_policy_fingerprint",
     "reviewed_evidence_fingerprint",
     "evidence_identity_fingerprint",
     "package_fingerprint",
@@ -32,7 +32,7 @@ _FIELDS = (
     "journal_owner_fingerprint",
     "genesis_nonce",
     "pre_genesis_head_fingerprint",
-    "authority_claim",
+    "execution_confirmation_claim",
     "record_sequence",
 )
 
@@ -46,7 +46,7 @@ class R2JournalGenesisV2:
     final_tree_oid: str = field(repr=False)
     operation_fingerprint: str = field(repr=False)
     production_role_registry_fingerprint: str = field(repr=False)
-    public_key_registry_fingerprint: str = field(repr=False)
+    execution_confirmation_policy_fingerprint: str = field(repr=False)
     reviewed_evidence_fingerprint: str = field(repr=False)
     evidence_identity_fingerprint: str = field(repr=False)
     package_fingerprint: str = field(repr=False)
@@ -54,7 +54,7 @@ class R2JournalGenesisV2:
     journal_owner_fingerprint: str = field(repr=False)
     genesis_nonce: str = field(repr=False)
     pre_genesis_head_fingerprint: str = field(repr=False)
-    authority_claim: DurableAuthorityClaimV2 = field(repr=False)
+    execution_confirmation_claim: ExecutionConfirmationClaimV1 = field(repr=False)
     record_sequence: int
     head_fingerprint: str = field(repr=False)
 
@@ -63,8 +63,13 @@ class R2JournalGenesisV2:
 
     @classmethod
     def create(cls, **values) -> R2JournalGenesisV2:
-        body = _genesis_body(**values)
-        return _construct(body, values["authority_claim"])
+        try:
+            claim = values["execution_confirmation_claim"]
+            return _construct(_genesis_body(**values), claim)
+        except JournalGenesisError:
+            raise
+        except Exception:
+            raise JournalGenesisError() from None
 
     @classmethod
     def from_json(cls, payload: object, *, binding: object) -> R2JournalGenesisV2:
@@ -75,24 +80,21 @@ class R2JournalGenesisV2:
                 or set(source) != {*_FIELDS, "head_fingerprint"}
             ):
                 raise JournalGenesisError()
-            claim = DurableAuthorityClaimV2.from_json(
-                canonical_json(source["authority_claim"]),
+            claim = ExecutionConfirmationClaimV1.from_json(
+                canonical_json(source["execution_confirmation_claim"]),
                 binding=binding,
             )
             body = _genesis_body(
                 binding=binding,
-                reviewed_evidence_fingerprint=source["reviewed_evidence_fingerprint"],
-                evidence_identity_fingerprint=source["evidence_identity_fingerprint"],
-                package_fingerprint=source["package_fingerprint"],
-                manifest_fingerprint=source["manifest_fingerprint"],
-                journal_owner_fingerprint=source["journal_owner_fingerprint"],
-                genesis_nonce=source["genesis_nonce"],
-                pre_genesis_head_fingerprint=source["pre_genesis_head_fingerprint"],
-                authority_claim=claim,
+                execution_confirmation_claim=claim,
+                **{
+                    name: source[name]
+                    for name in _FINGERPRINT_INPUTS
+                },
             )
             if any(source[name] != body[name] for name in _FIELDS):
                 raise JournalGenesisError()
-            if source["head_fingerprint"] != fingerprint("r2-journal-genesis-v2", body):
+            if source["head_fingerprint"] != _head_fingerprint(body):
                 raise JournalGenesisError()
             return _construct(body, claim)
         except JournalGenesisError:
@@ -102,41 +104,28 @@ class R2JournalGenesisV2:
 
     def to_mapping(self):
         body = {name: getattr(self, name) for name in _FIELDS}
-        body["authority_claim"] = self.authority_claim.to_mapping()
+        body["execution_confirmation_claim"] = (
+            self.execution_confirmation_claim.to_mapping()
+        )
         return {**body, "head_fingerprint": self.head_fingerprint}
 
     def to_canonical_json(self):
         return canonical_json(self.to_mapping())
 
 
-def _genesis_body(*, binding, authority_claim, **fingerprints):
-    if (
-        type(binding) is not ApprovedCutoverBindingV2
-        or type(authority_claim) is not DurableAuthorityClaimV2
-        or authority_claim.binding_fingerprint != binding.binding_fingerprint
-        or authority_claim.command is not ProductionCommandV2.EVIDENCE_PUBLICATION
-        or authority_claim.claim_sequence != 1
-        or set(fingerprints) != {
-            "reviewed_evidence_fingerprint",
-            "evidence_identity_fingerprint",
-            "package_fingerprint",
-            "manifest_fingerprint",
-            "journal_owner_fingerprint",
-            "genesis_nonce",
-            "pre_genesis_head_fingerprint",
-        }
-        or not all(is_fingerprint(value) for value in fingerprints.values())
-        or authority_claim.journal_owner_fingerprint
-        != fingerprints["journal_owner_fingerprint"]
-        or authority_claim.prior_journal_head_fingerprint
-        != fingerprints["pre_genesis_head_fingerprint"]
-        or authority_claim.action_fingerprint
-        != production_action_fingerprint_v2(
-            binding,
-            ProductionCommandV2.EVIDENCE_PUBLICATION,
-            subject_fingerprint=fingerprints["reviewed_evidence_fingerprint"],
-        )
-    ):
+_FINGERPRINT_INPUTS = (
+    "reviewed_evidence_fingerprint",
+    "evidence_identity_fingerprint",
+    "package_fingerprint",
+    "manifest_fingerprint",
+    "journal_owner_fingerprint",
+    "genesis_nonce",
+    "pre_genesis_head_fingerprint",
+)
+
+
+def _genesis_body(*, binding, execution_confirmation_claim, **fingerprints):
+    if not _valid_inputs(binding, execution_confirmation_claim, fingerprints):
         raise JournalGenesisError()
     return {
         "genesis_type": _TYPE,
@@ -145,25 +134,54 @@ def _genesis_body(*, binding, authority_claim, **fingerprints):
         "final_commit_oid": binding.final_commit_oid,
         "final_tree_oid": binding.final_tree_oid,
         "operation_fingerprint": binding.operation_fingerprint,
-        "production_role_registry_fingerprint": binding.production_role_registry_fingerprint,
-        "public_key_registry_fingerprint": binding.public_key_registry_fingerprint,
+        "production_role_registry_fingerprint": (
+            binding.production_role_registry_fingerprint
+        ),
+        "execution_confirmation_policy_fingerprint": (
+            binding.execution_confirmation_policy_fingerprint
+        ),
         **fingerprints,
-        "authority_claim": authority_claim.to_mapping(),
+        "execution_confirmation_claim": execution_confirmation_claim.to_mapping(),
         "record_sequence": 0,
     }
+
+
+def _valid_inputs(binding, claim, values):
+    if (
+        type(binding) is not ApprovedCutoverBindingV3
+        or type(claim) is not ExecutionConfirmationClaimV1
+        or set(values) != set(_FINGERPRINT_INPUTS)
+        or not all(is_fingerprint(value) for value in values.values())
+    ):
+        return False
+    expected_action = production_action_fingerprint_v2(
+        binding,
+        ProductionCommandV2.EVIDENCE_PUBLICATION,
+        subject_fingerprint=values["reviewed_evidence_fingerprint"],
+    )
+    return (
+        claim.production_binding_fingerprint == binding.binding_fingerprint
+        and claim.command is ProductionCommandV2.EVIDENCE_PUBLICATION
+        and claim.claim_sequence == 1
+        and claim.journal_owner_fingerprint == values["journal_owner_fingerprint"]
+        and claim.prior_journal_head_fingerprint
+        == values["pre_genesis_head_fingerprint"]
+        and claim.transition_instance_fingerprint
+        == values["reviewed_evidence_fingerprint"]
+        and claim.remaining_reverse_plan_fingerprint == "0" * 64
+        and claim.closure_manifest_fingerprint == values["manifest_fingerprint"]
+        and claim.action_fingerprint == expected_action
+    )
 
 
 def _construct(body, claim):
     value = object.__new__(R2JournalGenesisV2)
     for name in _FIELDS:
-        object.__setattr__(
-            value,
-            name,
-            claim if name == "authority_claim" else body[name],
-        )
-    object.__setattr__(
-        value,
-        "head_fingerprint",
-        fingerprint("r2-journal-genesis-v2", body),
-    )
+        item = claim if name == "execution_confirmation_claim" else body[name]
+        object.__setattr__(value, name, item)
+    object.__setattr__(value, "head_fingerprint", _head_fingerprint(body))
     return value
+
+
+def _head_fingerprint(body):
+    return fingerprint("r2-journal-genesis-v2", body)

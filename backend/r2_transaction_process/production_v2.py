@@ -1,4 +1,4 @@
-"""Exact one-authority, one-action V2 transaction dispatcher."""
+"""Dormant transaction root plus pure V3 completion values."""
 
 from __future__ import annotations
 
@@ -6,26 +6,17 @@ import sys
 from dataclasses import dataclass, field
 from enum import Enum
 
-from backend.r2_operator_process import verify_production_authority_v2
 from backend.r2_production_binding import (
-    ApprovedCutoverBindingV2,
-    DurableAuthorityClaimV2,
+    ApprovedCutoverBindingV3,
+    ExecutionConfirmationClaimV1,
     ProductionCommandV2,
-)
-from backend.r2_production_composition import (
-    ProductionAdapterSlotV1,
-    R2BoundProductionAdapterV1,
-    TransactionAdapterOutcomeV1,
-    reverify_bound_production_adapter_v1,
 )
 from backend.r2_production_binding.catalog import (
     OperatorSurfaceV2,
     executable_verb_map_v2,
 )
 
-from .contracts import TRANSACTION_ACKNOWLEDGEMENT
 from ._production_v2_canonical import (
-    UNBOUND_REVERSE_PLAN_V2,
     fingerprint,
     is_fingerprint,
     transaction_action_fingerprint_v2,
@@ -42,10 +33,11 @@ class TransactionProductionStatusV2(str, Enum):
     BLOCKED_COMMAND = "BLOCKED_COMMAND"
     BLOCKED_TTY = "BLOCKED_TTY"
     BLOCKED_ACKNOWLEDGEMENT = "BLOCKED_ACKNOWLEDGEMENT"
-    BLOCKED_ENVELOPE = "BLOCKED_ENVELOPE"
-    BLOCKED_AUTHORITY = "BLOCKED_AUTHORITY"
+    BLOCKED_EXECUTION_CONFIRMATION = "BLOCKED_EXECUTION_CONFIRMATION"
+    BLOCKED_FINGERPRINT = "BLOCKED_FINGERPRINT"
+    BLOCKED_REPLAY = "BLOCKED_REPLAY"
     BLOCKED_ACTION = "BLOCKED_ACTION"
-    DORMANT_NO_EXTERNAL_ISSUER = "DORMANT_NO_EXTERNAL_ISSUER"
+    DORMANT_NO_ISSUE39_APPROVAL = "DORMANT_NO_ISSUE39_APPROVAL"
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,20 +46,16 @@ class TransactionProductionResultV2:
     accepted: int
     rejected: int
     mutations: int
-    command: object = field(default=None, repr=False)
-    prior_journal_head_fingerprint: str = field(default="", repr=False)
-    action_completion_fingerprint: str = field(default="", repr=False)
 
-    def counts(self):
+    def counts(self) -> tuple[int, int, int]:
         return self.accepted, self.rejected, self.mutations
 
-    def to_mapping(self):
+    def to_mapping(self) -> dict[str, object]:
         return {
             "status": self.status.value,
             "accepted": self.accepted,
             "rejected": self.rejected,
             "mutations": self.mutations,
-            "action_completion_fingerprint": self.action_completion_fingerprint,
         }
 
 
@@ -86,211 +74,90 @@ class TransactionActionCompletionV2:
 def run_transaction_production_v2(
     *,
     argv,
-    terminal,
-    binding,
-    adapter,
-    durable_claims,
-    current_journal_head_fingerprint,
-    transition_instance_fingerprint,
-    remaining_reverse_plan_fingerprint,
-    observed_at_epoch,
+    terminal=None,
+    binding=None,
+    adapter=None,
+    execution_confirmation_claims=None,
+    current_journal_head_fingerprint=None,
+    transition_instance_fingerprint=None,
+    remaining_reverse_plan_fingerprint=None,
+    observed_at_epoch=None,
 ):
-    if not _valid_argv(argv):
-        return _blocked(TransactionProductionStatusV2.BLOCKED_COMMAND)
-    ingress = _read_ingress(terminal)
-    if type(ingress) is TransactionProductionStatusV2:
-        return _blocked(ingress)
-    command = TRANSACTION_PRODUCTION_VERBS_V2[argv[0]]
-    try:
-        action = transaction_action_fingerprint_v2(
-            binding,
-            command,
-            journal_head_fingerprint=current_journal_head_fingerprint,
-            transition_instance_fingerprint=transition_instance_fingerprint,
-            remaining_reverse_plan_fingerprint=remaining_reverse_plan_fingerprint,
-        )
-        claim = verify_production_authority_v2(
-            ingress,
-            binding=binding,
-            expected_command=command,
-            durable_claims=durable_claims,
-            expected_prior_journal_head_fingerprint=current_journal_head_fingerprint,
-            observed_at_epoch=observed_at_epoch(),
-            expected_action_fingerprint=action,
-        )
-    except Exception:
-        return _blocked(TransactionProductionStatusV2.BLOCKED_AUTHORITY)
-    return _invoke_action(
-        binding,
-        adapter,
-        claim,
-        current_journal_head_fingerprint,
-        transition_instance_fingerprint,
-        remaining_reverse_plan_fingerprint,
-    )
+    """Return before inspecting every argument or acquiring a capability."""
+
+    return _dormant()
 
 
 def dormant_transaction_production_v2(*, argv):
-    if not _valid_argv(argv):
-        return _blocked(TransactionProductionStatusV2.BLOCKED_COMMAND)
-    return TransactionProductionResultV2(
-        TransactionProductionStatusV2.DORMANT_NO_EXTERNAL_ISSUER,
-        0,
-        0,
-        0,
-    )
+    """Return the only Issue #110 production state without reading ``argv``."""
+
+    return _dormant()
 
 
-def main(*, argv=None, bootstrap=None):
-    arguments = tuple(sys.argv[1:]) if argv is None else argv
-    from .bootstrap_v2 import execute_transaction_main_v2
-    result = execute_transaction_main_v2(arguments, bootstrap)
+def main(*, argv=None, bootstrap=None) -> int:
+    """Emit one content-free line; neither argument is inspected."""
+
+    result = _dormant()
     sys.stdout.write(
-        f"{result.status.value} accepted={result.accepted} "
-        f"rejected={result.rejected} mutations={result.mutations}\n"
+        f"{result.status.value} accepted=0 rejected=0 mutations=0\n"
     )
     sys.stdout.flush()
-    return 2 if result.status is TransactionProductionStatusV2.BLOCKED_COMMAND else 0
+    return 0
 
 
-def complete_transaction_action_v2(
-    binding,
-    claim,
-    head,
-    transition,
-    plan,
-):
-    if (
-        type(binding) is not ApprovedCutoverBindingV2
-        or type(claim) is not DurableAuthorityClaimV2
-        or claim.binding_fingerprint != binding.binding_fingerprint
-        or claim.prior_journal_head_fingerprint != head
-        or not is_fingerprint(transition)
-        or not is_fingerprint(plan)
-    ):
-        raise TypeError("R2_TRANSACTION_ACTION_COMPLETION_INVALID")
-    values = {
-        "binding_fingerprint": binding.binding_fingerprint,
-        "command": claim.command.value,
-        "claim_fingerprint": claim.claim_fingerprint,
-        "prior_journal_head_fingerprint": head,
-        "transition_instance_fingerprint": transition,
-        "remaining_reverse_plan_fingerprint": plan,
-        "mutations": 1,
-    }
-    completion = fingerprint("r2-transaction-action-completion-v2", values)
-    return TransactionActionCompletionV2(
-        binding.binding_fingerprint,
-        claim.command,
-        claim.claim_fingerprint,
-        head,
-        transition,
-        plan,
-        completion,
-        1,
-    )
+def complete_transaction_action_v2(binding, claim, head, transition, plan):
+    """Create a pure completion only after an exact latent V3 claim."""
 
-
-def _invoke_action(binding, adapter, claim, head, transition, plan):
     try:
-        outcome = _invoke_transaction_adapter(
-            binding, adapter, claim, head, transition, plan
-        )
-        completion = complete_transaction_action_v2(
-            binding,
-            claim,
+        _require_completion_inputs(binding, claim, head, transition, plan)
+        values = {
+            "binding_fingerprint": binding.binding_fingerprint,
+            "command": claim.command.value,
+            "claim_fingerprint": claim.claim_fingerprint,
+            "prior_journal_head_fingerprint": head,
+            "transition_instance_fingerprint": transition,
+            "remaining_reverse_plan_fingerprint": plan,
+            "mutations": 1,
+        }
+        return TransactionActionCompletionV2(
+            binding.binding_fingerprint,
+            claim.command,
+            claim.claim_fingerprint,
             head,
-            outcome.transition_instance_fingerprint,
-            outcome.remaining_reverse_plan_fingerprint,
-        )
-        _require_transaction_completion(
-            completion, binding, claim, head, transition, plan
+            transition,
+            plan,
+            fingerprint("r2-transaction-action-completion-v2", values),
+            1,
         )
     except Exception:
-        return _blocked(TransactionProductionStatusV2.BLOCKED_ACTION)
+        raise TypeError("R2_TRANSACTION_ACTION_COMPLETION_INVALID") from None
+
+
+def _require_completion_inputs(binding, claim, head, transition, plan):
+    if (
+        type(binding) is not ApprovedCutoverBindingV3
+        or type(claim) is not ExecutionConfirmationClaimV1
+        or claim.production_binding_fingerprint != binding.binding_fingerprint
+        or claim.prior_journal_head_fingerprint != head
+        or claim.transition_instance_fingerprint != transition
+        or claim.remaining_reverse_plan_fingerprint != plan
+        or not all(is_fingerprint(value) for value in (head, transition, plan))
+        or claim.action_fingerprint
+        != transaction_action_fingerprint_v2(
+            binding,
+            claim.command,
+            journal_head_fingerprint=head,
+            transition_instance_fingerprint=transition,
+            remaining_reverse_plan_fingerprint=plan,
+        )
+    ):
+        raise TypeError
+
+
+def _dormant() -> TransactionProductionResultV2:
     return TransactionProductionResultV2(
-        TransactionProductionStatusV2.ACTION_COMPLETE,
-        1,
+        TransactionProductionStatusV2.DORMANT_NO_ISSUE39_APPROVAL,
         0,
-        1,
-        claim.command,
-        head,
-        completion.completion_fingerprint,
+        0,
+        0,
     )
-
-
-def _invoke_transaction_adapter(binding, adapter, claim, head, transition, plan):
-    if type(adapter) is not R2BoundProductionAdapterV1:
-        raise TypeError
-    bound = reverify_bound_production_adapter_v1(
-        binding=binding,
-        slot=ProductionAdapterSlotV1.TRANSACTION,
-        bound=adapter,
-    )
-    outcome = bound.invoke(
-        binding=binding,
-        claim=claim,
-        journal_head_fingerprint=head,
-        transition_instance_fingerprint=transition,
-        remaining_reverse_plan_fingerprint=plan,
-    )
-    _require_transaction_outcome(outcome, claim, transition, plan)
-    return outcome
-
-
-def _require_transaction_outcome(outcome, claim, transition, plan):
-    if (
-        type(outcome) is not TransactionAdapterOutcomeV1
-        or outcome.command is not claim.command
-        or not is_fingerprint(outcome.chain_fingerprint)
-        or not is_fingerprint(outcome.journal_head_fingerprint)
-        or not is_fingerprint(outcome.terminal_receipt_fingerprint)
-        or outcome.transition_instance_fingerprint != transition
-        or outcome.remaining_reverse_plan_fingerprint != plan
-        or outcome.provider_attempts != 0
-        or outcome.mutations != 1
-    ):
-        raise TypeError
-
-
-def _require_transaction_completion(
-    completion, binding, claim, head, transition, plan
-):
-    if (
-        type(completion) is not TransactionActionCompletionV2
-        or completion.binding_fingerprint != binding.binding_fingerprint
-        or completion.command is not claim.command
-        or completion.claim_fingerprint != claim.claim_fingerprint
-        or completion.prior_journal_head_fingerprint != head
-        or completion.transition_instance_fingerprint != transition
-        or completion.remaining_reverse_plan_fingerprint != plan
-        or completion.mutations != 1
-    ):
-        raise TypeError
-
-
-def _read_ingress(terminal):
-    try:
-        if terminal.tty_state() != (True, True, True):
-            return TransactionProductionStatusV2.BLOCKED_TTY
-        if terminal.read_acknowledgement() != TRANSACTION_ACKNOWLEDGEMENT:
-            return TransactionProductionStatusV2.BLOCKED_ACKNOWLEDGEMENT
-        envelope = terminal.read_hidden_envelope(65_536)
-        if type(envelope) is not str or not 1 <= len(envelope) <= 65_536:
-            return TransactionProductionStatusV2.BLOCKED_ENVELOPE
-        return envelope
-    except Exception:
-        return TransactionProductionStatusV2.BLOCKED_ENVELOPE
-
-
-def _valid_argv(argv):
-    return (
-        type(argv) is tuple
-        and len(argv) == 1
-        and type(argv[0]) is str
-        and argv[0] in TRANSACTION_PRODUCTION_VERBS_V2
-    )
-
-
-def _blocked(status):
-    return TransactionProductionResultV2(status, 0, 1, 0)

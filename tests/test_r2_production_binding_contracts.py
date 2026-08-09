@@ -1,23 +1,57 @@
-"""Reviewed final-master binding V2 and durable authority claim contracts."""
+"""ApprovedCutoverBindingV3 closed production-binding contracts."""
 
 from __future__ import annotations
 
+import json
 import unittest
 
 from backend.r2_production_binding import (
-    ApprovedCutoverBindingV2,
-    AuthorityClaimError,
+    ApprovedCutoverBindingV3,
     AuthorityDomainV2,
-    DurableAuthorityClaimV2,
     OperatorRoleV2,
+    ProductionBindingError,
     ProductionCommandV2,
     ProductionRoleV2,
-    ProductionBindingError,
-    PublicKeyRoleV2,
     authority_domain_for_command_v2,
-    validate_new_authority_claim,
+    production_action_fingerprint_v2,
+    require_reviewed_production_binding_v3,
 )
-from backend.r2_final_master_closure import FinalMasterBindingV1
+from tests.r2_execution_confirmation_fixture import (
+    final_master_binding,
+    production_binding,
+)
+
+
+_BINDING_FIELDS = {
+    "binding_type",
+    "final_master_binding_fingerprint",
+    "final_commit_oid",
+    "final_tree_oid",
+    "closure_map_fingerprint",
+    "source_package_fingerprint",
+    "runbook_fingerprint",
+    "workflow_fingerprint",
+    "operation_fingerprint",
+    "operator_role_registry_fingerprint",
+    "command_domain_registry_fingerprint",
+    "production_role_registry_fingerprint",
+    "execution_confirmation_policy",
+    "execution_confirmation_policy_fingerprint",
+    "operator_role_count",
+    "command_count",
+    "command_domain_count",
+    "production_role_count",
+    "max_execution_confirmation_validity_seconds",
+    "operator_role_fingerprints",
+    "command_domains",
+    "production_role_fingerprints",
+    "assurance_model",
+    "operator_count",
+    "independent_reviewer_count",
+    "external_signer_count",
+    "issue39_authority_count",
+    "binding_fingerprint",
+}
 
 
 class R2ProductionBindingContractTests(unittest.TestCase):
@@ -36,242 +70,116 @@ class R2ProductionBindingContractTests(unittest.TestCase):
         }
 
         self.assertEqual(
-            {command: authority_domain_for_command_v2(command) for command in ProductionCommandV2},
+            {
+                command: authority_domain_for_command_v2(command)
+                for command in ProductionCommandV2
+            },
             expected_domains,
         )
-        self.assertEqual(
-            tuple(OperatorRoleV2),
-            (
-                OperatorRoleV2.PREFLIGHT_OPERATOR,
-                OperatorRoleV2.EVIDENCE_OPERATOR,
-                OperatorRoleV2.EXECUTION_OPERATOR,
-                OperatorRoleV2.RECOVERY_OPERATOR,
-            ),
-        )
-        self.assertEqual(
-            tuple(PublicKeyRoleV2),
-            (
-                PublicKeyRoleV2.PREFLIGHT_VERIFICATION,
-                PublicKeyRoleV2.EVIDENCE_VERIFICATION,
-                PublicKeyRoleV2.EXECUTION_VERIFICATION,
-                PublicKeyRoleV2.RECOVERY_VERIFICATION,
-            ),
-        )
-        self.assertEqual(
-            tuple(ProductionRoleV2),
-            (
-                ProductionRoleV2.LEGACY_SOURCE_ANCHOR,
-                ProductionRoleV2.PROJECT_CONTAINER,
-                ProductionRoleV2.MANAGED_MAIN,
-                ProductionRoleV2.REPOSITORY_ROOT,
-                ProductionRoleV2.GIT_COMMON_STATE,
-                ProductionRoleV2.WORKTREE_TOPOLOGY,
-                ProductionRoleV2.RUNTIME,
-                ProductionRoleV2.DATABASE,
-                ProductionRoleV2.CRX,
-                ProductionRoleV2.CONFIG,
-                ProductionRoleV2.TRANSACTION_JOURNAL,
-                ProductionRoleV2.EVIDENCE_PACKAGE,
-                ProductionRoleV2.FAILED_CONTAINER,
-                ProductionRoleV2.LEGACY_SERVICE,
-                ProductionRoleV2.MANAGED_SERVICE,
-                ProductionRoleV2.STOPPED_LAYOUT_AUDIT,
-                ProductionRoleV2.FINAL_RUNNING_AUDIT,
-                ProductionRoleV2.RETENTION_LEDGER,
-            ),
-        )
+        self.assertEqual(len(tuple(OperatorRoleV2)), 4)
+        self.assertEqual(len(tuple(ProductionCommandV2)), 10)
+        self.assertEqual(len(tuple(AuthorityDomainV2)), 4)
+        self.assertEqual(len(tuple(ProductionRoleV2)), 18)
         self.assertIsNone(authority_domain_for_command_v2("execute"))
 
-    def test_reviewed_binding_v2_binds_final_master_roles_keys_and_freshness(self):
-        final_master = _final_master_binding()
-        binding = _approved_binding(final_master)
+    def test_binding_v3_exactly_binds_solo_policy_without_keys_or_signatures(self):
+        final_master = final_master_binding()
+        binding = production_binding()
+        mapping = binding.to_mapping()
 
+        self.assertEqual(set(mapping), _BINDING_FIELDS)
+        self.assertEqual(mapping["binding_type"], "ApprovedCutoverBindingV3")
         self.assertEqual(
             binding.final_master_binding_fingerprint,
             final_master.binding_fingerprint,
         )
-        self.assertEqual(binding.operation, "r2_project_container_cutover")
-        self.assertEqual(binding.authority_domain_count, 4)
-        self.assertEqual(binding.preflight_verb_count, 6)
-        self.assertEqual(binding.process_root_count, 3)
-        self.assertEqual(binding.local_ref_count, 14)
-        self.assertEqual(binding.worktree_count, 11)
-        self.assertEqual(binding.managed_unit_count, 4)
-        self.assertEqual(binding.max_authority_validity_seconds, 300)
         self.assertEqual(
-            ApprovedCutoverBindingV2.from_json(
-                binding.to_canonical_json(),
+            binding.execution_confirmation_policy,
+            "SOLE_MAINTAINER_FRESH_TTY_CONFIRMATION_V1",
+        )
+        self.assertEqual(
+            (
+                binding.operator_role_count,
+                binding.command_count,
+                binding.command_domain_count,
+                binding.production_role_count,
+                binding.max_execution_confirmation_validity_seconds,
+            ),
+            (4, 10, 4, 18, 300),
+        )
+        self.assertEqual(
+            (
+                binding.assurance_model,
+                binding.operator_count,
+                binding.independent_reviewer_count,
+                binding.external_signer_count,
+                binding.issue39_authority_count,
+            ),
+            ("SOLE_MAINTAINER_SELF_REVIEW", 1, 0, 0, 0),
+        )
+        serialized = binding.to_canonical_json()
+        for forbidden in (b"public_key", b"signature", b"envelope"):
+            self.assertNotIn(forbidden, serialized)
+        self.assertEqual(
+            ApprovedCutoverBindingV3.from_json(
+                serialized,
                 final_master_binding=final_master,
             ),
             binding,
         )
-        self.assertNotIn("private", repr(binding).lower())
-        self.assertNotIn("path", repr(binding).lower())
-
-    def test_durable_claim_reconstruction_preserves_single_use_across_processes(self):
-        binding = _approved_binding(_final_master_binding())
-        first = _claim(
-            binding,
-            sequence=1,
-            authority_fingerprint="1" * 64,
-            envelope_nonce="2" * 64,
-            prior_head="3" * 64,
-        )
-        validate_new_authority_claim(
-            binding=binding,
-            candidate=first,
-            durable_claims=(),
-            observed_at_epoch=102,
-            expected_prior_journal_head_fingerprint="3" * 64,
-        )
-        reconstructed = DurableAuthorityClaimV2.from_json(
-            first.to_canonical_json(),
-            binding=binding,
-        )
-        second = _claim(
-            binding,
-            sequence=2,
-            authority_fingerprint="4" * 64,
-            envelope_nonce="5" * 64,
-            prior_head="6" * 64,
-        )
-
         self.assertIs(
-            validate_new_authority_claim(
-                binding=binding,
-                candidate=second,
-                durable_claims=(reconstructed,),
-                observed_at_epoch=102,
-                expected_prior_journal_head_fingerprint="6" * 64,
-            ),
-            second,
-        )
-        self.assertIs(second.domain, AuthorityDomainV2.EXECUTION)
-        self.assertEqual(second.single_use, 1)
-
-    def test_binding_and_claim_fail_closed_on_omission_replay_or_staleness(self):
-        final_master = _final_master_binding()
-        with self.assertRaisesRegex(
-            ProductionBindingError,
-            "R2_PRODUCTION_BINDING_INVALID",
-        ):
-            ApprovedCutoverBindingV2.create(
-                final_master_binding=final_master,
-                operation_fingerprint="f" * 64,
-                operator_role_fingerprints={
-                    role: f"{index + 10:064x}"
-                    for index, role in enumerate(OperatorRoleV2)
-                    if role is not OperatorRoleV2.RECOVERY_OPERATOR
-                },
-                verification_public_keys={
-                    role: bytes([index + 1]) * 32
-                    for index, role in enumerate(PublicKeyRoleV2)
-                },
-                production_role_fingerprints={
-                    role: f"{index + 30:064x}"
-                    for index, role in enumerate(ProductionRoleV2)
-                },
-            )
-
-        binding = _approved_binding(final_master)
-        first = _claim(
+            require_reviewed_production_binding_v3(final_master, binding),
             binding,
-            sequence=1,
-            authority_fingerprint="1" * 64,
-            envelope_nonce="2" * 64,
-            prior_head="3" * 64,
         )
-        replay = _claim(
-            binding,
-            sequence=2,
-            authority_fingerprint="1" * 64,
-            envelope_nonce="4" * 64,
-            prior_head="5" * 64,
+
+    def test_binding_parser_rejects_v2_extra_missing_or_noncanonical_payload(self):
+        final_master = final_master_binding()
+        binding = production_binding()
+        mapping = binding.to_mapping()
+        extra = {**mapping, "verification_public_keys": []}
+        missing = dict(mapping)
+        missing.pop("issue39_authority_count")
+        v2 = dict(mapping)
+        v2["binding_type"] = "ApprovedCutoverBindingV2"
+        payloads = (
+            json.dumps(mapping).encode("ascii"),
+            json.dumps(extra, sort_keys=True, separators=(",", ":")).encode("ascii"),
+            json.dumps(missing, sort_keys=True, separators=(",", ":")).encode("ascii"),
+            json.dumps(v2, sort_keys=True, separators=(",", ":")).encode("ascii"),
+            b'{"binding_type":"ApprovedCutoverBindingV3",'
+            b'"binding_type":"ApprovedCutoverBindingV3"}',
         )
-        for observed, head in ((103, "5" * 64), (102, "6" * 64)):
-            with self.subTest(observed=observed, head=head):
+
+        for payload in payloads:
+            with self.subTest(payload=payload[:48]):
                 with self.assertRaisesRegex(
-                    AuthorityClaimError,
-                    "R2_AUTHORITY_CLAIM_INVALID",
+                    ProductionBindingError,
+                    "R2_PRODUCTION_BINDING_INVALID",
                 ):
-                    validate_new_authority_claim(
-                        binding=binding,
-                        candidate=replay,
-                        durable_claims=(first,),
-                        observed_at_epoch=observed,
-                        expected_prior_journal_head_fingerprint=head,
+                    ApprovedCutoverBindingV3.from_json(
+                        payload,
+                        final_master_binding=final_master,
                     )
-        with self.assertRaisesRegex(
-            AuthorityClaimError,
-            "R2_AUTHORITY_CLAIM_INVALID",
-        ):
-            DurableAuthorityClaimV2.create(
-                binding=binding,
-                command=ProductionCommandV2.EXECUTE,
-                action_fingerprint="7" * 64,
-                authority_fingerprint="8" * 64,
-                envelope_nonce="9" * 64,
-                journal_owner_fingerprint="a" * 64,
-                prior_journal_head_fingerprint="b" * 64,
-                claim_sequence=1,
-                issued_at_epoch=100,
-                not_before_epoch=101,
-                expires_at_epoch=102,
-                claimed_at_epoch=102,
-            )
 
+    def test_action_fingerprint_is_binding_command_and_subject_bound(self):
+        binding = production_binding()
+        execute = production_action_fingerprint_v2(
+            binding,
+            ProductionCommandV2.EXECUTE,
+        )
+        resume = production_action_fingerprint_v2(
+            binding,
+            ProductionCommandV2.RESUME,
+        )
+        subject = production_action_fingerprint_v2(
+            binding,
+            ProductionCommandV2.EXECUTE,
+            subject_fingerprint="f" * 64,
+        )
 
-def _approved_binding(final_master: FinalMasterBindingV1) -> ApprovedCutoverBindingV2:
-    return ApprovedCutoverBindingV2.create(
-        final_master_binding=final_master,
-        operation_fingerprint="f" * 64,
-        operator_role_fingerprints={
-            role: f"{index + 10:064x}"
-            for index, role in enumerate(OperatorRoleV2)
-        },
-        verification_public_keys={
-            role: bytes([index + 1]) * 32
-            for index, role in enumerate(PublicKeyRoleV2)
-        },
-        production_role_fingerprints={
-            role: f"{index + 30:064x}"
-            for index, role in enumerate(ProductionRoleV2)
-        },
-    )
-
-
-def _claim(
-    binding: ApprovedCutoverBindingV2,
-    *,
-    sequence: int,
-    authority_fingerprint: str,
-    envelope_nonce: str,
-    prior_head: str,
-) -> DurableAuthorityClaimV2:
-    return DurableAuthorityClaimV2.create(
-        binding=binding,
-        command=ProductionCommandV2.EXECUTE,
-        action_fingerprint=f"{sequence + 50:064x}",
-        authority_fingerprint=authority_fingerprint,
-        envelope_nonce=envelope_nonce,
-        journal_owner_fingerprint="7" * 64,
-        prior_journal_head_fingerprint=prior_head,
-        claim_sequence=sequence,
-        issued_at_epoch=100,
-        not_before_epoch=101,
-        expires_at_epoch=200,
-        claimed_at_epoch=102,
-    )
-
-
-def _final_master_binding() -> FinalMasterBindingV1:
-    return FinalMasterBindingV1.create(
-        final_commit_oid="a" * 40,
-        final_tree_oid="b" * 40,
-        source_package_fingerprint="c" * 64,
-        runbook_fingerprint="d" * 64,
-        workflow_fingerprint="e" * 64,
-    )
+        self.assertEqual(len(execute), 64)
+        self.assertNotEqual(execute, resume)
+        self.assertNotEqual(execute, subject)
 
 
 if __name__ == "__main__":

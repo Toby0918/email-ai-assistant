@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-06
+last_update: 2026-08-08
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -8,67 +8,68 @@ source_type: operation_guide
 
 # Executable Architecture Constraints
 
-## Issue #102 terminal verifier architecture
+## Issue #110 Solo Maintainer Closure architecture
 
-`R2FrozenRemoteMasterV1` is a nominal pure observation contract with no public
-constructor. The fixed no-argument `scripts/verify_r2_final_master_closure.py`
-adapter requires isolated safe-path Python, rejects every tracked or untracked
-worktree change including hidden index flags, compares `HEAD` and
-`refs/remotes/origin/master` to a fresh fixed-URL `refs/heads/master`
-observation, and strips inherited Git state while disabling replacement refs,
-fsmonitor, sparse-checkout, and untracked-cache projections. It reads the raw
-commit, recursively parses the raw tree objects, and independently recomputes
-every commit/tree/blob Git object hash before any repository import. Before
-writing any blob it rejects unsupported modes,
-Win32 trailing-dot/space, ADS, reserved-device, short-name, Unicode/case-fold
-aliases, other unsafe paths, and collisions. It also rejects blob-hash
-disagreement, any index/worktree byte disagreement, any current verifier-script
-byte disagreement with the verified blob, and any imported repository module whose
-origin is outside that materialized tree. That verified code
-derives the Git-object package directly from the verified descriptors, plus
-domain-separated runbook, workflow, and
-dependency-lock identities and only then allocates the observation. Historical,
-dirty, shadowed, stale-remote, or mixed identity fails closed.
+`backend.r2_solo_maintainer_closure` is the only current final-closure module.
+Its external interface is one `SoloMaintainerClosure` with parameterless
+`prepare()` and `confirm(exact_manifest_fingerprint,
+exact_acknowledgement)`. Callers cannot select a repository path, Git ref,
+commit, evidence, check, ruleset, fingerprint, clock, terminal, storage, key,
+credential, URL or destination. Tests and the fixed CLI cross the same seam;
+production and in-memory adapters remain package-private.
 
-The fixed script reads one exact reviewed-production-binding artifact and
-fourteen exact signed-evidence filenames from the Git common directory; it
-accepts no path or receipt argument. Missing or invalid external input returns
-zero eligibility with a fixed content-free status. The production-binding
-adapter validates a concrete `ApprovedCutoverBindingV2` against the frozen
-master and derives a pure `R2ReviewedProductionBindingReceiptV1`; the closure
-package imports only that pure receipt type. Only after verification does the
-pure coordinator derive eight unique same-binding gap proofs and recompute
-the fourteen gate receipts and the sole terminal receipt, then returns an
-immutable `R2FinalMasterReviewPackageV1` whose only status is
-`AWAITING_SINGLE_HUMAN_FINAL_REVIEW`. The module exposes no approve, merge,
-execute, authority-issuance, receipt-conversion, host, process, provider,
-mailbox, vault, credential, private-data, cleanup, or #39 capability.
+The contract layer owns strict canonical ASCII JSON, domain-separated SHA-256,
+one final-master binding, five hosted check records, one GitHub guardrail
+snapshot, fourteen local evidence records, eight ordered gap proofs, one
+manifest, one candidate and one attestation receipt. It accepts exact concrete
+types and complete closed schemas only. Duplicate/unknown/missing fields,
+noncanonical bytes, bool-as-int, NaN/infinity, stale or mixed identities and
+any nonzero approval/execution/#39/finding/skip/divergence/leakage/private-data/
+provider/host/cleanup/deletion/overwrite/failure count fail closed.
 
-The package is not final approval. A human must independently freeze/review the
-remote master and decide #38; repository code cannot set human review complete,
-record approval, issue authority, or convert eligibility into execution.
+The assurance mode is exactly `SOLE_MAINTAINER_SELF_REVIEW`: one operator and
+zero independent, external, or hosted-human reviewers. It records evidence and
+never expands approval or execution authority.
 
-## Issue #101 same-binding global-gate architecture
+The repository and hosted-evidence adapters use fixed Git plumbing and fixed
+public HTTPS `api.github.com` endpoints with bounded reads, system TLS and no
+credential or caller URL. Hosted evidence must be the newest exact push/master
+success for the frozen commit from GitHub Actions app `15368`. The guardrail
+snapshot requires exactly one active `master-solo-maintainer-closure-v1`
+ruleset, no bypass, the five exact required checks and absent classic branch
+protection. Hosted evidence has zero human approvals.
 
-`backend.r2_final_master_closure` retains the only public closure interface.
-Its global-gate registry maps each of the fourteen closed gate kinds to one
-unique producer role and one of seven required review domains: Standards,
-Spec, security, documentation, mechanical, leakage, or operator review.
+Private `LocalSourceProofV1` values are constructed only after that GitHub
+snapshot. They bind the same final commit, tree, source package and a nonempty
+ordered subject set under `r2-local-source-proof-v1`. Canonical derivations use
+the exact typed value; hosted typed-test proofs additionally bind relevant
+frozen source/test blob identities, the same-SHA hosted record and exact
+successful job-step evidence from that record's numeric job id. Each source
+accepts only its exact ordered subject-name registry. `quality_gate_review`
+replaces the nonexistent
+`standards_review`; it is neither independent nor human review. Fresh status,
+maintenance and leakage proofs execute their read-only derivations against the
+verified checkout, require generated-status equivalence after normalizing only
+platform line endings and the unique date/date/branch snapshot fields, and bind
+the frozen status blob. Leakage is zero; maintenance classifications are unique
+and exactly equal the fixed nineteen-entry `(severity, category, path, doc)` set.
 
-Each `R2GlobalGateEvidenceV1` is immutable, content-free, same-binding, and
-fixed to zero skips, divergence, leakage, private-data access, host operations,
-provider attempts, and #39 changes. Each registry row also fixes a distinct
-Ed25519 verification public key; evidence exists only after the external
-producer signature verifies. There is no public arbitrary-fingerprint
-constructor. `R2GlobalGateCoordinatorV1` accepts only
-the exact ordered evidence set, requires fourteen distinct producers and all
-seven domains, and derives the existing `R2ClosureGateReceiptV1` values itself.
-It accepts no supplied receipt, authority, callback, path, process, host,
-network, mailbox, vault, provider, credential, private payload, or command.
+`prepare()` performs no write. Windows-only `confirm()` owns a one-use
+wall-plus-monotonic half-open 300-second ceremony over stable real stdin/stdout/
+stderr console handles and two once-only visible exact inputs. It fresh-rederives
+all state after input and before create-only publication. Fixed stage/target
+collision or any failure stops without overwrite, deletion, repair, migration
+or cleanup; a partial stage remains for incident review.
 
-Operator-review evidence covers generated-runbook semantics and maintenance
-scope only. It cannot represent the human final-master review reserved for
-#102, and neither evidence nor coordinator has a receipt-to-authority path.
+The no-argument isolated `scripts/verify_r2_final_master_closure.py` retains raw
+Git object/hash recomputation, clean tracked/untracked/hidden-index checks,
+fixed remote comparison, inherited-Git-state scrubbing, unsafe Windows path and
+alias rejection, verified-tree materialization, current-script byte equality
+and verified import origins before repository import. It accepts only the two
+new canonical files, rereads current GitHub state, rejects all legacy V1
+external/signature artifacts without fallback and can return only
+`ELIGIBLE_FOR_ISSUE38_FINAL_REVIEW` with approval/execution/#39 counts at zero.
+Eligibility is evidence, never Issue #38 approval or Issue #39 authority.
 
 ## Issue #100 Git-object CI provenance architecture
 
@@ -203,69 +204,36 @@ path, Git runner, process, ignored-file enumeration, private-data reader, or
 mutation capability. Fresh-process canonical reconstruction revalidates the
 same final-master binding and all segment fingerprints.
 
-## Issue #90 transaction production architecture
+## Issue #110 dormant production confirmation architecture
 
-The three V2 transaction verbs live only in
-`backend.r2_transaction_process.production_v2`. The dispatcher consumes one
-exact binding, reconstructed durable claims, current journal head, transition
-instance, applicable remaining reverse plan, and three named roles. Its
-journal-bound action fingerprint is domain-separated and signed before one
-matching role can be selected.
+The transaction, evidence and preflight production roots retain their physical
+non-import boundary and the #104 stateful Adapter identities. In this issue each
+root returns `DORMANT_NO_ISSUE39_APPROVAL` before argv validation, terminal or
+clock access, candidate construction, journal access, bootstrap selection or
+Adapter invocation. No environment, file, argument, acknowledgement, artifact
+or receipt can alter that state.
 
-The production dispatcher contains no iteration statement and cannot run a
-plan, retry, switch direction, acquire a second role, or own a current journal
-head. It has no preflight/evidence-root import, private key, issuer, path,
-filesystem/process adapter, service/Git/ACL/database capability, cleanup,
-provider, mailbox, vault, credential, or private-data surface. The test-only
-binder may inject one synthetic callback per role and is not a production
-consumer.
+`backend.r2_production_binding` is a pure deep module layered only on the
+standard library and the new `backend.r2_solo_maintainer_closure` contracts. Its
+current interface is `ApprovedCutoverBindingV3`, closed command/domain/role
+vocabularies, and the pure `ExecutionConfirmationCandidateV1` /
+`ExecutionConfirmationClaimV1` validators. It has no filesystem, SQLite,
+network, process, clock, randomness, private-key, signing, provider, mailbox,
+vault or host capability.
 
-## Issue #89 evidence production and genesis architecture
+Every execution confirmation binds the exact V3 binding, closure manifest and
+attestation, one command/action, operation, operator role, prior durable journal
+head, next sequence, transition and remaining reverse plan. Fresh-process
+canonical reconstruction validates the value; durable append and atomic
+single-use consumption belong to the journal. A claim is evidence of one fresh
+confirmation only and cannot approve Issue #38, enable Issue #39 or authorize a
+different action.
 
-The single V2 evidence-publication verb lives only in the physically separate
-`backend.r2_evidence_process.production_v2` root. It composes one reviewed
-create-only publication role after exact V2 verification and cannot import the
-preflight or transaction process roots. Its action fingerprint includes the
-reviewed-evidence fingerprint so a valid signature for a different review is
-not reusable.
-
-`backend.r2_transaction_journal_v2` begins as a pure canonical genesis module.
-fresh-process genesis reconstruction validates the exact final master, evidence
-identity, package/manifest identities, journal owner and first durable claim.
-It has no path, file, SQLite, process, clock, random, signer, issuer, mutation,
-cleanup, provider, mailbox, vault, or private-data capability. Later journal
-tickets deepen this same package; stage-local current-head owners are forbidden.
-
-## Issue #88 preflight production composition
-
-The six V2 preflight verbs are implemented only by the physically dedicated
-`backend.r2_preflight_process.production_v2` dispatcher. It consumes the
-shared verification-only V2 envelope seam, one exact reviewed binding, durable
-claim history/head, and a complete production composition containing exactly
-six named read-only roles. One invocation can select only the role matching its
-signed command.
-
-The dispatcher and verifier have no private key, issuer, path, selector, shell,
-filesystem mutation, database mutation, service control, evidence publication,
-transaction, provider, mailbox, vault, or private-data capability. The
-synthetic binder remains test-only. The no-issuer entry accepts only fixed argv
-and performs zero TTY reads and zero role calls.
-
-## Issue #87 production-binding boundary
-
-`backend/r2_production_binding` is a pure deep module layered only on the
-standard library and `backend.r2_final_master_closure`. Its public interface is
-the reviewed V2 binding, the four closed authority vocabularies, and a durable
-authority-claim validator. It has no filesystem, SQLite, network, process,
-clock, randomness, private-key, signing, provider, mailbox, vault, or host
-capability.
-
-Every authority claim carries its exact prior journal-head fingerprint and
-sequence. Validation performs fresh-process reconstruction from immutable
-durable claim values; process-local claimed sets or object identity cannot
-establish single use. Persistence and atomic append belong to the later unified
-journal composition, not this package.
-
+The transaction dispatcher still contains no iteration statement and cannot run
+a plan, retry, switch direction, acquire a second Adapter or own a caller-
+selected journal head. The evidence root retains create-only publication
+semantics and the preflight root remains read-only. Test binders stay package-
+local and production rejects their marker.
 本文件定义本项目的可执行架构约束。这些约束不是普通建议，而是应通过测试或 CI 自动检查的工程边界。
 
 本项目采用以下结构：
@@ -1394,83 +1362,36 @@ and unapproved consumers remain unable to consume the operator roots. Later
 Issues #71-#83 may use these pure values only within their separately approved
 scopes; Issue #70 itself performs no process, audit, journal, or host action.
 
-## Issue #71 preflight process architecture
+## Issue #71-#73 dormant production-process architecture
 
-Issue #71 introduces exactly two new roots:
+The preflight, evidence, and transaction packages remain three physically
+separate executable roots. Each `__main__.py` imports only its local
+`production_v2.main`; no root imports either sibling, local `testing.py`, a
+synthetic binder, an issuer, a key, a signature verifier, an envelope, a path,
+an environment-authority reader, or a host capability.
 
-```text
-backend.r2_preflight_process -> fixed argv + SystemTerminal + existing locked preflight entries
-backend.r2_operator_process -> canonical envelope + Ed25519 public verification + pure authorization validation
-```
+Issue #110 replaces the historical envelope and public-key model with pure
+`ApprovedCutoverBindingV3` and execution-confirmation contracts. Those values
+bind the Solo Maintainer Closure manifest and attestation, exact command/action,
+journal predecessor and next sequence, transition, remaining plan, reverse plan,
+TTY facts, nonce, and validity window. They contain no signer, key, credential,
+provider, mailbox, vault, private data, cleanup, or host-operation capability.
 
-`backend.r2_preflight_process` is a physically dedicated executable package.
-It has no evidence-publication or transaction import, umbrella selector,
-filesystem selector, arbitrary process launcher, Git, SQLite, ACL, service,
-provider, mailbox, vault, private-store, cleanup, or mutation capability. Its
-production `entry.main()` validates one exact verb and three actual standard
-TTY streams before reading the exact acknowledgement and one hidden bounded
-value. Before #39, its only valid terminal result remains
-`BLOCKED_NO_APPROVED_COMMAND` and zero host operations. The production entry
-owns the canonical envelope verification call and supplies a code-fixed,
-public, dormant validation context: exact Profile binding, public keys,
-operation, clock, and in-memory single-use nonce claim. It contains no private
-issuer or host capability. A correctly signed synthetic envelope can therefore
-exercise the production verification path, but still terminates locked before
-any Issue #39 or host operation.
+The production roots do not consume those primitives in Issue #110. Every fixed
+verb returns `DORMANT_NO_ISSUE39_APPROVAL` before inspecting a TTY, constructing
+a candidate, parsing an acknowledgement, acquiring an Adapter, verifying an
+Adapter, appending a claim, or invoking any callback. No argument, environment
+value, file, artifact, acknowledgement, bootstrap mapping, or synthetic marker
+can unlock the state. The process result contains zero role/Adapter calls and
+zero host operations.
 
-`backend.r2_operator_process` is a shared verification-only deep module for the
-four nominal authorization domains. Issue #71 consumes only the preflight
-domain and `RealPreflightAuthorizationV1`. The verifier checks the exact
-canonical outer shape, domain-separated Ed25519 signature, exact nominal inner
-type, phase, Profile, master, operator, operation, validity window, and nonce
-claim before the existing locked entry is reachable. It cannot sign, generate
-keys, acquire readers, or import any operator composition root.
-
-The synthetic binder is isolated in
-`backend.r2_preflight_process.testing`. No normal runtime consumer may import
-it. It binds a validated `ApprovedCutoverBindingV1`, a test-owned public key,
-an injected clock, and an in-memory single-use nonce claim; it has no host
-reader. Wrong authorization always fails before its reader-acquisition counter
-can change. The Windows real-TTY host is test-only and runs from a fresh
-temporary directory; portable tests make no Windows TTY claim.
-
-## Issue #72 evidence process architecture
-
-`backend.r2_evidence_process` is a new physical root beside, never beneath,
-`backend.r2_preflight_process`. Its production modules contain only the exact
-`publish` command check, evidence-specific TTY adapter, closed public result,
-and pre-#39 lock. They import neither preflight nor transaction process roots,
-and they have no verification, arbitrary filesystem, process, Git, SQLite,
-service, ACL, provider, mailbox, vault, private-store, cleanup, or repair
-capability.
-
-The `testing` module binds `ApprovedCutoverBindingV1`, exact confirmed-review
-fingerprints, the evidence-domain public key, an injected clock, an in-memory
-single-use nonce claim, and one narrow no-argument publication callback. The
-callback is not acquired until TTY, acknowledgement, canonical envelope,
-signature, nominal evidence authorization, immutable binding, expiry, replay,
-and confirmed-review gates pass. The real-locked branch never acquires it.
-
-Synthetic publication creates one caller-owned object exactly once. It does
-not verify that object; the existing `backend.migration_evidence_verifier`
-retains independent read-only process ownership. No normal runtime consumer can
-import the synthetic binder or either operator executable.
-
-## Issue #73 transaction process architecture
-
-`backend.r2_transaction_process` is physically disjoint from the preflight and
-evidence packages. Its production root owns only the three fixed verbs,
-transaction-specific TTY adapter, fixed aggregate result, and default lock. It
-has no umbrella, arbitrary filesystem/process/Git/service/ACL/provider/mailbox/
-vault/private-store, cleanup, repair, or verification capability.
-
-The test-only binder owns two public verification keys, exact immutable
-binding and journal-owner fingerprints, callbacks for current head, remaining
-reverse plan and boundary time, three narrow one-action roles, and in-memory
-claims for both envelope and crash nonces. Resume re-reads the current head;
-rollback re-reads both head and reverse-plan fingerprint. Any mismatch rejects
-before `action_acquisitions` increments. Normal runtime cannot consume this
-binder.
+The preflight catalog retains exactly six read-only commands, evidence retains
+exactly one publication command, and transaction retains exactly `execute`,
+`resume`, and `rollback`. Their contract and testing modules may prove the
+closed dormant result, V3 structural validation, replay/fingerprint rejection,
+and physical import isolation only. Windows fresh-console tests make no live
+execution claim. A future Issue #39 code allowlist plus separate authorization
+is required before an execution-confirmation primitive can become reachable.
 
 ## Issue #74 representative main-publication architecture
 
@@ -1679,29 +1600,32 @@ Windows verifier may claim physical NTFS, ACL, real TTY, or process isolation.
 
 ## 7. 修改规则
 
-## 7.1 R2 final-master closure module
+## 7.1 R2 Solo Maintainer Closure module
 
-`backend/r2_final_master_closure` is a pure in-process module. Its interface is
-limited to the closed gap/gate/finding vocabularies, one immutable
-`FinalMasterBindingV1`, nominal gap/gate evidence, and
-`R2FinalMasterClosureReceiptV1`. It may depend only on Python canonical-value
-primitives and its own package-private implementation. It must not import the
-cutover authority types, process roots, host adapters, filesystem, subprocess,
-Git runner, network, provider, mailbox, vault, credential, private-data,
-SQLite, frontend, workflow, issue-tracker, or cleanup implementations.
+`backend/r2_solo_maintainer_closure` contains exactly nine files. The public
+facade exports the two-method deep interface and immutable canonical contract
+values only. `_canonical.py`, `contracts.py` and `evidence.py` are pure
+in-process code. `repository.py`, `hosted_evidence.py`, `local_evidence.py` and
+`storage.py` are narrow internal adapters; `local_evidence.py` alone owns the
+fixed read-only fresh status, maintenance and leakage observations, while
+`closure.py` alone composes all adapters behind the public seam. No public
+helper exposes derivation, publication, arbitrary fingerprints or injected
+production capabilities.
 
-All evidence objects use exact concrete types and one binding fingerprint.
-The terminal constructor accepts the complete dependency-ordered eight-gap set
-and exact fourteen-gate set only. Missing, duplicate, unknown, reordered,
-stale, cross-commit, cross-tree, cross-package, cross-workflow, or mixed-binding
-evidence fails closed. The architecture must reject every
-receipt-to-authority conversion: closure values are disjoint from
-`REAL_AUTHORIZATION_TYPES` and expose no issuer, signer, claim, execute, resume,
-rollback, publication, cleanup, deletion, GitHub, or host-effect capability.
+The module must not import normal runtime, cutover effects, provider, mailbox,
+vault, credential, private data, SQLite, frontend, cleanup, issue tracker,
+private keys, signing, dynamic imports or arbitrary command/process adapters.
+Its fixed public GitHub read is provenance-only. Closure values stay disjoint
+from real authorization types and expose no approve, execute, resume, rollback,
+cleanup, deletion or host-effect conversion.
 
-The module performs no I/O. Later issues may supply separately guarded adapters
-that produce verified fingerprints, but those adapters cannot be added to this
-pure interface or use a terminal receipt as a process input.
+The create-only publication linearization point is the
+final stable parent/child/DACL/oplock observation, immediately followed by the
+exact-target no-replace rename. An arbitrary legacy or other-stage sibling
+created strictly after that linearization is a subsequent incident rejected by
+the verifier. The architecture makes
+no atomic arbitrary-sibling exclusion claim against an uncooperative writer and
+does not authorize Git-common DACL mutation, a kernel filter, or a volume lock.
 
 如果需要改变架构边界，必须同时修改：
 
@@ -1725,7 +1649,7 @@ Every production role bundle is `init=False` and can be created only by
 comparing the selected top-level function's path-independent normalized code,
 defaults, keyword defaults, function state, referenced globals/builtins, and
 the exact command-parameter type surfaces to the corresponding
-`ApprovedCutoverBindingV2.production_role_fingerprints` entry. Top-level bound
+`ApprovedCutoverBindingV3.production_role_fingerprints` entry. Top-level bound
 methods and closures are rejected. Recursive bytecode checks reject imports,
 dynamic namespaces/frames, function-attribute access, and global mutation.
 Every statically referenced global is recursively framed: helper functions bind
@@ -1781,23 +1705,20 @@ behavior identity immediately before invocation, so post-binding code/default/
 global/module/type/object/parameter-surface drift and arbitrary injected
 callables fail before any role effect.
 
-Each root also owns a nominal `bootstrap_v2.py` contract. `main()` reaches its
-existing `run_*_production_v2` composition only when the process launcher
-injects that exact bootstrap object containing the reviewed binding, its exact
-frozen-review receipt, the binding-bound public production roles, same-binding
-durable claims, and journal identities. Bootstrap creation revalidates every
-receipt field and role and rejects the testing-only synthetic marker. Production
-`main()` owns `SystemTerminal` and the module-fixed system clock; neither is an
-argument or bootstrap field. No path, environment, CLI payload, generic mapping,
-clock callback, or terminal adapter can construct or select the bootstrap.
+Each root retains a nominal `bootstrap_v2.py` validation contract. In Issue #110,
+`main()` neither receives nor inspects that value. The nominal bootstrap cannot unlock production composition.
+No path, environment, CLI payload, generic mapping,
+clock callback, terminal adapter, receipt, claim or synthetic marker can select
+or activate a bootstrap.
 The small claim/receipt match predicates intentionally remain root-local even
 when mechanically identical: sharing bootstrap validation code across these
 three packages would weaken the documented physical non-import boundary. Shared
 semantics stop at the existing immutable production-binding contracts.
 
 No executable root imports `testing.py`, accepts a synthetic context or test
-binder, or owns an issuer/private signing key. With no bootstrap the three
-executable V2 process roots return only `DORMANT_NO_EXTERNAL_ISSUER`.
+binder, or owns an issuer/private signing key. In Issue #110 all three
+production roots return `DORMANT_NO_ISSUE39_APPROVAL` before reading argv, TTY,
+clock, candidate, artifact, bootstrap or Adapter. No runtime input unlock exists.
 
 ## Issue #104 production Adapter binding remediation
 
@@ -1818,86 +1739,34 @@ outcome. A process calls its completion helper only after the underlying
 composition outcome has passed these validations.
 
 `build_production_binding_candidate_v1` is deterministic and accepts only an
-exact `FinalMasterBindingV1` plus four unique public verification keys. It
-derives the operation, four operator roles, ten Adapter identities, and eight
-nominal roles. The four keys must be pairwise distinct and disjoint from all
-fourteen gate keys. The candidate builder accepts no arbitrary fingerprint,
-path, environment, private key, credential, host, signer, or artifact input.
+exact `FinalMasterBindingV1` from the new closure package. It derives the
+operation, four operator roles, ten command-domain entries and eighteen
+production-role identities plus the fixed Execution Confirmation policy. The
+candidate builder accepts no public key, arbitrary fingerprint, path,
+environment, private key, credential, host, signer or artifact input.
 
 Production bootstraps accept only exact reviewed non-synthetic Adapter bindings.
 Test-only synthetic adapters remain in the three local `testing.py` modules and
 are rejected by production bootstrap construction. Default entries remain
-`DORMANT_NO_EXTERNAL_ISSUER`; this remediation creates no real Adapter instance,
-performs no host operation, and does not authorize Issue #105, #38, or #39.
+`DORMANT_NO_ISSUE39_APPROVAL`; this remediation creates no real Adapter
+instance, performs no host operation, and does not authorize Issue #38 or #39.
 
-## Issue #105 public external-artifact issuance
+## Issue #110 production-command authority migration
 
-`backend.r2_external_artifacts_v1` is one five-file deep module with two public
-operations. `prepare_unsigned_external_artifacts_v1` accepts one exact frozen
-master, four public authority verification keys, and nominal reviewed public
-inputs. It rebuilds the production binding and derives the fourteen global-gate
-values; callers cannot supply an evidence or production-role fingerprint.
+`ApprovedCutoverBindingV3` completely replaces V2 and has no V2 alias or dual
+parser. It removes public keys, signature/envelope inputs and external issuer
+semantics. Its exact assurance model is one operator, zero independent
+reviewers, zero external signers and zero Issue #39 authority.
 
-`install_signed_external_artifacts_v1` accepts only the immutable unsigned
-package, fourteen gate-ordered detached signatures, and the exact human-reviewed
-issuance-manifest fingerprint. It validates the closed package and provenance
-schemas, rederives every gate, uses the protected public-key evidence parser and
-coordinator, repeats a fixed read-only fresh-master observation before staging
-and immediately before commit, and publishes exactly fifteen canonical verifier
-files through one native directory no-replace commit. Windows opens every exact
-staged child by volume file ID with `FILE_FLAG_OPEN_REQUIRING_OPLOCK` and
-`FILE_FLAG_OPEN_REPARSE_POINT` and immediately requests its RWH
-`FSCTL_REQUEST_OPLOCK` before any other filesystem operation on that opened
-object. It retains the oplock input, output, `OVERLAPPED`, event, and handle,
-then validates the child's file ID, `FileStandardInfo` single-link state, sole
-default `::$DATA` stream, and exact bytes through the guarded handle. It likewise
-preopens the exact staging-directory path with read, delete, and DACL rights while
-denying delete sharing and immediately requests one Read oplock before any other filesystem
-operation on that opened directory. The handle's `FileIdInfo` volume/file ID is
-then bound to the before-and-after path identity. With all sixteen oplocks
-already pending, the installer applies one protected read/execute-only DACL
-through those bound handles and performs exact locked validation. Bounded
-`FileStreamInfo` queries require each child to retain only its default data
-stream and the directory to have no data stream. The exact namespace is
-re-enumerated as name plus file ID through `GetFileInformationByHandleEx` on the
-same directory handle, without reopening child paths after the directory oplock.
-A mutation admitted before lockdown must be observed by exact validation or
-break a guard; a mutation attempted after lockdown is denied.
-Every guard must remain quiet at the commit point. Because the child guards are
-file-ID handles and the directory handle was preauthorized, the calling thread
-can synchronously perform the same-handle `SetFileInformationByHandle`
-parent-directory rename without releasing a guard. All sixteen bound guards
-remain held through the exact target identity, inventory, and guarded-byte
-check, while the protected DACL continues to deny late mutations after release.
-There is no controller, background rename, or one-child-at-a-time release;
-pending oplock I/O is cancelled and synchronously reaped before its structures
-or handles are released, and read-path `CancelIoEx` is limited to a bounded read
-on the same guarded handle. Linux uses `renameat2(RENAME_NOREPLACE)`. The fixed Git
-common-directory destination is internal; there is no path, repository,
-destination, filename, environment, private-key, signer, issuer, credential, or
-host-command input.
+`backend.r2_production_binding.execution_confirmation` is a pure contract
+primitive. Candidate and claim bind the V3 binding, closure manifest and Solo
+Maintainer Attestation receipt, one command/domain/action, operation, operator
+role, current journal head, next sequence, transition and remaining reverse
+plan. The exact acknowledgement and 300-second dual-clock/real-console policy
+are distinct from closure confirmation. A claim must be durably appended before
+an Adapter attempt and becomes consumed by that attempt even on failure; replay
+fails closed.
 
-This Windows concurrency boundary assumes the trusted operator does not change
-object ownership or ACLs during installation and that no foreign write-capable
-handle was deliberately pre-positioned before lockdown. The DACL is not an
-immutability boundary against the file owner, an administrator, or a privileged
-process. An ownership/DACL change or such a pre-positioned handle is external
-tamper, invalidates the installation evidence, and requires incident stop at the
-unchanged verifier; repository tooling exposes no arbitrary ACL-reset surface.
-
-Only `scripts/prepare_r2_external_artifacts.py` may allocate or materialize a
-frozen-master observation. The installer has only its code-fixed, read-only
-commit guard for `HEAD`, tree, `origin/master`, clean state, the fixed GitHub
-master, and Git common directory; it exposes no Git command or repository input.
-The script has exactly `prepare` and `install` verbs, bounded canonical public
-stdin, canonical public stdout, and a fixed content-free failure.
-Normal runtime, frontend, cleanup, scheduler, and
-workflow code cannot import the package. The
-final-master closure package, protected verifier, and three Issue #59 composition
-roots remain unchanged.
-
-The repository owns no private signing capability and creates no production
-signature, real-host effect, Issue #38 decision, or Issue #39 authority. A
-post-merge clean fresh remote master, external public inputs, human manifest
-review, offline signatures, successful installation, and protected-verifier
-status `AWAITING_SINGLE_HUMAN_FINAL_REVIEW` remain distinct ordered gates.
+The primitive is not reachable from any production root in Issue #110. Future
+wiring requires separate Issue #38 approval followed by an Issue #39 exact code
+allowlist. Execution Confirmation can never satisfy or derive either approval.

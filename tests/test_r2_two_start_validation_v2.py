@@ -5,7 +5,6 @@ from __future__ import annotations
 import unittest
 
 from backend.r2_production_binding import (
-    DurableAuthorityClaimV2,
     ProductionCommandV2,
     ProductionRoleV2,
 )
@@ -31,7 +30,12 @@ from tests.test_r2_managed_unit_publication_v2 import (
     _complete_foundation,
     _managed_plan,
 )
-from tests.test_r2_transaction_journal_v2 import NOW, OWNER, _binding
+from tests.test_r2_transaction_journal_v2 import (
+    NOW,
+    _binding,
+    _confirmed_claim,
+    _live_append_observation,
+)
 
 
 class R2TwoStartValidationV2Tests(unittest.TestCase):
@@ -124,6 +128,7 @@ class R2TwoStartValidationV2Tests(unittest.TestCase):
             validation=receipt,
             observation=observation,
             claim=claim,
+            **_live_append_observation(),
         )
         self.assertIs(sealed.status, ValidationProgressStatusV2.CUTOVER_SUCCESS)
         self.assertEqual((sealed.host_mutations, sealed.journal_appends), (0, 2))
@@ -137,6 +142,7 @@ class R2TwoStartValidationV2Tests(unittest.TestCase):
                 validation=receipt,
                 observation=observation,
                 claim=claim,
+                **_live_append_observation(),
             )
 
     def test_provider_attempt_stale_audit_or_mixed_evidence_fails_closed(self):
@@ -183,7 +189,8 @@ class R2TwoStartValidationV2Tests(unittest.TestCase):
                 transition.command,
             )
             pending = begin_next_validation_action_v2(
-                journal=journal, plan=self.plan, claim=claim
+                journal=journal, plan=self.plan, claim=claim,
+                **_live_append_observation(),
             )
             journal = _restart(pending.journal, self.binding)
             item = _evidence(
@@ -222,20 +229,16 @@ def _claim(binding, plan, journal, transition, command):
         journal_head_fingerprint=journal.current_head_fingerprint,
         transition_instance_fingerprint=transition,
     )
-    sequence = len(journal.durable_authority_claims) + 1
-    return DurableAuthorityClaimV2.create(
+    sequence = len(journal.execution_confirmation_claims) + 1
+    return _confirmed_claim(
         binding=binding,
         command=command,
         action_fingerprint=action,
-        authority_fingerprint=f"{sequence + 100:064x}",
-        envelope_nonce=f"{sequence + 140:064x}",
-        journal_owner_fingerprint=OWNER,
-        prior_journal_head_fingerprint=journal.current_head_fingerprint,
+        head=journal.current_head_fingerprint,
+        transition=transition,
+        remaining_reverse_plan_fingerprint="0" * 64,
         claim_sequence=sequence,
-        issued_at_epoch=NOW - 10,
-        not_before_epoch=NOW - 5,
-        expires_at_epoch=NOW + 60,
-        claimed_at_epoch=NOW,
+        confirmed_at_epoch=NOW,
     )
 
 

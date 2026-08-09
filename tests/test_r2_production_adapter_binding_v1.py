@@ -3,7 +3,10 @@
 import types
 import unittest
 
-from backend.r2_production_binding import ProductionCommandV2
+from backend.r2_production_binding import (
+    ApprovedCutoverBindingV3,
+    ProductionCommandV2,
+)
 from backend.r2_production_binding.errors import ProductionBindingError
 from backend.r2_production_binding._adapter_identity import (
     _adapter_type_surface_digest_v1,
@@ -69,6 +72,7 @@ class R2ProductionAdapterBindingV1Tests(unittest.TestCase):
     def test_reviewed_adapter_binding_reverifies_exact_type_and_slot(self):
         binding, composition, scope = _preflight_context()
         self.addCleanup(scope.close)
+        self.assertIs(type(binding), ApprovedCutoverBindingV3)
         adapter = PreflightProductionAdapterV1.create(
             binding=binding,
             composition=composition,

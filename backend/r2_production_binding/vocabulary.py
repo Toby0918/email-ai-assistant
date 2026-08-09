@@ -1,4 +1,4 @@
-"""Closed commands, domains, operator roles, keys, and production roles."""
+"""Closed commands, domains, operator roles, and production roles."""
 
 from __future__ import annotations
 
@@ -30,13 +30,6 @@ class OperatorRoleV2(str, Enum):
     EVIDENCE_OPERATOR = "evidence_operator"
     EXECUTION_OPERATOR = "execution_operator"
     RECOVERY_OPERATOR = "recovery_operator"
-
-
-class PublicKeyRoleV2(str, Enum):
-    PREFLIGHT_VERIFICATION = "preflight_verification"
-    EVIDENCE_VERIFICATION = "evidence_verification"
-    EXECUTION_VERIFICATION = "execution_verification"
-    RECOVERY_VERIFICATION = "recovery_verification"
 
 
 class ProductionRoleV2(str, Enum):

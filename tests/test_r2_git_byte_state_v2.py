@@ -6,13 +6,12 @@ import hashlib
 import json
 import unittest
 
-from backend.r2_final_master_closure import FinalMasterBindingV1
 from backend.r2_production_binding import (
-    ApprovedCutoverBindingV2,
+    ApprovedCutoverBindingV3,
     OperatorRoleV2,
     ProductionRoleV2,
-    PublicKeyRoleV2,
 )
+from backend.r2_solo_maintainer_closure import FinalMasterBindingV1
 from backend.r2_repository_manifest import (
     GitByteSnapshotV2,
     GitByteStateError,
@@ -263,14 +262,11 @@ def _binding(*, final_commit="1" * 40):
         runbook_fingerprint="4" * 64,
         workflow_fingerprint="5" * 64,
     )
-    return ApprovedCutoverBindingV2.create(
+    return ApprovedCutoverBindingV3.create(
         final_master_binding=final_master,
         operation_fingerprint="6" * 64,
         operator_role_fingerprints={
             role: f"{index + 10:064x}" for index, role in enumerate(OperatorRoleV2)
-        },
-        verification_public_keys={
-            role: bytes([index + 1]) * 32 for index, role in enumerate(PublicKeyRoleV2)
         },
         production_role_fingerprints={
             role: f"{index + 30:064x}" for index, role in enumerate(ProductionRoleV2)

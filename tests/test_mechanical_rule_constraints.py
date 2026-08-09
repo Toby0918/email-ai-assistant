@@ -192,51 +192,68 @@ class MechanicalRuleConstraintTests(unittest.TestCase):
         self.assertIn("Linux", ci)
         self.assertIn("Issues #58/#59", ci)
 
-    def test_issue105_mechanical_rules_are_documented(self) -> None:
+    def test_issue110_mechanical_rules_are_documented(self) -> None:
         mechanical = read_text(
             ROOT / "docs" / "constraints" / "mechanical_rule_translation.md"
         )
         for marker in (
-            "Issue #105 external-artifact rules",
-            "seven-direct plus seven-wrapper derivation map",
-            "fourteen public provenance records",
-            "exactly fourteen\n   ordered 64-byte detached signatures",
-            "R2GlobalGateEvidenceV1.from_signed_json",
-            "OpenFileById",
-            "FILE_FLAG_OPEN_REQUIRING_OPLOCK",
-            "FILE_FLAG_OPEN_REPARSE_POINT",
-            "one RWH `FSCTL_REQUEST_OPLOCK`",
-            "one Read oplock",
-            "followed immediately by its",
-            "pending input, output",
-            "protected read/execute-only DACL",
-            "SetKernelObjectSecurity",
-            "FileStandardInfo",
-            "exactly\n   one link",
-            "FileStreamInfo",
-            "`::$DATA` stream",
-            "name-plus-file-ID namespace",
-            "same-handle guarded-byte reads",
-            "GetFileInformationByHandleEx",
-            "`FileIdInfo`",
-            "denies delete sharing",
-            "all sixteen bound guards",
-            "POSIX-style unlink/replacement",
-            "no controller,\n   background commit",
-            "CancelIoEx",
-            "synchronously reaped",
-            "MoveFileExW",
-            "renameat2(RENAME_NOREPLACE)",
-            "retained failure\n   state",
-            "signaled precommit guard fails closed",
-            "target-validation-to-release",
-            "not an immutability boundary against the file owner",
-            "external tamper requiring verifier incident stop",
-            "bounded canonical\n   stdin",
-            "unchanged/unstarted Issue #39",
+            "Issue #110 publication and validation rules",
+            "exactly nine\n   modules",
+            "numeric job id equals the hosted record",
+            "generated-status normalized equivalence",
+            "nineteen unique classifications exactly",
+            "only `prepare` and `confirm`",
+            "duplicate/extra/missing keys",
+            "lone surrogates",
+            "hosted-check ordering",
+            "Real current state\n   with no ruleset must fail",
+            "one-use acknowledgement",
+            "wall/monotonic 300-second bounds",
+            "create-only two-file publication",
+            "final stable parent/child/DACL/oplock observation",
+            "exact-target no-replace rename",
+            "strictly after that linearization",
+            "subsequent incident",
+            "does not provide atomic arbitrary-sibling exclusion",
+            "Git-common DACL mutation, kernel filter, or volume lock",
+            "only-new-file inventory",
+            "recursive legacy-surface rejection",
+            "Do not execute the live verifier",
+            "full discovery, maintenance scan",
+            "callable leakage scan",
+            "CI workflows remain byte-unchanged",
+            "cannot approve Issue #38",
+            "authorize or execute Issue #39",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, mechanical)
+
+    def test_issue110_amendments_04_through_07_are_recorded(self) -> None:
+        brief = read_text(
+            ROOT / "docs" / "operations" / "r2_solo_maintainer_closure_task_brief.md"
+        )
+        for marker in (
+            "Amendment 04",
+            "tests/test_r2_rollback_recovery_v2_crash_matrix.py",
+            "Amendment 05",
+            "docs/templates/agent_task_brief_template.md",
+            "Amendment 06",
+            "5224508400",
+            "8d23bc6aa9f0ddb7ef1f233c5b848db17c8c3c7a8c5824d714af73861cc313c7",
+            "Amendment 07",
+            "tests/test_r2_rollback_recovery_v2_architecture.py",
+            "5224816599",
+            "e0b9c955f6bf7909f8e099000ad0744574024d8b0d2b0b29fd08bad3f5c4320b",
+            "182 paths (`A20/M123/D39`)",
+            "final stable parent/child/DACL/oplock observation",
+            "exact-target no-replace rename",
+            "strictly after that linearization",
+            "subsequent incident",
+            "no atomic arbitrary-sibling exclusion",
+            "Git-common DACL mutation, kernel filter, or volume lock",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, brief)
 
 
 if __name__ == "__main__":

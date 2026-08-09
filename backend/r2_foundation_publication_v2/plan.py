@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
 
-from backend.r2_production_binding import ApprovedCutoverBindingV2, ProductionRoleV2
+from backend.r2_production_binding import ApprovedCutoverBindingV3, ProductionRoleV2
 from backend.r2_transaction_journal_v2 import R2TransactionJournalV2
 from backend.r2_transaction_journal_v2._canonical import (
     canonical_json,
@@ -69,7 +69,7 @@ class R2FoundationPlanV2:
     worktree_count: int
     transitions: tuple[R2FoundationTransitionV2, ...] = field(repr=False)
     plan_fingerprint: str = field(repr=False)
-    _binding: ApprovedCutoverBindingV2 = field(repr=False)
+    _binding: ApprovedCutoverBindingV3 = field(repr=False)
 
     def __init__(self, *args: object, **kwargs: object) -> None:
         raise TypeError("R2FoundationPlanV2 requires create()")
@@ -82,7 +82,7 @@ class R2FoundationPlanV2:
                 "container_states", "main_states", "whole_tree_acl_states",
                 "repository_states", "worktree_states",
             }
-            if set(values) != expected or type(values["binding"]) is not ApprovedCutoverBindingV2:
+            if set(values) != expected or type(values["binding"]) is not ApprovedCutoverBindingV3:
                 raise FoundationPublicationError()
             pairs = tuple(values[name] for name in (
                 "quiescence_states", "legacy_anchor_states", "container_states",
@@ -164,7 +164,7 @@ class R2FoundationPlanV2:
 
 
 def _build_plan(binding, pairs):
-    if type(binding) is not ApprovedCutoverBindingV2 or len(pairs) != 17 or any(not _valid_pair(pair) for pair in pairs):
+    if type(binding) is not ApprovedCutoverBindingV3 or len(pairs) != 17 or any(not _valid_pair(pair) for pair in pairs):
         raise FoundationPublicationError()
     definitions = _FOUNDATION + tuple(
         (FoundationBoundaryV2.WORKTREE_RECONSTRUCTION, ProductionRoleV2.WORKTREE_TOPOLOGY)

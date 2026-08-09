@@ -19,9 +19,45 @@ GRAPH_PACKAGES = (
     "r2_rollback_recovery_v2",
     "r2_retention_ledger_v2",
 )
+RETAINED_CONSUMERS = (
+    "backend/r2_foundation_publication_v2/plan.py",
+    "backend/r2_foundation_publication_v2/progress.py",
+    "backend/r2_managed_unit_publication_v2/plan.py",
+    "backend/r2_managed_unit_publication_v2/progress.py",
+    "backend/r2_managed_unit_publication_v2/recovery.py",
+    "backend/r2_operator_runbook_v2/receipt.py",
+    "backend/r2_repository_manifest/git_byte_receipt_v2.py",
+    "backend/r2_repository_manifest/git_byte_state_v2.py",
+    "backend/r2_retention_ledger_v2/ledger.py",
+    "backend/r2_retention_ledger_v2/proof.py",
+    "backend/r2_rollback_recovery_v2/evidence.py",
+    "backend/r2_rollback_recovery_v2/plan.py",
+    "backend/r2_rollback_recovery_v2/progress.py",
+    "backend/r2_rollback_recovery_v2/seal.py",
+    "backend/r2_transaction_journal_v2/inspection.py",
+    "backend/r2_transaction_journal_v2/journal.py",
+    "backend/r2_transaction_journal_v2/record.py",
+    "backend/r2_two_start_validation_v2/evidence.py",
+    "backend/r2_two_start_validation_v2/plan.py",
+    "backend/r2_two_start_validation_v2/progress.py",
+    "backend/r2_two_start_validation_v2/seal.py",
+)
 
 
 class R2RetentionLedgerV2ArchitectureTests(unittest.TestCase):
+    def test_retained_consumers_use_only_v3_execution_confirmation_terms(self):
+        forbidden = (
+            "ApprovedCutoverBindingV2",
+            "DurableAuthorityClaimV2",
+            "authority_claim",
+            "durable_authority_claims",
+            "append_authority_claim",
+        )
+        for relative in RETAINED_CONSUMERS:
+            source = (ROOT / relative).read_text(encoding="utf-8")
+            with self.subTest(path=relative):
+                self.assertTrue(all(term not in source for term in forbidden))
+
     def test_exact_files_exports_and_no_entry(self):
         self.assertEqual(
             {path.name for path in PACKAGE.glob("*.py")},
@@ -92,11 +128,9 @@ class R2RetentionLedgerV2ArchitectureTests(unittest.TestCase):
         self.assertEqual(
             sorted(consumers),
             [
-                "backend/r2_external_artifacts_v1/derivation.py",
-                "backend/r2_external_artifacts_v1/review_inputs.py",
                 "backend/r2_operator_runbook_v2/receipt.py",
                 "backend/r2_operator_runbook_v2/state_machine.py",
-                "scripts/prepare_r2_external_artifacts.py",
+                "backend/r2_solo_maintainer_closure/local_evidence.py",
             ],
         )
 

@@ -471,6 +471,41 @@ explicit synthetic or temporary state root. The flat-layout adapter is temporary
 compatibility only and is not a third final placement mode. Issues #38 through
 #40 remain separately authorized work.
 
+Issue #110 replaces the unavailable external-signature final-closure model with
+`Solo Maintainer Closure V1`. The only closure writer interface is parameterless
+`prepare()` plus `confirm(exact_manifest_fingerprint,
+exact_acknowledgement)`. It binds one frozen master, five current push/master
+GitHub Actions checks, one exact active master ruleset snapshot, fourteen local
+evidence records, eight gap proofs, and one `ApprovedCutoverBindingV3` into
+strict canonical JSON. Hosted Evidence proves provenance only. The receipt must
+state `SOLE_MAINTAINER_SELF_REVIEW`, operator count one, independent reviewer
+count zero, external signer count zero, approval count zero, execution authority
+count zero, and Issue #39 authority count zero.
+
+Each local evidence source is an internal `LocalSourceProofV1` bound to the
+same final commit/tree/source package. Its ordered subjects are exact canonical
+values, relevant frozen Git blob bindings plus same-SHA successful hosted job
+steps, or a freshly recomputed status/maintenance/leakage observation. A hosted
+typed-test execution proves only that the frozen contract tests ran; receipt-
+named sources do not claim that a durable runtime receipt instance exists.
+
+Confirmation is a separate Windows real-console, two-visible-input, 300-second
+wall-plus-monotonic ceremony. Publication is fixed create-only/no-replace under
+the Git common directory; collisions and failures stop without overwrite,
+delete, repair, migration, or cleanup. The no-argument isolated verifier accepts
+only the new manifest and Solo Maintainer Attestation receipt, rejects all
+legacy V1 external/signature artifacts, and can return only eligibility for a
+fresh Issue #38 review, never approval.
+
+`Execution Confirmation V1` is a distinct future one-action confirmation bound
+to the V3 binding, closure artifacts, current durable-journal head, sequence,
+transition and remaining reverse plan. In Issue #110 it is production-
+unreachable: preflight, evidence and transaction roots must return
+`DORMANT_NO_ISSUE39_APPROVAL` before reading argv, TTY, candidate, artifact or
+Adapter. No environment, file, argument, acknowledgement or artifact may unlock
+it. GitHub ruleset creation, live closure, Issue #105 disposition, Issue #38
+approval and all Issue #39 enablement/execution remain separate approvals.
+
 ## 技术栈基线
 
 Python 后端负责邮件清洗、AI 调用、JSON 校验、SQLite 持久化和本地 API。AI 调用可以是显式启用的后端 OpenAI `gpt-5.6-sol` 单次多模态主路线、后端 DeepSeek 文本路线，或在用户单独确认后启用的后端本地 Ollama/Qwen/Gemma；所有 provider 默认必须保持关闭或规则兜底。OpenAI 和 DeepSeek 均复用固定版本的 OpenAI-compatible 客户端并使用代码固定的后端端点，不允许通过环境变量配置远程 base URL。必须保留现有版本约束：

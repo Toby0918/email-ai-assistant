@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-06
+last_update: 2026-08-07
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -254,18 +254,19 @@ state. A callback failure must be discarded without `logger.exception`,
 
 The Issue #104 Adapter-binding and deterministic-candidate modules emit no log
 records. They must not print or log Adapter state, binding or role fingerprints,
-verification keys, authority claims, receipts, receipt chains, completion
-values, paths, environment values, host details, exception text, or traceback
-data. Validation failures cross the process boundary only through the existing
-fixed content-free blocked result.
+execution-confirmation candidates or claims, closure manifests, attestations,
+receipts, receipt chains, completion values, paths, environment values, host
+details, exception text, or traceback data. Validation failures cross the
+process boundary only through fixed content-free blocked results.
 
-## 12. R2 external-artifact issuance is silent
+## 12. R2 Solo Maintainer Closure is silent
 
-`backend.r2_external_artifacts_v1` emits no log or print records. The fixed CLI
-writes only the canonical public package, the fixed aggregate installation
-result, or `R2_EXTERNAL_ARTIFACT_INVALID`. It must not log or interpolate public
-keys, signatures, unsigned or signed bodies, reviewed outputs, provenance,
-manifest or binding fingerprints, Git paths/state, exception text, traceback,
-environment values, or retained staging details. Expected validation failure
-must remain content-free and must not use `logger.exception`, `exc_info=True`,
-or raw exception output.
+`backend.r2_solo_maintainer_closure` emits no log or print records. The fixed
+CLI writes only its exact content-free prepare/confirmation prompts and fixed
+status or failure code. It must not log or interpolate hosted evidence,
+ruleset JSON, manifest or attestation bodies/fingerprints, acknowledgement
+input, TTY facts, Git paths/state, exception text, traceback, environment
+values, or retained staging details. The protected verifier likewise emits
+only its fixed eligibility/failure result. Expected validation failure remains
+content-free and must not use `logger.exception`, `exc_info=True`, or raw
+exception output.

@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-03
+last_update: 2026-08-07
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -28,6 +28,39 @@ Portable success makes no NTFS, ACL, real-console, process-isolation, or native
 durability claim. Windows jobs operate only inside test-owned sandboxes. These
 receipts are non-authorizing CI evidence and cannot approve #38, execute #39,
 or access a live host, provider, mailbox, vault, credential, or private data.
+
+## Issue #110 Solo Maintainer Closure gate
+
+Issue #110 does not modify workflow bytes. The existing workflows expose the
+five exact hosted contexts used by the closure contract:
+
+```text
+quality-gates
+portable-provenance
+windows-native-provenance
+windows-independent-provenance
+provenance-reconciliation
+```
+
+`quality-gates` is produced by `.github/workflows/agent_guardrails.yml`. The
+other four are the exact jobs in `.github/workflows/r2_provenance.yml`;
+`provenance-reconciliation` depends on the three verifier jobs. Closure accepts
+only the newest exact successful `master` `push` evidence for one commit from
+GitHub Actions app id `15368`; the provenance jobs must share one run and
+attempt. A PR run can validate implementation but cannot satisfy the hosted
+closure-evidence contract.
+
+The required future ruleset is separate GitHub state: exact `master` target,
+active, zero bypass actors, deletion and non-fast-forward protection, strict
+required checks bound to app id `15368`, and the approved pull-request rule;
+classic branch protection must be absent. CI must not create, approve, mutate,
+or layer that ruleset. If live state differs from the expected no-ruleset/no-
+classic baseline before separate approval, stop rather than layering state.
+
+Green CI, hosted receipts, the closure manifest, and the Solo Maintainer
+Attestation are evidence only. They do not approve Issue #38, authorize or
+execute Issue #39, mutate a host, access provider/mailbox/vault/private data,
+publish credentials, clean retained stages, push, or merge.
 
 本文件定义项目的 CI 护栏策略。  
 CI 的目标不是替代人工 review，而是把已经明确的工程规则变成自动检查。

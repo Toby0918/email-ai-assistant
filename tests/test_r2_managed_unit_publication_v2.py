@@ -33,7 +33,11 @@ from tests.test_r2_foundation_publication_v2 import (
     _plan as _foundation_plan,
     _restart,
 )
-from tests.test_r2_transaction_journal_v2 import _binding, _genesis
+from tests.test_r2_transaction_journal_v2 import (
+    _binding,
+    _genesis,
+    _live_append_observation,
+)
 
 
 class R2ManagedUnitPublicationV2Tests(unittest.TestCase):
@@ -75,7 +79,8 @@ class R2ManagedUnitPublicationV2Tests(unittest.TestCase):
             prior_head = journal.current_head_fingerprint
             claim = _claim(self.binding, self.plan, journal, transition)
             pending = begin_next_managed_action_v2(
-                journal=journal, plan=self.plan, claim=claim
+                journal=journal, plan=self.plan, claim=claim,
+                **_live_append_observation(),
             )
             journal = _restart(pending.journal, self.binding)
             completion = complete_transaction_action_v2(
@@ -105,7 +110,8 @@ class R2ManagedUnitPublicationV2Tests(unittest.TestCase):
         transition = self.plan.transitions[3]
         claim = _claim(self.binding, self.plan, journal, transition)
         pending = begin_next_managed_action_v2(
-            journal=journal, plan=self.plan, claim=claim
+            journal=journal, plan=self.plan, claim=claim,
+            **_live_append_observation(),
         )
         receipt = _inspection(
             pending.journal, transition.post_state_fingerprint, post=True
@@ -131,7 +137,8 @@ class R2ManagedUnitPublicationV2Tests(unittest.TestCase):
             command=ProductionCommandV2.RESUME,
         )
         recovered = resume_managed_transition_v2(
-            journal=restarted, plan=self.plan, claim=resume_claim
+            journal=restarted, plan=self.plan, claim=resume_claim,
+            **_live_append_observation(),
         )
         self.assertIs(
             recovered.status, ManagedProgressStatusV2.MANAGED_RECOVERED_COMMIT
@@ -148,11 +155,12 @@ class R2ManagedUnitPublicationV2Tests(unittest.TestCase):
                 semantic_exact=False,
             )
 
-    def test_pre_state_fresh_authority_and_ambiguous_incident_stop(self):
+    def test_pre_state_fresh_confirmation_and_ambiguous_incident_stop(self):
         transition = self.plan.transitions[0]
         claim = _claim(self.binding, self.plan, self.journal, transition)
         pending = begin_next_managed_action_v2(
-            journal=self.journal, plan=self.plan, claim=claim
+            journal=self.journal, plan=self.plan, claim=claim,
+            **_live_append_observation(),
         )
         for state, pre, expected in (
             (
@@ -188,7 +196,8 @@ class R2ManagedUnitPublicationV2Tests(unittest.TestCase):
                     command=ProductionCommandV2.RESUME,
                 )
                 resumed = resume_managed_transition_v2(
-                    journal=restarted, plan=self.plan, claim=resume_claim
+                    journal=restarted, plan=self.plan, claim=resume_claim,
+                    **_live_append_observation(),
                 )
                 self.assertIs(
                     resumed.status, ManagedProgressStatusV2.MANAGED_ACTION_PENDING
@@ -209,13 +218,15 @@ def _managed_plan(binding, foundation):
 
 def _complete_foundation(binding, plan):
     journal = R2TransactionJournalV2.create(
-        binding=binding, genesis=_genesis(binding)
+        binding=binding, genesis=_genesis(binding),
+        **_live_append_observation(),
     )
     for transition in plan.transitions:
         head = journal.current_head_fingerprint
         claim = _claim(binding, plan, journal, transition)
         journal = begin_next_foundation_action_v2(
-            journal=journal, plan=plan, claim=claim
+            journal=journal, plan=plan, claim=claim,
+            **_live_append_observation(),
         ).journal
         completion = complete_transaction_action_v2(
             binding,
@@ -258,7 +269,12 @@ def _effect(binding, transition, completion):
 def _commit_one(binding, plan, journal, transition):
     head = journal.current_head_fingerprint
     claim = _claim(binding, plan, journal, transition)
-    pending = begin_next_managed_action_v2(journal=journal, plan=plan, claim=claim)
+    pending = begin_next_managed_action_v2(
+        journal=journal,
+        plan=plan,
+        claim=claim,
+        **_live_append_observation(),
+    )
     completion = complete_transaction_action_v2(
         binding,
         claim,

@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-29
+last_update: 2026-08-08
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -1161,74 +1161,41 @@ allowlisted counts, and cannot be accepted by any authorization validator.
 Tests are portable pure-contract tests and make no NTFS, Windows ACL, TTY,
 process-isolation, or real-host claim.
 
-## Issue #71 preflight process tooling boundary
+## Issue #71-#73 dormant process tooling boundary
 
-The dedicated preflight executable is only
-`python -B -m backend.r2_preflight_process <fixed-verb>`. Its one positional
-value is selected from the six code-fixed preflight verbs; no option parser,
-shell, PowerShell, path lookup, Profile input, journal location, recovery flag,
-force flag, vararg, or free-form command exists. It reads no environment value
-and no authorization file. Evidence and transaction entrypoints are different
-future packages and cannot be selected here.
+The three dedicated executables retain only their fixed verbs:
 
-The shared authorization package uses the already pinned `cryptography`
-Ed25519 verifier only. Repository production code contains no private key,
-signing call, key generation, issuer, network client, provider, mailbox, vault,
-credential, or private-store consumer. Hidden input is capped at 65,536 base64
-characters and is read exactly once after all three standard streams prove
-Windows TTY status and the exact acknowledgement succeeds.
+```text
+python -B -m backend.r2_preflight_process <six fixed preflight verbs>
+python -B -m backend.r2_evidence_process publish
+python -B -m backend.r2_transaction_process <execute|resume|rollback>
+```
 
-Portable tests cover canonical parsing, signatures, bindings, expiry, replay,
-cross-domain rejection, command closure, output closure, and redirected stream
-failure without claiming TTY evidence. A Windows-only test starts a test-only
-child around the production preflight runner in a fresh hidden local console
-owned by a detached test host, injects only synthetic input into that console,
-and proves the runner returns the pre-#39 locked result with zero host
-operations. The host and its output file live only in a test-owned temporary
-directory.
+They expose no option parser, umbrella selector, shell, PowerShell, arbitrary
+subprocess or Git command, caller path, Profile, journal location, recovery
+target, force switch, environment authorization, artifact authorization, or
+free-form input. Each root imports only its local `production_v2.main` and
+remains physically isolated from its siblings and local `testing.py`.
 
-## Issue #72 evidence process tooling boundary
+Issue #110 removes the R2 Ed25519, key, signature, envelope, and issuer tooling.
+The standard-library-only V3 binding and execution-confirmation contracts are
+pure content-free values. Their fixed Windows TTY adapter may prove console
+facts only in focused synthetic tests; it owns no clipboard API, path, provider,
+mailbox, vault, credential, signer, private data, host Adapter, or journal
+storage capability.
 
-The second production module is only
-`python -B -m backend.r2_evidence_process publish`. It has no option parser,
-shell, PowerShell, arbitrary subprocess, path lookup, target/source/Profile/
-review/journal selector, recovery switch, force flag, or verification verb. It
-does not import either other operator root or the independent verifier.
+All three production roots return `DORMANT_NO_ISSUE39_APPROVAL` before reading
+a console, constructing a candidate, parsing an acknowledgement, validating a
+confirmation, acquiring an Adapter, appending a journal claim, or invoking a
+callback. Windows child-process tests prove that dormant ordering only. No
+Issue #110 test mutates a real journal, repository, service, Runtime, database,
+ACL, evidence store, provider, mailbox, vault, private store, or private data.
 
-The shared authorization verifier now selects the exact nominal authorization
-class and operation from the Ed25519 domain: preflight uses
-`RealPreflightAuthorizationV1`, while evidence uses
-`EvidencePublicationAuthorizationV1`. Domain/type/operation disagreement fails
-closed. No signer, key generator, private key, issuer, file authorization,
-environment authorization, or durable envelope store is added.
-
-Portable tests own the publication callback and temporary target, prove
-create-only single publication, and make no TTY or process-isolation claim. A
-win32-only detached test host starts a dedicated evidence child in a fresh
-hidden local console, supplies one synthetic signed envelope through the
-console, and accepts exit zero only after the child observes one exact
-publication. The real production entry stays locked and performs no real
-publication before #39.
-
-## Issue #73 transaction process tooling boundary
-
-The third executable is only
-`python -B -m backend.r2_transaction_process <execute|resume|rollback>`. It has
-no option parser, umbrella selector, shell, PowerShell, arbitrary Git or
-subprocess command, caller path, Profile, journal path, recovery target, or
-force input. The process imports neither other operator root.
-
-The canonical envelope codec permits the transaction context only as a signed
-exact mapping. Preflight and evidence envelopes continue to reject a context.
-Execution and recovery select different existing nominal authorization types
-and different public keys. Tests sign only synthetic values; production code
-still has no signing or private-key capability.
-
-Portable tests inject current-head, reverse-plan, boundary-clock, and one-action
-callbacks. A Windows-only detached host drives one signed execution through a
-fresh hidden console. No test reads or mutates the real journal, repository,
-service, Runtime, database, ACL, evidence, provider, mailbox, vault, credential,
-private store, or private data.
+Pure focused tests may validate strict V3/confirmation schemas, TTY fact
+binding, half-open 300-second validity, durable replay rejection, and #104
+Adapter identity/order contracts with synthetic values. A future Issue #39
+code allowlist and separate authorization are required before any production
+execution-confirmation consumer or real Adapter invocation is allowed.
 
 ## Issue #74 representative main-publication tooling boundary
 
@@ -1416,6 +1383,43 @@ ACL operation. Its service, TTY, filesystem, and Windows helpers are
 test-owned evidence adapters, not production authority. Non-Windows execution
 must fail or skip without making
 an NTFS, ACL, TTY, process-isolation, or native-durability claim.
+
+## Issue #110 Solo Maintainer Closure tooling boundary
+
+The public contract surface of `backend.r2_solo_maintainer_closure` uses the
+Python standard library plus the capability-free V3 binding value seam.
+`repository.py` alone may consume the approved read-only provenance source,
+workflow-lock and production-composition seams. `local_evidence.py` alone may
+consume the approved pure CI-suite/runbook registries and fixed read-only
+project-status, maintenance and leakage modules. No other closure file gains
+those imports or capabilities. Repository acquisition is code-fixed to the
+clean local/fresh `master` chain and public `https://api.github.com`; it
+accepts no token, credential, caller URL, custom endpoint, proxy override, path,
+ref, command, or fallback. The current live no-ruleset state is a fixed closure
+failure, not an invitation for the tool to create or modify GitHub protection.
+
+`scripts/close_r2_final_master.py` exposes only `prepare` and `confirm`.
+`prepare` is read-only and noninteractive. `confirm` uses standard-library
+Windows console APIs to bind real stdin/stdout/stderr handles and exact input;
+it does not use or block the clipboard and does not claim to prevent operating-
+system paste or capture. Publication owns only two code-fixed create-only files
+under the Git common directory, with no overwrite, deletion, repair, migration,
+or cleanup API.
+
+The storage adapter defines its linearization point as the final stable
+parent/child/DACL/oplock observation immediately followed by the exact-target
+no-replace rename. It provides no atomic arbitrary-sibling exclusion against an
+uncooperative writer. A legacy or other-stage sibling created
+strictly after that linearization is a subsequent incident rejected by the
+verifier. Issue #110 grants
+no authority for a Git-common DACL mutation, kernel filter, or volume lock.
+
+`scripts/verify_r2_final_master_closure.py` remains a fixed no-argument,
+isolated safe-path verifier. It retains scrubbed Git process execution and
+read-only public GitHub access solely to verify one frozen repository and the
+two new closure files. It never accepts a repository/path/artifact argument,
+legacy signature file, credential, provider, mailbox, vault, private data,
+host Adapter, ruleset mutation, Issue #38 approval, or Issue #39 command.
 
 ## 14. 执行后检查
 

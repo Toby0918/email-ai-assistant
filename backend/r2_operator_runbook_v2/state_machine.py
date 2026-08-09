@@ -22,7 +22,7 @@ class OperatorPhaseV2(str, Enum):
     ROLLBACK = "rollback"
     ROLLBACK_RECOVERY = "rollback_recovery"
     RETENTION_RECONCILIATION = "retention_reconciliation"
-    HUMAN_FINAL_REVIEW = "human_final_review"
+    ISSUE38_FINAL_REVIEW = "issue38_final_review"
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,14 +48,14 @@ class R2OperatorPhaseRuleV2:
 def operator_state_machine_v2():
     by_verb = {item.verb: item for item in command_catalog_v2()}
     definitions = (
-        (OperatorPhaseV2.PREFLIGHT, tuple(item.verb for item in command_catalog_v2() if item.effect is OperatorCommandEffectV2.READ_ONLY), (OperatorPhaseV2.EVIDENCE_PUBLICATION,), ("exact_preflight_receipts",)),
-        (OperatorPhaseV2.EVIDENCE_PUBLICATION, ("publish",), (OperatorPhaseV2.FORWARD,), ("reviewed_evidence_genesis",)),
-        (OperatorPhaseV2.FORWARD, ("execute",), (OperatorPhaseV2.FORWARD, OperatorPhaseV2.FORWARD_RECOVERY, OperatorPhaseV2.RETENTION_RECONCILIATION), ("unified_journal_commit",)),
-        (OperatorPhaseV2.FORWARD_RECOVERY, ("recovery-inspection", "resume", "rollback"), (OperatorPhaseV2.FORWARD, OperatorPhaseV2.ROLLBACK), ("tri_state_inspection", "fresh_authority")),
-        (OperatorPhaseV2.ROLLBACK, ("rollback",), (OperatorPhaseV2.ROLLBACK, OperatorPhaseV2.ROLLBACK_RECOVERY, OperatorPhaseV2.RETENTION_RECONCILIATION), ("lifo_reverse_commit",)),
-        (OperatorPhaseV2.ROLLBACK_RECOVERY, ("recovery-inspection", "rollback"), (OperatorPhaseV2.ROLLBACK, OperatorPhaseV2.RETENTION_RECONCILIATION), ("tri_state_inspection", "fresh_recovery_authority")),
-        (OperatorPhaseV2.RETENTION_RECONCILIATION, (), (OperatorPhaseV2.HUMAN_FINAL_REVIEW,), ("object_level_retention_proof", "zero_deletion_capability")),
-        (OperatorPhaseV2.HUMAN_FINAL_REVIEW, (), (), ("human_review_only", "no_execution_authority")),
+        (OperatorPhaseV2.PREFLIGHT, tuple(item.verb for item in command_catalog_v2() if item.effect is OperatorCommandEffectV2.READ_ONLY), (OperatorPhaseV2.EVIDENCE_PUBLICATION,), ("issue39_approval", "fresh_execution_confirmation", "exact_preflight_receipts")),
+        (OperatorPhaseV2.EVIDENCE_PUBLICATION, ("publish",), (OperatorPhaseV2.FORWARD,), ("fresh_execution_confirmation", "reviewed_evidence_genesis")),
+        (OperatorPhaseV2.FORWARD, ("execute",), (OperatorPhaseV2.FORWARD, OperatorPhaseV2.FORWARD_RECOVERY, OperatorPhaseV2.RETENTION_RECONCILIATION), ("fresh_execution_confirmation", "unified_journal_commit")),
+        (OperatorPhaseV2.FORWARD_RECOVERY, ("recovery-inspection", "resume", "rollback"), (OperatorPhaseV2.FORWARD, OperatorPhaseV2.ROLLBACK), ("tri_state_inspection", "fresh_execution_confirmation")),
+        (OperatorPhaseV2.ROLLBACK, ("rollback",), (OperatorPhaseV2.ROLLBACK, OperatorPhaseV2.ROLLBACK_RECOVERY, OperatorPhaseV2.RETENTION_RECONCILIATION), ("fresh_execution_confirmation", "lifo_reverse_commit")),
+        (OperatorPhaseV2.ROLLBACK_RECOVERY, ("recovery-inspection", "rollback"), (OperatorPhaseV2.ROLLBACK, OperatorPhaseV2.RETENTION_RECONCILIATION), ("tri_state_inspection", "fresh_execution_confirmation")),
+        (OperatorPhaseV2.RETENTION_RECONCILIATION, (), (OperatorPhaseV2.ISSUE38_FINAL_REVIEW,), ("object_level_retention_proof", "zero_deletion_capability")),
+        (OperatorPhaseV2.ISSUE38_FINAL_REVIEW, (), (), ("fresh_issue38_review", "no_issue39_authority")),
     )
     return tuple(_rule(phase, commands, next_phases, evidence, by_verb) for phase, commands, next_phases, evidence in definitions)
 
@@ -69,6 +69,8 @@ def operator_package_semantics_fingerprint_v2():
         "terminal_states": [item.value for item in TerminalStateV2],
         "historical_command_count": 0,
         "deletion_capability_count": 0,
+        "production_status": "DORMANT_NO_ISSUE39_APPROVAL",
+        "issue39_authority_count": 0,
     }
     return fingerprint("r2-operator-package-semantics-v2", body)
 

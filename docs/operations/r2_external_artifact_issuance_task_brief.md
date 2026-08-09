@@ -1,12 +1,18 @@
 ---
-last_update: 2026-08-06
-status: active
+last_update: 2026-08-07
+status: deprecated
 owner: "@tobyWang"
 review_cycle: as_needed
 source_type: operation_guide
 ---
 
 # R2 External Artifact Issuance Task Brief
+
+> Historical/superseded disposition: Issue #105's original external-signature
+> contract never passed. Issue #110 replaces that unavailable trust model with
+> Solo Maintainer Closure V1. The implementation and synthetic test evidence
+> below are retained only as history and are not current closure or authority
+> inputs.
 
 ## 1. Task name
 

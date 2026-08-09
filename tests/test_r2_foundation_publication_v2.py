@@ -15,7 +15,6 @@ from backend.r2_foundation_publication_v2 import (
     resume_foundation_transition_v2,
 )
 from backend.r2_production_binding import (
-    DurableAuthorityClaimV2,
     ProductionCommandV2,
     ProductionRoleV2,
 )
@@ -29,7 +28,13 @@ from backend.r2_transaction_process.production_v2 import (
     complete_transaction_action_v2,
     transaction_action_fingerprint_v2,
 )
-from tests.test_r2_transaction_journal_v2 import OWNER, NOW, _binding, _genesis
+from tests.test_r2_transaction_journal_v2 import (
+    NOW,
+    _binding,
+    _confirmed_claim,
+    _genesis,
+    _live_append_observation,
+)
 
 
 class R2FoundationPublicationV2Tests(unittest.TestCase):
@@ -37,7 +42,8 @@ class R2FoundationPublicationV2Tests(unittest.TestCase):
         self.binding = _binding()
         self.plan = _plan(self.binding)
         self.journal = R2TransactionJournalV2.create(
-            binding=self.binding, genesis=_genesis(self.binding)
+            binding=self.binding, genesis=_genesis(self.binding),
+            **_live_append_observation(),
         )
 
     def test_exact_plan_has_unique_owners_and_eleven_worktrees(self):
@@ -69,13 +75,14 @@ class R2FoundationPublicationV2Tests(unittest.TestCase):
             17,
         )
 
-    def test_every_foundation_action_uses_fresh_authority_and_one_effect(self):
+    def test_every_foundation_action_uses_fresh_confirmation_and_one_effect(self):
         journal = self.journal
         for transition in self.plan.transitions:
             prior_head = journal.current_head_fingerprint
             claim = _claim(self.binding, self.plan, journal, transition)
             pending = begin_next_foundation_action_v2(
-                journal=journal, plan=self.plan, claim=claim
+                journal=journal, plan=self.plan, claim=claim,
+                **_live_append_observation(),
             )
             self.assertIs(
                 pending.status, FoundationProgressStatusV2.FOUNDATION_ACTION_PENDING
@@ -107,7 +114,7 @@ class R2FoundationPublicationV2Tests(unittest.TestCase):
         )
         self.assertEqual(self.plan.committed_prefix_count(journal), 17)
 
-    def test_pre_state_requires_fresh_authority_before_same_effect(self):
+    def test_pre_state_requires_fresh_confirmation_before_same_effect(self):
         transition, pending, _claim_value = self._pending()
         receipt = _inspection(pending.journal, transition.pre_state_fingerprint, pre=True)
         classified = classify_foundation_pending_v2(
@@ -126,7 +133,8 @@ class R2FoundationPublicationV2Tests(unittest.TestCase):
             command=ProductionCommandV2.RESUME,
         )
         resumed = resume_foundation_transition_v2(
-            journal=restarted, plan=self.plan, claim=resume_claim
+            journal=restarted, plan=self.plan, claim=resume_claim,
+            **_live_append_observation(),
         )
         self.assertIs(
             resumed.status, FoundationProgressStatusV2.FOUNDATION_ACTION_PENDING
@@ -148,7 +156,8 @@ class R2FoundationPublicationV2Tests(unittest.TestCase):
             command=ProductionCommandV2.RESUME,
         )
         recovered = resume_foundation_transition_v2(
-            journal=restarted, plan=self.plan, claim=resume_claim
+            journal=restarted, plan=self.plan, claim=resume_claim,
+            **_live_append_observation(),
         )
         self.assertIs(
             recovered.status, FoundationProgressStatusV2.FOUNDATION_RECOVERED_COMMIT
@@ -174,13 +183,15 @@ class R2FoundationPublicationV2Tests(unittest.TestCase):
                     self.journal,
                     self.plan.transitions[1],
                 ),
+                **_live_append_observation(),
             )
 
     def _pending(self):
         transition = self.plan.transitions[0]
         claim = _claim(self.binding, self.plan, self.journal, transition)
         return transition, begin_next_foundation_action_v2(
-            journal=self.journal, plan=self.plan, claim=claim
+            journal=self.journal, plan=self.plan, claim=claim,
+            **_live_append_observation(),
         ), claim
 
 
@@ -206,20 +217,16 @@ def _claim(binding, plan, journal, transition, *, command=ProductionCommandV2.EX
         transition_instance_fingerprint=transition.transition_instance_fingerprint,
         remaining_reverse_plan_fingerprint=plan.remaining_plan_fingerprint(transition),
     )
-    sequence = len(journal.durable_authority_claims) + 1
-    return DurableAuthorityClaimV2.create(
+    sequence = len(journal.execution_confirmation_claims) + 1
+    return _confirmed_claim(
         binding=binding,
         command=command,
         action_fingerprint=action,
-        authority_fingerprint=f"{sequence + 30:064x}",
-        envelope_nonce=f"{sequence + 60:064x}",
-        journal_owner_fingerprint=OWNER,
-        prior_journal_head_fingerprint=journal.current_head_fingerprint,
+        head=journal.current_head_fingerprint,
+        transition=transition.transition_instance_fingerprint,
+        remaining_reverse_plan_fingerprint=plan.remaining_plan_fingerprint(transition),
         claim_sequence=sequence,
-        issued_at_epoch=NOW - 10,
-        not_before_epoch=NOW - 5,
-        expires_at_epoch=NOW + 60,
-        claimed_at_epoch=NOW,
+        confirmed_at_epoch=NOW,
     )
 
 

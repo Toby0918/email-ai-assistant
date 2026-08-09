@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-01
+last_update: 2026-08-07
 status: active
 owner: "@tobyWang"
 review_cycle: as_needed
@@ -83,3 +83,18 @@ aggregate bundle, complete R2 surface, and the package binding all five inputs
 plus the surface. The surface must include the transitive local production,
 script, and test-driver inputs used by the verifier. No path, secret, raw terminal transcript, message, customer,
 provider payload, or private value may enter public output.
+
+## Issue #110 disposition
+
+The Issues #70-#83 synthetic topology remains regression evidence for its
+test-owned sandbox only. Issue #110 removes the later V2 key/signature/envelope
+trust path and makes all three production process roots unconditionally
+`DORMANT_NO_ISSUE39_APPROVAL` before TTY, candidate, confirmation, Adapter,
+journal, or callback access. Synthetic topology helpers cannot unlock those
+roots or mint an execution confirmation.
+
+The new Solo Maintainer Closure, hosted-check records, GitHub guardrail
+snapshot, manifest, attestation, and execution-confirmation contracts require
+their own focused tests and are not inferred from this 70-case matrix. Neither
+this matrix nor its fingerprints approve Issue #38, create or approve a
+ruleset, authorize or execute Issue #39, or justify real-host work.

@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import unittest
 
+from backend.r2_production_binding import (
+    ApprovedCutoverBindingV3,
+    ExecutionConfirmationClaimV1,
+)
 from backend.r2_retention_ledger_v2 import (
     R2RetentionLedgerV2,
     R2RetentionProofV2,
@@ -29,6 +33,7 @@ from tests.r2_rollback_recovery_v2_fixture import (
     terminal_claim,
 )
 from tests.test_r2_foundation_publication_v2 import _restart
+from tests.test_r2_transaction_journal_v2 import _live_append_observation
 
 
 class R2RetentionLedgerV2Tests(unittest.TestCase):
@@ -74,11 +79,50 @@ class R2RetentionLedgerV2Tests(unittest.TestCase):
         self.assertEqual(len({item.entry_fingerprint for item in ledger.entries}), ledger.entry_count)
         self.assertTrue(all(item.retention_required for item in ledger.entries))
 
+    def test_v3_confirmations_stay_journal_bound_and_retention_is_content_free(self):
+        ledger = self._project(self.journal)
+        claims = self.journal.execution_confirmation_claims
+        records = tuple(
+            record
+            for record in self.journal.records
+            if record.execution_confirmation_claim is not None
+        )
+
+        self.assertIs(type(self.binding), ApprovedCutoverBindingV3)
+        self.assertTrue(claims)
+        self.assertTrue(
+            all(type(claim) is ExecutionConfirmationClaimV1 for claim in claims)
+        )
+        self.assertEqual(
+            tuple(claim.claim_sequence for claim in claims),
+            tuple(range(1, len(claims) + 1)),
+        )
+        self.assertTrue(
+            all(
+                claim.production_binding_fingerprint
+                == self.binding.binding_fingerprint
+                and claim.single_use == 1
+                and claim.replay_count == 0
+                for claim in claims
+            )
+        )
+        self.assertTrue(
+            all(
+                record.execution_confirmation_claim.prior_journal_head_fingerprint
+                == record.predecessor_head_fingerprint
+                for record in records
+            )
+        )
+        self.assertNotIn(
+            b"execution_confirmation_claim", ledger.to_canonical_json()
+        )
+
     def test_pending_recovery_rollback_and_terminal_states_reconcile(self):
         transition = self.rollback.transitions[0]
         claim = rollback_claim(self.binding, self.rollback, self.journal, transition)
         pending = begin_next_rollback_action_v2(
-            journal=self.journal, plan=self.rollback, claim=claim
+            journal=self.journal, plan=self.rollback, claim=claim,
+            **_live_append_observation(),
         )
         self.assertIs(
             self._project(pending.journal).stage,
@@ -99,7 +143,8 @@ class R2RetentionLedgerV2Tests(unittest.TestCase):
             self.binding, self.rollback, classified.journal, transition
         )
         resumed = resume_rollback_transition_v2(
-            journal=classified.journal, plan=self.rollback, claim=fresh
+            journal=classified.journal, plan=self.rollback, claim=fresh,
+            **_live_append_observation(),
         )
         self.assertIs(
             self._project(resumed.journal).stage,
@@ -187,7 +232,12 @@ class R2RetentionLedgerV2Tests(unittest.TestCase):
 def _commit_reverse(binding, plan, journal, transition):
     prior = journal.current_head_fingerprint
     claim = rollback_claim(binding, plan, journal, transition)
-    pending = begin_next_rollback_action_v2(journal=journal, plan=plan, claim=claim)
+    pending = begin_next_rollback_action_v2(
+        journal=journal,
+        plan=plan,
+        claim=claim,
+        **_live_append_observation(),
+    )
     completion = complete_transaction_action_v2(
         binding,
         claim,
@@ -235,6 +285,7 @@ def _seal(binding, plan, journal):
         plan=plan,
         evidence=evidence,
         claim=terminal_claim(binding, plan, journal),
+        **_live_append_observation(),
     ).journal
 
 

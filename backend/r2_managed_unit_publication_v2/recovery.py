@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from backend.r2_production_binding import ApprovedCutoverBindingV2
+from backend.r2_production_binding import ApprovedCutoverBindingV3
 from backend.r2_transaction_journal_v2 import R2ReadOnlyInspectionReceiptV2
 from backend.r2_transaction_journal_v2._canonical import fingerprint, is_fingerprint
 
@@ -31,7 +31,7 @@ class R2ManagedRecoveryInspectionV2:
     @classmethod
     def create(cls, *, binding, transition, inspection, acl_conformance_fingerprint, semantic_conformance_fingerprint, acl_exact, semantic_exact):
         try:
-            if type(binding) is not ApprovedCutoverBindingV2 or type(transition) is not R2ManagedUnitTransitionV2 or type(inspection) is not R2ReadOnlyInspectionReceiptV2 or inspection.binding_fingerprint != binding.binding_fingerprint or inspection.transition_instance_fingerprint != transition.transition_instance_fingerprint or not is_fingerprint(acl_conformance_fingerprint) or not is_fingerprint(semantic_conformance_fingerprint) or acl_exact is not True or semantic_exact is not True:
+            if type(binding) is not ApprovedCutoverBindingV3 or type(transition) is not R2ManagedUnitTransitionV2 or type(inspection) is not R2ReadOnlyInspectionReceiptV2 or inspection.binding_fingerprint != binding.binding_fingerprint or inspection.transition_instance_fingerprint != transition.transition_instance_fingerprint or not is_fingerprint(acl_conformance_fingerprint) or not is_fingerprint(semantic_conformance_fingerprint) or acl_exact is not True or semantic_exact is not True:
                 raise ManagedUnitPublicationError()
             body = {
                 "binding_fingerprint": binding.binding_fingerprint,

@@ -30,6 +30,7 @@ from tests.r2_rollback_recovery_v2_fixture import (
     rollback_plan as _rollback_plan,
     terminal_claim as _terminal_claim,
 )
+from tests.test_r2_transaction_journal_v2 import _live_append_observation
 
 
 class R2RollbackRecoveryV2Tests(unittest.TestCase):
@@ -72,14 +73,15 @@ class R2RollbackRecoveryV2Tests(unittest.TestCase):
         with self.assertRaisesRegex(TypeError, "R2RollbackPlanV2 requires derive"):
             R2RollbackPlanV2(transitions=tuple(reversed(restarted.transitions)))
 
-    def test_all_reverse_actions_use_fresh_authority_and_retain_objects(self):
+    def test_all_reverse_actions_use_fresh_confirmation_and_retain_objects(self):
         journal = self.journal
         claims = []
         for transition in self.plan.transitions:
             prior = journal.current_head_fingerprint
             claim = _rollback_claim(self.binding, self.plan, journal, transition)
             pending = begin_next_rollback_action_v2(
-                journal=journal, plan=self.plan, claim=claim
+                journal=journal, plan=self.plan, claim=claim,
+                **_live_append_observation(),
             )
             completion = complete_transaction_action_v2(
                 self.binding,
@@ -119,7 +121,8 @@ class R2RollbackRecoveryV2Tests(unittest.TestCase):
         ):
             claim = _rollback_claim(self.binding, self.plan, self.journal, transition)
             pending = begin_next_rollback_action_v2(
-                journal=self.journal, plan=self.plan, claim=claim
+                journal=self.journal, plan=self.plan, claim=claim,
+                **_live_append_observation(),
             )
             inspection = _inspection(pending.journal, state, pre=pre, post=post)
             classified = classify_rollback_pending_v2(
@@ -130,14 +133,16 @@ class R2RollbackRecoveryV2Tests(unittest.TestCase):
                 self.assertIs(classified.status, RollbackProgressStatusV2.INCIDENT_STOP)
                 with self.assertRaisesRegex(ValueError, "R2_ROLLBACK_RECOVERY_INVALID"):
                     resume_rollback_transition_v2(
-                        journal=classified.journal, plan=self.plan, claim=claim
+                        journal=classified.journal, plan=self.plan, claim=claim,
+                        **_live_append_observation(),
                     )
                 continue
             fresh = _rollback_claim(
                 self.binding, self.plan, classified.journal, transition
             )
             resumed = resume_rollback_transition_v2(
-                journal=classified.journal, plan=self.plan, claim=fresh
+                journal=classified.journal, plan=self.plan, claim=fresh,
+                **_live_append_observation(),
             )
             expected_mutations = 0
             self.assertEqual(resumed.host_mutations, expected_mutations)
@@ -167,7 +172,8 @@ class R2RollbackRecoveryV2Tests(unittest.TestCase):
         )
         claim = _terminal_claim(self.binding, self.plan, journal)
         sealed = seal_legacy_flat_layout_restored_v2(
-            journal=journal, plan=self.plan, evidence=evidence, claim=claim
+            journal=journal, plan=self.plan, evidence=evidence, claim=claim,
+            **_live_append_observation(),
         )
         self.assertIs(sealed.status, RollbackProgressStatusV2.LEGACY_FLAT_LAYOUT_RESTORED)
         self.assertEqual((sealed.host_mutations, sealed.journal_appends), (0, 2))
@@ -177,7 +183,8 @@ class R2RollbackRecoveryV2Tests(unittest.TestCase):
         )
         with self.assertRaisesRegex(ValueError, "R2_ROLLBACK_RECOVERY_INVALID"):
             seal_legacy_flat_layout_restored_v2(
-                journal=sealed.journal, plan=self.plan, evidence=evidence, claim=claim
+                journal=sealed.journal, plan=self.plan, evidence=evidence, claim=claim,
+                **_live_append_observation(),
             )
 
 

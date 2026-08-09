@@ -266,3 +266,26 @@ The mandatory human re-review of all fourteen Issue #38 approval items against
 the exact final master after Issue #59 merges. The old R1 remains
 `NOT EXECUTABLE`; Issue #39 cannot be considered until a new R2 is published.
 _Avoid_: Automatic approval rollover, stale-SHA authorization
+
+**Solo Maintainer Closure**:
+One canonical, reproducible closure-evidence package followed by an explicit
+review and confirmation by the same sole maintainer. It does not claim
+separation of duties or independent review.
+_Avoid_: Independent approval, external authority
+
+**Hosted Evidence**:
+GitHub-hosted commit identity, check-run, workflow, and optional attestation
+evidence. It supports provenance and auditability but is not a second human
+approval.
+_Avoid_: Human approval, independent reviewer
+
+**Solo Maintainer Attestation**:
+The maintainer's exact confirmation of one frozen-master-bound manifest
+fingerprint. It is not an external signature and is not Issue #39 execution
+authority.
+_Avoid_: External signature, execution approval
+
+**Execution Confirmation**:
+A separate fresh confirmation immediately before any future real-host Issue
+#39 operation. Closure evidence cannot substitute for it.
+_Avoid_: Closure attestation, reusable authority

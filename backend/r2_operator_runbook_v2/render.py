@@ -23,24 +23,25 @@ def render_r2_operator_runbook_v2():
     catalog = command_catalog_v2()
     rules = operator_state_machine_v2()
     lines = [
-        "---", "last_update: 2026-08-03", "status: active",
+        "---", "last_update: 2026-08-07", "status: active",
         'owner: "@tobyWang"', "review_cycle: as_needed",
         "source_type: operation_guide", "---", "",
         "# Final R2 Operator Runbook", "",
-        "Generated from the executable R2 command catalog and state machine; do not hand edit command semantics.",
+        "Generated from the latent R2 command catalog and state machine; do not hand edit command semantics.",
         "",
         f"- Catalog fingerprint: `{_catalog_fingerprint()}`",
         f"- State-machine fingerprint: `{_state_fingerprint()}`",
         f"- Package-semantics fingerprint: `{operator_package_semantics_fingerprint_v2()}`",
         f"- Decision-registry fingerprint: `{decision_registry_fingerprint_v2()}`",
         f"- R1-blocker-resolution fingerprint: `{blocker_resolution_fingerprint_v2()}`",
-        "- Default production result: `DORMANT_NO_EXTERNAL_ISSUER` until separately supplied valid authority.",
-        "", "## Executable command catalog", "",
-        "| # | Surface | Verb | Command | Effect | Acknowledgement | Max operations |",
+        "- Issue #110 production result: `DORMANT_NO_ISSUE39_APPROVAL` before argv, TTY, confirmation, Adapter, journal, callback, or host access.",
+        "- Assurance model: `SOLE_MAINTAINER_SELF_REVIEW`; Issue #39 authority count: `0`.",
+        "", "## Latent command catalog", "",
+        "| # | Surface | Verb | Command | Effect | Non-authorizing catalog acknowledgement | Max operations |",
         "| ---: | --- | --- | --- | --- | --- | ---: |",
     ]
     lines.extend(_command_line(item) for item in catalog)
-    lines.extend(["", "## State machine", "", "| Phase | Allowed commands | Next phases | Required evidence |", "| --- | --- | --- | --- |"])
+    lines.extend(["", "## Latent post-approval state machine", "", "| Phase | Allowed commands | Next phases | Required evidence |", "| --- | --- | --- | --- |"])
     lines.extend(_state_line(item) for item in rules)
     lines.extend(_review_sections())
     lines.extend(_fixed_sections())
@@ -96,12 +97,17 @@ def _review_sections():
 
 def _fixed_sections():
     return [
+        "", "## Issue #110 reachability boundary", "",
+        "All ten catalog commands are latent. Every fixed production verb returns `DORMANT_NO_ISSUE39_APPROVAL` before reading argv, TTY, clock, acknowledgement, confirmation, bootstrap, Adapter, journal, callback, environment, file, or artifact state.",
+        "", "No Solo Maintainer closure manifest, attestation receipt, hosted check, CI result, runbook, bootstrap object, environment value, file, argument, acknowledgement, or synthetic marker can unlock a production root. Issue #38 approval and a separate Issue #39 code allowlist are required before any future wiring.",
+        "", "## Execution Confirmation boundary", "",
+        "A future action uses exactly one fresh, single-use `ExecutionConfirmationClaimV1` bound to the V3 production binding, closure manifest and attestation, exact command/action, current journal head, next sequence, transition, and remaining reverse plan.",
+        "", "The future exact acknowledgement is `CONFIRM_R2_ISSUE39_EXECUTION_V1_NOT_CLOSURE_ATTESTATION`. A claim must be durably appended before one Adapter attempt and becomes consumed by that attempt even on failure. The Issue #110 executable graph cannot reach preparation, confirmation, append, Adapter acquisition, or invocation.",
         "", "## Forward and recovery rules", "",
-        "Each invocation accepts exactly one catalog verb and at most one operation. `execute`, `resume`, and `rollback` require fresh single-use authority bound to the current unified-journal head and exact remaining plan.",
-        "", "A crash requires two-read `recovery-inspection`. Exact PRE requires fresh authority; exact POST commits without replay; ambiguity incident-stops. Rollback is journal-derived LIFO, preserves the failed Container first, and ends only at `LEGACY_FLAT_LAYOUT_RESTORED`.",
+        "After a future separate enablement, each invocation accepts exactly one catalog verb and at most one operation. A crash requires two-read `recovery-inspection`; exact PRE requires a new Execution Confirmation, exact POST commits without replay, and ambiguity incident-stops. Rollback is journal-derived LIFO, preserves the failed Container first, and ends only at `LEGACY_FLAT_LAYOUT_RESTORED`.",
         "", "## Retention and no-deletion rule", "",
         "After forward, resume, rollback, or recovery, reconcile the deterministic object-level retention ledger. Original, new, partial, failed, evidence, and journal artifacts remain tracked with zero deletion capability, zero overwrite/prune/automatic-expiry capability, and zero private payload fields.",
-        "", "## Drift and authority boundary", "",
-        "Reject a stale final master, stale source-package hash, mixed binding, changed catalog/state-machine fingerprint, unknown verb, or historical R1 package semantics. This document, CI, synthetic evidence, and closure receipts are never execution authority.",
-        "", "Human final review and Issue #38 approval remain separate manual decisions. Issue #39 remains blocked until that approval.",
+        "", "## Drift and decision boundary", "",
+        "Reject a stale final master, stale source-package hash, mixed V3 binding, changed catalog/state-machine fingerprint, unknown verb, or historical R1 package semantics. This document, Hosted Evidence, CI, synthetic evidence, Solo Maintainer Attestation, and closure receipts are never Issue #38 approval or Issue #39 execution authority.",
+        "", "The verifier can establish only `ELIGIBLE_FOR_ISSUE38_FINAL_REVIEW`. Issue #38 remains a separate fresh decision and Issue #39 remains blocked.",
     ]

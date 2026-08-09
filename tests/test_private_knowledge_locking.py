@@ -27,8 +27,9 @@ class PrivateKnowledgeLockingTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()
             ready = root / "child-ready"
+            runtime_executable = getattr(sys, "_base_executable", sys.executable)
             process = subprocess.Popen(
-                [sys.executable, "-B", "-c", script, str(root), str(ready)],
+                [runtime_executable, "-B", "-c", script, str(root), str(ready)],
                 stdin=subprocess.DEVNULL,
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,

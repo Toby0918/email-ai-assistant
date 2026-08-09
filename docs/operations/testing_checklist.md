@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-06
+last_update: 2026-08-07
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -8,50 +8,36 @@ source_type: operation_guide
 
 # 测试检查清单
 
-## Issue #102 frozen final-master and human-review checks
+## Issue #110 Solo Maintainer Closure focused checks
 
-Run `tests/test_r2_final_master_review_v1.py` with the #86, #100, and #101
-contract/architecture suites. Invoke the adapter only as
-`python -I -B scripts/verify_r2_final_master_closure.py`; require zero tracked
-or untracked changes, exact fresh fixed-URL remote observation equality, and
-exact independently hashed raw commit/tree/blob materialization plus current
-script and imported-module origin verification before any repository import can
-affect the result. Prove inherited `GIT_*`, local projection config, replacement
-refs, assume-unchanged, skip-worktree, staged/index drift, and actual worktree
-byte drift cannot select or hide different bytes. Prove
-export attributes, trailing-dot/space, ADS, reserved-device, short-name,
-Unicode, and case-fold aliases cannot change or overwrite materialized bytes,
-exactly eight unique ordered gap proofs, fourteen same-binding coordinator
-receipts, canonical terminal reconstruction, and one immutable package whose
-only status awaits the human-only review.
+Run the exact new closure and execution-confirmation suites with the pinned
+Python 3.12.13 environment:
 
-Require the fixed reviewed-production-binding artifact, exact frozen-master and
-four-registry agreement, a pure binding receipt, and signed production-gate
-linkage. Reject missing, malformed, stale, or mixed bindings with the fixed
-content-free blocked status. Verify the explicit gap-to-gate partition covers
-all fourteen gates exactly once and that every gap fingerprint changes with an
-owned gate receipt rather than an unrelated positional record.
+```powershell
+& $Py -B -m unittest tests.test_r2_solo_maintainer_closure tests.test_r2_solo_maintainer_closure_architecture tests.test_close_r2_final_master
+& $Py -B -m unittest tests.test_r2_execution_confirmation tests.test_r2_execution_confirmation_architecture
+```
 
-Reject historical, missing, duplicate, stale, mixed, self-certified, skipped,
-divergent, leaking, private-data, host, provider, #39, contract-changing,
-approval, or execution-authority evidence. Confirm no approve/merge/execute/
-authorize API exists. Automated success prepares evidence only; a human must
-freeze/review the final remote master and separately decide Issue #38.
+Require strict canonical round trips and negative cases for duplicate, unknown,
+missing, noncanonical, bool-as-int, NaN/infinity, lone-surrogate, stale, mixed,
+and tampered values. Pin five hosted checks, fourteen evidence records, eight
+gap proofs, one guardrail snapshot, one manifest, one candidate, one solo
+attestation, and the exact operator/independent/external/hosted-human counts.
 
-## Issue #101 global-gate coordinator checks
+Exercise `prepare` only through fakes proving zero TTY reads and zero writes.
+Exercise `confirm` with synthetic repositories/consoles: Windows real-console
+facts, exact once-only acknowledgement, CRLF/control rejection, wall/monotonic
+half-open 300-second validity, post-input rederivation, create-only two-file
+publication, collisions, and retained failure stages. Tests must not create a
+GitHub ruleset, mutate classic protection, call a private endpoint, or claim to
+block OS paste/capture.
 
-Run `tests/test_r2_global_gates_v1.py` with the existing final-master closure
-contract and architecture suites. Require all fourteen gates and all seven
-review domains. The gate requires fourteen unique producers. Reconstruct the coordinator from
-canonical bytes and verify it derives exactly fourteen same-binding,
-non-self-certified receipts.
-
-Reject missing, duplicate, stale, mixed-binding, shared-producer, coordinator-
-self-certified, unknown-field, skipped, divergent, leaking, private-data,
-live-host, provider, and #39-change evidence. The operator-review domain proves
-only runbook/maintenance review and cannot satisfy the human #102 review.
-Generate ephemeral signer keys only inside tests and prove arbitrary 64-hex
-fingerprints or wrong signatures cannot construct gate evidence.
+Do not run the live protected verifier in Issue #110: current approved baseline
+has no ruleset, so live prepare/confirm/verifier must fail closed until separate
+GitHub-state approval. Focused verifier tests instead pin its fixed no-argument
+raw-Git/safe-path chain, only-new-file inventory, legacy V1 rejection, current
+GitHub-state reread, and content-free
+`ELIGIBLE_FOR_ISSUE38_FINAL_REVIEW` result.
 
 ## Issue #99 generated-runbook checks
 
@@ -129,86 +115,36 @@ reconstructed checkout changes. Require fourteen refs, five stable common
 roles, eleven original and eleven reconstructed worktrees, fresh-process exact
 receipt reconstruction, and zero ignored/private content reads.
 
-## Issue #90 V2 transaction single-action checks
+## Issue #110 V3 binding, journal, and dormant-process checks
 
-Run `tests/test_r2_transaction_production_v2.py` and
-`tests/test_r2_transaction_production_v2_architecture.py`. The behavior suite
-must prove execute/resume/rollback domain separation, one matching action per
-invocation, exact genesis/head/transition/plan binding, zero action on mismatch,
-no retry after non-unit completion, and no-issuer dormancy. The architecture
-suite must reject loops, batch, retry, direction switch, paths, private keys,
-issuer, cross-root imports, deletion, cleanup, provider, mailbox, vault,
-credential, and private-data capability.
+Run the retained binding, Adapter, composition, journal, publication, recovery,
+and process suites after the focused closure tests:
 
 ```powershell
-python -m unittest tests.test_r2_transaction_production_v2
-python -m unittest tests.test_r2_transaction_production_v2_architecture
+& $Py -B -m unittest tests.test_r2_production_binding_contracts tests.test_r2_production_binding_architecture tests.test_r2_production_binding_candidate_v1 tests.test_r2_production_adapter_binding_v1
+& $Py -B -m unittest tests.test_r2_production_composition_v1 tests.test_r2_production_composition_v1_architecture tests.test_r2_production_composition_reachability tests.test_r2_production_bootstrap_v2
+& $Py -B -m unittest tests.test_r2_transaction_journal_v2 tests.test_r2_foundation_publication_v2 tests.test_r2_managed_unit_publication_v2 tests.test_r2_rollback_recovery_v2 tests.test_r2_two_start_validation_v2 tests.test_r2_retention_ledger_v2 tests.test_r2_retention_ledger_v2_architecture
+& $Py -B -m unittest tests.test_r2_operator_process_architecture tests.test_r2_preflight_production_v2 tests.test_r2_preflight_production_v2_architecture tests.test_r2_evidence_process_architecture tests.test_r2_evidence_production_v2 tests.test_r2_evidence_production_v2_architecture tests.test_r2_transaction_process_architecture tests.test_r2_transaction_production_v2 tests.test_r2_transaction_production_v2_architecture
 ```
 
-## Issue #89 evidence publication V2 and genesis checks
+Require exact V3 four-domain/ten-command/eighteen-role vocabulary, assurance
+counts `1/0/0`, strict execution-confirmation schemas, create-only durable
+claim append before Adapter attempt, attempt consumption, and fresh-process
+replay rejection. The retained wire record kind is not a V2 payload/API alias;
+only the new execution-confirmation field and append/validator seams are public.
 
-Run `tests/test_r2_evidence_production_v2.py` and
-`tests/test_r2_evidence_production_v2_architecture.py`. The behavior suite must
-prove one create-only reviewed publication, exact evidence/package/manifest
-identity binding, strict `R2JournalGenesisV2` round-trip, fresh-process replay
-rejection, review/domain/binding/freshness negatives, and no-issuer dormancy.
-The architecture suite must prove physical root separation, pure genesis,
-receipt/authority separation, and absence of paths, private keys, issuer,
-mutation, deletion, cleanup, provider, mailbox, vault, or private data.
+Preserve #104's exact six/one/three Adapter catalog, owning-module source
+identity, immediate reverification, underlying outcome validation, and
+completion-after-outcome order. Reject all public keys, signatures, envelopes,
+issuers, arbitrary identity, path, environment, credential, host, provider,
+vault, and artifact inputs.
 
-```powershell
-python -m unittest tests.test_r2_evidence_production_v2
-python -m unittest tests.test_r2_evidence_production_v2_architecture
-```
-
-## Issue #88 production preflight V2 checks
-
-Run `tests/test_r2_preflight_production_v2.py` and
-`tests/test_r2_preflight_production_v2_architecture.py`. The first suite must
-drive every fixed verb through a fresh signed synthetic envelope and prove one
-matching read-only role call; wrong binding/domain/verb/freshness must call no
-role. The second suite rejects private-key, issuer, mutation, path, selector,
-payload, provider, mailbox, vault, or cross-process-root capability and pins the
-no-external-issuer dormant result.
-
-```powershell
-python -m unittest tests.test_r2_preflight_production_v2
-python -m unittest tests.test_r2_preflight_production_v2_architecture
-```
-
-## Issue #87 production binding V2 checks
-
-Run `tests/test_r2_production_binding_contracts.py` and
-`tests/test_r2_production_binding_architecture.py`. They must prove the exact
-final-master-derived binding, ten commands, four authority domains, four
-operator roles, four public-key roles, eighteen production roles, canonical
-round-trip, durable claim freshness/order/head binding, fresh-process replay
-rejection, pure imports, exact exports, and the absence of private signing or
-operational capability.
-
-```powershell
-python -m unittest tests.test_r2_production_binding_contracts
-python -m unittest tests.test_r2_production_binding_architecture
-```
-
-## Issue #86 final-master closure checks
-
-Run the two focused public-seam suites before any downstream closure ticket:
-
-The source files are `tests/test_r2_final_master_closure_contracts.py` and
-`tests/test_r2_final_master_closure_architecture.py`.
-
-```powershell
-python -m unittest tests.test_r2_final_master_closure_contracts
-python -m unittest tests.test_r2_final_master_closure_architecture
-```
-
-They must prove the exact finite gap/gate/finding registries, canonical
-final-master binding, completed same-binding evidence, the sole terminal status,
-fixed error handling, missing/duplicate/mixed rejection, pure imports, explicit
-exports, and disjoint receipt/authority types. These tests use no provider,
-mailbox, vault, credential, private data, real host, external Git operation, or
-GitHub mutation.
+Invoke every fixed production verb and require
+`DORMANT_NO_ISSUE39_APPROVAL` before any TTY, candidate, acknowledgement,
+confirmation, Adapter lookup, journal append, callback, or host effect. The
+removed entry/envelope/dormant-context/callable-role/V2 surfaces must be
+recursively absent. No synthetic test or Windows console test may claim Issue
+#38 approval, ruleset approval, Issue #39 authorization, or real-host execution.
 
 ## Managed Container Mode
 
@@ -1136,103 +1072,78 @@ vault/签名/密钥错误、schema/safety/grounding 违规、p95 超限、泄漏
 错误码和计数，并由本地负责人决定恢复或撤销。
 
 
-## Issue #104 production Adapter binding remediation
+## Issue #104 Adapter binding retained checks
 
-1. Run `tests/test_r2_production_composition_reachability.py` and confirm all
-   three executable roots import only their V2 entry.
-2. Confirm the obsolete V1 lock and every test binder are unreachable from the
-   production import graph.
-3. Confirm default fixed verbs return content-free no-issuer dormancy and that
-   the existing #88-#90 positive/negative tests still prove one authorized
-   composition acquisition and zero unauthorized acquisitions.
-4. Run `tests/test_r2_production_adapter_binding_v1.py`,
-   `tests/test_r2_production_composition_v1.py`,
-   `tests/test_r2_production_composition_v1_architecture.py`, and
-   `tests/test_r2_production_binding_candidate_v1.py`. Require exactly three
-   stateful Adapter slots for all ten commands, dynamic-state-independent type
-   identity, per-call binding/type/command/surface/receipt-chain reverification,
-   and completion only after the underlying outcome validates. Prove the
-   deterministic candidate derives every fingerprint from one exact final
-   master and four unique verification public keys disjoint from all fourteen
-   gate keys. Reject arbitrary fingerprints, paths, environment input, private
-   keys, host capability, and production artifacts.
-5. Run `tests/test_r2_production_bootstrap_v2.py`; prove all three `main()`
-   roots reach exactly one Adapter with an exact reviewed nominal bootstrap and
-   matching frozen-review receipt, exact non-synthetic Adapter, plus valid TTY
-   authority. Confirm `main()` has
-   no terminal/clock input and factories have no `**values`; synthetic adapters,
-   mismatched receipts, wrong bootstrap types, and absent input remain blocked
-   or dormant with zero Adapter operations.
+Run `tests.test_r2_production_adapter_binding_v1`,
+`tests.test_r2_production_composition_v1`,
+`tests.test_r2_production_composition_v1_architecture`,
+`tests.test_r2_production_binding_candidate_v1`, and
+`tests.test_r2_production_composition_reachability`. Require exactly three
+stateful Adapter slots for all ten commands, owning-module source identity,
+dynamic-instance-state exclusion, per-call binding/type/command/surface/chain
+reverification, and completion only after the underlying outcome validates.
 
-## Issue #105 public external-artifact issuance
+Candidate construction now derives only from one Solo Maintainer final-master
+binding and closed V3 structural facts. Reject all verification keys,
+signatures, envelopes, arbitrary fingerprints/identities, paths, environment
+input, credentials, signers, issuers, host capability, providers, vaults, and
+artifacts. `tests.test_r2_production_bootstrap_v2` must prove all three
+production roots stop before Adapter lookup and reject synthetic markers; it
+must not construct or exercise a live bootstrap.
 
-1. Run `tests/test_r2_external_artifacts_v1.py`,
-   `tests/test_r2_external_artifacts_v1_architecture.py`, and
-   `tests/test_prepare_r2_external_artifacts.py`. Require one canonical reviewed
-   binding, fourteen fixed-order unsigned bodies, complete public provenance,
-   zero signatures at preparation, exact manifest confirmation, and fixed
-   content-free CLI failure.
-2. Prove preparation rejects arbitrary gate values, mixed master/binding,
-   duplicate or gate-key-overlapping authority keys, wrong source types,
-   noncanonical or reordered data, nonzero defect counts, incomplete source
-   reviews, forged public provenance, bool/float count substitutions, missing or
-   forged complete Windows receipts, and portable/Windows platform-lock collapse.
-3. Prove install rejects missing, extra, short, reordered, or invalid detached
-   signatures before filesystem access. Reuse the protected final-gate parser
-   tests for positive Ed25519 verification; do not add a production private key,
-   signing helper, or test production signature to this package.
-4. Prove validated publication creates exactly fifteen fixed files through one
-   no-replace directory commit, preserves exact bytes, rejects a second install,
-   exposes no partial final directory, and retains failed staging state without
-   cleanup, overwrite, retry, or deletion. Prove an old/moved master fails before
-   staging, a commit-boundary master move retains only staging, and a Windows
-   stage-name swap cannot replace the held source identity. On Windows, prove
-    path-independent file-ID RWH oplocks hold every child and a Read oplock holds
-    the namespace through the preopened exact directory handle. Prove a protected
-    child open uses `FILE_FLAG_OPEN_REPARSE_POINT` and every requiring-oplock open
-    is immediately followed by its oplock request before any other filesystem
-    operation on that object. Prove all pending input/output/`OVERLAPPED` storage
-    remains alive, then a read/execute-only DACL is applied through all sixteen
-    already-guarded handles before the quiet commit check. Prove bounded
-    `FileStreamInfo` rejects file and directory ADS and accepts only each child's
-    exact default stream; prove `FileStandardInfo` rejects a hard link added
-    during file-ID open and retains exactly one link through target validation.
-    Prove the directory handle denies delete sharing, its
-    `FileIdInfo` volume/file ID remains equal to the path identity, and exact
-    name-plus-file-ID namespace enumeration uses that same handle without
-    reopening child paths. Child writes, POSIX-style unlink/replacement, and unexpected-name
-   insertion admitted before lockdown must be detected by validation or a
-   signaled guard; attempts after lockdown must fail access. Exercise both the
-   quiet-check-to-rename and target-validation-to-release windows and prove the
-   final inventory and bytes remain exact. Prove the caller thread performs the
-   synchronous parent rename through the same preauthorized handle without
-   sequentially releasing any guard. Prove every file and event handle closes
-   exactly once, including API-lookup failures after event creation; bounded
-   read-path `CancelIoEx` is confined to same-handle reads. Every pending oplock
-   request must be cancelled and synchronously reaped before its storage or
-   handles are released. No controller or background commit exists.
-   Documentation must not claim owner-proof immutability: deliberate
-   ownership/DACL change, administrator/privileged mutation, and a foreign
-   write-capable handle pre-positioned before lockdown are external tamper and
-   fixed-verifier incident-stop conditions outside the trusted-operator install
-   guarantee.
-5. Run the affected R2 matrix:
+## Issue #110 focused validation summary
 
-   ```text
-   python -m unittest tests.test_r2_production_adapter_binding_v1 tests.test_r2_production_composition_v1 tests.test_r2_production_composition_v1_architecture tests.test_r2_production_binding_candidate_v1
-   python -m unittest tests.test_r2_production_bootstrap_v2 tests.test_r2_production_composition_reachability tests.test_r2_preflight_production_v2 tests.test_r2_preflight_production_v2_architecture tests.test_r2_evidence_production_v2 tests.test_r2_evidence_production_v2_architecture tests.test_r2_transaction_production_v2 tests.test_r2_transaction_production_v2_architecture
-   python -m unittest tests.test_r2_external_artifacts_v1 tests.test_r2_external_artifacts_v1_architecture tests.test_prepare_r2_external_artifacts
-   python -m unittest tests.test_r2_production_binding_contracts tests.test_r2_production_binding_architecture tests.test_r2_final_master_review_v1 tests.test_r2_final_master_closure_contracts tests.test_r2_final_master_closure_architecture tests.test_r2_global_gates_v1
+This section is a non-exhaustive convenience grouping. The exact affected-test
+matrix remains proposal comment `5212791186` section 8 (body SHA-256
+`5a2dcff2e3d7274b29fe75c4e46acc8ef8fadda1e0b3a30076632947f73ab956`),
+as required by the Issue #110 task brief section 13. Full discovery supplements
+that exact matrix and does not substitute for any listed focused or affected
+module.
+
+Run all commands with
+`D:\Projects\email_ai_assistant\.venv\Scripts\python.exe`, record exact
+exit/results, and distinguish portable contract evidence from Windows-native
+evidence.
+
+1. Closure and execution confirmation:
+
+   ```powershell
+   & $Py -B -m unittest tests.test_r2_solo_maintainer_closure tests.test_r2_solo_maintainer_closure_architecture tests.test_close_r2_final_master
+   & $Py -B -m unittest tests.test_r2_execution_confirmation tests.test_r2_execution_confirmation_architecture
    ```
 
-6. Then run full discovery, `compileall`, generated status, maintenance scan,
-   repository leakage scan, and `git diff --check` with the pinned Python
-   3.12.13 environment. Record portable versus Windows-native evidence exactly.
-7. Do not execute the actual `prepare` or `install` phase against production
-   inputs before merge. After merge, require clean fresh remote master, four
-   external public keys, exact reviewed outputs, human manifest confirmation,
-   and fourteen external signatures in order.
-8. Only after all fifteen files install, run the unchanged verifier with
-   `python -I -B scripts/verify_r2_final_master_closure.py`. The sole acceptable
-   phase result is `AWAITING_SINGLE_HUMAN_FINAL_REVIEW`; Issue #38 remains a
-   separate human decision and Issue #39 remains unchanged.
+2. Binding, Adapter, composition, journal, and retained publication/recovery:
+
+   ```powershell
+   & $Py -B -m unittest tests.test_r2_production_binding_contracts tests.test_r2_production_binding_architecture tests.test_r2_production_binding_candidate_v1 tests.test_r2_production_adapter_binding_v1 tests.test_r2_production_composition_v1 tests.test_r2_production_composition_v1_architecture tests.test_r2_production_composition_reachability tests.test_r2_production_bootstrap_v2
+   & $Py -B -m unittest tests.test_r2_git_byte_state_v2 tests.test_r2_transaction_journal_v2 tests.test_r2_foundation_publication_v2 tests.test_r2_managed_unit_publication_v2 tests.test_r2_rollback_recovery_v2 tests.test_r2_two_start_validation_v2 tests.test_r2_retention_ledger_v2 tests.test_r2_retention_ledger_v2_architecture
+   ```
+
+3. Dormant process, generated runbook, topology, and obsolete-surface checks:
+
+   ```powershell
+   & $Py -B -m unittest tests.test_r2_operator_process_architecture tests.test_r2_operator_runbook_v2 tests.test_r2_operator_runbook_v2_architecture tests.test_r2_preflight_production_v2 tests.test_r2_preflight_production_v2_architecture tests.test_r2_evidence_process_architecture tests.test_r2_evidence_production_v2 tests.test_r2_evidence_production_v2_architecture tests.test_r2_transaction_process_architecture tests.test_r2_transaction_production_v2 tests.test_r2_transaction_production_v2_architecture tests.test_r2_obsolete_surface_contract tests.test_r2_full_topology_windows
+   ```
+
+4. Repository-wide guards and full discovery:
+
+   ```powershell
+   & $Py -B -m unittest tests.test_architecture_constraints tests.test_static_linter_constraints tests.test_mechanical_rule_constraints tests.test_generate_project_status tests.test_mailbox_transport_constraints tests.test_multimodal_documentation_contracts
+   & $Py -B -m unittest discover -s tests
+   & $Py -B -m compileall -q backend scripts tests
+   & $Py -B scripts/generate_project_status.py --output docs/operations/project_status_log.md
+   & $Py -B scripts/maintenance_scan.py
+   & $Py -B -c "from scripts.repository_leakage_scan import render_summary, scan_repository; f=scan_repository(); print(render_summary(f)); raise SystemExit(1 if f else 0)"
+   git diff --check
+   ```
+
+After status generation, rerun the status/documentation guards and full
+discovery so the committed log and generator agree. Recompute the exact
+`STATUS_GENERATOR_AST_SHA256` guard after the generator changes.
+
+Do not run live `prepare`, `confirm`, or the protected verifier: the required
+ruleset remains a separate unapproved GitHub-state change and the current
+no-ruleset baseline must fail closed. Do not modify workflows. Green local/CI
+evidence, hosted receipts, manifest, and attestation do not approve Issue #38,
+authorize or execute Issue #39, mutate rulesets/protection, push, merge, access
+host/provider/mailbox/vault/private data, or clean retained stages.

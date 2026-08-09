@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from backend.r2_production_binding import ApprovedCutoverBindingV2
+from backend.r2_production_binding import ApprovedCutoverBindingV3
 from backend.r2_transaction_journal_v2 import R2TransactionJournalV2
 from backend.r2_transaction_journal_v2._canonical import canonical_json, fingerprint, is_fingerprint, strict_json_object
 from backend.r2_transaction_journal_v2.vocabulary import JournalRecordTypeV2
@@ -49,7 +49,7 @@ class R2ValidationActionEvidenceV2:
     @classmethod
     def create(cls, *, binding, transition, **values):
         try:
-            if type(binding) is not ApprovedCutoverBindingV2 or type(transition) is not R2ValidationTransitionV2 or set(values) != set(_ACTION_FIELDS) - {"binding_fingerprint", "transition_instance_fingerprint"}:
+            if type(binding) is not ApprovedCutoverBindingV3 or type(transition) is not R2ValidationTransitionV2 or set(values) != set(_ACTION_FIELDS) - {"binding_fingerprint", "transition_instance_fingerprint"}:
                 raise TwoStartValidationError()
             body = {"binding_fingerprint": binding.binding_fingerprint, "transition_instance_fingerprint": transition.transition_instance_fingerprint, **values}
             if not all(is_fingerprint(body[name]) for name in _ACTION_FIELDS if name.endswith("fingerprint")) or any(type(body[name]) is not int or body[name] < 0 for name in ("host_mutations", "analysis_count", "database_row_count", "provider_attempts", "read_only_checks", "observed_at_epoch", "expires_at_epoch")) or body["observed_state_fingerprint"] != transition.post_state_fingerprint:
@@ -159,7 +159,7 @@ class R2TwoStartValidationReceiptV2:
 
 
 def _validate(binding, plan, journal, evidence):
-    if type(binding) is not ApprovedCutoverBindingV2 or type(plan) is not R2TwoStartValidationPlanV2 or type(journal) is not R2TransactionJournalV2 or len(evidence) != 7 or plan.committed_prefix_count(journal) != 7:
+    if type(binding) is not ApprovedCutoverBindingV3 or type(plan) is not R2TwoStartValidationPlanV2 or type(journal) is not R2TransactionJournalV2 or len(evidence) != 7 or plan.committed_prefix_count(journal) != 7:
         raise TwoStartValidationError()
     expected_metrics = ((1,0,0,0,0),(1,1,1,0,0),(1,0,0,0,0),(0,0,1,0,1),(0,0,0,0,1),(1,0,0,0,0),(0,0,0,0,1))
     claims = tuple(record for record in journal.records if record.record_type is JournalRecordTypeV2.AUTHORITY_CLAIM and record.transition_instance_fingerprint in {item.transition_instance_fingerprint for item in plan.transitions})
@@ -167,7 +167,7 @@ def _validate(binding, plan, journal, evidence):
         raise TwoStartValidationError()
     for item, transition, record, metrics in zip(evidence, plan.transitions, claims, expected_metrics):
         observed = (item.host_mutations, item.analysis_count, item.database_row_count, item.provider_attempts, item.read_only_checks)
-        if type(item) is not R2ValidationActionEvidenceV2 or item.binding_fingerprint != binding.binding_fingerprint or item.transition_instance_fingerprint != transition.transition_instance_fingerprint or item.claim_fingerprint != record.authority_claim.claim_fingerprint or item.prior_journal_head_fingerprint != record.authority_claim.prior_journal_head_fingerprint or observed != metrics:
+        if type(item) is not R2ValidationActionEvidenceV2 or item.binding_fingerprint != binding.binding_fingerprint or item.transition_instance_fingerprint != transition.transition_instance_fingerprint or item.claim_fingerprint != record.execution_confirmation_claim.claim_fingerprint or item.prior_journal_head_fingerprint != record.execution_confirmation_claim.prior_journal_head_fingerprint or observed != metrics:
             raise TwoStartValidationError()
     start_a, start_b = evidence[0].run_identity_fingerprint, evidence[5].run_identity_fingerprint
     if start_a == start_b or any(item.run_identity_fingerprint != start_a for item in evidence[:5]) or any(item.run_identity_fingerprint != start_b for item in evidence[5:]) or len({evidence[0].service_nonce_fingerprint, evidence[5].service_nonce_fingerprint}) != 2:
@@ -175,8 +175,8 @@ def _validate(binding, plan, journal, evidence):
     if evidence[4].actor_identity_fingerprint in {evidence[0].actor_identity_fingerprint, evidence[5].actor_identity_fingerprint, evidence[6].actor_identity_fingerprint} or evidence[6].actor_identity_fingerprint in {evidence[0].actor_identity_fingerprint, evidence[5].actor_identity_fingerprint}:
         raise TwoStartValidationError()
     for index in (4, 6):
-        item, claim = evidence[index], claims[index].authority_claim
-        if item.expires_at_epoch - item.observed_at_epoch != 300 or not item.observed_at_epoch <= claim.claimed_at_epoch < item.expires_at_epoch:
+        item, claim = evidence[index], claims[index].execution_confirmation_claim
+        if item.expires_at_epoch - item.observed_at_epoch != 300 or not item.observed_at_epoch <= claim.confirmed_at_epoch < item.expires_at_epoch:
             raise TwoStartValidationError()
 
 

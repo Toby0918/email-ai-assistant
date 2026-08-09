@@ -2795,57 +2795,117 @@ class ArchitectureConstraintTests(unittest.TestCase):
         self.assertIn("Code-fixed create-only `python312._pth`", security)
         self.assertIn("Issues #58/#59", security)
 
-    def test_issue105_external_artifact_architecture_is_documented(self) -> None:
+    def test_issue110_solo_maintainer_architecture_is_documented(self) -> None:
         architecture = read_text(
             ROOT / "docs" / "constraints" / "architecture_constraints.md"
         )
         security = read_text(
             ROOT / "docs" / "security" / "project_container_cutover_contracts.md"
         )
+        task_brief = read_text(
+            ROOT / "docs" / "operations" / "r2_solo_maintainer_closure_task_brief.md"
+        )
+        task_template = read_text(
+            ROOT / "docs" / "templates" / "agent_task_brief_template.md"
+        )
+        project_structure = read_text(
+            ROOT / "docs" / "operations" / "project_structure.md"
+        )
+        testing = read_text(
+            ROOT / "docs" / "operations" / "testing_checklist.md"
+        )
 
         for marker in (
-            "Issue #105 public external-artifact issuance",
-            "backend.r2_external_artifacts_v1",
-            "two public\noperations",
-            "fourteen gate-ordered detached signatures",
-            "native directory no-replace commit",
-            "protected read/execute-only DACL",
-            "GetFileInformationByHandleEx",
-            "immediately requests its RWH",
-            "FileStandardInfo",
-            "FileStreamInfo",
-            "sole\ndefault `::$DATA` stream",
-            "name plus file ID",
-            "`FileIdInfo` volume/file ID",
-            "denying delete sharing",
-            "same-handle `SetFileInformationByHandle`",
-            "not an\nimmutability boundary against the file owner",
-            "synchronously reaped",
-            "Only `scripts/prepare_r2_external_artifacts.py`",
-            "Normal runtime, frontend, cleanup, scheduler, and\nworkflow code cannot import",
-            "AWAITING_SINGLE_HUMAN_FINAL_REVIEW",
+            "Issue #110 Solo Maintainer Closure architecture",
+            "`backend.r2_solo_maintainer_closure`",
+            "contains exactly nine files",
+            "parameterless\n`prepare()` and `confirm",
+            "strict canonical ASCII JSON",
+            "five hosted check records",
+            "fourteen local evidence records",
+            "eight ordered gap proofs",
+            "GitHub Actions app `15368`",
+            "exactly one active `master-solo-maintainer-closure-v1`",
+            "one-use\nwall-plus-monotonic half-open 300-second ceremony",
+            "partial stage remains for incident review",
+            "no-argument isolated `scripts/verify_r2_final_master_closure.py`",
+            "rejects all legacy V1\nexternal/signature artifacts",
+            "`ELIGIBLE_FOR_ISSUE38_FINAL_REVIEW`",
+            "`SOLE_MAINTAINER_SELF_REVIEW`",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, architecture)
         for marker in (
-            "Issue #105 public external-artifact issuance boundary",
-            "seven direct and seven wrapper gate",
-            "does not own the offline signer",
-            "exactly fifteen canonical JSON files",
-            "protected read/execute-only DACL",
-            "protected DACL remains",
-            "immediately requests its RWH",
-            "FileStandardInfo",
-            "FileStreamInfo",
-            "exact names to their file IDs",
-            "`FileIdInfo` volume/file ID",
-            "denying delete sharing",
-            "not an immutability boundary against the file owner",
-            "single human Issue #38 review",
-            "Issue #39 authorization",
+            "Issue #110 Solo Maintainer Closure security boundary",
+            "five newest successful `master` `push`",
+            "fourteen content-free evidence",
+            "one active master-targeted ruleset",
+            "zero bypass actors",
+            "strict app-bound\nrequired checks",
+            "accepts only the exact manifest and attestation files",
+            "rejects every legacy V1 external",
+            "`ELIGIBLE_FOR_ISSUE38_FINAL_REVIEW`",
+            "one operator and zero independent",
+            "cannot approve Issue #38",
+            "authorize or execute Issue #39",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, security)
+        for marker in (
+            "last_update: 2026-08-08",
+            "Issue #110 Solo Maintainer Closure / Execution Confirmation checklist",
+            "`backend.r2_solo_maintainer_closure` contains exactly nine files",
+            "parameterless `prepare()` and `confirm(...)`",
+            "five hosted check records and one exact GitHub guardrail snapshot",
+            "fourteen gates and eight ordered gap proofs",
+            "real Windows console handles",
+            "wall-clock plus monotonic-clock",
+            "half-open 300-second",
+            "create-only/no-replace",
+            "partial stage remains for incident review",
+            "protected verifier",
+            "`ApprovedCutoverBindingV3`",
+            "append-before-attempt",
+            "historical reconstruction",
+            "unconditionally returns `DORMANT_NO_ISSUE39_APPROVAL`",
+            "zero Issue #38 approval",
+            "zero Issue #39 authority or execution",
+            "synthetic/offline",
+            "real host, provider, mailbox, vault, private data, signer, or cleanup",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, task_template)
+        self.assertIn("## 23. 执行后记录", task_template)
+        self.assertNotIn("## 22. 执行后记录", task_template)
+        for marker in (
+            "#110 exact allowlist amendment 02",
+            "comment `5218863665`",
+            "`bcc4fa392d17019ce91d99d8d245f8f9af076bfc1868fa255dd5b2c5f8c91507`",
+            "tests/test_cutover_contract_architecture.py",
+            "#110 exact allowlist amendment 03",
+            "comment `5219249614`",
+            "`a98b090f0443ae01616d36e5e70903dcab6e942da5c2c24aa70a80b5d26e7ae4`",
+            "backend/r2_solo_maintainer_closure/local_evidence.py",
+            "backend/r2_ci_provenance_v2/suites.py",
+            "tests/test_r2_ci_provenance_v2.py",
+            "179 paths (`A20/M120/D39`)",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, task_brief)
+        self.assertNotIn("：", task_brief)
+        for marker in (
+            "`backend/r2_solo_maintainer_closure/local_evidence.py`",
+            "amendments 01-03",
+            "final-master, manifest,\n  candidate, solo-attestation and error values",
+            "hosted-check,\n  hosted-step and ruleset-snapshot values",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, project_structure)
+        self.assertNotIn("`main()` reaches its\nexisting", architecture)
+        self.assertIn("bootstrap cannot unlock production composition", architecture)
+        self.assertNotIn("Issue #110 complete validation matrix", testing)
+        self.assertIn("Issue #110 focused validation summary", testing)
+        self.assertIn("proposal comment `5212791186` section 8", testing)
 
     def test_python_modules_do_not_contain_raw_secret_literals(self) -> None:
         secret_patterns = {
