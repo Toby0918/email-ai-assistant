@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-07
+last_update: 2026-08-09
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -22,8 +22,15 @@ source_type: operation_guide
 - `backend/r2_solo_maintainer_closure/hosted_evidence.py`: hosted-check,
   hosted-step and ruleset-snapshot values for the fixed five-check `master`/
   `push` GitHub Actions projection.
+- `backend/r2_solo_maintainer_closure/github_guardrail.py`: private deep
+  authenticated guardrail observer using the absolute Windows GitHub CLI,
+  existing keyring identity, exactly three fixed GETs, sanitized environment,
+  disabled update/telemetry side channels, separately bounded stdout/stderr,
+  strict bypass validation and empty-only `required_reviewers` compatibility;
+  Python never reads or prints the token.
 - `backend/r2_solo_maintainer_closure/repository.py`: fixed clean/fresh master,
-  raw Git, public GitHub, and source/runbook/workflow acquisition adapter.
+  raw Git, anonymous public hosted metadata, guardrail delegation, and
+  source/runbook/workflow acquisition adapter.
 - `backend/r2_solo_maintainer_closure/storage.py`: two-file create-only staging
   and no-replace all-or-nothing publication under the Git common directory.
 - `backend/r2_solo_maintainer_closure/closure.py`: the sole deep
@@ -725,18 +732,26 @@ reachable.
   Add/Modify/Delete allowlist, amendments 01-03, non-authority boundaries,
   acceptance criteria, validation matrix, and rollback/disposition record.
 - `docs/operations/r2_solo_maintainer_closure_runbook.md`: fixed post-merge
-  prepare/confirm/verifier sequence, expected current no-ruleset stop, retained
-  stage handling, and separate Issue #38/ruleset/Issue #39 decisions.
+  prepare/confirm/verifier sequence, authenticated observation of current
+  ruleset `20601214`, retained stage handling, and separate live closure,
+  Issue #38 and Issue #39 decisions.
+- `docs/operations/r2_github_guardrail_response_compatibility_task_brief.md`:
+  exact authenticated GET-only local implementation allowlist, acceptance
+  criteria, tests, no-token boundary and explicit live-command prohibition.
 - `docs/decisions/0010-solo-maintainer-closure-and-execution-confirmation.md`:
   replace-not-layer decision for the two-file Solo Maintainer trust model and
   dormant V3 execution-confirmation seam.
+- `docs/decisions/0011-authenticated-github-guardrail-observation.md`: decision
+  to separate anonymous hosted provenance from authenticated protection reads
+  while preserving canonical ruleset bytes and fingerprint.
 - `docs/operations/r2_external_artifact_issuance_task_brief.md`: preserved
   historical audit record marked superseded; its old active runbook is removed.
-- `tests/test_r2_solo_maintainer_closure.py`,
+- `tests/test_r2_solo_maintainer_github_guardrail.py`,
+  `tests/test_r2_solo_maintainer_closure.py`,
   `tests/test_r2_solo_maintainer_closure_architecture.py`, and
   `tests/test_close_r2_final_master.py`: strict contracts, derivation,
-  hosted/ruleset evidence, storage, console ceremony, public boundary, and exact
-  module/CLI architecture.
+  authenticated hosted/ruleset evidence compatibility, storage, console
+  ceremony, public boundary, and exact ten-file module/CLI architecture.
 - `tests/test_r2_execution_confirmation.py` and
   `tests/test_r2_execution_confirmation_architecture.py`: V3 binding,
   confirmation/journal replay, dormant reachability, and forbidden-capability

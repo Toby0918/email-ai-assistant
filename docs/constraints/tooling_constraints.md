@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-08
+last_update: 2026-08-09
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -1388,15 +1388,35 @@ an NTFS, ACL, TTY, process-isolation, or native-durability claim.
 
 The public contract surface of `backend.r2_solo_maintainer_closure` uses the
 Python standard library plus the capability-free V3 binding value seam.
-`repository.py` alone may consume the approved read-only provenance source,
-workflow-lock and production-composition seams. `local_evidence.py` alone may
+`repository.py` alone may consume the approved public read-only provenance
+source, workflow-lock and production-composition seams and delegates only
+guardrail collection to private `github_guardrail.py`.
+`github_guardrail.py` alone may execute the authenticated fixed GET-only reader.
+`local_evidence.py` alone may
 consume the approved pure CI-suite/runbook registries and fixed read-only
 project-status, maintenance and leakage modules. No other closure file gains
-those imports or capabilities. Repository acquisition is code-fixed to the
-clean local/fresh `master` chain and public `https://api.github.com`; it
-accepts no token, credential, caller URL, custom endpoint, proxy override, path,
-ref, command, or fallback. The current live no-ruleset state is a fixed closure
-failure, not an invitation for the tool to create or modify GitHub protection.
+those imports or capabilities.
+
+Repository and hosted run/job acquisition remains code-fixed to the clean
+local/fresh `master` chain and anonymous public `https://api.github.com`; it
+accepts no token, credential, caller URL, custom endpoint, proxy override,
+path, ref, command or fallback. Guardrail observation alone uses the absolute
+`C:\Program Files\GitHub CLI\gh.exe`, the existing active `Toby0918`
+`github.com` keyring identity, a sanitized allowlist environment, auth-status
+validation before and after, and exactly three fixed GET requests. The child
+environment fixes `GH_NO_UPDATE_NOTIFIER=1`,
+`GH_NO_EXTENSION_UPDATE_NOTIFIER=1`, `GH_TELEMETRY=0` and `DO_NOT_TRACK=1`;
+stdout and stderr are separately bounded, and only the exact content-free
+classic-protection 404 diagnostic may accompany its HTTP 404 / exit 1 result.
+Python never receives the keyring token, so it cannot read or print it.
+There is no caller credential, URL, method, fallback, or cache.
+The ruleset detail must explicitly expose
+`bypass_actors=[]`; `required_reviewers` is compatible only when absent or
+exactly `[]`, with the empty field removed before exact comparison to the
+unchanged 965-byte configuration and fingerprint
+`5f1c00727e4637c58abc7a8299f6c5846be0d8b6b3511d84bf3114e17422ca6e`.
+Ruleset `20601214` exists, but no reader may create or modify protection and its
+presence does not authorize live `prepare`, `confirm` or verifier execution.
 
 `scripts/close_r2_final_master.py` exposes only `prepare` and `confirm`.
 `prepare` is read-only and noninteractive. `confirm` uses standard-library

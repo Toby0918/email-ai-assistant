@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-08
+last_update: 2026-08-09
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -32,12 +32,27 @@ zero independent, external, or hosted-human reviewers. It records evidence and
 never expands approval or execution authority.
 
 The repository and hosted-evidence adapters use fixed Git plumbing and fixed
-public HTTPS `api.github.com` endpoints with bounded reads, system TLS and no
-credential or caller URL. Hosted evidence must be the newest exact push/master
-success for the frozen commit from GitHub Actions app `15368`. The guardrail
-snapshot requires exactly one active `master-solo-maintainer-closure-v1`
-ruleset, no bypass, the five exact required checks and absent classic branch
-protection. Hosted evidence has zero human approvals.
+anonymous public HTTPS `api.github.com` endpoints with bounded reads, system
+TLS and no credential or caller URL. Hosted evidence must be the newest exact
+push/master success for the frozen commit from GitHub Actions app `15368`.
+
+Only package-private `github_guardrail.py` observes protection state. It owns a
+code-fixed absolute `C:\Program Files\GitHub CLI\gh.exe` adapter, validates the
+existing active `Toby0918` `github.com` keyring identity before and after, and
+runs exactly three fixed GET requests under a sanitized allowlist environment;
+the environment disables GitHub CLI update checks and telemetry, and the two
+output streams are separately bounded. Only the exact content-free
+classic-protection 404 diagnostic may accompany its HTTP 404 / exit 1 result.
+Python never reads or prints the token. The snapshot requires exactly one active `master-solo-maintainer-closure-v1`
+ruleset, explicit
+`bypass_actors=[]`, the five exact required checks and absent classic branch
+protection. The unique pull-request rule accepts `required_reviewers` only when
+absent or exactly `[]`, removing only the empty wire default before exact
+comparison with the unchanged 965-byte canonical configuration and
+`5f1c00727e4637c58abc7a8299f6c5846be0d8b6b3511d84bf3114e17422ca6e`
+fingerprint. Current ruleset id `20601214` is evidence, not authority to run
+live `prepare`, `confirm` or the verifier. Hosted evidence has zero human
+approvals.
 
 Private `LocalSourceProofV1` values are constructed only after that GitHub
 snapshot. They bind the same final commit, tree, source package and a nonempty
@@ -1602,20 +1617,23 @@ Windows verifier may claim physical NTFS, ACL, real TTY, or process isolation.
 
 ## 7.1 R2 Solo Maintainer Closure module
 
-`backend/r2_solo_maintainer_closure` contains exactly nine files. The public
+`backend/r2_solo_maintainer_closure` contains exactly ten files. The public
 facade exports the two-method deep interface and immutable canonical contract
 values only. `_canonical.py`, `contracts.py` and `evidence.py` are pure
-in-process code. `repository.py`, `hosted_evidence.py`, `local_evidence.py` and
-`storage.py` are narrow internal adapters; `local_evidence.py` alone owns the
-fixed read-only fresh status, maintenance and leakage observations, while
-`closure.py` alone composes all adapters behind the public seam. No public
-helper exposes derivation, publication, arbitrary fingerprints or injected
-production capabilities.
+in-process code. `repository.py`, `github_guardrail.py`, `hosted_evidence.py`,
+`local_evidence.py` and `storage.py` are narrow internal adapters;
+`github_guardrail.py` alone owns authenticated fixed GET-only protection-state
+observation, `local_evidence.py` alone owns the fixed read-only fresh status,
+maintenance and leakage observations, and `closure.py` alone composes all
+adapters behind the public seam. No public helper exposes derivation,
+publication, arbitrary fingerprints or injected production capabilities.
 
 The module must not import normal runtime, cutover effects, provider, mailbox,
 vault, credential, private data, SQLite, frontend, cleanup, issue tracker,
 private keys, signing, dynamic imports or arbitrary command/process adapters.
-Its fixed public GitHub read is provenance-only. Closure values stay disjoint
+Its anonymous public GitHub read is provenance-only. The authenticated
+guardrail adapter has no writer or caller-configurable transport and Python
+never reads or prints its keyring token. Closure values stay disjoint
 from real authorization types and expose no approve, execute, resume, rollback,
 cleanup, deletion or host-effect conversion.
 

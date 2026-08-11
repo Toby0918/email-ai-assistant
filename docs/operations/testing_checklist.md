@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-07
+last_update: 2026-08-09
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -14,7 +14,7 @@ Run the exact new closure and execution-confirmation suites with the pinned
 Python 3.12.13 environment:
 
 ```powershell
-& $Py -B -m unittest tests.test_r2_solo_maintainer_closure tests.test_r2_solo_maintainer_closure_architecture tests.test_close_r2_final_master
+& $Py -B -m unittest tests.test_r2_solo_maintainer_github_guardrail tests.test_r2_solo_maintainer_closure tests.test_r2_solo_maintainer_closure_architecture tests.test_close_r2_final_master
 & $Py -B -m unittest tests.test_r2_execution_confirmation tests.test_r2_execution_confirmation_architecture
 ```
 
@@ -32,9 +32,23 @@ publication, collisions, and retained failure stages. Tests must not create a
 GitHub ruleset, mutate classic protection, call a private endpoint, or claim to
 block OS paste/capture.
 
-Do not run the live protected verifier in Issue #110: current approved baseline
-has no ruleset, so live prepare/confirm/verifier must fail closed until separate
-GitHub-state approval. Focused verifier tests instead pin its fixed no-argument
+Exercise guardrail response compatibility only through the private module seam
+and in-memory Adapters. Pin the absolute GitHub CLI, active `Toby0918`
+`github.com` keyring identity before/after, exactly three fixed GETs, sanitized
+allowlist environment with update checks and telemetry disabled, separately
+bounded stdout/stderr, real subprocess cap/timeout/kill/reap coverage, and the
+fact that Python never reads or prints a token. Permit nonempty stderr only for
+the exact content-free classic 404 diagnostic paired with HTTP 404 / exit 1.
+Require explicit `bypass_actors=[]`. Accept
+`required_reviewers` only when absent or exactly `[]`, delete only the empty
+wire default, and prove canonical length 965 and fingerprint
+`5f1c00727e4637c58abc7a8299f6c5846be0d8b6b3511d84bf3114e17422ca6e`
+remain unchanged. Missing/nonempty bypass, nonempty/wrong-type reviewers,
+duplicate pull-request rules and all other drift fail closed.
+
+Do not run live `prepare`, `confirm` or the protected verifier in this task.
+Ruleset `20601214` exists, but none of those live commands is authorized.
+Focused verifier tests instead pin its fixed no-argument
 raw-Git/safe-path chain, only-new-file inventory, legacy V1 rejection, current
 GitHub-state reread, and content-free
 `ELIGIBLE_FOR_ISSUE38_FINAL_REVIEW` result.
@@ -1108,7 +1122,7 @@ evidence.
 1. Closure and execution confirmation:
 
    ```powershell
-   & $Py -B -m unittest tests.test_r2_solo_maintainer_closure tests.test_r2_solo_maintainer_closure_architecture tests.test_close_r2_final_master
+   & $Py -B -m unittest tests.test_r2_solo_maintainer_github_guardrail tests.test_r2_solo_maintainer_closure tests.test_r2_solo_maintainer_closure_architecture tests.test_close_r2_final_master
    & $Py -B -m unittest tests.test_r2_execution_confirmation tests.test_r2_execution_confirmation_architecture
    ```
 
@@ -1141,9 +1155,9 @@ After status generation, rerun the status/documentation guards and full
 discovery so the committed log and generator agree. Recompute the exact
 `STATUS_GENERATOR_AST_SHA256` guard after the generator changes.
 
-Do not run live `prepare`, `confirm`, or the protected verifier: the required
-ruleset remains a separate unapproved GitHub-state change and the current
-no-ruleset baseline must fail closed. Do not modify workflows. Green local/CI
+Do not run live `prepare`, `confirm`, or the protected verifier: ruleset
+`20601214` exists, but those commands remain separately unauthorized. Do not
+modify workflows. Green local/CI
 evidence, hosted receipts, manifest, and attestation do not approve Issue #38,
 authorize or execute Issue #39, mutate rulesets/protection, push, merge, access
 host/provider/mailbox/vault/private data, or clean retained stages.

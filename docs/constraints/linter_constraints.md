@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-08
+last_update: 2026-08-09
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -10,10 +10,12 @@ source_type: operation_guide
 
 ## R2 Issue #110 Solo Maintainer Closure guards
 
-- `backend/r2_solo_maintainer_closure/` must contain exactly nine Python
+- `backend/r2_solo_maintainer_closure/` must contain exactly ten Python
   files with an explicit public export set. Imports are limited to the standard
   library, internal package modules and exact approved seams: `repository.py`
   may use the read-only CI source/workflow and production-composition values;
+  private `github_guardrail.py` may use only the code-fixed authenticated
+  GitHub CLI GET adapter;
   `evidence.py` may use the V3 binding value; and private `local_evidence.py`
   may use pure CI-suite/runbook registries plus fixed read-only project-status,
   maintenance and leakage modules. `closure.py` owns the fixed terminal/clock
@@ -30,14 +32,30 @@ source_type: operation_guide
 - Hosted evidence is accepted only for `master` `push` runs at the exact frozen
   commit, with the five fixed check names and GitHub Actions app id `15368`.
   The four provenance checks share one run and attempt, and reconciliation
-  depends on the other three verifier jobs. Only the code-fixed public
-  `https://api.github.com` endpoint is permitted; there is no credential,
-  caller URL, custom endpoint, or fallback surface.
+  depends on the other three verifier jobs. That metadata continues through the
+  code-fixed anonymous public `https://api.github.com` endpoint.
 - The guardrail snapshot requires exactly one active master ruleset, zero
   bypass actors, deletion and non-fast-forward protection, strict required
   status checks for those five app-bound contexts, the approved pull-request
   rule, and absent classic branch protection. A missing, layered, stale, or
-  mismatched guardrail state blocks closure.
+  mismatched guardrail state blocks closure. Private `github_guardrail.py`
+  alone may call absolute `C:\Program Files\GitHub CLI\gh.exe` with the existing
+  active `Toby0918` `github.com` keyring identity, auth checks before/after,
+  exactly three fixed GETs, and a sanitized allowlist environment that disables
+  update checks and telemetry. Stdout/stderr are separately bounded; only the
+  exact content-free classic 404 diagnostic may accompany HTTP 404 / exit 1.
+  Python never reads or prints the token. `bypass_actors` must be explicitly `[]`;
+  `required_reviewers` may only be absent or exactly `[]`, and only the empty
+  wire default is removed before exact comparison with the unchanged 965-byte
+  configuration and fingerprint
+  `5f1c00727e4637c58abc7a8299f6c5846be0d8b6b3511d84bf3114e17422ca6e`.
+  `github_guardrail.py` is the only authenticated GitHub command Adapter. It
+  uses the fixed absolute Windows GitHub CLI.
+  There are two keyring-backed auth-status checks and three fixed GET-only requests.
+  Python never reads or emits the GitHub token.
+  The seam accepts no caller credential, URL, method, fallback, or cache.
+  `required_reviewers` absent or exactly `[]` is the only
+  compatibility shape; explicit `bypass_actors=[]` remains mandatory.
 - The fixed no-argument verifier retains the Issue #102 safe-path and raw-Git
   chain, accepts only the new manifest and attestation files in the fixed Git
   common directory, and rejects every legacy V1 external/signature artifact,
@@ -1359,12 +1377,14 @@ module/function bounds continue to apply.
 
 ## R2 Solo Maintainer Closure guards
 
-Static and architecture checks must pin the exact nine-file
+Static and architecture checks must pin the exact ten-file
 `backend/r2_solo_maintainer_closure/` inventory, explicit `__all__`, controlled
 imports, and capability split. Canonical contracts remain pure; `repository.py`
-alone uses fixed read-only Git/GitHub acquisition, private `local_evidence.py`
-alone reruns frozen-tree-bound status/maintenance/leakage observations, and
-`storage.py` alone publishes the two code-fixed create-only files.
+alone uses fixed read-only Git/anonymous hosted acquisition and delegates protection
+state only to private `github_guardrail.py`; `github_guardrail.py` alone owns fixed
+authenticated GET-only observation, private `local_evidence.py` alone reruns
+frozen-tree-bound status/maintenance/leakage observations, and `storage.py`
+alone publishes the two code-fixed create-only files.
 No module may gain provider, mailbox, vault, private-data, credential, signer,
 private-key, cleanup, deletion, overwrite, Issue #38 approval, ruleset mutation,
 or Issue #39 execution capability.
@@ -1480,7 +1500,8 @@ docs/constraints/architecture_constraints.md
   absent. No compatibility export, dual parser, fallback, or OR trust path is
   permitted.
 - Static documentation guards preserve the separate approval boundaries:
-  closure evidence does not approve Issue #38, create or approve a ruleset,
+  current ruleset `20601214` does not authorize closure; closure evidence does
+  not approve Issue #38, create or approve another ruleset,
   authorize or execute Issue #39, mutate a host, access provider/mailbox/vault
-  data, or perform cleanup. The future ruleset and future Issue #39 code path
-  each require a separate GitHub-state approval.
+  data, or perform cleanup. Live `prepare`, `confirm`, the protected verifier
+  and any future Issue #39 code path each require separate approval.

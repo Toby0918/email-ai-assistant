@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-07
+last_update: 2026-08-09
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -35,13 +35,28 @@ observations. Hosted typed-test success is not a durable runtime receipt and
 `quality_gate_review` is not an independent or human review.
 
 The guardrail snapshot requires exactly one active master-targeted ruleset,
-zero bypass actors, deletion and non-fast-forward protection, strict app-bound
+zero bypass actors expressed as explicit `bypass_actors=[]`, deletion and
+non-fast-forward protection, strict app-bound
 required checks for the five contexts, and the approved pull-request rule while
 classic branch protection is absent. Missing, extra, layered, stale, or
-mismatched protection fails closed. The closure reader has no token, custom
-endpoint, arbitrary URL, ruleset writer, branch-protection writer, or approval
-surface. Current no-ruleset state therefore blocks live closure until a
-separate GitHub-state decision.
+mismatched protection fails closed. Hosted run/job metadata remains on the
+fixed anonymous public HTTPS reader. Guardrail observation alone runs absolute
+`C:\Program Files\GitHub CLI\gh.exe` with the existing active `Toby0918`
+`github.com` keyring identity, validates auth before and after exactly three
+fixed GETs, and passes only a sanitized allowlist environment with update checks
+and telemetry disabled. Stdout/stderr are separately bounded, with only the
+exact content-free classic 404 diagnostic allowed for HTTP 404 / exit 1. Python
+never reads or prints the token. The unique pull-request rule accepts
+`required_reviewers` only when absent or exactly `[]`; only the empty wire
+default is removed before exact comparison with the unchanged 965-byte
+canonical configuration and fingerprint
+`5f1c00727e4637c58abc7a8299f6c5846be0d8b6b3511d84bf3114e17422ca6e`.
+The adapter has no custom endpoint, arbitrary URL, ruleset writer,
+branch-protection writer or approval surface.
+
+Ruleset `20601214` now exists as separately approved GitHub state. That fact is
+not authorization to run live `prepare`, `confirm`, the protected verifier,
+approve Issue #38 or execute Issue #39.
 
 The protected verifier accepts only the exact manifest and attestation files in
 the fixed Git common directory and explicitly rejects every legacy V1 external,

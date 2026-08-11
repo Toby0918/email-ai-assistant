@@ -828,19 +828,33 @@ class GenerateProjectStatusTests(unittest.TestCase):
             "execution confirmation binds closure",
             "remains unreachable from production",
             "legacy final-master/global-gate/external-artifact/signature paths are removed",
-            "Current live no-ruleset state intentionally blocks actual prepare",
+            "ruleset `20601214` exists for `master`",
+            "authenticated fixed GET-only GitHub CLI calls",
+            "active keyring login",
+            "Python neither reads nor prints the token",
+            "`required_reviewers=[]`",
+            "before canonical comparison",
+            "No live `prepare`, `confirm`, or protected verifier was run or authorized",
+            "#38/#39 remain unchanged",
             "do not approve Issue #38",
             "authorize or execute Issue #39",
             "`backend/r2_solo_maintainer_closure/closure.py`",
+            "`backend/r2_solo_maintainer_closure/github_guardrail.py`",
             "`backend/r2_production_binding/execution_confirmation.py`",
             "`tests/test_r2_solo_maintainer_closure.py`",
+            "`tests/test_r2_solo_maintainer_github_guardrail.py`",
             "`tests/test_r2_execution_confirmation.py`",
             "`docs/operations/r2_solo_maintainer_closure_task_brief.md`",
+            "`docs/operations/r2_github_guardrail_response_compatibility_task_brief.md`",
             "`docs/operations/r2_solo_maintainer_closure_runbook.md`",
             "`docs/decisions/0010-solo-maintainer-closure-and-execution-confirmation.md`",
+            "`docs/decisions/0011-authenticated-github-guardrail-observation.md`",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, report)
+
+        self.assertNotIn("Current live no-ruleset state", report)
+        self.assertNotIn("the future ruleset", report)
 
     def test_main_writes_requested_output(self) -> None:
         module = load_script_module(SCRIPT, "generate_project_status")

@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-08
+last_update: 2026-08-09
 status: active
 owner: "@tobyWang"
 review_cycle: weekly
@@ -15,9 +15,9 @@ source_type: operation_guide
 
 | Field | Value |
 |---|---|
-| Generated on | 2026-08-08 |
+| Generated on | 2026-08-09 |
 | Current stage | multimodal_current_email_offline_ready_live_pending |
-| Git branch | codex/issue-110-solo-maintainer-closure |
+| Git branch | codex/r2-guardrail-reader-compatibility |
 | Git HEAD reference | Run `git rev-parse --short HEAD` in this workspace |
 | Working tree status | Run `git status --short --ignored` in this workspace |
 
@@ -69,7 +69,7 @@ Issues #70-#83 dormant R2 cutover remediation are offline implemented across the
 
 Issue #104 three-stateful-Adapter seam remains implemented offline in `backend.r2_production_composition`. The catalog retains three exact stateful Adapter slots covering six preflight commands, one evidence command, and three transaction commands. Binding captures and immediately reverifies command/domain, nominal type, complete owning-module source, class surface, registry and target identity; mutable instance state remains excluded. Underlying receipt/outcome validation still precedes completion. Issue #110 replaces candidate key/signature/envelope inputs with the exact Solo Maintainer final-master binding and closed `ApprovedCutoverBindingV3` structural facts. Synthetic Adapters remain testing-only, while every production root stops at `DORMANT_NO_ISSUE39_APPROVAL` before Adapter lookup. No real Adapter or host operation is created, and #38/#39 remain unchanged.
 
-Issue #110 Solo Maintainer Closure is implemented in `backend.r2_solo_maintainer_closure`, `backend.r2_production_binding`, and `scripts/close_r2_final_master.py`. The strict two-file trust model binds one frozen clean master, the five exact GitHub Actions hosted checks, fourteen evidence records, eight ordered gap proofs, one exact active master-ruleset snapshot, one canonical manifest, and one Solo Maintainer Attestation with assurance counts one operator and zero independent/external/hosted-human reviewers. Private typed local proofs bind canonical values, relevant frozen blobs, same-SHA hosted records/job steps, and fresh status/maintenance/leakage observations without claiming durable runtime receipt instances. `ApprovedCutoverBindingV3` removes V2 public keys, signatures, envelopes, and issuers; execution confirmation binds closure, attestation, exact action/journal/plan/TTY/time facts and a create-only durable claim, but remains unreachable from production. The legacy final-master/global-gate/external-artifact/signature paths are removed rather than retained as aliases. Current live no-ruleset state intentionally blocks actual prepare, confirm, and protected verification until a separately approved GitHub-state change. Closure and CI evidence do not approve Issue #38, create or approve a ruleset, authorize or execute Issue #39, mutate a real host, access provider/mailbox/vault/private data, clean retained stages, push, or merge.
+Issue #110 Solo Maintainer Closure is implemented in `backend.r2_solo_maintainer_closure`, `backend.r2_production_binding`, and `scripts/close_r2_final_master.py`. The strict two-file trust model binds one frozen clean master, the five exact GitHub Actions hosted checks, fourteen evidence records, eight ordered gap proofs, one exact active master-ruleset snapshot, one canonical manifest, and one Solo Maintainer Attestation with assurance counts one operator and zero independent/external/hosted-human reviewers. Private typed local proofs bind canonical values, relevant frozen blobs, same-SHA hosted records/job steps, and fresh status/maintenance/leakage observations without claiming durable runtime receipt instances. `ApprovedCutoverBindingV3` removes V2 public keys, signatures, envelopes, and issuers; execution confirmation binds closure, attestation, exact action/journal/plan/TTY/time facts and a create-only durable claim, but remains unreachable from production. The legacy final-master/global-gate/external-artifact/signature paths are removed rather than retained as aliases. GitHub ruleset `20601214` exists for `master`, and the private guardrail reader observes it through authenticated fixed GET-only GitHub CLI calls backed by the active keyring login; Python neither reads nor prints the token. The compatibility layer accepts only the additive beta `required_reviewers=[]` response shape and removes that exact empty field before canonical comparison; missing or non-empty bypass actors and every other drift fail closed. No live `prepare`, `confirm`, or protected verifier was run or authorized by this local compatibility work, and #38/#39 remain unchanged. Closure and CI evidence do not approve Issue #38, create or approve a ruleset, authorize or execute Issue #39, mutate a real host, access provider/mailbox/vault/private data, clean retained stages, push, or merge.
 
 The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器扩展, with current-message collection only after an explicit user click.
 
@@ -139,19 +139,23 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 | `backend/r2_solo_maintainer_closure/hosted_evidence.py` | yes |
 | `backend/r2_solo_maintainer_closure/local_evidence.py` | yes |
 | `backend/r2_solo_maintainer_closure/repository.py` | yes |
+| `backend/r2_solo_maintainer_closure/github_guardrail.py` | yes |
 | `backend/r2_solo_maintainer_closure/storage.py` | yes |
 | `backend/r2_solo_maintainer_closure/closure.py` | yes |
 | `backend/r2_production_binding/execution_confirmation.py` | yes |
 | `scripts/close_r2_final_master.py` | yes |
 | `scripts/verify_r2_final_master_closure.py` | yes |
 | `tests/test_r2_solo_maintainer_closure.py` | yes |
+| `tests/test_r2_solo_maintainer_github_guardrail.py` | yes |
 | `tests/test_r2_solo_maintainer_closure_architecture.py` | yes |
 | `tests/test_close_r2_final_master.py` | yes |
 | `tests/test_r2_execution_confirmation.py` | yes |
 | `tests/test_r2_execution_confirmation_architecture.py` | yes |
 | `docs/operations/r2_solo_maintainer_closure_task_brief.md` | yes |
+| `docs/operations/r2_github_guardrail_response_compatibility_task_brief.md` | yes |
 | `docs/operations/r2_solo_maintainer_closure_runbook.md` | yes |
 | `docs/decisions/0010-solo-maintainer-closure-and-execution-confirmation.md` | yes |
+| `docs/decisions/0011-authenticated-github-guardrail-observation.md` | yes |
 | `backend/cutover_contracts/__init__.py` | yes |
 | `backend/cutover_contracts/_canonical.py` | yes |
 | `backend/cutover_contracts/authorization.py` | yes |
@@ -673,7 +677,7 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 
 | Status | Count |
 |---|---:|
-| active | 112 |
+| active | 114 |
 | draft | 25 |
 | deprecated | 5 |
 | missing_front_matter | 0 |
@@ -712,7 +716,7 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 - Issue #59 only assembles three default-locked operator roots and a content-free receipt chain. Backend packages expose no executable test binder; test-only assembly owns every component TemporaryDirectory through one internal scope and rechecks it before every role or journal callback. Windows execution remains confined to caller-owned test sandboxes; no real command or authorization exists before #39. After merge, the final master invalidates R1 and requires all fourteen #38 approval items plus a new R2 before #39.
 - Issues #70-#83 only implement dormant R2 contracts and fresh synthetic Windows proof. The fixed verifier owns its NTFS sandbox and emits aggregate fingerprints/counts; it does not authorize Issue #39, a real command, any host operation, merge, or approval/closure of #38 or #50. The accepted prototype fingerprint remains non-authorizing prior art.
 - Issue #104 retains three exact stateful Adapter slots and owning-module source identity, but Issue #110 keeps every production Adapter path dormant before lookup. Neither issue authorizes a host operation, production artifact, Issue #38 approval, Issue #39, or closure.
-- Issue #110 replaces the legacy V1 external-signature path with two strict Solo Maintainer Closure files and a dormant V3 execution-confirmation seam. Current no-ruleset state blocks live prepare/confirm/verifier; the future ruleset, Issue #38 decision, and future Issue #39 code/authority each require separate approval. No closure evidence authorizes host/provider/mailbox/vault/private-data access, cleanup, push, or merge.
+- Issue #110 replaces the legacy V1 external-signature path with two strict Solo Maintainer Closure files and a dormant V3 execution-confirmation seam. Ruleset 20601214 exists for master; compatibility work is limited to authenticated fixed GET-only keyring observation, Python never reads the token, and only an exact empty required_reviewers beta field may be normalized. No live prepare, confirm, or protected verifier was run or authorized; #38/#39 remain unchanged, and no closure evidence authorizes host/provider/mailbox/vault/private-data access, cleanup, push, or merge.
 
 ## Notes for Agent
 

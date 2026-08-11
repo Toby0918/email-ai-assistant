@@ -10,12 +10,13 @@ import urllib.error
 import urllib.request
 from ._canonical import canonical_json, fingerprint, is_fingerprint, is_git_oid
 from .contracts import ClosureErrorCode, FinalMasterBindingV1, SoloMaintainerClosureError
+from .github_guardrail import collect_verified_guardrail
 from .local_evidence import collect_repository_subjects, repository_subject_names
 from .hosted_evidence import (
-    FIXED_CHECKS, GitHubEvidenceSnapshotV1, GitHubGuardrailSnapshotV1,
-    HostedCheckEvidenceV1, latest_successful_run as _latest_run, normalize_ruleset_configuration,
+    FIXED_CHECKS, GitHubEvidenceSnapshotV1,
+    HostedCheckEvidenceV1, latest_successful_run as _latest_run,
     require_reconciliation_graph as _require_reconciliation_graph,
-    ruleset_configuration_v1, hosted_step_fingerprints,
+    hosted_step_fingerprints,
 )
 ROOT = Path(__file__).resolve().parents[2]
 _API = "https://api.github.com"
@@ -91,7 +92,7 @@ class FixedRepositoryPort:
         except Exception:
             raise SoloMaintainerClosureError(ClosureErrorCode.EVIDENCE_REJECTED) from None
 class FixedGitHubPort:
-    """Collect exact public master, check, and ruleset metadata."""
+    """Collect exact public provenance and authenticated guardrail metadata."""
     def collect(self, repository: RepositorySnapshotV1) -> GitHubEvidenceSnapshotV1:
         try:
             if type(repository) is not RepositorySnapshotV1:
@@ -99,7 +100,7 @@ class FixedGitHubPort:
             commit = _remote_commit()
             if commit != repository.final_master_binding.final_commit_oid:
                 raise SoloMaintainerClosureError(ClosureErrorCode.MASTER_DRIFT)
-            guardrail = _guardrail_snapshot()
+            guardrail = collect_verified_guardrail()
             records, steps = _hosted_records(repository, commit)
             return GitHubEvidenceSnapshotV1.create(
                 remote_commit_oid=commit, hosted_evidence=records,
@@ -206,23 +207,6 @@ def _remote_commit() -> str:
     if not is_git_oid(commit):
         raise SoloMaintainerClosureError(ClosureErrorCode.MASTER_DRIFT)
     return commit
-def _guardrail_snapshot() -> GitHubGuardrailSnapshotV1:
-    listing = _get_json(f"/repos/{_REPOSITORY}/rulesets?ref=refs/heads/master&includes_parents=false&per_page=100")
-    if type(listing) is not list or len(listing) != 1 or type(listing[0]) is not dict:
-        raise SoloMaintainerClosureError(ClosureErrorCode.GITHUB_GUARDRAIL_REJECTED)
-    matching = listing
-    if (matching[0].get("target") != "branch" or matching[0].get("enforcement") != "active"
-            or matching[0].get("name") != "master-solo-maintainer-closure-v1"
-            or type(matching[0].get("id")) is not int):
-        raise SoloMaintainerClosureError(ClosureErrorCode.GITHUB_GUARDRAIL_REJECTED)
-    detail = _get_json(f"/repos/{_REPOSITORY}/rulesets/{matching[0]['id']}")
-    configuration = normalize_ruleset_configuration(detail)
-    if configuration != ruleset_configuration_v1():
-        raise SoloMaintainerClosureError(ClosureErrorCode.GITHUB_GUARDRAIL_REJECTED)
-    if _get_json(f"/repos/{_REPOSITORY}/branches/master/protection", allow_missing=True) is not None:
-        raise SoloMaintainerClosureError(ClosureErrorCode.GITHUB_GUARDRAIL_REJECTED)
-    return GitHubGuardrailSnapshotV1.create(
-        ruleset_id=matching[0]["id"], ruleset_configuration=configuration)
 def _hosted_records(repository: RepositorySnapshotV1, commit: str):
     runs = _get_json(f"/repos/{_REPOSITORY}/actions/runs?branch=master&event=push&per_page=100")
     values = runs.get("workflow_runs") if type(runs) is dict else None
@@ -277,7 +261,7 @@ def _check_id(value: object):
     prefix = f"{_API}/repos/{_REPOSITORY}/check-runs/"
     suffix = value[len(prefix):] if type(value) is str and value.startswith(prefix) else ""
     return int(suffix) if suffix.isascii() and suffix.isdigit() and not suffix.startswith("0") else None
-def _get_json(path: str, allow_missing: bool = False):
+def _get_json(path: str):
     if type(path) is not str or not path.startswith(f"/repos/{_REPOSITORY}/"):
         raise SoloMaintainerClosureError()
     request = urllib.request.Request(
@@ -286,9 +270,7 @@ def _get_json(path: str, allow_missing: bool = False):
     try:
         with urllib.request.urlopen(request, timeout=10) as response:
             payload = response.read(_MAX_OUTPUT + 1)
-    except urllib.error.HTTPError as exc:
-        if allow_missing and exc.code == 404:
-            return None
+    except urllib.error.HTTPError:
         raise SoloMaintainerClosureError() from None
     if len(payload) > _MAX_OUTPUT:
         raise SoloMaintainerClosureError()

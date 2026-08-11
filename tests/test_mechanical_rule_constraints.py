@@ -196,9 +196,10 @@ class MechanicalRuleConstraintTests(unittest.TestCase):
         mechanical = read_text(
             ROOT / "docs" / "constraints" / "mechanical_rule_translation.md"
         )
+        ci = read_text(ROOT / "docs" / "constraints" / "ci_guardrails.md")
         for marker in (
             "Issue #110 publication and validation rules",
-            "exactly nine\n   modules",
+            "exactly ten\n   modules",
             "numeric job id equals the hosted record",
             "generated-status normalized equivalence",
             "nineteen unique classifications exactly",
@@ -206,7 +207,14 @@ class MechanicalRuleConstraintTests(unittest.TestCase):
             "duplicate/extra/missing keys",
             "lone surrogates",
             "hosted-check ordering",
-            "Real current state\n   with no ruleset must fail",
+            "two fixed auth-status observations",
+            "exactly three fixed authenticated GET requests",
+            "`bypass_actors=[]` must be explicit",
+            "`required_reviewers` is absent or exactly `[]`",
+            "965 bytes",
+            "5f1c00727e4637c58abc7a8299f6c5846be0d8b6b3511d84bf3114e17422ca6e",
+            "The current ruleset exists",
+            "does not authorize live `prepare`, `confirm`, or verifier execution",
             "one-use acknowledgement",
             "wall/monotonic 300-second bounds",
             "create-only two-file publication",
@@ -227,6 +235,15 @@ class MechanicalRuleConstraintTests(unittest.TestCase):
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, mechanical)
+        for marker in (
+            "authenticated fixed GET-only guardrail observation",
+            "Python never reads or emits the token",
+            "three fixed GitHub GET requests",
+            "The ruleset exists",
+            "does not authorize live closure execution",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, ci)
 
     def test_issue110_amendments_04_through_07_are_recorded(self) -> None:
         brief = read_text(

@@ -259,8 +259,7 @@ class SoloMaintainerClosureTests(unittest.TestCase):
                 "| Git branch | not available |",
                 "| Git branch | bad|branch |",
             ),
-            updated.replace(branch.replace("codex/issue-110-solo-maintainer-closure",
-                                            "not available"), ""),
+            updated.replace("| Git branch | not available |\n", "", 1),
         ):
             self.status_builder.return_value = invalid
             with self.subTest(invalid=invalid[:30]), self.assertRaises(
@@ -630,31 +629,29 @@ class SoloMaintainerClosureTests(unittest.TestCase):
         with self.assertRaises(SoloMaintainerClosureError):
             SoloMaintainerAttestationReceiptV1.from_json(canonical_json(mapping))
 
-    def test_guardrail_collection_requires_only_one_ruleset_covering_master(self) -> None:
-        configuration = ruleset_configuration_v1()
-        listing_path = (
-            "/repos/Toby0918/email-ai-assistant/rulesets?ref=refs/heads/master"
-            "&includes_parents=false&per_page=100"
-        )
+    def test_fixed_github_port_delegates_private_guardrail_collection(self) -> None:
+        repository, expected = _fixture()
+        guardrail = expected.github_guardrail_snapshot
+        records = expected.hosted_evidence
+        steps = dict(expected.hosted_step_fingerprints)
 
-        def get_json(path: str, allow_missing: bool = False) -> object:
-            if path == listing_path:
-                return [
-                    {"id": 777, "target": "branch", "enforcement": "active",
-                     "name": "master-solo-maintainer-closure-v1"},
-                    {"id": 778, "target": "branch", "enforcement": "active",
-                     "name": "unexpected-layer"},
-                ]
-            if path.endswith("/rulesets/777"):
-                return configuration
-            if path.endswith("/branches/master/protection") and allow_missing:
-                return None
-            raise AssertionError(path)
+        with patch.object(
+            repository_adapter,
+            "_remote_commit",
+            return_value=repository.final_master_binding.final_commit_oid,
+        ), patch.object(
+            repository_adapter,
+            "collect_verified_guardrail",
+            return_value=guardrail,
+        ) as collect_guardrail, patch.object(
+            repository_adapter,
+            "_hosted_records",
+            return_value=(records, steps),
+        ):
+            actual = repository_adapter.FixedGitHubPort().collect(repository)
 
-        with patch.object(repository_adapter, "_get_json", side_effect=get_json), \
-                self.assertRaises(SoloMaintainerClosureError) as caught:
-            repository_adapter._guardrail_snapshot()
-        self.assertEqual(caught.exception.code, ClosureErrorCode.GITHUB_GUARDRAIL_REJECTED)
+        collect_guardrail.assert_called_once_with()
+        self.assertEqual(actual.github_guardrail_snapshot, guardrail)
 
     def test_hosted_record_rejects_non_rfc3339_timestamps(self) -> None:
         with self.assertRaises(SoloMaintainerClosureError):
