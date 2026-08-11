@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-08
+last_update: 2026-08-09
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -27,16 +27,36 @@ source_type: operation_guide
    `windows-native-provenance`, `windows-independent-provenance`, and
    `provenance-reconciliation`. Pin one provenance run/attempt and the exact
    reconciliation dependency relation; reject credentials, caller URLs, custom
-   endpoints, fallbacks, stale or mixed runs.
+   endpoints, fallbacks, stale or mixed runs. This hosted run/job metadata uses
+   the fixed anonymous public HTTPS reader and remains separate from
+   authenticated guardrail observation.
    Hosted typed-test proofs bind exact relevant frozen source/test blob
    identities plus unique successful step metadata from the selected same-SHA
    job whose numeric job id equals the hosted record. They do not assert
    creation or retention of a runtime receipt instance.
 4. Require exactly one active `master-solo-maintainer-closure-v1` ruleset,
-   zero bypass actors, deletion and non-fast-forward protection, strict
+   explicit `bypass_actors=[]`, deletion and non-fast-forward protection, strict
    app-bound required checks, the approved pull-request rule, and absent classic
-   protection. Missing or layered state blocks closure; Issue #110 does not
-   create or approve the ruleset.
+   protection. Private `github_guardrail.py` must use only absolute
+   `C:\Program Files\GitHub CLI\gh.exe`, validate the existing active
+   `Toby0918` `github.com` keyring identity before and after, inherit only a
+   sanitized allowlist environment with update checks and telemetry disabled,
+   and make exactly three fixed GET requests. Separately bound stdout/stderr;
+   accept nonempty stderr only for the exact content-free classic 404 diagnostic
+   paired with that endpoint's HTTP 404 / exit 1 result.
+   Python must never read or print the token. The unique pull-request rule may
+   omit `required_reviewers` or carry exactly `[]`; delete only that empty wire
+   default before exact equality with the unchanged 965-byte configuration and
+   fingerprint
+   `5f1c00727e4637c58abc7a8299f6c5846be0d8b6b3511d84bf3114e17422ca6e`.
+   Missing, nonempty, wrong-type, duplicate or layered state blocks closure.
+   Ruleset `20601214` now exists, but its presence is not live-command authority.
+   Mechanically require two fixed auth-status observations and exactly three fixed authenticated GET requests.
+   `bypass_actors=[]` must be explicit, while
+   `required_reviewers` is absent or exactly `[]`. After empty-only
+   normalization the canonical configuration remains 965 bytes with fingerprint
+   `5f1c00727e4637c58abc7a8299f6c5846be0d8b6b3511d84bf3114e17422ca6e`.
+   The current ruleset exists, but it does not authorize live `prepare`, `confirm`, or verifier execution.
 5. `prepare` performs no TTY read and no write. Windows-only `confirm` proves
    real stdin/stdout/stderr console handles, displays and reads the exact
    manifest fingerprint and acknowledgement once, uses wall plus monotonic
@@ -1042,7 +1062,7 @@ private-data container, or authorization to migrate.
 
 ## Issue #110 Solo Maintainer Closure contract rules
 
-1. Require the exact nine-file closure package, explicit public exports, strict
+1. Require the exact ten-file closure package, explicit public exports, strict
    canonical parsing, and the capability split between pure contracts/evidence,
    private frozen-tree-bound local observations, fixed read-only repository
    acquisition, and fixed create-only storage.
@@ -1110,9 +1130,11 @@ private-data container, or authorization to migrate.
 
 ## Issue #110 publication and validation rules
 
-1. Parse `backend/r2_solo_maintainer_closure` and require exactly nine
+1. Parse `backend/r2_solo_maintainer_closure` and require exactly ten
    modules, explicit exports, files at most 300 lines, functions at most 50
-   lines, and exact import/capability allowlists.
+   lines, and exact import/capability allowlists. Require anonymous hosted
+   HTTPS acquisition to remain separate from the private authenticated
+   guardrail GET-only adapter and reject token reads or prints.
 2. Parse the fixed `scripts/close_r2_final_master.py` interface and require
    only `prepare` and `confirm`; reject argparse path/root/ref/endpoint/
    credential/key/destination/cleanup options and all clipboard APIs.
@@ -1121,9 +1143,11 @@ private-data container, or authorization to migrate.
    lone surrogates, noncanonical whitespace/order/escaping, and own-fingerprint
    changes.
 4. Test hosted-check ordering, app id, push/master, run/attempt/reconciliation
-   dependencies, guardrail exactness, and all zero counters. Real current state
-   with no ruleset must fail; tests use only fake/synthetic snapshots and never
-   create a ruleset.
+   dependencies, guardrail exactness, and all zero counters. In-memory tests
+   must prove missing/nonempty bypass and nonempty/wrong-type reviewers fail,
+   while `required_reviewers` absent or exactly empty preserves canonical bytes
+   and fingerprint. Synthetic no-ruleset state must fail; tests never create,
+   mutate or query the live ruleset.
 5. Test Windows real-console identity, one-use acknowledgement, exact CRLF
    handling, control rejection, wall/monotonic 300-second bounds, fresh
    rederivation, create-only two-file publication, collision retention, and
@@ -1131,7 +1155,8 @@ private-data container, or authorization to migrate.
 6. Test the fixed no-argument verifier raw-Git chain, only-new-file inventory,
    recursive legacy-surface rejection, current GitHub-state reread, and
    content-free eligibility output. Do not execute the live verifier in this
-   issue because the required ruleset is separately unapproved and absent.
+   issue: ruleset `20601214` exists, but live verification remains separately
+   unauthorized.
 7. Run the focused closure, execution-confirmation, binding, Adapter,
    composition, journal, publication, recovery, topology, obsolete-surface,
    architecture, linter, mechanical, documentation, leakage, and status tests;

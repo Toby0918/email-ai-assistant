@@ -989,17 +989,30 @@ class StaticLinterConstraintTests(unittest.TestCase):
             "old final-master closure, global-gate, external-artifact",
             "No compatibility export, dual parser, fallback",
             "separate approval boundaries",
-            "future ruleset and future Issue #39 code path",
+            "future Issue #39 code path",
             "final stable parent/child/DACL/oplock observation",
             "exact-target no-replace rename",
             "No guard may claim atomic arbitrary-sibling exclusion",
             "strictly after that linearization",
             "subsequent incident rejected by the verifier",
+            "`github_guardrail.py` is the only authenticated GitHub command Adapter",
+            "fixed absolute Windows GitHub CLI",
+            "two keyring-backed auth-status",
+            "three fixed GET-only requests",
+            "Python never reads or emits the",
+            "accepts no caller credential, URL, method,",
+            "fallback, or cache",
+            "`required_reviewers` absent or exactly `[]`",
+            "explicit `bypass_actors=[]`",
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, linter)
         for marker in (
-            "`repository.py` alone may consume the approved read-only provenance",
+            "`repository.py` alone may consume the approved public read-only provenance",
+            "`github_guardrail.py` alone may execute the authenticated fixed GET-only reader",
+            "Python never receives the keyring token",
+            "There is no caller",
+            "credential, URL, method, fallback, or cache",
             "`local_evidence.py` alone may",
             "approved pure CI-suite/runbook registries",
             "uncooperative writer",
@@ -1016,6 +1029,67 @@ class StaticLinterConstraintTests(unittest.TestCase):
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, logging)
+
+    def test_issue110_authenticated_guardrail_source_is_narrow(self) -> None:
+        package = ROOT / "backend" / "r2_solo_maintainer_closure"
+        source = read_text(package / "github_guardrail.py")
+        package_init = read_text(package / "__init__.py")
+
+        for marker in (
+            r"C:\Program Files\GitHub CLI\gh.exe",
+            '"Toby0918"',
+            '"tokenSource"',
+            '"keyring"',
+            '"auth", "status", "--active"',
+            '"--method", "GET"',
+            '"GH_PROMPT_DISABLED": "1"',
+            '"GH_NO_UPDATE_NOTIFIER": "1"',
+            '"GH_NO_EXTENSION_UPDATE_NOTIFIER": "1"',
+            '"GH_TELEMETRY": "0"',
+            '"DO_NOT_TRACK": "1"',
+            "stdin=subprocess.DEVNULL",
+            "stderr=subprocess.PIPE",
+            "shell=False",
+            "required_reviewers",
+            "bypass_actors",
+            "_CLASSIC_MISSING_STDERR",
+            "detail_id.isascii()",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, source)
+        self.assertEqual(source.count("self._auth_identity()"), 2)
+        self.assertEqual(source.count("self._api_json("), 3)
+        for forbidden in (
+            '"auth", "token"',
+            '"auth", "login"',
+            '"POST"',
+            '"PUT"',
+            '"PATCH"',
+            '"DELETE"',
+            "Authorization",
+            "GH_TOKEN",
+            "GITHUB_TOKEN",
+            "GH_ENTERPRISE_TOKEN",
+            "GITHUB_ENTERPRISE_TOKEN",
+            "GH_CONFIG_DIR",
+            "GH_HOST",
+            "GH_REPO",
+            "HTTP_PROXY",
+            "HTTPS_PROXY",
+            "ALL_PROXY",
+            "os.environ.copy",
+            "dict(os.environ)",
+            "urllib",
+            "import requests",
+            "socket",
+            "shell=True",
+            "lru_cache",
+            "print(",
+            "logging",
+        ):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, source)
+        self.assertNotIn("github_guardrail", package_init)
 
     def test_docs_markdown_front_matter_status_uses_allowed_values(self) -> None:
         docs = ROOT / "docs"

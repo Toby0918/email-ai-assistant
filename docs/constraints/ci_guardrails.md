@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-07
+last_update: 2026-08-09
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -50,12 +50,27 @@ GitHub Actions app id `15368`; the provenance jobs must share one run and
 attempt. A PR run can validate implementation but cannot satisfy the hosted
 closure-evidence contract.
 
-The required future ruleset is separate GitHub state: exact `master` target,
-active, zero bypass actors, deletion and non-fast-forward protection, strict
-required checks bound to app id `15368`, and the approved pull-request rule;
-classic branch protection must be absent. CI must not create, approve, mutate,
-or layer that ruleset. If live state differs from the expected no-ruleset/no-
-classic baseline before separate approval, stop rather than layering state.
+Ruleset `20601214` now exists as separately approved GitHub state. A fresh
+closure observation must still prove the exact `master` target, active state,
+explicit `bypass_actors=[]`, deletion and non-fast-forward protection, strict
+required checks bound to app id `15368`, the approved pull-request rule, and
+absent classic branch protection. Hosted run/job metadata remains an anonymous
+public HTTPS read. Guardrail state alone uses the fixed authenticated GitHub CLI
+GET-only adapter with update checks and telemetry disabled; Python never reads
+or prints its keyring token. Separately bounded stderr is empty except for the
+exact content-free classic 404 diagnostic paired with HTTP 404 / exit 1. The beta
+`required_reviewers` field is compatible only when absent or exactly `[]`, and
+only that empty wire default is removed before comparison with the unchanged
+965-byte canonical configuration and fingerprint
+`5f1c00727e4637c58abc7a8299f6c5846be0d8b6b3511d84bf3114e17422ca6e`.
+CI must not create, approve, mutate or layer a ruleset.
+
+Ruleset existence does not authorize live `prepare`, `confirm`, the protected
+verifier, Issue #38 disposition or Issue #39 execution.
+
+CI recognizes authenticated fixed GET-only guardrail observation only through
+the three fixed GitHub GET requests. Python never reads or emits the token.
+The ruleset exists, but it does not authorize live closure execution.
 
 Green CI, hosted receipts, the closure manifest, and the Solo Maintainer
 Attestation are evidence only. They do not approve Issue #38, authorize or

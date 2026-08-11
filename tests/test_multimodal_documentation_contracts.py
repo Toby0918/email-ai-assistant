@@ -434,7 +434,7 @@ class MultimodalDocumentationContractTests(unittest.TestCase):
         for relative in ACTIVE_DOCS:
             text = self._read(relative)
             expected_date = (
-                "2026-08-07"
+                "2026-08-09"
                 if relative == "docs/operations/testing_checklist.md"
                 else "2026-07-22"
                 if relative in (

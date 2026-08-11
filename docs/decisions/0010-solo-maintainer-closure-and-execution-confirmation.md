@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-08
+last_update: 2026-08-09
 status: active
 owner: "@tobyWang"
 review_cycle: quarterly
@@ -10,9 +10,10 @@ source_type: decision_record
 
 ## Status
 
-Accepted for repository implementation under Issue #110. GitHub guardrail
-configuration, live closure, Issue #105 disposition, Issue #38 review and Issue
-#39 execution remain separate decisions.
+Accepted for repository implementation under Issue #110. Ruleset `20601214`
+now exists as separately approved GitHub state. Its presence does not authorize
+live closure, Issue #105 disposition, Issue #38 review or Issue #39 execution;
+those remain separate decisions.
 
 ## Context
 
@@ -47,6 +48,20 @@ active master ruleset snapshot, fourteen local evidence gates, eight ordered
 gap proofs and one `ApprovedCutoverBindingV3`. Hosted evidence has zero human
 approval. Candidate and receipt JSON are strict canonical ASCII objects with
 domain-separated SHA-256 identities.
+
+Hosted run/job metadata remains a fixed anonymous HTTPS read. Guardrail state
+uses a separate package-private authenticated adapter described by ADR 0011:
+the code-fixed absolute Windows GitHub CLI, the existing `Toby0918` keyring
+identity for `github.com`, identity checks before and after exactly three fixed
+GETs, a sanitized allowlist environment with update checks and telemetry
+disabled, separately bounded stdout/stderr, and no Python token read or print.
+Only the exact content-free classic 404 diagnostic may accompany HTTP 404 /
+exit 1 for that fixed absence check.
+Authenticated `bypass_actors` must be explicitly `[]`. The only wire response
+compatibility accepts `pull_request.parameters.required_reviewers` when absent
+or exactly `[]`, removing only that empty beta default before exact comparison.
+The canonical configuration remains 965 bytes with fingerprint
+`5f1c00727e4637c58abc7a8299f6c5846be0d8b6b3511d84bf3114e17422ca6e`.
 
 Local gate inputs use private `LocalSourceProofV1` values. Each proof binds the
 same final commit/tree/source package and ordered exact canonical, frozen-blob,
@@ -108,8 +123,10 @@ remain deliberately disjoint.
 
 - The historical #105 external-signature contract remains recorded as never
   passed and superseded; its artifacts are not compatible inputs.
-- One ruleset with exact required checks is a prerequisite for any future live
-  closure, but this ADR does not authorize creating it.
+- Ruleset `20601214` satisfies the separately created GitHub-state prerequisite
+  only when a fresh authenticated observation exactly matches the canonical
+  guardrail contract. This ADR still does not authorize live `prepare`,
+  `confirm`, the protected verifier or any follow-on disposition.
 - A new master invalidates old R1 review/window evidence. #38 requires a fresh
   fourteen-item review after merge.
 - #39 stays blocked until separate approval and a fresh action-specific

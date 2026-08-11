@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-08
+last_update: 2026-08-09
 status: active
 owner: "@tobyWang"
 review_cycle: as_needed
@@ -10,9 +10,10 @@ source_type: operation_guide
 
 ## Purpose
 
-This runbook describes the implemented #110 repository contract. It does not
-authorize the future GitHub ruleset, a live closure, Issue #38 approval, or any
-Issue #39 action. The assurance model is always:
+This runbook describes the implemented #110 repository contract. Ruleset
+`20601214` now exists, but this runbook does not authorize ruleset mutation, a
+live closure, the protected verifier, Issue #38 approval, or any Issue #39
+action. The assurance model is always:
 
 ```text
 assurance_model=SOLE_MAINTAINER_SELF_REVIEW
@@ -57,8 +58,8 @@ only behind the same two-method interface.
 
 ## Candidate review
 
-After a future ruleset is separately approved and active, a separately
-authorized operator may run:
+Ruleset presence is only a prerequisite. After live `prepare` is separately
+authorized, an operator may run:
 
 ```powershell
 & 'D:\Projects\email_ai_assistant\.venv\Scripts\python.exe' -I -B `
@@ -101,11 +102,10 @@ empty. Maintenance must produce nineteen unique classifications exactly equal
 to the fixed `(severity, category, path, doc)` registry; missing, duplicate, or
 new paths block closure.
 
-## Future ruleset prerequisite
+## Authenticated guardrail prerequisite
 
-The live closure must reject the current repository while no ruleset exists.
-Creating the ruleset is a separate GitHub-state approval. The required future
-state is exactly one active branch ruleset named
+The separately approved GitHub-state change created ruleset `20601214`. Every
+derivation must freshly prove exactly one active branch ruleset named
 `master-solo-maintainer-closure-v1`, targeting only `refs/heads/master`, with no
 bypass actors, classic branch protection absent, deletion and non-fast-forward
 rules, pull-request thread resolution with zero required approvals, and these
@@ -121,6 +121,24 @@ provenance-reconciliation
 
 Do not add `cleanup-scan`, signed commits, deployments, merge queue, linear
 history, branch lock, bypass, or classic-protection layering.
+
+Hosted run/job metadata continues through the code-fixed anonymous public HTTPS
+reader. Protection state alone uses the code-fixed absolute
+`C:\Program Files\GitHub CLI\gh.exe`, the existing active `Toby0918`
+`github.com` keyring identity, auth-status checks before and after exactly three
+fixed GET requests, and a sanitized allowlist environment. Python never reads
+or prints the token. Update checks and telemetry are disabled; stdout/stderr are
+separately bounded, and only the exact content-free classic 404 diagnostic may
+accompany that fixed endpoint's HTTP 404 / exit 1 absence result. Authenticated detail must explicitly expose
+`bypass_actors=[]`. The unique pull-request rule accepts
+`required_reviewers` only when absent or exactly `[]`; only the exact empty beta
+default is removed before equality with the unchanged 965-byte canonical
+configuration and configuration fingerprint
+`5f1c00727e4637c58abc7a8299f6c5846be0d8b6b3511d84bf3114e17422ca6e`.
+Nonempty, wrong-type, duplicate or otherwise drifted state fails closed.
+
+Neither ruleset existence nor a successful read-only local test authorizes the
+commands in the following sections.
 
 ## Confirmation boundary
 

@@ -2805,6 +2805,18 @@ class ArchitectureConstraintTests(unittest.TestCase):
         task_brief = read_text(
             ROOT / "docs" / "operations" / "r2_solo_maintainer_closure_task_brief.md"
         )
+        guardrail_brief = read_text(
+            ROOT
+            / "docs"
+            / "operations"
+            / "r2_github_guardrail_response_compatibility_task_brief.md"
+        )
+        guardrail_adr = read_text(
+            ROOT
+            / "docs"
+            / "decisions"
+            / "0011-authenticated-github-guardrail-observation.md"
+        )
         task_template = read_text(
             ROOT / "docs" / "templates" / "agent_task_brief_template.md"
         )
@@ -2818,7 +2830,7 @@ class ArchitectureConstraintTests(unittest.TestCase):
         for marker in (
             "Issue #110 Solo Maintainer Closure architecture",
             "`backend.r2_solo_maintainer_closure`",
-            "contains exactly nine files",
+            "contains exactly ten files",
             "parameterless\n`prepare()` and `confirm",
             "strict canonical ASCII JSON",
             "five hosted check records",
@@ -2852,11 +2864,15 @@ class ArchitectureConstraintTests(unittest.TestCase):
             with self.subTest(marker=marker):
                 self.assertIn(marker, security)
         for marker in (
-            "last_update: 2026-08-08",
+            "last_update: 2026-08-09",
             "Issue #110 Solo Maintainer Closure / Execution Confirmation checklist",
-            "`backend.r2_solo_maintainer_closure` contains exactly nine files",
+            "`backend.r2_solo_maintainer_closure` contains exactly ten files",
             "parameterless `prepare()` and `confirm(...)`",
             "five hosted check records and one exact GitHub guardrail snapshot",
+            "code-fixed absolute Windows GitHub CLI",
+            "three approved authenticated GET requests",
+            "Python never reads or emits the GitHub token",
+            "`pull_request.parameters.required_reviewers`",
             "fourteen gates and eight ordered gap proofs",
             "real Windows console handles",
             "wall-clock plus monotonic-clock",
@@ -2875,6 +2891,34 @@ class ArchitectureConstraintTests(unittest.TestCase):
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, task_template)
+        for marker in (
+            "R2 GitHub guardrail response compatibility task brief",
+            "docs/templates/agent_task_brief_template.md",
+            "code-fixed absolute Windows GitHub CLI",
+            "Python 不读取或打印 token",
+            "`bypass_actors=[]`",
+            "`required_reviewers=[]`",
+            "bytes 仍为 965",
+            "5f1c00727e4637c58abc7a8299f6c5846be0d8b6b3511d84bf3114e17422ca6e",
+            "ruleset 已创建",
+            "live closure 与所有 GitHub mutation 未获授权",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, guardrail_brief)
+        for marker in (
+            "ADR 0011",
+            "Authenticated GitHub guardrail observation",
+            "`github_guardrail.py`",
+            "`C:\\Program Files\\GitHub CLI\\gh.exe`",
+            "`bypass_actors=[]`",
+            "`required_reviewers=[]`",
+            "965",
+            "5f1c00727e4637c58abc7a8299f6c5846be0d8b6b3511d84bf3114e17422ca6e",
+            "Ruleset existence is evidence only",
+            "still require their own authorization",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, guardrail_adr)
         self.assertIn("## 23. 执行后记录", task_template)
         self.assertNotIn("## 22. 执行后记录", task_template)
         for marker in (

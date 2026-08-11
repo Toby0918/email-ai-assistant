@@ -24,6 +24,7 @@ class SoloMaintainerClosureArchitectureTests(unittest.TestCase):
                 "contracts.py",
                 "evidence.py",
                 "hosted_evidence.py",
+                "github_guardrail.py",
                 "local_evidence.py",
                 "repository.py",
                 "storage.py",
@@ -71,7 +72,6 @@ class SoloMaintainerClosureArchitectureTests(unittest.TestCase):
             "Ed25519PrivateKey",
             "verification_public_keys",
             "signature_hex",
-            "os.environ",
             "getenv(",
             "clipboard",
             "unlink(",
@@ -102,15 +102,56 @@ class SoloMaintainerClosureArchitectureTests(unittest.TestCase):
             }
         for name, roots in imports.items():
             with self.subTest(path=name):
-                if roots & {"urllib", "subprocess", "socket"}:
+                if roots & {"urllib", "socket"}:
                     self.assertEqual(name, "repository.py")
+                if roots & {"subprocess"}:
+                    self.assertIn(name, {"repository.py", "github_guardrail.py"})
                 if roots & {"ctypes", "os", "stat"}:
-                    self.assertIn(name, {"repository.py", "storage.py", "closure.py"})
+                    self.assertIn(
+                        name,
+                        {"repository.py", "storage.py", "closure.py", "github_guardrail.py"},
+                    )
         repository = (PACKAGE / "repository.py").read_text(encoding="utf-8")
         self.assertIn("https://api.github.com", repository)
         self.assertIn("Toby0918/email-ai-assistant", repository)
+        self.assertNotIn("/rulesets", repository)
+        self.assertNotIn("/branches/master/protection", repository)
         for forbidden in ("Authorization", "api.github.com/" + "{", "requests"):
             self.assertNotIn(forbidden, repository)
+
+    def test_authenticated_guardrail_reader_is_fixed_get_only_and_token_free(self) -> None:
+        source = (PACKAGE / "github_guardrail.py").read_text(encoding="utf-8")
+        for marker in (
+            r'C:\Program Files\GitHub CLI\gh.exe',
+            '"Toby0918"',
+            '"github.com"',
+            '"auth", "status", "--active"',
+            '"--method", "GET"',
+            '"--include"',
+            '"GH_PROMPT_DISABLED": "1"',
+            '"GH_NO_UPDATE_NOTIFIER": "1"',
+            '"GH_NO_EXTENSION_UPDATE_NOTIFIER": "1"',
+            '"GH_TELEMETRY": "0"',
+            '"DO_NOT_TRACK": "1"',
+            "stdin=subprocess.DEVNULL",
+            "stderr=subprocess.PIPE",
+            "shell=False",
+            "required_reviewers",
+            "allow_classic_missing",
+            "_CLASSIC_MISSING_STDERR",
+            "detail_id.isascii()",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, source)
+        for forbidden in (
+            '"POST"', '"PUT"', '"PATCH"', '"DELETE"',
+            '"auth", "token"', "Authorization", "GH_TOKEN", "GITHUB_TOKEN",
+            "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN", "GH_CONFIG_DIR",
+            "GH_HOST", "GH_REPO", "HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY",
+            "os.environ.copy", "dict(os.environ)", "urllib", "socket", "shell=True",
+        ):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, source)
 
     def test_backend_files_and_functions_stay_within_mechanical_limits(self) -> None:
         for path in PACKAGE.glob("*.py"):
