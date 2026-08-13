@@ -13,8 +13,9 @@ source_type: operation_guide
 - Type: fix
 - State: implemented
 - Governing baseline: `master@9f736f2e4e367c6e9f4c90e9073a8d37fc572240`
-- Confirmed test seams: the public `scripts/maintenance_scan.py` behavior and
-  `tests/test_manage_mailbox_vault_stage_knowledge.py`.
+- Confirmed test seams: the public `scripts/maintenance_scan.py` behavior,
+  `tests/test_manage_mailbox_vault_stage_knowledge.py`, and
+  `tests/test_r2_rollback_recovery_v2_architecture.py`.
 
 ## Goal
 
@@ -54,6 +55,7 @@ Expected changed files:
 - `docs/operations/issue38_maintenance_evidence_drift_task_brief.md`
 - `tests/test_maintenance_scan.py`
 - `tests/test_manage_mailbox_vault_stage_knowledge.py`
+- `tests/test_r2_rollback_recovery_v2_architecture.py`
 - `docs/operations/setup_checklist.md`
 - `docs/operations/project_status_log.md` (generated after implementation)
 
@@ -69,6 +71,9 @@ Expected changed files:
    be rerun after a separately authorized publication to `master`.
 5. Make the stage-knowledge test use the same fixed UTC clock when reading the
    candidate batch that it used when creating it.
+6. Sort the rollback architecture guard's discovered consumer paths before
+   comparing them with the exact allowlist, so filesystem enumeration order
+   cannot change the result across Linux and Windows.
 
 ## Interface and data changes
 
@@ -146,12 +151,15 @@ Expected changed files:
    ruleset, closure target, and stages remain unchanged.
 7. The stage-knowledge regression passes both alone and in full discovery
    without changing private-knowledge production code.
+8. The rollback consumer architecture guard remains an exact two-path
+   allowlist and is independent of filesystem traversal order.
 
 ## Test plan
 
 - `python -m unittest tests.test_maintenance_scan`
 - `python -m unittest tests.test_r2_solo_maintainer_closure`
 - `python -m unittest tests.test_manage_mailbox_vault_stage_knowledge`
+- `python -m unittest tests.test_r2_rollback_recovery_v2_architecture`
 - `python -m unittest discover -s tests`
 - `python scripts/generate_project_status.py --output docs/operations/project_status_log.md`
 - `python scripts/maintenance_scan.py`
@@ -163,7 +171,7 @@ Expected changed files:
 
 ## Rollback
 
-Before publication, rollback is deletion/reversion of only the five allowlisted
+Before publication, rollback is deletion/reversion of only the six allowlisted
 worktree changes. No remote or protected state is in scope.
 
 ## Manual decisions
@@ -184,7 +192,7 @@ worktree changes. No remote or protected state is in scope.
 
 ## Completion record
 
-- Actual changed files are exactly the five files listed in Scope.
+- Actual changed files are exactly the six files listed in Scope.
 - The regression test failed on the frozen baseline, then passed after the
   checklist review. The complete maintenance module passed 7 tests; the
   maintenance plus Solo Maintainer Closure suites passed 31 tests.
@@ -203,5 +211,11 @@ worktree changes. No remote or protected state is in scope.
   module pass without production-code changes.
 - Fresh full discovery then ran 2,750 tests in 2,904.036 seconds and passed
   with 3 skips.
+- After merge, Linux master CI exposed an ordering-only failure in
+  `test_no_normal_runtime_or_script_consumer`: `Path.rglob()` returned the two
+  approved consumers in the opposite order. The exact allowlist is unchanged;
+  only the observed list is sorted before comparison.
+- Fresh local full discovery after the ordering repair ran 2,750 tests in
+  2,842.555 seconds and passed with 3 skips.
 - Remaining work: separately authorize publication and the post-publication
   protected manifest gate. All closure gates remain separately authorized.

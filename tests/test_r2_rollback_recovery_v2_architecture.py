@@ -69,7 +69,7 @@ class R2RollbackRecoveryV2ArchitectureTests(unittest.TestCase):
                 text = path.read_text(encoding="utf-8")
                 if "r2_rollback_recovery_v2" in text:
                     consumers.append(path.relative_to(ROOT).as_posix())
-        self.assertEqual(consumers, [
+        self.assertEqual(sorted(consumers), [
             "backend/r2_retention_ledger_v2/ledger.py",
             "backend/r2_solo_maintainer_closure/local_evidence.py",
         ])
