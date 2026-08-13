@@ -19,10 +19,12 @@ from backend.cutover_contracts import (
     TestSandboxAuthorizationV1,
 )
 from backend.cutover_managed_activation.runtime_source_tree import (
+    SourceTreeObservation,
     observe_source_tree,
 )
 from tests.cutover_contract_fixtures import valid_profile_body
 
+_REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_MASTER = "7bd2eb16bf10d847a4fbd3d691256e6ad13ad6cd"
 OBSERVED_AT = 1_900_000_000
 DEPENDENCIES = (
@@ -36,9 +38,17 @@ DEPENDENCIES = (
     ("Pillow", "12.3.0", "PIL"),
     ("pytesseract", "0.3.13", "pytesseract"),
 )
-_SOURCE_FIXTURE_OWNER = None
-_SOURCE_FIXTURE_ROOT = None
-_SOURCE_FIXTURE_OBSERVATION = None
+
+
+@dataclass(slots=True)
+class _SourceFixtureCache:
+    owner: tempfile.TemporaryDirectory[str]
+    parent: Path
+    root: Path
+    observation: SourceTreeObservation
+
+
+_SOURCE_FIXTURE_CACHE: _SourceFixtureCache | None = None
 
 
 @dataclass(slots=True)
@@ -65,13 +75,11 @@ class SyntheticManagedActivationScenario:
 def build_runtime_scenario(
     directory: Path | None = None,
 ) -> SyntheticManagedActivationScenario:
+    fixture_parent = _fixture_parent(directory)
+    approved_source_fixture = _approved_source_fixture(fixture_parent)
     owner = tempfile.TemporaryDirectory(
         prefix="issue57-synthetic-",
-        dir=(
-            str(directory)
-            if directory is not None
-            else Path(sys._base_executable).anchor
-        ),
+        dir=str(fixture_parent),
     )
     root = Path(owner.name)
     marker = root / ".codex-managed-activation-test-sandbox"
@@ -92,11 +100,9 @@ def build_runtime_scenario(
         )
     )
     source_root = root / "approved-python-source"
-    _mirror_source_fixture(_approved_source_fixture(), source_root)
+    _mirror_source_fixture(approved_source_fixture.root, source_root)
     python_source = source_root / Path(sys._base_executable).name
-    source_observation = _SOURCE_FIXTURE_OBSERVATION
-    if source_observation is None:
-        raise RuntimeError("synthetic source fixture is incomplete")
+    source_observation = approved_source_fixture.observation
     python_source_manifest = root / "python-source-manifest.json"
     python_source_manifest.write_bytes(
         _canonical(
@@ -377,23 +383,35 @@ def _sha256(value: bytes) -> str:
     return hashlib.sha256(value).hexdigest()
 
 
-def _approved_source_fixture() -> Path:
-    global _SOURCE_FIXTURE_OWNER, _SOURCE_FIXTURE_ROOT
-    global _SOURCE_FIXTURE_OBSERVATION
-    if _SOURCE_FIXTURE_ROOT is not None:
-        return _SOURCE_FIXTURE_ROOT
+def _approved_source_fixture(directory: Path) -> _SourceFixtureCache:
+    global _SOURCE_FIXTURE_CACHE
+    if _SOURCE_FIXTURE_CACHE is not None:
+        if directory != _SOURCE_FIXTURE_CACHE.parent:
+            raise RuntimeError("synthetic source fixture parent changed")
+        return _SOURCE_FIXTURE_CACHE
     owner = tempfile.TemporaryDirectory(
         prefix="issue57-approved-python-source-",
-        dir=Path(sys._base_executable).anchor,
+        dir=str(directory),
     )
     root = Path(owner.name)
     _copy_approved_source(Path(sys.base_prefix), root)
     executable = root / Path(sys._base_executable).name
-    _SOURCE_FIXTURE_OBSERVATION = observe_source_tree(executable)
-    _SOURCE_FIXTURE_OWNER = owner
-    _SOURCE_FIXTURE_ROOT = root
+    _SOURCE_FIXTURE_CACHE = _SourceFixtureCache(
+        owner=owner,
+        parent=directory,
+        root=root,
+        observation=observe_source_tree(executable),
+    )
     atexit.register(owner.cleanup)
-    return root
+    return _SOURCE_FIXTURE_CACHE
+
+
+def _fixture_parent(directory: Path | None) -> Path:
+    return (
+        Path(directory).resolve(strict=True)
+        if directory is not None
+        else _REPOSITORY_ROOT
+    )
 
 
 def _copy_approved_source(source: Path, target: Path) -> None:
