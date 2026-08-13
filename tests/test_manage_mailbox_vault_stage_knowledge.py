@@ -132,6 +132,7 @@ class StageKnowledgeTests(unittest.TestCase):
                 calls.append(kwargs)
                 return source
 
+            now = datetime(2026, 7, 14, 13, tzinfo=timezone.utc)
             arguments = argparse.Namespace(
                 vault=root / "raw-vault", authorization_id="AUTH-STAGE-1",
                 account="one@example.test", selection_manifest=manifest,
@@ -143,7 +144,7 @@ class StageKnowledgeTests(unittest.TestCase):
                 protector_factory=lambda: object(),
                 candidate_key_loader=lambda *_args: SecretBytes(key),
                 path_validator=lambda *_args: None,
-                current_time=lambda: datetime(2026, 7, 14, 13, tzinfo=timezone.utc),
+                current_time=lambda: now,
                 epoch_clock=lambda: 1_752_500_000,
                 batch_id_factory=lambda: batch_id,
                 project_root=Path("C:/synthetic-project"),
@@ -151,7 +152,8 @@ class StageKnowledgeTests(unittest.TestCase):
 
             self.assertEqual(result.batch_id, batch_id)
             batch = CandidateBatchStore(
-                root / "candidate", key, batch_id=result.batch_id
+                root / "candidate", key, batch_id=result.batch_id,
+                clock=lambda: now,
             )
             ciphertext = batch.path.read_bytes()
             candidates = batch.read()
