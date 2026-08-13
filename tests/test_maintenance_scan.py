@@ -61,6 +61,19 @@ source_type: operation_guide
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("# Cleanup Agent Report", result.stdout)
 
+    def test_reviewed_setup_checklist_is_not_a_stale_draft(self) -> None:
+        module = load_script_module(SCRIPT, "maintenance_scan_setup_checklist")
+
+        classifications = {
+            (finding.category, finding.path)
+            for finding in module.scan_docs_metadata_and_staleness()
+        }
+
+        self.assertNotIn(
+            ("stale_doc", "docs/operations/setup_checklist.md"),
+            classifications,
+        )
+
     def test_leakage_findings_are_content_free(self) -> None:
         module = load_script_module(SCRIPT, "maintenance_scan_leakage")
         synthetic = module.LeakageFinding(
