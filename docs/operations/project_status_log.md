@@ -17,7 +17,7 @@ source_type: operation_guide
 |---|---|
 | Generated on | 2026-08-13 |
 | Current stage | multimodal_current_email_offline_ready_live_pending |
-| Git branch | codex/issue38-maintenance-evidence-drift |
+| Git branch | codex/issue38-portable-ordering |
 | Git HEAD reference | Run `git rev-parse --short HEAD` in this workspace |
 | Working tree status | Run `git status --short --ignored` in this workspace |
 
