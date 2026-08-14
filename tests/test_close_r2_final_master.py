@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ctypes
 import io
 import inspect
 import json
@@ -26,6 +27,41 @@ from scripts import verify_r2_final_master_closure as verifier
 
 ACK = "CONFIRM_SOLO_MAINTAINER_CLOSURE_V1_NOT_ISSUE39_AUTHORITY"
 FINGERPRINT = "1" * 64
+
+
+def _grant_temporary_full_control(path: Path) -> None:
+    flags = 0x02240000 if path.is_dir() else 0x40240000
+    handle = storage_adapter._windows_open(path, 0x00040000, 0x7, flags)
+    descriptor, length = ctypes.c_void_p(), ctypes.c_uint32()
+    convert = storage_adapter._api(
+        "ConvertStringSecurityDescriptorToSecurityDescriptorW",
+        (
+            ctypes.c_wchar_p,
+            ctypes.c_uint32,
+            ctypes.POINTER(ctypes.c_void_p),
+            ctypes.POINTER(ctypes.c_uint32),
+        ),
+        ctypes.c_int,
+        "advapi32",
+    )
+    secure = storage_adapter._api(
+        "SetKernelObjectSecurity",
+        (ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p),
+        ctypes.c_int,
+        "advapi32",
+    )
+    try:
+        converted = convert(
+            "D:P(A;;GA;;;WD)", 1, ctypes.byref(descriptor), ctypes.byref(length)
+        )
+        if converted != 1 or secure(handle, 0x80000004, descriptor) != 1:
+            raise AssertionError("temporary ACL restoration failed")
+    finally:
+        if descriptor.value:
+            storage_adapter._api(
+                "LocalFree", (ctypes.c_void_p,), ctypes.c_void_p
+            )(descriptor)
+        storage_adapter._api("CloseHandle", (ctypes.c_void_p,))(handle)
 
 
 class _Value:
@@ -306,8 +342,8 @@ class CloseR2FinalMasterTests(unittest.TestCase):
     def test_windows_commit_linearizes_at_final_parent_observation(self) -> None:
         events: list[str] = []
         identity = (1, 2, 3)
-        guards = [
-            (9, 19, object(), object(), object(), identity),
+        parent_guard = (9, 19, object(), object(), object(), identity)
+        child_guards = [
             (10, 20, object(), object(), object(), identity),
             (11, 21, object(), object(), object(), identity),
             (12, None, None, None, None, identity),
@@ -325,7 +361,10 @@ class CloseR2FinalMasterTests(unittest.TestCase):
             return 1
 
         def open_guards(_source, _payloads, _identity, opened, _close):
-            opened.extend(guards)
+            opened.extend(child_guards)
+
+        def open_parent(_source, opened, _close):
+            opened.insert(0, parent_guard)
             return b"parent-acl"
 
         def settle(selected):
@@ -334,6 +373,7 @@ class CloseR2FinalMasterTests(unittest.TestCase):
         helpers = (
             patch.object(storage_adapter, "_prepare_windows_terminal", return_value=(rename, object(), 1, close)),
             patch.object(storage_adapter, "_open_windows_guards", side_effect=open_guards),
+            patch.object(storage_adapter, "_open_parent_guard", side_effect=open_parent),
             patch.object(storage_adapter, "_lock_read_execute_acl", return_value=b"acl"),
             patch.object(storage_adapter, "_require_exact"),
             patch.object(storage_adapter, "_require_windows_guards"),
@@ -346,34 +386,40 @@ class CloseR2FinalMasterTests(unittest.TestCase):
             patch.object(storage_adapter.os.path, "lexists", return_value=False),
         )
         with helpers[0], helpers[1], helpers[2], helpers[3], helpers[4], helpers[5], \
-                helpers[6], helpers[7], helpers[8], helpers[9], helpers[10], helpers[11]:
+                helpers[6], helpers[7], helpers[8], helpers[9], helpers[10], helpers[11], \
+                helpers[12]:
             storage_adapter._windows_guarded_commit(
                 Path("C:/stage"), Path("C:/target"), identity,
                 (b"manifest", b"receipt"),
                 lambda *_payloads: events.append("callback"),
             )
-        self.assertEqual(events[:10], [
-            "settled-children", "flushed", "parent-check", "callback",
+        self.assertEqual(events[:9], [
+            "settled-children", "flushed", "callback",
             "checked-close-20", "checked-close-10", "checked-close-21",
             "checked-close-11", "parent-check", "rename",
         ])
         self.assertEqual(
-            events[10:], ["post-close-19", "post-close-9", "post-close-12"]
+            events[9:], ["post-close-19", "post-close-9", "post-close-12"]
         )
 
     def test_parent_guard_failure_after_callback_blocks_rename(self) -> None:
         identity = (1, 2, 3)
-        guards = [(value, value + 10, object(), object(), object(), identity)
-                  for value in (9, 10, 11, 12)]
+        parent_guard = (9, 19, object(), object(), object(), identity)
+        child_guards = [(value, value + 10, object(), object(), object(), identity)
+                        for value in (10, 11, 12)]
         rename = Mock(return_value=1)
-        checks = Mock(side_effect=(None, SoloMaintainerClosureError()))
+        checks = Mock(side_effect=SoloMaintainerClosureError())
 
         def open_guards(_source, _payloads, _identity, opened, _close):
-            opened.extend(guards)
+            opened.extend(child_guards)
+
+        def open_parent(_source, opened, _close):
+            opened.insert(0, parent_guard)
             return b"parent-acl"
 
         with patch.object(storage_adapter, "_prepare_windows_terminal", return_value=(rename, object(), 1, Mock())), \
                 patch.object(storage_adapter, "_open_windows_guards", side_effect=open_guards), \
+                patch.object(storage_adapter, "_open_parent_guard", side_effect=open_parent), \
                 patch.object(storage_adapter, "_lock_read_execute_acl", return_value=b"acl"), \
                 patch.object(storage_adapter, "_require_exact"), \
                 patch.object(storage_adapter, "_require_windows_guards"), \
@@ -390,13 +436,13 @@ class CloseR2FinalMasterTests(unittest.TestCase):
                 Path("C:/stage"), Path("C:/target"), identity,
                 (b"manifest", b"receipt"), lambda *_payloads: None,
             )
-        self.assertEqual(checks.call_count, 2)
+        self.assertEqual(checks.call_count, 1)
         rename.assert_not_called()
 
     def test_windows_callback_failure_retains_stage_and_never_renames(self) -> None:
         source = inspect.getsource(storage_adapter._windows_guarded_commit)
         self.assertIn("before_commit(*payloads)\n        _release_file_guards", source)
-        self.assertIn("_require_parent_guard(guards[0], source, parent_acl)\n        if rename(", source)
+        self.assertIn("_require_parent_guard(guards[0], parent_acl)\n        if rename(", source)
         self.assertNotIn("renameat2", inspect.getsource(storage_adapter))
         with tempfile.TemporaryDirectory(
             dir=Path(__file__).resolve().parents[1]
@@ -421,6 +467,95 @@ class CloseR2FinalMasterTests(unittest.TestCase):
             self.assertEqual(caught.exception.code, ClosureErrorCode.MASTER_DRIFT)
             self.assertTrue(stage.is_dir())
             self.assertFalse(target.exists())
+
+    @unittest.skipUnless(os.name == "nt", "Windows integration only")
+    def test_windows_native_publication_reaches_exact_target(self) -> None:
+        manifest, receipt = b"manifest", b"receipt"
+        with tempfile.TemporaryDirectory(
+            dir=Path(__file__).resolve().parents[1]
+        ) as directory:
+            common = Path(directory).resolve()
+            stage = common / (
+                ".r2-solo-maintainer-closure-v1.stage-" + FINGERPRINT
+            )
+            target = common / "r2-solo-maintainer-closure-v1"
+            callback_calls: list[str] = []
+
+            def before_commit(*_payloads) -> None:
+                callback_calls.append("called")
+                self.assertEqual(stage.resolve(strict=True), stage)
+                self.assertIn(stage.name, {item.name for item in common.iterdir()})
+
+            try:
+                with patch.object(
+                    storage_adapter, "_git_common_dir", return_value=common
+                ):
+                    storage_adapter.CreateOnlyClosureStorage().publish(
+                        manifest, receipt, FINGERPRINT, before_commit
+                    )
+                self.assertEqual(callback_calls, ["called"])
+                self.assertTrue(target.is_dir())
+                self.assertFalse(stage.exists())
+                self.assertEqual(
+                    (target / storage_adapter._FILES[0]).read_bytes(), manifest
+                )
+                self.assertEqual(
+                    (target / storage_adapter._FILES[1]).read_bytes(), receipt
+                )
+            finally:
+                published = target if target.exists() else stage
+                if published.exists():
+                    for name in storage_adapter._FILES:
+                        child = published / name
+                        if child.exists():
+                            _grant_temporary_full_control(child)
+                    _grant_temporary_full_control(published)
+
+    @unittest.skipUnless(os.name == "nt", "Windows integration only")
+    def test_windows_native_parent_guard_rejects_new_stage_collision(self) -> None:
+        manifest, receipt = b"manifest", b"receipt"
+        with tempfile.TemporaryDirectory(
+            dir=Path(__file__).resolve().parents[1]
+        ) as directory:
+            common = Path(directory).resolve()
+            stage = common / (
+                ".r2-solo-maintainer-closure-v1.stage-" + FINGERPRINT
+            )
+            target = common / "r2-solo-maintainer-closure-v1"
+            collision = common / ".r2-solo-maintainer-closure-v1.stage-race"
+            request_oplock = storage_adapter._request_oplock
+            callback_calls: list[str] = []
+
+            def inject_collision(handle, level, close):
+                if level == 1:
+                    collision.mkdir()
+                return request_oplock(handle, level, close)
+
+            try:
+                with patch.object(
+                    storage_adapter, "_git_common_dir", return_value=common
+                ), patch.object(
+                    storage_adapter,
+                    "_request_oplock",
+                    side_effect=inject_collision,
+                ), self.assertRaises(SoloMaintainerClosureError):
+                    storage_adapter.CreateOnlyClosureStorage().publish(
+                        manifest,
+                        receipt,
+                        FINGERPRINT,
+                        lambda *_payloads: callback_calls.append("called"),
+                    )
+                self.assertEqual(callback_calls, ["called"])
+                self.assertTrue(stage.is_dir())
+                self.assertTrue(collision.is_dir())
+                self.assertFalse(target.exists())
+            finally:
+                if stage.exists():
+                    for name in storage_adapter._FILES:
+                        child = stage / name
+                        if child.exists():
+                            _grant_temporary_full_control(child)
+                    _grant_temporary_full_control(stage)
 
     @unittest.skipUnless(os.name == "nt", "Windows real TTY proof")
     def test_windows_real_console_cli_proves_exact_two_reads_and_one_guard(self) -> None:

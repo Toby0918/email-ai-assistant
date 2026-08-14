@@ -199,10 +199,25 @@ class SoloMaintainerClosureArchitectureTests(unittest.TestCase):
         source = (PACKAGE / "storage.py").read_text(encoding="utf-8")
         self.assertIn("before_commit(*payloads)\n        _release_file_guards", source)
         self.assertIn("_release_file_guards(guards, close)\n        _require_exact", source)
-        self.assertIn("_require_parent_guard(guards[0], source, parent_acl)\n        if rename(", source)
-        self.assertIn("_settle_oplocks(guards[1:3])", source)
-        self.assertNotIn("_settle_oplocks(guards[:1])", source)
-        self.assertIn("_publication_conflict(common, source.name)", source)
+        self.assertIn("parent_acl = _open_parent_guard(source, guards, close)", source)
+        self.assertLess(
+            source.index("before_commit(*payloads)"),
+            source.index("parent_acl = _open_parent_guard(source, guards, close)"),
+        )
+        self.assertIn("_require_parent_guard(guards[0], parent_acl)\n        if rename(", source)
+        self.assertIn("_settle_oplocks(guards[:2])", source)
+        self.assertNotIn("_require_parent_guard(guards[0], source", source)
+        self.assertIn(
+            "_publication_conflict_names(_windows_names(parent), source.name)",
+            source,
+        )
+        self.assertLess(
+            source.index("guards[0] = (parent, *_request_oplock"),
+            source.index(
+                "_publication_conflict_names(_windows_names(parent), source.name)"
+            ),
+        )
+        self.assertNotIn("_publication_conflict(common, source.name)", source)
         self.assertNotIn("_require_exact(target", source)
         self.assertNotIn("_flush_directory(common)", source)
         self.assertNotIn("renameat2", source)
