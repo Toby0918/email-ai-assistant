@@ -17,6 +17,7 @@ FIXTURE_PREFIXES = (
 )
 
 
+@unittest.skipUnless(sys.platform == "win32", "Windows sandbox evidence")
 class ManagedActivationFixtureBoundaryTests(unittest.TestCase):
     def test_caller_owned_parent_owns_both_issue57_fixture_directories(
         self,
