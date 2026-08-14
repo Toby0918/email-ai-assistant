@@ -9,13 +9,12 @@ from .contracts import ClosureErrorCode, SoloMaintainerClosureError
 from .repository import ROOT
 _TARGET = "r2-solo-maintainer-closure-v1"
 _FILES = ("solo-maintainer-closure-manifest-v1.json", "solo-maintainer-attestation-receipt-v1.json")
-_INVALID_HANDLE, _PENDING, _WAIT_TIMEOUT = ctypes.c_void_p(-1).value, 997, 258
-_FILE_STREAM_INFO, _FILE_ID_INFO, _ERROR_HANDLE_EOF = 7, 18, 38
+_INVALID_HANDLE, _PENDING, _WAIT_TIMEOUT = ctypes.c_void_p(-1).value, 997, 258; _FILE_STREAM_INFO, _FILE_ID_INFO, _ERROR_HANDLE_EOF = 7, 18, 38
+_FILE_ID_BOTH_DIR, _FILE_ID_BOTH_DIR_RESTART, _NO_MORE_FILES = 10, 11, 18
 class CreateOnlyClosureStorage:
     def publish(self, manifest: bytes, receipt: bytes, fingerprint: str, before_commit) -> None:
         if (os.name != "nt" or type(manifest) is not bytes or not manifest or type(receipt) is not bytes
-                or not receipt or not is_fingerprint(fingerprint)
-                or not callable(before_commit)):
+                or not receipt or not is_fingerprint(fingerprint) or not callable(before_commit)):
             raise SoloMaintainerClosureError(ClosureErrorCode.PUBLICATION_REJECTED)
         common = _git_common_dir()
         target = common / _TARGET
@@ -33,12 +32,9 @@ class CreateOnlyClosureStorage:
                     or _identity(os.lstat(stage)) != stage_identity
                     or os.path.lexists(target)):
                 raise SoloMaintainerClosureError()
-            _commit_no_replace(stage, target, stage_identity, (manifest, receipt),
-                               before_commit)
-        except SoloMaintainerClosureError:
-            raise
-        except Exception:
-            raise SoloMaintainerClosureError(ClosureErrorCode.PUBLICATION_REJECTED) from None
+            _commit_no_replace(stage, target, stage_identity, (manifest, receipt), before_commit)
+        except SoloMaintainerClosureError: raise
+        except Exception: raise SoloMaintainerClosureError(ClosureErrorCode.PUBLICATION_REJECTED) from None
 def read_closure_artifacts() -> tuple[bytes, bytes]:
     directory = _git_common_dir() / _TARGET
     try:
@@ -53,45 +49,37 @@ def _git_common_dir() -> Path:
         return _safe_directory(marker)
     try:
         text = marker.read_text(encoding="utf-8")
-        if not text.startswith("gitdir: ") or not text.endswith("\n") or "\n" in text[:-1]:
-            raise SoloMaintainerClosureError()
+        if not text.startswith("gitdir: ") or not text.endswith("\n") or "\n" in text[:-1]: raise SoloMaintainerClosureError()
         admin = Path(text[8:-1])
-        if not admin.is_absolute():
-            admin = marker.parent / admin
+        if not admin.is_absolute(): admin = marker.parent / admin
         admin = _safe_directory(admin)
         common_text = (admin / "commondir").read_text(encoding="utf-8")
-        if not common_text.endswith("\n") or "\n" in common_text[:-1]:
-            raise SoloMaintainerClosureError()
+        if not common_text.endswith("\n") or "\n" in common_text[:-1]: raise SoloMaintainerClosureError()
         return _safe_directory(admin / common_text[:-1])
-    except SoloMaintainerClosureError:
-        raise
-    except Exception:
-        raise SoloMaintainerClosureError() from None
+    except SoloMaintainerClosureError: raise
+    except Exception: raise SoloMaintainerClosureError() from None
 def _write_exclusive(path: Path, payload: bytes) -> None:
-    flags = (os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0)
-             | getattr(os, "O_NOFOLLOW", 0))
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
     descriptor = None
     try:
         descriptor = os.open(path, flags, 0o600)
         offset = 0
         while offset < len(payload):
             written = os.write(descriptor, payload[offset:])
-            if written < 1:
-                raise SoloMaintainerClosureError()
+            if written < 1: raise SoloMaintainerClosureError()
             offset += written
         os.fsync(descriptor)
         metadata = os.fstat(descriptor)
     finally:
-        if descriptor is not None:
-            os.close(descriptor)
-    if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
-        raise SoloMaintainerClosureError()
+        if descriptor is not None: os.close(descriptor)
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1: raise SoloMaintainerClosureError()
 def _commit_no_replace(source: Path, target: Path, identity: tuple[int, int, int], payloads: tuple[bytes, bytes], before_commit) -> None:
     if (source.parent != target.parent or os.path.lexists(target)
             or _identity(os.lstat(source)) != identity or os.name != "nt"):
         raise SoloMaintainerClosureError()
     _windows_guarded_commit(source, target, identity, payloads, before_commit)
-def _publication_conflict(common: Path, allowed: str = "") -> bool: return any((name := item.name.casefold()) != allowed.casefold() and (name in (_TARGET, "r2-final-master-closure-v1") or name.startswith((f".{_TARGET}.stage-", ".r2-final-master-closure-v1.stage-"))) for item in common.iterdir())
+def _publication_conflict(common: Path, allowed: str = "") -> bool: return _publication_conflict_names((item.name for item in common.iterdir()), allowed)
+def _publication_conflict_names(names, allowed: str = "") -> bool: return any((name := item.casefold()) != allowed.casefold() and (name in (_TARGET, "r2-final-master-closure-v1") or name.startswith((f".{_TARGET}.stage-", ".r2-final-master-closure-v1.stage-"))) for item in names)
 class _Overlapped(ctypes.Structure): _fields_ = (("internal", ctypes.c_void_p), ("internal_high", ctypes.c_void_p), ("offset", ctypes.c_uint32), ("offset_high", ctypes.c_uint32), ("event", ctypes.c_void_p))
 class _OplockInput(ctypes.Structure): _fields_ = (("version", ctypes.c_ushort), ("length", ctypes.c_ushort), ("level", ctypes.c_uint32), ("flags", ctypes.c_uint32))
 class _OplockOutput(ctypes.Structure): _fields_ = (("version", ctypes.c_ushort), ("length", ctypes.c_ushort), ("original", ctypes.c_uint32), ("new", ctypes.c_uint32), ("flags", ctypes.c_uint32), ("access", ctypes.c_uint32), ("share", ctypes.c_ushort), ("padding", ctypes.c_ushort))
@@ -99,23 +87,25 @@ def _windows_guarded_commit(source: Path, target: Path, identity: tuple[int, int
     rename, rename_pointer, rename_size, close = _prepare_windows_terminal(target)
     guards = []
     try:
-        parent_acl = _open_windows_guards(source, payloads, identity, guards, close)
-        expected_acl = _lock_read_execute_acl(tuple(item[0] for item in guards[1:]))
-        _require_windows_guards(guards[1:], payloads, True)
-        _require_locked_acl(guards[1:], expected_acl)
-        _settle_oplocks(guards[1:3])
+        _open_windows_guards(source, payloads, identity, guards, close)
+        expected_acl = _lock_read_execute_acl(tuple(item[0] for item in guards))
+        _require_windows_guards(guards, payloads, True)
+        _require_locked_acl(guards, expected_acl)
+        _settle_oplocks(guards[:2])
         _require_exact(source, payloads)
-        _require_windows_guards(guards[1:], payloads, False)
-        _require_locked_acl(guards[1:], expected_acl)
+        _require_windows_guards(guards, payloads, False)
+        _require_locked_acl(guards, expected_acl)
         if _identity(os.lstat(source)) != identity: raise SoloMaintainerClosureError()
-        _flush_windows_guards(guards[1:])
-        _require_parent_guard(guards[0], source, parent_acl)
+        _flush_windows_guards(guards)
         before_commit(*payloads)
         _release_file_guards(guards, close)
         _require_exact(source, payloads)
         _require_windows_guards(guards[-1:], (), False)
         _require_locked_acl(guards[-1:], expected_acl[-1:])
-        _require_parent_guard(guards[0], source, parent_acl)
+        parent_acl = _open_parent_guard(source, guards, close)
+        _require_windows_guards(guards[-1:], (), False)
+        _require_locked_acl(guards[-1:], expected_acl[-1:])
+        _require_parent_guard(guards[0], parent_acl)
         if rename(guards[-1][0], 22, rename_pointer, rename_size) != 1:
             raise SoloMaintainerClosureError()
     finally:
@@ -125,7 +115,7 @@ def _prepare_windows_terminal(target: Path):
     info = _RenameInfo(0x2, None, len(str(target)) * ctypes.sizeof(ctypes.c_wchar), str(target))
     rename = _api("SetFileInformationByHandle", (ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_uint32))
     return rename, ctypes.byref(info), ctypes.sizeof(info), _api("CloseHandle", (ctypes.c_void_p,))
-def _open_windows_guards(source: Path, payloads, identity, guards, close) -> bytes:
+def _open_windows_guards(source: Path, payloads, identity, guards, close) -> None:
     for name, payload in zip(_FILES, payloads, strict=True):
         handle = _windows_open(source / name, 0xC0040000, 0x1, 0x40240000)
         guards.append((handle, None, None, None, None, (0, 0, 0)))
@@ -137,10 +127,13 @@ def _open_windows_guards(source: Path, payloads, identity, guards, close) -> byt
     guards.append((directory, None, None, None, None, identity))
     if _windows_streams(directory) != ():
         raise SoloMaintainerClosureError()
+def _open_parent_guard(source: Path, guards, close) -> bytes:
     common, parent_identity = source.parent, _identity(os.lstat(source.parent))
     parent = _windows_open(common, 0x00020081, 0x7, 0x42200000)
     guards.insert(0, (parent, None, None, None, None, parent_identity))
     guards[0] = (parent, *_request_oplock(parent, 1, close), parent_identity)
+    if _publication_conflict_names(_windows_names(parent), source.name):
+        raise SoloMaintainerClosureError()
     return _read_locked_acl(parent, False)
 def _windows_open(path: Path, access: int, share: int, flags: int):
     operation = _api("CreateFileW", (ctypes.c_wchar_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_uint32, ctypes.c_void_p), ctypes.c_void_p)
@@ -148,17 +141,12 @@ def _windows_open(path: Path, access: int, share: int, flags: int):
     if handle in (None, _INVALID_HANDLE): raise SoloMaintainerClosureError()
     return handle
 def _request_oplock(handle, level: int, close):
-    event = _api("CreateEventW", (ctypes.c_void_p, ctypes.c_int, ctypes.c_int,
-                                  ctypes.c_wchar_p), ctypes.c_void_p)(None, 1, 0, None)
+    event = _api("CreateEventW", (ctypes.c_void_p, ctypes.c_int, ctypes.c_int, ctypes.c_wchar_p), ctypes.c_void_p)(None, 1, 0, None)
     source = _OplockInput(1, ctypes.sizeof(_OplockInput), level, 1)
     output, overlapped = _OplockOutput(), _Overlapped(); overlapped.event = event
     ctypes.set_last_error(0)
-    operation = _api("DeviceIoControl", (ctypes.c_void_p, ctypes.c_uint32,
-        ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32,
-        ctypes.POINTER(ctypes.c_uint32), ctypes.POINTER(_Overlapped)))
-    result = operation(handle, 0x00090240, ctypes.byref(source), ctypes.sizeof(source),
-                       ctypes.byref(output), ctypes.sizeof(output), None,
-                       ctypes.byref(overlapped))
+    operation = _api("DeviceIoControl", (ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p, ctypes.c_uint32, ctypes.POINTER(ctypes.c_uint32), ctypes.POINTER(_Overlapped)))
+    result = operation(handle, 0x00090240, ctypes.byref(source), ctypes.sizeof(source), ctypes.byref(output), ctypes.sizeof(output), None, ctypes.byref(overlapped))
     if result != 0 or ctypes.get_last_error() != _PENDING or _wait(event, 0) != _WAIT_TIMEOUT:
         close(event); raise SoloMaintainerClosureError()
     return event, overlapped, source, output
@@ -213,7 +201,7 @@ def _settle_oplocks(guards) -> None:
 def _flush_windows_guards(guards) -> None:
     if any(_api("FlushFileBuffers", (ctypes.c_void_p,))(item[0]) != 1 for item in guards): raise SoloMaintainerClosureError()
 def _release_file_guards(guards, close) -> None:
-    for index in (1, 2):
+    for index in (0, 1):
         handle, event, *tail = guards[index]
         if close(event) != 1 or close(handle) != 1: raise SoloMaintainerClosureError()
         guards[index] = (None, None, *tail)
@@ -232,13 +220,10 @@ def _require_windows_guards(guards, payloads, pending: bool) -> None:
                 or _windows_identity(guard[0]) != guard[5][:2]):
             raise SoloMaintainerClosureError()
     if pending and any(item[1] is None or _wait(item[1], 0) != _WAIT_TIMEOUT for item in guards[:-1]): raise SoloMaintainerClosureError()
-def _require_parent_guard(guard, source: Path, expected_acl: bytes) -> None:
-    common = source.parent
+def _require_parent_guard(guard, expected_acl: bytes) -> None:
     if (_wait(guard[1], 0) != _WAIT_TIMEOUT or _windows_streams(guard[0]) != ()
             or _windows_identity(guard[0]) != guard[5][:2]
-            or _identity(os.lstat(common)) != guard[5]
             or _read_locked_acl(guard[0], False) != expected_acl
-            or _publication_conflict(common, source.name)
             or _wait(guard[1], 0) != _WAIT_TIMEOUT):
         raise SoloMaintainerClosureError()
 def _windows_identity(handle):
@@ -247,6 +232,23 @@ def _windows_identity(handle):
     if operation(handle, _FILE_ID_INFO, buffer, len(buffer)) != 1:
         raise SoloMaintainerClosureError()
     return (int.from_bytes(buffer.raw[:8], "little"), int.from_bytes(buffer.raw[8:24], "little"))
+def _windows_names(handle) -> tuple[str, ...]:
+    buffer = ctypes.create_string_buffer(65_536); operation = _api("GetFileInformationByHandleEx", (ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_uint32))
+    result, information = [], _FILE_ID_BOTH_DIR_RESTART
+    while True:
+        ctypes.set_last_error(0); outcome = operation(handle, information, buffer, len(buffer))
+        if outcome != 1:
+            if ctypes.get_last_error() == _NO_MORE_FILES: return tuple(result)
+            raise SoloMaintainerClosureError()
+        information, offset = _FILE_ID_BOTH_DIR, 0
+        while True:
+            next_offset = int.from_bytes(buffer.raw[offset:offset + 4], "little")
+            length = int.from_bytes(buffer.raw[offset + 60:offset + 64], "little"); end = offset + 104 + length
+            if length % 2 or end > len(buffer): raise SoloMaintainerClosureError()
+            result.append(buffer.raw[offset + 104:end].decode("utf-16-le"))
+            if next_offset == 0: break
+            if next_offset < 104 or offset + next_offset >= len(buffer): raise SoloMaintainerClosureError()
+            offset += next_offset
 def _windows_streams(handle):
     buffer = ctypes.create_string_buffer(65_536)
     operation = _api("GetFileInformationByHandleEx", (
