@@ -468,7 +468,7 @@ class CloseR2FinalMasterTests(unittest.TestCase):
             self.assertTrue(stage.is_dir())
             self.assertFalse(target.exists())
 
-    @unittest.skipUnless(os.name == "nt", "Windows native publication proof")
+    @unittest.skipUnless(os.name == "nt", "Windows integration only")
     def test_windows_native_publication_reaches_exact_target(self) -> None:
         manifest, receipt = b"manifest", b"receipt"
         with tempfile.TemporaryDirectory(
@@ -511,7 +511,7 @@ class CloseR2FinalMasterTests(unittest.TestCase):
                             _grant_temporary_full_control(child)
                     _grant_temporary_full_control(published)
 
-    @unittest.skipUnless(os.name == "nt", "Windows native publication proof")
+    @unittest.skipUnless(os.name == "nt", "Windows integration only")
     def test_windows_native_parent_guard_rejects_new_stage_collision(self) -> None:
         manifest, receipt = b"manifest", b"receipt"
         with tempfile.TemporaryDirectory(
