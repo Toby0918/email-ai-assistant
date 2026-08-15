@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import unittest
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+from unittest.mock import patch
 
 from backend.r2_issue39_orchestrator.roster import (
     Issue39RosterStatusV1,
@@ -82,6 +83,11 @@ class Issue39WorktreeRosterTest(unittest.TestCase):
         )
         records = _parse_worktree_records(valid)
         self.assertEqual(len(records), 2)
+        with patch(
+            "backend.r2_issue39_orchestrator.roster_windows.Path",
+            PurePosixPath,
+        ):
+            self.assertEqual(len(_parse_worktree_records(valid)), 2)
         for invalid in (
             valid + valid,
             valid.replace(b"detached\0", b"detached\0locked reason\0"),

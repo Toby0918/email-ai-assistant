@@ -71,6 +71,13 @@ _PORTABLE_NATIVE_SKIP_REASONS = (
     "Windows NTFS/TTY/process proof",
     "Windows junction contract",
     "Windows sandbox evidence only; no Linux NTFS or ACL claim",
+    "Windows synthetic action catalog",
+    "Windows durable bootstrap",
+    "Windows DACL evidence only",
+    "Windows production recovery boundaries",
+    "Windows retained anchor path",
+    "Windows production synthetic flow",
+    "Windows native Issue #39 operations",
 )
 
 

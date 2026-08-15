@@ -6,7 +6,7 @@ import hashlib
 import json
 import os
 import stat
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 from backend.cutover_repository_transaction.git_executable import (
     resolved_executable,
@@ -55,17 +55,20 @@ def _parse_worktree_records(payload: bytes):
         fields = chunk.split(b"\0")
         if len(fields) != 3 or not fields[0].startswith(b"worktree "):
             raise ValueError
-        path = Path(fields[0][9:].decode("utf-8"))
+        path_text = fields[0][9:].decode("utf-8")
+        listed_path = PureWindowsPath(path_text)
+        path = Path(path_text)
+        path_key = str(listed_path).casefold()
         head = fields[1][5:].decode("ascii") if fields[1].startswith(b"HEAD ") else ""
         mode = fields[2]
         if (
-            not path.is_absolute()
+            not listed_path.is_absolute()
             or not _git_oid(head)
             or not (mode == b"detached" or mode.startswith(b"branch refs/heads/"))
-            or _path_key(path) in paths
+            or path_key in paths
         ):
             raise ValueError
-        paths.add(_path_key(path))
+        paths.add(path_key)
         values.append((path, head, mode))
     if not values or len(values) > _MAX_WORKTREES + 1:
         raise ValueError
