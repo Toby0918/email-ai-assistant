@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-09
+last_update: 2026-08-14
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -1505,3 +1505,34 @@ docs/constraints/architecture_constraints.md
   authorize or execute Issue #39, mutate a host, access provider/mailbox/vault
   data, or perform cleanup. Live `prepare`, `confirm`, the protected verifier
   and any future Issue #39 code path each require separate approval.
+
+## Issue #39 fixed orchestrator static boundary
+
+- The only executable production consumer of the reviewed cutover primitives is
+  `backend.r2_issue39_orchestrator`, reached only through
+  `scripts/execute_project_container_cutover.py`. Reject imports from normal
+  runtime, frontend, workflows, mailbox, provider, vault, private-store,
+  cleanup, and every other script.
+- The script and CLI accept exactly `run`. Reject argparse/path/root/source/
+  target/force/cleanup/adapter/callback/environment/endpoint/provider/mailbox/
+  vault/credential/private-data surfaces and reject imports of those
+  capabilities.
+- The catalog values have module-owned constructors and exact phase-plus-name
+  dispatch. Reject public registration, caller-created catalog values,
+  prefix-only handler selection, dynamic import, `eval`, `exec`, shell strings,
+  and arbitrary subprocess commands.
+- Production dynamic-roster code is versioned separately from the historical
+  fixed-eleven rehearsal contracts. Static checks must preserve the old exact
+  assertions and require the new code to bind complete bounded discovery rather
+  than a caller-supplied count or selection.
+- Real-console, incident, journal, evidence, native host, Runtime, database,
+  service, and audit capabilities remain in their narrow owning modules. Test
+  helpers may inject only closed synthetic values and test-owned temporary
+  roots; no production entry imports `testing.py`.
+- Public output is fixed and content-free. The success path contains exactly
+  `PROJECT_CONTAINER_CUTOVER_SUCCEEDED` after terminal sealing, and exception,
+  path, SID, DACL, command, PID, port, database row, provider, and private-data
+  detail must not be rendered.
+- Existing backend module and function size checks continue to apply. Any
+  deliberate security-sensitive parser or native-adapter exception must remain
+  locally documented and must not become a general size exemption.

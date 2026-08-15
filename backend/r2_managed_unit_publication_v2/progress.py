@@ -136,6 +136,7 @@ def resume_managed_transition_v2(*, journal, plan, claim, observed_at_epoch, obs
     try:
         transition = _classified(journal, plan)
         classification = journal.records[-1].effect_classification
+        recovery_evidence = journal.records[-1].inspection_receipt_fingerprint
         if classification is EffectClassificationV2.EFFECT_AMBIGUOUS:
             raise ManagedUnitPublicationError()
         _require_claim(journal, plan, transition, claim, ProductionCommandV2.RESUME)
@@ -143,7 +144,7 @@ def resume_managed_transition_v2(*, journal, plan, claim, observed_at_epoch, obs
         if classification is EffectClassificationV2.EFFECT_ABSENT_EXACT:
             result = result.append_intent(transition_instance_fingerprint=transition.transition_instance_fingerprint, pre_state_fingerprint=transition.pre_state_fingerprint, post_state_fingerprint=transition.post_state_fingerprint)
             return _progress(ManagedProgressStatusV2.MANAGED_ACTION_PENDING, result, transition, classification, 0, 2)
-        result = result.append_commit(transition_instance_fingerprint=transition.transition_instance_fingerprint, committed_state_fingerprint=transition.post_state_fingerprint)
+        result = result.append_commit(transition_instance_fingerprint=transition.transition_instance_fingerprint, committed_state_fingerprint=transition.post_state_fingerprint, evidence_receipt_fingerprint=recovery_evidence)
         status = ManagedProgressStatusV2.MANAGED_UNITS_COMPLETE if plan.committed_prefix_count(result) == 8 else ManagedProgressStatusV2.MANAGED_RECOVERED_COMMIT
         return _progress(status, result, transition, classification, 0, 2)
     except ManagedUnitPublicationError:
@@ -162,7 +163,7 @@ def _require_claim(journal, plan, transition, claim, command):
 
 
 def _next(journal, plan):
-    if type(plan) is not R2ManagedUnitPlanV2 or type(journal) is not R2TransactionJournalV2 or journal.next_legal_action not in {"CLAIM_FRESH_EXECUTION_CONFIRMATION", "CLAIM_FRESH_EXECUTION_CONFIRMATION_OR_TERMINAL"}:
+    if type(plan) is not R2ManagedUnitPlanV2 or type(journal) is not R2TransactionJournalV2 or journal.next_legal_action not in {"CLAIM_FRESH_EXECUTION_CONFIRMATION", "CLAIM_FRESH_EXECUTION_CONFIRMATION_OR_TERMINAL"} or not journal.records or journal.records[-1].record_type is not JournalRecordTypeV2.COMMIT:
         raise ManagedUnitPublicationError()
     transition = plan.next_transition(journal)
     if transition is None:

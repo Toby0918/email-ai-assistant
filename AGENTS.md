@@ -525,6 +525,28 @@ Adapter. No environment, file, argument, acknowledgement or artifact may unlock
 it. GitHub ruleset creation, live closure, Issue #105 disposition, Issue #38
 approval and all Issue #39 enablement/execution remain separate approvals.
 
+Issue #39 adds one fixed Windows production orchestrator at
+`scripts/execute_project_container_cutover.py run`. It has no caller-selected
+paths or action registry. Every fresh run performs zero-mutation closure,
+Issue #38, production-input, and complete linked-worktree readiness before the
+real-console gate; it then requires the fixed incident-disposition confirmation,
+archives only the exact retained incident stage, and performs a fresh complete
+prepare before any catalog host effect. The complete worktree roster discovered
+by that prepare is bound by placement, physical and Git administrative identity,
+branch, commit, common directory, and clean state; any later addition, removal,
+dirtiness, or identity drift stops before the next host effect.
+
+The Issue #39 action catalog is code-fixed and each host effect requires a
+fresh real-console confirmation bound to the exact action and durable journal
+head. Claims, intents, observations, recovery classifications, commits, and
+terminal audit evidence are create-only and restartable only from the exact
+retained evidence runner. The sole permitted repair is the catalog-owned,
+journaled, exact bound `git worktree repair`; fetch, prune, cleanup, deletion,
+overwrite, arbitrary repair, provider, mailbox, vault, credential, and private-
+data capabilities remain unreachable. Implementation, tests, CI, merge, and
+closure evidence do not authorize a real Issue #39 execution; that requires a
+separate final operator authorization.
+
 ## 技术栈基线
 
 Python 后端负责邮件清洗、AI 调用、JSON 校验、SQLite 持久化和本地 API。AI 调用可以是显式启用的后端 OpenAI `gpt-5.6-sol` 单次多模态主路线、后端 DeepSeek 文本路线，或在用户单独确认后启用的后端本地 Ollama/Qwen/Gemma；所有 provider 默认必须保持关闭或规则兜底。OpenAI 和 DeepSeek 均复用固定版本的 OpenAI-compatible 客户端并使用代码固定的后端端点，不允许通过环境变量配置远程 base URL。必须保留现有版本约束：

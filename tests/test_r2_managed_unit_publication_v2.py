@@ -203,6 +203,25 @@ class R2ManagedUnitPublicationV2Tests(unittest.TestCase):
                     resumed.status, ManagedProgressStatusV2.MANAGED_ACTION_PENDING
                 )
 
+    def test_uncommitted_present_observation_cannot_restart_forward_action(self):
+        transition = self.plan.transitions[0]
+        claim = _claim(self.binding, self.plan, self.journal, transition)
+        pending = begin_next_managed_action_v2(
+            journal=self.journal, plan=self.plan, claim=claim,
+            **_live_append_observation(),
+        )
+        observed = pending.journal.append_effect_observation(
+            transition_instance_fingerprint=transition.transition_instance_fingerprint,
+            observed_state_fingerprint=transition.post_state_fingerprint,
+            classification=EffectClassificationV2.EFFECT_PRESENT_EXACT,
+        )
+        replay_claim = _claim(self.binding, self.plan, observed, transition)
+        with self.assertRaisesRegex(ValueError, "R2_MANAGED_UNIT_PUBLICATION_INVALID"):
+            begin_next_managed_action_v2(
+                journal=observed, plan=self.plan, claim=replay_claim,
+                **_live_append_observation(),
+            )
+
 
 def _managed_plan(binding, foundation):
     pairs = tuple((f"{index + 201:064x}", f"{index + 221:064x}") for index in range(8))

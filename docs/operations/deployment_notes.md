@@ -1,5 +1,5 @@
 ---
-last_update: 2026-07-26
+last_update: 2026-08-14
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -297,6 +297,33 @@ private snapshot 访问以确认 generic rule fallback；不删除 vault、不�
 也不把 provider output 写入诊断。点击前披露必须继续说明远程提供方接收本地
 脱敏内容，且不得声称 local-only 或 zero-retention。
 
+## Issue #39 Project Container cutover deployment gate
+
+Issue #39 implementation and synthetic CI do not authorize deployment. A real
+run requires a later explicit authorization for the exact fixed command in
+`docs/operations/issue39_project_container_cutover_runbook.md`. Do not run it
+from automation, a captured console, a pipe, redirection, `Tee-Object`, or an
+IDE terminal proxy.
+
+Before any host mutation, require the exact current closure artifacts, eligible
+master, closed Issue 38, fixed production inputs, complete Dynamic Cutover
+Roster, and exact incident state. If the incident source exists, its disposition
+uses its own fresh confirmation. Then discard the earlier preparation and build
+a completely fresh one before any production capability is bound.
+
+Every catalog action, resume, rollback, and terminal record requires its own
+fresh visible Execution Confirmation. A failed or interrupted run retains its
+evidence package, ledger, legacy source, archived incident stage, partial
+Container, and failed Container. Do not clean, replace, repair, fetch, prune,
+reset, or rerun an ambiguous effect. Use only read-only diagnosis before
+requesting separate recovery authority.
+
+The only successful public output is
+`PROJECT_CONTAINER_CUTOVER_SUCCEEDED`, emitted after the durable terminal seal
+and two fresh complete final-state observations. `LEGACY_RECOVERED` is accepted
+only with the durable `LEGACY_FLAT_LAYOUT_RESTORED` record and two fresh complete
+legacy observations. Neither result authorizes deletion of retained evidence.
+
 ## Incident stop
 
 以下任一情况触发 `incident stop`：授权/账号/日期范围改变，inventory
@@ -305,5 +332,4 @@ fingerprint 或 UIDVALIDITY 改变，flags 前后不一致，TLS/BitLocker/NTFS 
 grounding 违规，延迟门失败，或 repository leakage finding 非零。立即停止当前
 操作、保持 provider disabled、只记录固定 code/scope/count，并交由业务与
 隐私/安全负责人决定恢复、重做审批或撤销；不得自动重试、自动删除或扩大扫描。
-
 

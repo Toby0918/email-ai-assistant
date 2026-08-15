@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-09
+last_update: 2026-08-14
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -348,6 +348,35 @@ and package SHA-256 fingerprints. The prototype fingerprint is prior art only.
 Portable success makes no NTFS, ACL, TTY, process-isolation, or native-
 durability claim. Synthetic success does not authorize Issue #39, any real
 command, #38/#50 approval, merge, push, or a real host operation.
+
+## Issue #39 fixed orchestrator gate
+
+Every platform runs all `tests/test_r2_issue39_*.py` portable cases plus the
+existing transaction-journal V2 suite. Windows additionally runs the native
+incident, durable-ledger, fixed-handler, service, full forward, and full LIFO
+reverse synthetic cases. Those tests must use only test-created temporary
+directories, anonymous bytes, disabled providers, loopback processes, and
+explicit cleanup of their own objects.
+
+The architecture gate permits production consumption of the previously locked
+cutover primitives only from the reviewed
+`backend.r2_issue39_orchestrator` modules and the fixed
+`scripts/execute_project_container_cutover.py` entry. It must continue to reject
+all normal-runtime, frontend, workflow, mailbox, provider, vault, private-store,
+cleanup, generic script, and synthetic-unlock consumers.
+
+The Issue #39 dynamic-roster tests are additive. They must not edit or relax the
+historical exact eight-embedded plus three-external contract tests. The new
+tests require bounded complete discovery and reject duplicate roots, partial
+porcelain records, reparses, wrong common/admin identities, addition, removal,
+dirtiness, and identity drift before a host effect.
+
+CI must also assert the zero-mutation ordering, real-console gate, fixed
+incident disposition, fresh post-disposition prepare, catalog-owned dispatch,
+durable claim/intent recovery prefixes, no-repeat classification, two-read
+terminal audits, exact success token, retained-state policy, and absence of
+real-host CLI execution. Green CI remains evidence only and cannot authorize
+the real command.
 
 ## 5. 失败处理原则
 

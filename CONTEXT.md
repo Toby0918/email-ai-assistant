@@ -289,3 +289,12 @@ _Avoid_: External signature, execution approval
 A separate fresh confirmation immediately before any future real-host Issue
 #39 operation. Closure evidence cannot substitute for it.
 _Avoid_: Closure attestation, reusable authority
+
+**Dynamic Cutover Roster**:
+The Issue #39 fresh, bounded discovery of every currently linked worktree. It
+binds each checkout's placement, Git identity, physical identity,
+administrative identity, branch, commit, common directory, and clean state;
+any addition, removal, dirtiness, or identity drift before the next host effect
+stops the cutover. It is an additive Issue #39 execution contract and does not
+rewrite the historical fixed eleven-worktree rehearsal contracts.
+_Avoid_: Expected worktree count, partial worktree sample, mutable worktree list

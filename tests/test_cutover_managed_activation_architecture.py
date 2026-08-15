@@ -92,12 +92,35 @@ class ManagedActivationArchitectureTests(unittest.TestCase):
         self.assertEqual(len(module.__all__), len(EXPECTED_EXPORTS))
 
     def test_normal_runtime_has_no_managed_activation_consumer(self) -> None:
-        findings = []
+        allowed_consumers = {
+            "backend/cutover_service_lifecycle/activation_validation.py",
+            "backend/cutover_service_lifecycle/lifecycle.py",
+            "backend/cutover_service_lifecycle/lifecycle_binding.py",
+            "backend/r2_issue39_orchestrator/input_identity.py",
+            "backend/r2_issue39_orchestrator/production_acl.py",
+            "backend/r2_issue39_orchestrator/production_anchor_package.py",
+            "backend/r2_issue39_orchestrator/production_audit.py",
+            "backend/r2_issue39_orchestrator/production_database.py",
+            "backend/r2_issue39_orchestrator/production_evidence.py",
+            "backend/r2_issue39_orchestrator/production_inputs.py",
+            "backend/r2_issue39_orchestrator/production_managed.py",
+            "backend/r2_issue39_orchestrator/production_native.py",
+            "backend/r2_issue39_orchestrator/production_repository.py",
+            "backend/r2_issue39_orchestrator/production_runtime_review.py",
+            "backend/r2_issue39_orchestrator/production_service.py",
+            "backend/r2_issue39_orchestrator/restart_anchor.py",
+            "backend/r2_runtime_publication/__init__.py",
+            "backend/r2_runtime_publication/builder.py",
+            "backend/r2_runtime_publication/contracts.py",
+        }
+        findings = set()
         for directory in ("backend", "scripts", "frontend"):
             for path in (ROOT / directory).rglob("*.py"):
+                if PACKAGE in path.parents:
+                    continue
                 if _imports_managed_activation(path.read_text("utf-8")):
-                    findings.append(str(path.relative_to(ROOT)))
-        self.assertEqual(findings, [])
+                    findings.add(path.relative_to(ROOT).as_posix())
+        self.assertEqual(findings, allowed_consumers)
 
     def test_consumer_guard_covers_equivalent_and_dynamic_imports(self) -> None:
         sources = (
@@ -358,6 +381,11 @@ def _imports_managed_activation(source: str) -> bool:
             return True
         if isinstance(node, ast.ImportFrom):
             module = node.module or ""
+            if node.level == 0 and (
+                module == "backend.cutover_managed_activation"
+                or module.startswith("backend.cutover_managed_activation.")
+            ):
+                return True
             if node.level == 0 and module == "backend" and any(
                 alias.name == "cutover_managed_activation"
                 for alias in node.names
@@ -375,6 +403,15 @@ def _imports_managed_activation(source: str) -> bool:
     aliases, module_aliases = _dynamic_import_aliases(tree)
     return any(
         isinstance(node, ast.Call)
+        and node.args
+        and isinstance(node.args[0], ast.Constant)
+        and isinstance(node.args[0].value, str)
+        and (
+            node.args[0].value == "backend.cutover_managed_activation"
+            or node.args[0].value.startswith(
+                "backend.cutover_managed_activation."
+            )
+        )
         and (
             isinstance(node.func, ast.Name)
             and node.func.id in aliases

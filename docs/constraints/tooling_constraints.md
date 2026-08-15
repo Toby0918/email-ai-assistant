@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-09
+last_update: 2026-08-14
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -1440,6 +1440,51 @@ read-only public GitHub access solely to verify one frozen repository and the
 two new closure files. It never accepts a repository/path/artifact argument,
 legacy signature file, credential, provider, mailbox, vault, private data,
 host Adapter, ruleset mutation, Issue #38 approval, or Issue #39 command.
+
+## Issue #39 production tooling boundary
+
+The only live cutover entry is
+`python -I -B scripts\execute_project_container_cutover.py run` from a visible,
+directly connected Windows console. stdin, stdout, and stderr must resolve to
+the same real console and must not be pipes, files, `Tee-Object`, captured
+shells, scheduled tasks, IDE terminal proxies, or caller-supplied adapters.
+
+The production binder owns all paths. It fixes the canonical Container and
+nine roles, the incident archive, the Runtime source, the create-only
+hash-locked wheelhouse and lock, the historical SQLite source or separately
+proven first-start absence, CRX, Config, evidence parent, and journal. No CLI,
+environment variable, mapping, callback, or manifest may redirect them.
+
+Immediately before the retained runner is executed, the binder independently
+verifies the complete fixed evidence package and exact protected DACL, opens
+the runner without write/delete sharing, checks its bounded bytes and NTFS
+identity against the reviewed package, and retains that file plus parent guard
+through `exec`. A pathname-only `is_file()` or post-import self-check is not an
+execution boundary.
+
+All native directory and file transitions are no-replace and reject reparses.
+Directory/file identities and required DACLs are held or reread across their
+linearization boundaries. Repository and worktree effects must recognize every
+reviewed partial position so restart cannot misclassify a partial move as the
+initial state. The only permitted Git mutation commands are the exact bounded
+worktree repair/move operations inside the reviewed handler; fetch, prune,
+clone, reset, stash, delete, overwrite, and cleanup remain forbidden.
+
+Runtime publication uses only Python 3.12.13 with SQLite 3.50.4, the reviewed
+source-tree manifest, the complete offline wheelhouse, and fixed isolated
+verification flags. Subprocess output is incrementally bounded and the child
+environment is sanitized, including fixed temporary directories. Database
+publication requires a stopped legacy service, absent sidecars, a stable held
+source identity, create-only target identity, and an identity-bound marker that
+survives later SQLite writes. CRX and Config use the same create-only identity
+model.
+
+Service validation binds executable identity, command line, PID, port owner,
+fresh nonce, fixed Config, fixed Runtime, provider-disabled health, and the
+exact synthetic database proof. It must not call a lifecycle cleanup path.
+Final and legacy audits take two fresh complete reads before their respective
+terminal records. Tests may use only test-owned synthetic Windows objects and
+must never invoke the fixed live CLI.
 
 ## 14. 执行后检查
 

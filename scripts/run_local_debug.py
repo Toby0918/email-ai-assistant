@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 import sys
 from pathlib import Path
 
@@ -35,6 +36,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--database", default=None)
     parser.add_argument("--standalone-state-root", default=None)
     parser.add_argument("--managed-container", action="store_true")
+    parser.add_argument("--issue39-validation-nonce", default=None)
+    parser.add_argument("--issue39-legacy-recovery-nonce", default=None)
     return parser.parse_args()
 
 
@@ -101,6 +104,13 @@ def _run_managed(args: argparse.Namespace, host: str) -> None:
 
 def _run_managed_entry(args: argparse.Namespace) -> int:
     try:
+        if (
+            getattr(args, "issue39_validation_nonce", None) is not None
+            and re.fullmatch(
+                r"[0-9a-f]{64}", args.issue39_validation_nonce
+            ) is None
+        ):
+            raise ManagedRuntimeError("managed_runtime_invalid")
         host = validate_local_server_host(args.host)
         if args.standalone_state_root is not None:
             raise ManagedRuntimeError("managed_runtime_invalid")
@@ -113,6 +123,17 @@ def _run_managed_entry(args: argparse.Namespace) -> int:
 
 def main() -> int:
     args = parse_args()
+    legacy_nonce = getattr(args, "issue39_legacy_recovery_nonce", None)
+    if legacy_nonce is not None and (
+        args.managed_container
+        or re.fullmatch(r"[0-9a-f]{64}", legacy_nonce) is None
+    ):
+        return MANAGED_FAILURE_EXIT_CODE
+    if (
+        getattr(args, "issue39_validation_nonce", None) is not None
+        and not args.managed_container
+    ):
+        return MANAGED_FAILURE_EXIT_CODE
     if args.managed_container:
         return _run_managed_entry(args)
     host = validate_local_server_host(args.host)

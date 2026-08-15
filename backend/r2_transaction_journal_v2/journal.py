@@ -4,14 +4,15 @@ from dataclasses import dataclass, field
 from backend.r2_production_binding import (
     ApprovedCutoverBindingV3,
     ExecutionConfirmationClaimV1,
-    ProductionCommandV2,
     validate_new_execution_confirmation_claim,
 )
-from backend.r2_production_binding.claim import _begin_execution_confirmation_append_v1, _complete_execution_confirmation_append_v1, validate_reconstructed_execution_confirmation_claim
+from backend.r2_production_binding.claim import _begin_execution_confirmation_append_v1, _complete_execution_confirmation_append_v1
 from .errors import JournalV2Error
+from ._canonical import fingerprint
 from .genesis import R2JournalGenesisV2
 from .record import R2JournalRecordV2, ZERO_FINGERPRINT
 from .vocabulary import EffectClassificationV2, JournalRecordTypeV2
+from .transition_validation import validate_record_kind as _validate_record_kind
 _MAX_FRAME = 128 * 1024
 @dataclass(frozen=True, slots=True, init=False, repr=False)
 class R2TransactionJournalV2:
@@ -91,7 +92,7 @@ class R2TransactionJournalV2:
             return "READ_ONLY_INSPECTION"
         if last.record_type is JournalRecordTypeV2.EFFECT_OBSERVATION:
             if last.effect_classification is EffectClassificationV2.EFFECT_PRESENT_EXACT:
-                return "APPEND_COMMIT"
+                return "CLAIM_FRESH_EXECUTION_CONFIRMATION"
             if last.effect_classification is EffectClassificationV2.EFFECT_AMBIGUOUS:
                 return "INCIDENT_STOP"
             return "CLAIM_FRESH_EXECUTION_CONFIRMATION"
@@ -144,20 +145,28 @@ class R2TransactionJournalV2:
         )
         return self._append_existing(record)
 
-    def append_effect_observation(self, *, transition_instance_fingerprint: object, observed_state_fingerprint: object, classification: object) -> R2TransactionJournalV2:
+    def append_effect_observation(self, *, transition_instance_fingerprint: object, observed_state_fingerprint: object, classification: object, evidence_receipt_fingerprint: object = None) -> R2TransactionJournalV2:
+        evidence = evidence_receipt_fingerprint or _default_evidence(
+            transition_instance_fingerprint, observed_state_fingerprint
+        )
         record = self._new_record(
             JournalRecordTypeV2.EFFECT_OBSERVATION,
             transition_instance_fingerprint,
             observed_state_fingerprint=observed_state_fingerprint,
+            inspection_receipt_fingerprint=evidence,
             effect_classification=classification,
         )
         return self._append_existing(record)
 
-    def append_commit(self, *, transition_instance_fingerprint: object, committed_state_fingerprint: object) -> R2TransactionJournalV2:
+    def append_commit(self, *, transition_instance_fingerprint: object, committed_state_fingerprint: object, evidence_receipt_fingerprint: object = None) -> R2TransactionJournalV2:
+        evidence = evidence_receipt_fingerprint or _default_evidence(
+            transition_instance_fingerprint, committed_state_fingerprint
+        )
         record = self._new_record(
             JournalRecordTypeV2.COMMIT,
             transition_instance_fingerprint,
             observed_state_fingerprint=committed_state_fingerprint,
+            inspection_receipt_fingerprint=evidence,
         )
         return self._append_existing(record)
 
@@ -200,10 +209,16 @@ class R2TransactionJournalV2:
         }
         values.update(overrides)
         return R2JournalRecordV2.create(**values)
-
     def _append_existing(self, record):
         _validate_transition(self, record)
         return _construct(self._binding, self.genesis, self.records + (record,))
+
+
+def _default_evidence(transition, state):
+    return fingerprint(
+        "r2-journal-observation-evidence-v2",
+        {"transition": transition, "observed_state": state},
+    )
 
 
 def _validate_transition(journal, record):
@@ -211,69 +226,6 @@ def _validate_transition(journal, record):
         raise JournalV2Error()
     previous = journal.records[-1] if journal.records else None
     _validate_record_kind(journal, record, previous)
-
-
-def _validate_record_kind(journal, record, previous):
-    if record.record_type is JournalRecordTypeV2.AUTHORITY_CLAIM:
-        if previous is not None and previous.record_type not in {
-            JournalRecordTypeV2.COMMIT,
-            JournalRecordTypeV2.RECOVERY_CLASSIFICATION,
-        }:
-            raise JournalV2Error()
-        if previous is not None and previous.record_type is JournalRecordTypeV2.RECOVERY_CLASSIFICATION and previous.effect_classification is EffectClassificationV2.EFFECT_AMBIGUOUS:
-            raise JournalV2Error()
-        validate_reconstructed_execution_confirmation_claim(binding=journal._binding, candidate=record.execution_confirmation_claim, durable_claims=journal.execution_confirmation_claims, expected_prior_journal_head_fingerprint=journal.current_head_fingerprint)
-    elif record.record_type is JournalRecordTypeV2.INTENT:
-        if previous is None or previous.record_type is not JournalRecordTypeV2.AUTHORITY_CLAIM or record.transition_instance_fingerprint != previous.transition_instance_fingerprint:
-            raise JournalV2Error()
-        if len(journal.records) >= 2:
-            classified = journal.records[-2]
-            if classified.record_type is JournalRecordTypeV2.RECOVERY_CLASSIFICATION and not _valid_intent_after_classification(classified, previous, record):
-                raise JournalV2Error()
-    elif record.record_type is JournalRecordTypeV2.EFFECT_OBSERVATION:
-        if previous is None or previous.record_type is not JournalRecordTypeV2.INTENT or record.transition_instance_fingerprint != previous.transition_instance_fingerprint:
-            raise JournalV2Error()
-        exact = record.observed_state_fingerprint
-        if record.effect_classification is EffectClassificationV2.EFFECT_ABSENT_EXACT and exact != previous.pre_state_fingerprint:
-            raise JournalV2Error()
-        if record.effect_classification is EffectClassificationV2.EFFECT_PRESENT_EXACT and exact != previous.post_state_fingerprint:
-            raise JournalV2Error()
-        if record.effect_classification is EffectClassificationV2.EFFECT_AMBIGUOUS and exact in {previous.pre_state_fingerprint, previous.post_state_fingerprint}:
-            raise JournalV2Error()
-    elif record.record_type is JournalRecordTypeV2.COMMIT:
-        direct = previous is not None and previous.record_type is JournalRecordTypeV2.EFFECT_OBSERVATION and previous.effect_classification is EffectClassificationV2.EFFECT_PRESENT_EXACT and record.transition_instance_fingerprint == previous.transition_instance_fingerprint and record.observed_state_fingerprint == previous.observed_state_fingerprint
-        recovered = False
-        if previous is not None and previous.record_type is JournalRecordTypeV2.AUTHORITY_CLAIM and len(journal.records) >= 2:
-            classified = journal.records[-2]
-            recovered = classified.record_type is JournalRecordTypeV2.RECOVERY_CLASSIFICATION and classified.effect_classification is EffectClassificationV2.EFFECT_PRESENT_EXACT and record.transition_instance_fingerprint == classified.transition_instance_fingerprint and record.observed_state_fingerprint == classified.observed_state_fingerprint
-        if not direct and not recovered:
-            raise JournalV2Error()
-    elif record.record_type is JournalRecordTypeV2.RECOVERY_CLASSIFICATION:
-        if previous is None or previous.record_type is not JournalRecordTypeV2.INTENT or record.transition_instance_fingerprint != previous.transition_instance_fingerprint:
-            raise JournalV2Error()
-        exact = record.observed_state_fingerprint
-        if record.effect_classification is EffectClassificationV2.EFFECT_ABSENT_EXACT and exact != previous.pre_state_fingerprint:
-            raise JournalV2Error()
-        if record.effect_classification is EffectClassificationV2.EFFECT_PRESENT_EXACT and exact != previous.post_state_fingerprint:
-            raise JournalV2Error()
-        if record.effect_classification is EffectClassificationV2.EFFECT_AMBIGUOUS and exact in {previous.pre_state_fingerprint, previous.post_state_fingerprint}:
-            raise JournalV2Error()
-    elif record.record_type is JournalRecordTypeV2.TERMINAL_STATE:
-        if previous is None or previous.record_type is not JournalRecordTypeV2.AUTHORITY_CLAIM or record.transition_instance_fingerprint != previous.transition_instance_fingerprint:
-            raise JournalV2Error()
-    else:
-        raise JournalV2Error()
-
-
-def _valid_intent_after_classification(classified, confirmation, intent):
-    return (
-        classified.effect_classification is EffectClassificationV2.EFFECT_ABSENT_EXACT
-        and (
-            intent.transition_instance_fingerprint
-            == classified.transition_instance_fingerprint
-            or confirmation.execution_confirmation_claim.command is ProductionCommandV2.ROLLBACK
-        )
-    )
 
 
 def _decode_frames(payload):

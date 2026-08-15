@@ -155,6 +155,7 @@ def resume_foundation_transition_v2(*, journal, plan, claim, observed_at_epoch, 
     try:
         transition = _classified(journal, plan)
         classification = journal.records[-1].effect_classification
+        recovery_evidence = journal.records[-1].inspection_receipt_fingerprint
         if classification is EffectClassificationV2.EFFECT_AMBIGUOUS:
             raise FoundationPublicationError()
         _require_claim(journal, plan, transition, claim, (ProductionCommandV2.RESUME,))
@@ -174,6 +175,7 @@ def resume_foundation_transition_v2(*, journal, plan, claim, observed_at_epoch, 
         result = result.append_commit(
             transition_instance_fingerprint=transition.transition_instance_fingerprint,
             committed_state_fingerprint=transition.post_state_fingerprint,
+            evidence_receipt_fingerprint=recovery_evidence,
         )
         status = FoundationProgressStatusV2.FOUNDATION_COMPLETE if plan.committed_prefix_count(result) == 17 else FoundationProgressStatusV2.FOUNDATION_RECOVERED_COMMIT
         return _progress(status, result, transition, classification, 0, 2)
@@ -199,7 +201,7 @@ def _require_claim(journal, plan, transition, claim, commands):
 
 
 def _next(journal, plan):
-    if type(plan) is not R2FoundationPlanV2 or type(journal) is not R2TransactionJournalV2 or journal.next_legal_action not in {"CLAIM_FRESH_EXECUTION_CONFIRMATION", "CLAIM_FRESH_EXECUTION_CONFIRMATION_OR_TERMINAL"}:
+    if type(plan) is not R2FoundationPlanV2 or type(journal) is not R2TransactionJournalV2 or journal.next_legal_action not in {"CLAIM_FRESH_EXECUTION_CONFIRMATION", "CLAIM_FRESH_EXECUTION_CONFIRMATION_OR_TERMINAL"} or journal.records and journal.records[-1].record_type is not JournalRecordTypeV2.COMMIT:
         raise FoundationPublicationError()
     transition = plan.next_transition(journal)
     if transition is None:

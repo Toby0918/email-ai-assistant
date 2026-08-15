@@ -8,6 +8,7 @@ from enum import Enum
 from backend.r2_production_binding import ExecutionConfirmationClaimV1
 from backend.r2_transaction_journal_v2 import EffectClassificationV2, R2TransactionJournalV2
 from backend.r2_transaction_journal_v2._canonical import fingerprint
+from backend.r2_transaction_journal_v2.vocabulary import JournalRecordTypeV2
 
 from .errors import TwoStartValidationError
 from .evidence import R2ValidationActionEvidenceV2
@@ -35,7 +36,7 @@ class ValidationProgressV2:
 
 def begin_next_validation_action_v2(*, journal, plan, claim, observed_at_epoch, observed_monotonic_ns):
     try:
-        if type(plan) is not R2TwoStartValidationPlanV2 or type(journal) is not R2TransactionJournalV2 or journal.next_legal_action not in {"CLAIM_FRESH_EXECUTION_CONFIRMATION", "CLAIM_FRESH_EXECUTION_CONFIRMATION_OR_TERMINAL"}:
+        if type(plan) is not R2TwoStartValidationPlanV2 or type(journal) is not R2TransactionJournalV2 or journal.next_legal_action not in {"CLAIM_FRESH_EXECUTION_CONFIRMATION", "CLAIM_FRESH_EXECUTION_CONFIRMATION_OR_TERMINAL"} or not journal.records or journal.records[-1].record_type is not JournalRecordTypeV2.COMMIT:
             raise TwoStartValidationError()
         transition = plan.next_transition(journal)
         if transition is None:

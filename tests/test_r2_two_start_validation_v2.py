@@ -8,7 +8,7 @@ from backend.r2_production_binding import (
     ProductionCommandV2,
     ProductionRoleV2,
 )
-from backend.r2_transaction_journal_v2 import TerminalStateV2
+from backend.r2_transaction_journal_v2 import EffectClassificationV2, TerminalStateV2
 from backend.r2_two_start_validation_v2 import (
     R2FinalSealObservationV2,
     R2TwoStartValidationPlanV2,
@@ -176,6 +176,31 @@ class R2TwoStartValidationV2Tests(unittest.TestCase):
                 plan=self.plan,
                 journal=journal,
                 action_evidence=tuple(stale),
+            )
+
+    def test_uncommitted_present_observation_cannot_restart_validation_action(self):
+        transition = self.plan.transitions[0]
+        claim = _claim(
+            self.binding, self.plan, self.journal,
+            transition.transition_instance_fingerprint, transition.command,
+        )
+        pending = begin_next_validation_action_v2(
+            journal=self.journal, plan=self.plan, claim=claim,
+            **_live_append_observation(),
+        )
+        observed = pending.journal.append_effect_observation(
+            transition_instance_fingerprint=transition.transition_instance_fingerprint,
+            observed_state_fingerprint=transition.post_state_fingerprint,
+            classification=EffectClassificationV2.EFFECT_PRESENT_EXACT,
+        )
+        replay_claim = _claim(
+            self.binding, self.plan, observed,
+            transition.transition_instance_fingerprint, transition.command,
+        )
+        with self.assertRaisesRegex(ValueError, "R2_TWO_START_VALIDATION_INVALID"):
+            begin_next_validation_action_v2(
+                journal=observed, plan=self.plan, claim=replay_claim,
+                **_live_append_observation(),
             )
 
     def _complete_actions(self):

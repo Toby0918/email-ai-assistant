@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-09
+last_update: 2026-08-14
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -761,3 +761,29 @@ The legacy final-master closure, global-gate, external-artifact, signature,
 envelope, process-entry, and V2 test surfaces are deleted rather than preserved
 as aliases or fallback parsers. CI workflows remain unchanged. No normal
 backend runtime or frontend consumes the closure or confirmation modules.
+
+## Issue #39 one-command Project Container cutover
+
+- `backend/r2_issue39_orchestrator/`: the sole fixed production composition
+  root for Issue #39. Its closed values, zero-mutation readiness, real-console
+  gate, exact incident adapter, dynamic linked-worktree roster, fixed catalog,
+  create-only durable ledger, restart anchor, production handlers, service and
+  managed-unit observers, terminal audits, and fixed binder expose no arbitrary
+  path, command, registry, cleanup, provider, mailbox, vault, or private-data
+  surface. The package revalidates roster and host identity before each host
+  effect and retains every failure state.
+- `scripts/execute_project_container_cutover.py`: the only operator entry. It
+  accepts exactly `run`, prints only the fixed terminal success token after the
+  durable seal, and must be used only after separate live authorization from a
+  visible directly connected Windows console.
+- `docs/decisions/0012-issue39-project-container-cutover-orchestration.md`:
+  records the additive Dynamic Cutover Roster, fixed production binder, durable
+  recovery, and terminal-proof decision without weakening the historical
+  fixed-eleven rehearsal contracts.
+- `docs/operations/issue39_project_container_cutover_runbook.md`: documents the
+  fixed command, confirmation sequence, retained recovery boundary, and
+  post-result read-only checks. It is not execution authority.
+- `tests/test_r2_issue39_*.py`: portable contract/order/architecture/recovery
+  tests and Windows-only test-owned synthetic incident, native, complete
+  forward, and complete real-handler reverse flows. They never invoke the real
+  fixed CLI or touch the canonical host layout.
