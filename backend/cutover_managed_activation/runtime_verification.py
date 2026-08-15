@@ -39,8 +39,12 @@ def _hash(path):
  return digest.hexdigest()
 def _metadata(path):
  lines=_read(path,1048576).splitlines()
- names=[line[6:] for line in lines if line.startswith(b'Name: ')]
- versions=[line[9:] for line in lines if line.startswith(b'Version: ')]
+ header=[]
+ for line in lines:
+  if not line: break
+  header.append(line)
+ names=[line[6:] for line in header if line.startswith(b'Name: ')]
+ versions=[line[9:] for line in header if line.startswith(b'Version: ')]
  if len(names) != 1 or len(versions) != 1: raise RuntimeError('metadata')
  name=names[0].decode()
  version=versions[0].decode()

@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-09
+last_update: 2026-08-14
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -1165,3 +1165,44 @@ private-data container, or authorization to migrate.
    only; green CI cannot approve Issue #38, create or approve a ruleset,
    authorize or execute Issue #39, access private/host capabilities, or clean
    retained failure state.
+
+## Issue #39 orchestration mechanical rules
+
+1. Parse `scripts/execute_project_container_cutover.py` and the CLI to require
+   exactly the `run` verb and reject path, force, cleanup, endpoint, provider,
+   mailbox, vault, credential, callback, adapter, and environment unlock input.
+2. Prove the CLI orders zero-mutation readiness before console acquisition and
+   incident disposition, and performs a fresh full prepare after disposition
+   before binding production actions.
+3. Require the zero-mutation reader to validate the two closure artifacts,
+   eligible master, Issue 38 closed state, fixed input manifest, complete
+   linked-worktree roster, and exact incident source/archive state.
+4. Require real-console identity for stdin/stdout/stderr and a fresh single-use
+   candidate plus exact acknowledgement for incident disposition, every
+   forward action, every resume/rollback action, and both terminal records.
+5. Parse the fixed catalog as phase-owned exact actions with no public
+   constructor, registry, or prefix-selected fallback. Count only entries with
+   `host_effect=True` as host effects.
+6. Test every durable claim-only, intent-only, observed, recovery-classified,
+   resume-claim, committed, reverse-intent, reverse-observed, and terminal
+   prefix. Every observed/commit pair must carry the same canonical actual-
+   effect evidence fingerprint. Two stable reads must classify pending effects
+   without replay, including reverse effects before their retained marker.
+7. Require dynamic production roster discovery to bind every current linked
+   worktree and all placement/Git/physical/admin/branch/commit/common/clean
+   identities. Addition, removal, dirtiness, or drift must stop before the next
+   host effect. Preserve historical fixed-eleven rehearsal assertions in their
+   existing versioned suites.
+8. On Windows, run the real fixed production handlers only against a caller-
+   owned temporary synthetic topology. Cover complete forward success, direct
+   LIFO reverse through every host-effect handler, collisions, reparses,
+   partial repository/worktree/ACL/managed publication, service identity,
+   database writes, roster drift, and terminal/legacy two-read audits.
+   Include production-observer reverse post-effect crashes, retained legacy-
+   recovery intent before process start, and semantic terminal-frame tampering.
+9. Require the durable terminal success seal before the exact public token
+   `PROJECT_CONTAINER_CUTOVER_SUCCEEDED`. Require
+   `LEGACY_FLAT_LAYOUT_RESTORED` only after the complete two-read legacy audit.
+10. Reject production imports from normal runtime, frontend, workflows,
+    provider, mailbox, vault, private-store, and cleanup surfaces. Test code may
+    import the package but must never execute the live fixed entry.

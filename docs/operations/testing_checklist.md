@@ -1161,3 +1161,42 @@ modify workflows. Green local/CI
 evidence, hosted receipts, manifest, and attestation do not approve Issue #38,
 authorize or execute Issue #39, mutate rulesets/protection, push, merge, access
 host/provider/mailbox/vault/private data, or clean retained stages.
+
+## Issue #39 fixed cutover orchestrator verification
+
+1. Run the portable contracts, CLI, readiness, catalog, bootstrap, ledger,
+   action-runner, production-input, binder, preflight, and roster tests:
+
+   ```powershell
+   & $Py -B -m unittest discover -s tests -p 'test_r2_issue39_*.py'
+   & $Py -B -m unittest tests.test_r2_transaction_journal_v2
+   ```
+
+2. On Windows, run the incident/native suites and the complete fixed production
+   flow in caller-owned temporary directories:
+
+   ```powershell
+   & $Py -B -m unittest tests.test_r2_issue39_incident_disposition tests.test_r2_issue39_production_native_windows
+   & $Py -B -m unittest tests.test_r2_issue39_production_flow_windows
+   ```
+
+3. Assert that readiness and console failure occur before incident disposition;
+   disposition is separately confirmed; the full prepare is rebuilt after it;
+   and any master, Issue 38, input, roster, placement, cleanliness, or identity
+   drift stops before the next host effect.
+4. Assert that every normal and recovery claim is appended and consumed exactly
+   once, every legal crash prefix is restartable, already-present effects are
+   not repeated, reverse is LIFO over the committed host-effect prefix, and
+   ambiguous observations return `INCIDENT_STOP` without cleanup.
+5. Assert complete final and legacy audits each use two fresh reads. Success is
+   printed only as `PROJECT_CONTAINER_CUTOVER_SUCCEEDED` after the durable seal;
+   legacy restoration requires `LEGACY_FLAT_LAYOUT_RESTORED`.
+6. Keep all historical fixed eight-embedded plus three-external rehearsal tests
+   unchanged. Issue #39 tests separately prove bounded discovery of every live
+   linked worktree and reject any roster drift.
+7. Run full discovery, compile, generated status, maintenance, leakage,
+   documentation, mechanical, and `git diff --check` gates. Re-run full
+   discovery after generating the committed status log.
+8. Confirm no test invoked the live CLI, moved the real incident stage, ran
+   closure confirm or the protected verifier, or touched the canonical
+   Container, provider, mailbox, vault, ruleset, or Issues 38/39.

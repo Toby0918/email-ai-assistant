@@ -178,6 +178,12 @@ class RepositoryTransactionArchitectureTests(unittest.TestCase):
             "backend/r2_repository_manifest/review.py",
             "backend/r2_repository_manifest/testing.py",
             "backend/r2_repository_manifest/verification.py",
+            "backend/r2_issue39_orchestrator/roster_windows.py",
+            "backend/r2_issue39_orchestrator/production_foundation.py",
+            "backend/r2_issue39_orchestrator/production_audit.py",
+            "backend/r2_issue39_orchestrator/production_host_state.py",
+            "backend/r2_issue39_orchestrator/production_repository.py",
+            "backend/r2_issue39_orchestrator/production_roster_reverify.py",
             "scripts/r2_shared_topology_support.py",
         }
         violations = []

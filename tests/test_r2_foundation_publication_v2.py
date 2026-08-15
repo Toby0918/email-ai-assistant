@@ -165,6 +165,20 @@ class R2FoundationPublicationV2Tests(unittest.TestCase):
         self.assertEqual((recovered.host_mutations, recovered.journal_appends), (0, 2))
         self.assertEqual(self.plan.committed_prefix_count(recovered.journal), 1)
 
+    def test_uncommitted_present_observation_cannot_restart_forward_action(self):
+        transition, pending, _claim_value = self._pending()
+        observed = pending.journal.append_effect_observation(
+            transition_instance_fingerprint=transition.transition_instance_fingerprint,
+            observed_state_fingerprint=transition.post_state_fingerprint,
+            classification=EffectClassificationV2.EFFECT_PRESENT_EXACT,
+        )
+        claim = _claim(self.binding, self.plan, observed, transition)
+        with self.assertRaisesRegex(ValueError, "R2_FOUNDATION_PUBLICATION_INVALID"):
+            begin_next_foundation_action_v2(
+                journal=observed, plan=self.plan, claim=claim,
+                **_live_append_observation(),
+            )
+
     def test_ambiguous_or_wrong_next_action_incident_stops(self):
         transition, pending, _claim_value = self._pending()
         receipt = _inspection(pending.journal, "d" * 64)

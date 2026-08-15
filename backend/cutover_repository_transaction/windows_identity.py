@@ -64,6 +64,22 @@ def file_identity(path: Path) -> str:
 
 
 def opaque_directory_fingerprint(path: Path) -> str:
+    return _opaque_directory_fingerprint(path, gitdir_payload=None)
+
+
+def opaque_directory_fingerprint_with_gitdir(
+    path: Path, gitdir_payload: bytes
+) -> str:
+    if (
+        type(gitdir_payload) is not bytes
+        or not 1 <= len(gitdir_payload) <= 32_768
+        or b"\x00" in gitdir_payload
+    ):
+        _fail()
+    return _opaque_directory_fingerprint(path, gitdir_payload=gitdir_payload)
+
+
+def _opaque_directory_fingerprint(path, *, gitdir_payload):
     digest = hashlib.sha256(b"issue56-admin-object-v1\0")
     nodes = 0
     total = 0
@@ -82,7 +98,11 @@ def opaque_directory_fingerprint(path: Path) -> str:
             continue
         if not stat.S_ISREG(metadata.st_mode):
             _fail()
-        payload = child.read_bytes()
+        payload = (
+            gitdir_payload
+            if relative == b"gitdir" and gitdir_payload is not None
+            else child.read_bytes()
+        )
         total += len(payload)
         if total > _MAX_ADMIN_BYTES:
             _fail()

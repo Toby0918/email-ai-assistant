@@ -89,6 +89,7 @@ def resume_rollback_transition_v2(*, journal, plan, claim, observed_at_epoch, ob
     try:
         transition = _classified(journal, plan)
         classification = journal.records[-1].effect_classification
+        recovery_evidence = journal.records[-1].inspection_receipt_fingerprint
         if classification is EffectClassificationV2.EFFECT_AMBIGUOUS:
             raise RollbackRecoveryError()
         _require_claim(journal, plan, transition, claim)
@@ -96,7 +97,7 @@ def resume_rollback_transition_v2(*, journal, plan, claim, observed_at_epoch, ob
         if classification is EffectClassificationV2.EFFECT_ABSENT_EXACT:
             result = result.append_intent(transition_instance_fingerprint=transition.transition_instance_fingerprint, pre_state_fingerprint=transition.pre_state_fingerprint, post_state_fingerprint=transition.post_state_fingerprint)
             return _progress(RollbackProgressStatusV2.ROLLBACK_ACTION_PENDING, result, transition.transition_instance_fingerprint, classification, 0, 2)
-        result = result.append_commit(transition_instance_fingerprint=transition.transition_instance_fingerprint, committed_state_fingerprint=transition.post_state_fingerprint)
+        result = result.append_commit(transition_instance_fingerprint=transition.transition_instance_fingerprint, committed_state_fingerprint=transition.post_state_fingerprint, evidence_receipt_fingerprint=recovery_evidence)
         status = RollbackProgressStatusV2.ROLLBACK_ACTIONS_COMPLETE if plan.completed_prefix_count(result) == plan.transition_count else RollbackProgressStatusV2.ROLLBACK_RECOVERED_COMMIT
         return _progress(status, result, transition.transition_instance_fingerprint, classification, 0, 2)
     except RollbackRecoveryError:
@@ -112,12 +113,22 @@ def _require_claim(journal, plan, transition, claim):
 
 
 def _next(journal, plan):
-    if type(plan) is not R2RollbackPlanV2 or type(journal) is not R2TransactionJournalV2 or journal.next_legal_action not in {"CLAIM_FRESH_EXECUTION_CONFIRMATION", "CLAIM_FRESH_EXECUTION_CONFIRMATION_OR_TERMINAL"}:
+    if type(plan) is not R2RollbackPlanV2 or type(journal) is not R2TransactionJournalV2 or not _rollback_start_allowed(journal):
         raise RollbackRecoveryError()
     transition = plan.next_transition(journal)
     if transition is None:
         raise RollbackRecoveryError()
     return transition
+
+
+def _rollback_start_allowed(journal):
+    if journal.next_legal_action not in {"CLAIM_FRESH_EXECUTION_CONFIRMATION", "CLAIM_FRESH_EXECUTION_CONFIRMATION_OR_TERMINAL"} or not journal.records:
+        return False
+    last = journal.records[-1]
+    return last.record_type is JournalRecordTypeV2.COMMIT or (
+        last.record_type is JournalRecordTypeV2.RECOVERY_CLASSIFICATION
+        and last.effect_classification is EffectClassificationV2.EFFECT_ABSENT_EXACT
+    )
 
 
 def _pending(journal, plan):

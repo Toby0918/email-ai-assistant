@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-09
+last_update: 2026-08-14
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -1788,3 +1788,55 @@ fails closed.
 The primitive is not reachable from any production root in Issue #110. Future
 wiring requires separate Issue #38 approval followed by an Issue #39 exact code
 allowlist. Execution Confirmation can never satisfy or derive either approval.
+
+## Issue #39 fixed production orchestration
+
+`backend.r2_issue39_orchestrator` is the sole production composition root for
+the canonical Project Container cutover. `scripts/execute_project_container_cutover.py`
+is its sole operator entry and accepts exactly `run`. Normal runtime, frontend,
+workflow, mailbox, provider, vault, private-store, and cleanup packages must not
+import or invoke this package.
+
+The root enforces the architectural order `zero-mutation readiness -> real
+Windows console -> separately confirmed fixed incident disposition -> fresh
+complete preparation -> fixed production binding`. Closure artifacts, eligible
+master, Issue 38 closed state, fixed inputs, complete roster, and incident state
+must all be observed before a mutation capability is acquired. The post-
+disposition prepare must rebuild every value rather than accept a cached result.
+
+Issue #39 introduces the additive `Dynamic Cutover Roster`. Every fresh prepare
+discovers all linked worktrees within the fixed bound and binds the root/common/
+admin identities plus every checkout's placement, Git identity, physical
+identity, administrative identity, branch, commit, common directory, and clean
+status. Any addition, removal, dirtiness, or identity drift stops before the
+next host effect. Historical Issue #56/#57/#58 fixed eight-embedded plus three-
+external rehearsal contracts remain unchanged and must not be treated as the
+production discovery rule.
+
+The production catalog is module-owned and has no registry, public constructor,
+or caller-selected dispatch. Handler selection uses the closed action phase and
+exact catalog-owned action name. Every forward, resume, rollback, and terminal
+action consumes a distinct fresh Execution Confirmation bound to the current
+durable journal head.
+
+The evidence runner and sequential create-only ledger are the only restart
+anchor. Before transfer, the runner bytes are held against write/delete sharing
+and revalidated with their exact package hash, fixed path, non-reparse identity,
+and protected DACL immediately before `exec`. A pending effect is classified by
+two stable reads; present effects are
+not repeated, absent effects use only the prescribed resume path, and ambiguity
+returns `INCIDENT_STOP`. Reverse traversal is LIFO over the committed host-
+effect prefix and retains every failed or displaced object.
+
+Each effect observation and its commit carry one identical canonical actual-
+effect evidence fingerprint. Validation evidence binds the service nonce and
+identity, persisted rule result/row, zero provider attempts, database proof,
+and audits. Terminal reconstruction consumes the ordered evidence-bearing
+commits from the same reopened journal; a terminal frame is accepted only after
+fresh audit recomputation matches its claim, evidence, and exact final state.
+
+Terminal success requires two fresh complete final-state observations before a
+durable success seal. Legacy recovery requires two fresh complete restored-
+state observations before `LEGACY_FLAT_LAYOUT_RESTORED`. The public success
+token is exactly `PROJECT_CONTAINER_CUTOVER_SUCCEEDED`; no receipt, CI result,
+or merged code grants authority to execute it on the real host.

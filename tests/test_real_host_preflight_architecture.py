@@ -815,6 +815,9 @@ class RealHostPreflightArchitectureTests(unittest.TestCase):
             "backend/migration_evidence_publication/host_baseline_bridge.py": {
                 "RealHostBaselineCollector",
             },
+            "backend/r2_issue39_orchestrator/production_native.py": {
+                "expected_final_path",
+            },
         }
         candidates = [
             path

@@ -166,7 +166,7 @@ class R2TransactionJournalV2Tests(unittest.TestCase):
             observed_state_fingerprint=POST_STATE,
             classification=EffectClassificationV2.EFFECT_PRESENT_EXACT,
         )
-        states.append((journal, "APPEND_COMMIT"))
+        states.append((journal, "CLAIM_FRESH_EXECUTION_CONFIRMATION"))
         journal = journal.append_commit(
             transition_instance_fingerprint=TRANSITION,
             committed_state_fingerprint=POST_STATE,
