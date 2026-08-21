@@ -4,7 +4,6 @@ import hashlib
 import os
 import sqlite3
 import subprocess
-import shutil
 import tempfile
 import unittest
 from dataclasses import replace
@@ -255,11 +254,9 @@ class Issue39ProductionFlowWindowsTest(unittest.TestCase):
         self._git(target, "config", "core.autocrlf", "false")
 
     def _configure_synthetic_repository(self, source):
-        repository = Path(__file__).resolve().parents[1]
-        shutil.copyfile(
-            repository / "scripts" / "run_local_debug.py",
-            source / "scripts" / "run_local_debug.py",
-        )
+        target = source / "scripts" / "run_local_debug.py"
+        with target.open("ab") as stream:
+            stream.write(b"\n# Synthetic Issue 39 fixture-only commit.\n")
         self._git(source, "add", "scripts/run_local_debug.py")
         self._git(source, "commit", "-m", "synthetic issue39 entry")
         info = source / ".git" / "info" / "exclude"
