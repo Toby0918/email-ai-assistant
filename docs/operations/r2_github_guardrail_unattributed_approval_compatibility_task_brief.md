@@ -22,7 +22,7 @@ security
 ## 3. 当前状态
 
 ```text
-publication_authorized_in_progress
+published_draft_ci_pending
 ```
 
 ## 4. 任务目标
@@ -186,8 +186,9 @@ requirements.txt
 
 ## 14. 回滚方案
 
-改动保留为隔离 worktree 的未提交 diff。失败时停止并保留可审计现场；不修改
-远端 ruleset、Issue、closure artifact 或其他 worktree。
+publication 后失败时停止并保留本地分支、远端分支、draft PR 与全部可审计证据；
+不 force-push、不删除或重写历史，也不修改远端 ruleset、Issue、closure artifact 或
+其他 worktree。任何修复使用新的显式提交并重新验证。
 
 ## 15. 需要人工确认的问题
 
@@ -270,11 +271,14 @@ cutover 仍不在授权内。
 - Matt Standards review: 0 hard findings，两个重复导航/读取 judgement calls 已修复；Spec review: 0 scope/logic findings。
 
 未完成事项:
-- 本地实现与 full-suite 验证已完成；publication batch 已授权，执行结果待记录。
+- 本地实现与 full-suite 验证已完成；两个单目的实现提交和 publication metadata
+  提交已发布到 draft PR #118，最新 hosted checks 待完成。
 - 未运行或重试 live `prepare`、`confirm`、protected verifier、Issue mutation 或真实 cutover。
-- 尚未 stage、commit、push 或创建 draft PR；未执行 merge。
+- 实现提交 `953c06dfb8b556664ea550419bb25bb689ecfa3f` 与 fixture 提交
+  `beb163ea52f0768444ee7201fd71b2eab3215b42` 已 push；draft PR #118 已创建；
+  未执行 merge。
 
 后续建议:
-- 完成已授权的精确 publication batch，并在 PR 建立后同步 task brief、状态日志和 PR metadata。
+- GET-only 等待 draft PR #118 最新 head 的 hosted checks，并在结果稳定后报告。
 - publication/merge 完成后，任何 fresh closure ceremony 仍需独立行动时授权。
 ```

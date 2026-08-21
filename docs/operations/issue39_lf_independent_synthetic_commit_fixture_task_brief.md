@@ -18,7 +18,7 @@ Issue 39 Windows production-flow synthetic commit fixture 的 LF 无关修复。
 
 ## 3. 当前状态
 
-`publication_authorized_in_progress`
+`published_draft_ci_pending`
 
 ## 4. 任务目标
 
@@ -136,9 +136,9 @@ Issue 39 Windows production-flow synthetic commit fixture 的 LF 无关修复。
 
 ## 14. 回滚方案
 
-在尚未 stage/commit 的前提下，仅撤销本任务新增任务简报、测试 fixture 修改和对应
-生成状态记录。不得使用 `git reset --hard`、`git checkout --` 或其他会覆盖用户既有
-改动的命令。
+publication 后失败时保留本地/远端分支、draft PR 与测试证据；不 force-push、不删除
+或重写历史。任何修复使用新的显式提交，并重新运行本任务的精确 production-flow
+测试与受影响约束。
 
 ## 15. 需要人工确认的问题
 
@@ -202,8 +202,10 @@ pre-publication preflight 通过后授权把本任务作为同一精确 publicat
 - `git diff --check` exit 0。
 - 最终 full discovery：2848 tests / 7516.969s，`OK (skipped=4)`，无
   failure/error。
-- publication batch 已授权，stage、commit、push 与 draft PR 结果待记录；未执行
-  Issue/ruleset 修改、closure gate、merge 或真实 cutover。
+- fixture 已作为独立提交 `beb163ea52f0768444ee7201fd71b2eab3215b42` push 到
+  `codex/issue38-github-guardrail-unattributed-compat`；draft PR #118 已创建，最新
+  hosted checks 待完成。
+- 未执行 Issue/ruleset 修改、closure gate、merge 或真实 cutover。
 
 - 最终只读审计：root 为
   `D:/Projects/email_ai_assistant/.worktrees/issue38-r2-governed-handoff-lf-2b116ab0`，
