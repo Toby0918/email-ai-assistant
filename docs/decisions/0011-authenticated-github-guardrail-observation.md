@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-09
+last_update: 2026-08-20
 status: active
 owner: "@tobyWang"
 review_cycle: quarterly
@@ -21,9 +21,14 @@ The fixed anonymous GitHub ruleset detail response can omit
 `bypass_actors`. Absence cannot prove that bypass is empty. The authenticated
 response explicitly exposes `bypass_actors=[]`, but GitHub currently also adds
 the beta wire default `pull_request.parameters.required_reviewers=[]` to the
-otherwise unchanged approved configuration.
+otherwise unchanged approved configuration. GitHub now also returns the
+public-preview wire default
+`pull_request.parameters.require_extra_approval_for_unattributed_changes=true`
+for existing and new rulesets. GitHub documents that this setting has no effect
+when the rule requires zero approving reviews; this ruleset's
+`required_approving_review_count` is the exact integer `0`.
 
-Deleting only that exact empty wire default reproduces the established
+Deleting only those exact, semantically inactive wire defaults reproduces the established
 965-byte canonical ruleset configuration and configuration fingerprint
 `5f1c00727e4637c58abc7a8299f6c5846be0d8b6b3511d84bf3114e17422ca6e`.
 The active ruleset observed under the separately approved GitHub-state change
@@ -60,11 +65,15 @@ token.
 The response must explicitly contain `bypass_actors=[]`. There must be exactly
 one pull-request rule. Its `parameters.required_reviewers`, represented by the
 wire field `required_reviewers=[]`, may be absent or exactly `[]`; only the exact
-empty value is deleted before normal canonical projection and exact equality.
-Missing bypass, nonempty or wrongly typed bypass/reviewer values, duplicate
-pull-request rules, unknown nested fields, rule reordering, check or app-id
-drift, and every other mismatch fail with the existing content-free GitHub
-guardrail rejection.
+empty value is deleted. Its
+`parameters.require_extra_approval_for_unattributed_changes` may be absent or
+the exact Boolean `true` only when `required_approving_review_count` is the exact
+integer `0`; only that accepted value is deleted before normal canonical
+projection and exact equality. Missing bypass, nonempty or wrongly typed
+bypass/reviewer values, false or wrongly typed unattributed-approval values,
+boolean or nonzero approval counts, duplicate pull-request rules, unknown
+nested fields, rule reordering, check or app-id drift, and every other mismatch
+fail with the existing content-free GitHub guardrail rejection.
 
 No public schema, snapshot field, closure interface, canonical bytes or
 fingerprint changes.
@@ -80,6 +89,8 @@ of a bypass actor.
 
 Rejected because an empty wire-only default carries no approved semantic
 change and would unnecessarily change stable canonical bytes and fingerprints.
+The same applies to the exact enabled unattributed-approval default only at
+exact integer zero approvals, where GitHub documents that it has no effect.
 
 ### Read the token in Python or accept caller transport configuration
 

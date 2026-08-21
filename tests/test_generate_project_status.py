@@ -833,6 +833,8 @@ class GenerateProjectStatusTests(unittest.TestCase):
             "active keyring login",
             "Python neither reads nor prints the token",
             "`required_reviewers=[]`",
+            "`require_extra_approval_for_unattributed_changes`",
+            "exact integer zero approving reviews",
             "before canonical comparison",
             "No live `prepare`, `confirm`, or protected verifier was run or authorized",
             "#38/#39 remain unchanged",
@@ -846,6 +848,7 @@ class GenerateProjectStatusTests(unittest.TestCase):
             "`tests/test_r2_execution_confirmation.py`",
             "`docs/operations/r2_solo_maintainer_closure_task_brief.md`",
             "`docs/operations/r2_github_guardrail_response_compatibility_task_brief.md`",
+            "`docs/operations/r2_github_guardrail_unattributed_approval_compatibility_task_brief.md`",
             "`docs/operations/r2_solo_maintainer_closure_runbook.md`",
             "`docs/decisions/0010-solo-maintainer-closure-and-execution-confirmation.md`",
             "`docs/decisions/0011-authenticated-github-guardrail-observation.md`",
@@ -866,6 +869,9 @@ class GenerateProjectStatusTests(unittest.TestCase):
             self.assertEqual(exit_code, 0)
             self.assertTrue(output.exists())
             self.assertIn("# Project Status Log", output.read_text(encoding="utf-8"))
+            raw = output.read_bytes()
+            self.assertIn(b"\n", raw)
+            self.assertNotIn(b"\r\n", raw)
 
 
 if __name__ == "__main__":

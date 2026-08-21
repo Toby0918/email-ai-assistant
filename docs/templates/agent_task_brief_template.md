@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-09
+last_update: 2026-08-20
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -385,7 +385,8 @@ Maintainer Attestation, production-binding authority, or Execution Confirmation.
 [ ] Closure binds exactly five hosted check records and one exact GitHub guardrail snapshot; frozen master, GitHub Actions app, required checks, active ruleset, bypass, and classic-protection state all fail closed on drift.
 [ ] Guardrail observation uses only the code-fixed absolute Windows GitHub CLI, its fixed keyring-backed `github.com` identity, and the three approved authenticated GET requests; there is no caller URL, credential, method, fallback, or cache surface.
 [ ] Python never reads or emits the GitHub token; ambient token, host, repository, config-directory, and proxy overrides are omitted from the child environment.
-[ ] The wire-only `pull_request.parameters.required_reviewers` field is accepted only when absent or exactly `[]`; only exact `[]` is removed before canonical comparison, while missing/nonempty bypass and every other drift fail closed.
+[ ] The wire-only `pull_request.parameters.required_reviewers` field is accepted only when absent or exactly `[]`; only exact `[]` is removed, while missing/nonempty bypass and invalid reviewer values fail closed.
+[ ] The wire-only `pull_request.parameters.require_extra_approval_for_unattributed_changes` field is accepted only when absent or exact Boolean `true` at exact integer zero approving reviews; only that accepted value is removed, while false, wrong types, Boolean counts, nonzero counts, and every other drift fail closed.
 [ ] Closure preserves fourteen gates and eight ordered gap proofs; every finding, skip, divergence, leakage, private-data, provider, host-effect, cleanup, deletion, overwrite, failure, approval, execution, and Issue #39 count remains zero.
 [ ] `confirm()` uses stable real Windows console handles, two once-only visible exact inputs, and one-use wall-clock plus monotonic-clock freshness over a half-open 300-second interval.
 [ ] Publication remains create-only/no-replace, rejects target, legacy, and stage collisions, performs no repair, overwrite, deletion, or cleanup, and any partial stage remains for incident review.

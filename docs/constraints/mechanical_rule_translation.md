@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-14
+last_update: 2026-08-20
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -46,15 +46,18 @@ source_type: operation_guide
    paired with that endpoint's HTTP 404 / exit 1 result.
    Python must never read or print the token. The unique pull-request rule may
    omit `required_reviewers` or carry exactly `[]`; delete only that empty wire
-   default before exact equality with the unchanged 965-byte configuration and
-   fingerprint
+   default. `require_extra_approval_for_unattributed_changes` may be absent or
+   exact `true` only while `required_approving_review_count` is the exact integer
+   `0`; delete only that accepted wire value before exact equality with the
+   unchanged 965-byte configuration and fingerprint
    `5f1c00727e4637c58abc7a8299f6c5846be0d8b6b3511d84bf3114e17422ca6e`.
    Missing, nonempty, wrong-type, duplicate or layered state blocks closure.
    Ruleset `20601214` now exists, but its presence is not live-command authority.
    Mechanically require two fixed auth-status observations and exactly three fixed authenticated GET requests.
    `bypass_actors=[]` must be explicit, while
-   `required_reviewers` is absent or exactly `[]`. After empty-only
-   normalization the canonical configuration remains 965 bytes with fingerprint
+   `required_reviewers` is absent or exactly `[]`, and unattributed-approval is
+   absent or exact `true` at exact integer zero approvals. After approved
+   wire-default normalization the canonical configuration remains 965 bytes with fingerprint
    `5f1c00727e4637c58abc7a8299f6c5846be0d8b6b3511d84bf3114e17422ca6e`.
    The current ruleset exists, but it does not authorize live `prepare`, `confirm`, or verifier execution.
 5. `prepare` performs no TTY read and no write. Windows-only `confirm` proves
@@ -1144,10 +1147,12 @@ private-data container, or authorization to migrate.
    changes.
 4. Test hosted-check ordering, app id, push/master, run/attempt/reconciliation
    dependencies, guardrail exactness, and all zero counters. In-memory tests
-   must prove missing/nonempty bypass and nonempty/wrong-type reviewers fail,
-   while `required_reviewers` absent or exactly empty preserves canonical bytes
-   and fingerprint. Synthetic no-ruleset state must fail; tests never create,
-   mutate or query the live ruleset.
+   must prove missing/nonempty bypass and nonempty/wrong-type reviewers fail.
+   They must also prove that unattributed-approval accepts only absence or exact
+   `true` at exact integer zero approvals and rejects false, wrong types,
+   boolean counts, and nonzero counts. Both approved wire shapes preserve
+   canonical bytes and fingerprint. Synthetic no-ruleset state must fail;
+   tests never create, mutate or query the live ruleset.
 5. Test Windows real-console identity, one-use acknowledgement, exact CRLF
    handling, control rejection, wall/monotonic 300-second bounds, fresh
    rederivation, create-only two-file publication, collision retention, and

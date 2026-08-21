@@ -1003,6 +1003,8 @@ class StaticLinterConstraintTests(unittest.TestCase):
             "accepts no caller credential, URL, method,",
             "fallback, or cache",
             "`required_reviewers` absent or exactly `[]`",
+            "`require_extra_approval_for_unattributed_changes`",
+            "exact integer zero",
             "explicit `bypass_actors=[]`",
         ):
             with self.subTest(marker=marker):
@@ -1051,6 +1053,7 @@ class StaticLinterConstraintTests(unittest.TestCase):
             "stderr=subprocess.PIPE",
             "shell=False",
             "required_reviewers",
+            "require_extra_approval_for_unattributed_changes",
             "bypass_actors",
             "_CLASSIC_MISSING_STDERR",
             "detail_id.isascii()",

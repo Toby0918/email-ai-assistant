@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-14
+last_update: 2026-08-20
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -46,16 +46,20 @@ source_type: operation_guide
   exact content-free classic 404 diagnostic may accompany HTTP 404 / exit 1.
   Python never reads or prints the token. `bypass_actors` must be explicitly `[]`;
   `required_reviewers` may only be absent or exactly `[]`, and only the empty
-  wire default is removed before exact comparison with the unchanged 965-byte
-  configuration and fingerprint
+  wire default is removed. `require_extra_approval_for_unattributed_changes`
+  may only be absent or exactly `true` when `required_approving_review_count`
+  is the exact integer `0`; only that accepted value is removed before exact
+  comparison with the unchanged 965-byte configuration and fingerprint
   `5f1c00727e4637c58abc7a8299f6c5846be0d8b6b3511d84bf3114e17422ca6e`.
   `github_guardrail.py` is the only authenticated GitHub command Adapter. It
   uses the fixed absolute Windows GitHub CLI.
   There are two keyring-backed auth-status checks and three fixed GET-only requests.
   Python never reads or emits the GitHub token.
   The seam accepts no caller credential, URL, method, fallback, or cache.
-  `required_reviewers` absent or exactly `[]` is the only
-  compatibility shape; explicit `bypass_actors=[]` remains mandatory.
+  `required_reviewers` absent or exactly `[]`, plus absent or exact `true`
+  `require_extra_approval_for_unattributed_changes` at exact integer zero
+  approvals, are the only compatibility shapes; explicit `bypass_actors=[]`
+  remains mandatory.
 - The fixed no-argument verifier retains the Issue #102 safe-path and raw-Git
   chain, accepts only the new manifest and attestation files in the fixed Git
   common directory, and rejects every legacy V1 external/signature artifact,

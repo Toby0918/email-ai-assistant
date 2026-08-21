@@ -492,10 +492,12 @@ never asks Python to read or print the token. Stdout and stderr are captured
 separately and bounded; only the exact content-free classic-protection 404
 diagnostic may accompany that endpoint's HTTP 404 / exit 1 absence result.
 Authenticated ruleset detail must explicitly contain `bypass_actors=[]`.
-The sole narrow wire compatibility accepts
+The narrow wire compatibilities accept
 `pull_request.parameters.required_reviewers` only when absent or exactly `[]`;
-an exact empty value is removed before comparison with the unchanged 965-byte
-canonical configuration and its
+`pull_request.parameters.require_extra_approval_for_unattributed_changes` may
+be absent or exactly `true` only when `required_approving_review_count` is the
+exact integer `0`. Those accepted wire-only values are removed before
+comparison with the unchanged 965-byte canonical configuration and its
 `5f1c00727e4637c58abc7a8299f6c5846be0d8b6b3511d84bf3114e17422ca6e`
 fingerprint. Ruleset `20601214` now exists, but that observation does not
 authorize live `prepare`, `confirm`, the protected verifier, Issue #38, or

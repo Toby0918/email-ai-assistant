@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-09
+last_update: 2026-08-20
 status: active
 owner: "@tobyWang"
 review_cycle: as_needed
@@ -131,11 +131,14 @@ or prints the token. Update checks and telemetry are disabled; stdout/stderr are
 separately bounded, and only the exact content-free classic 404 diagnostic may
 accompany that fixed endpoint's HTTP 404 / exit 1 absence result. Authenticated detail must explicitly expose
 `bypass_actors=[]`. The unique pull-request rule accepts
-`required_reviewers` only when absent or exactly `[]`; only the exact empty beta
-default is removed before equality with the unchanged 965-byte canonical
-configuration and configuration fingerprint
+`required_reviewers` only when absent or exactly `[]`.
+`require_extra_approval_for_unattributed_changes` may be absent or exactly
+`true` only when `required_approving_review_count` is the exact integer `0`.
+Only those approved wire defaults are removed before equality with the
+unchanged 965-byte canonical configuration and configuration fingerprint
 `5f1c00727e4637c58abc7a8299f6c5846be0d8b6b3511d84bf3114e17422ca6e`.
-Nonempty, wrong-type, duplicate or otherwise drifted state fails closed.
+Nonempty, false, wrong-type, nonzero-count, duplicate or otherwise drifted state
+fails closed.
 
 Neither ruleset existence nor a successful read-only local test authorizes the
 commands in the following sections.

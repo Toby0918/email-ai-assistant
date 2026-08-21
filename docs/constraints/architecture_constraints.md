@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-14
+last_update: 2026-08-20
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -47,8 +47,11 @@ Python never reads or prints the token. The snapshot requires exactly one active
 ruleset, explicit
 `bypass_actors=[]`, the five exact required checks and absent classic branch
 protection. The unique pull-request rule accepts `required_reviewers` only when
-absent or exactly `[]`, removing only the empty wire default before exact
-comparison with the unchanged 965-byte canonical configuration and
+absent or exactly `[]`. Its
+`require_extra_approval_for_unattributed_changes` field may be absent or exactly
+`true` only when `required_approving_review_count` is the exact integer `0`.
+Only those approved wire defaults are removed before exact comparison with the
+unchanged 965-byte canonical configuration and
 `5f1c00727e4637c58abc7a8299f6c5846be0d8b6b3511d84bf3114e17422ca6e`
 fingerprint. Current ruleset id `20601214` is evidence, not authority to run
 live `prepare`, `confirm` or the verifier. Hosted evidence has zero human

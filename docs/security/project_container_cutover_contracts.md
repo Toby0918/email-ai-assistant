@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-09
+last_update: 2026-08-20
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -47,9 +47,11 @@ fixed GETs, and passes only a sanitized allowlist environment with update checks
 and telemetry disabled. Stdout/stderr are separately bounded, with only the
 exact content-free classic 404 diagnostic allowed for HTTP 404 / exit 1. Python
 never reads or prints the token. The unique pull-request rule accepts
-`required_reviewers` only when absent or exactly `[]`; only the empty wire
-default is removed before exact comparison with the unchanged 965-byte
-canonical configuration and fingerprint
+`required_reviewers` only when absent or exactly `[]`.
+`require_extra_approval_for_unattributed_changes` may be absent or exactly
+`true` only when `required_approving_review_count` is the exact integer `0`.
+Only those approved wire defaults are removed before exact comparison with the
+unchanged 965-byte canonical configuration and fingerprint
 `5f1c00727e4637c58abc7a8299f6c5846be0d8b6b3511d84bf3114e17422ca6e`.
 The adapter has no custom endpoint, arbitrary URL, ruleset writer,
 branch-protection writer or approval surface.

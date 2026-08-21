@@ -2811,6 +2811,12 @@ class ArchitectureConstraintTests(unittest.TestCase):
             / "operations"
             / "r2_github_guardrail_response_compatibility_task_brief.md"
         )
+        unattributed_brief = read_text(
+            ROOT
+            / "docs"
+            / "operations"
+            / "r2_github_guardrail_unattributed_approval_compatibility_task_brief.md"
+        )
         guardrail_adr = read_text(
             ROOT
             / "docs"
@@ -2838,6 +2844,7 @@ class ArchitectureConstraintTests(unittest.TestCase):
             "eight ordered gap proofs",
             "GitHub Actions app `15368`",
             "exactly one active `master-solo-maintainer-closure-v1`",
+            "`require_extra_approval_for_unattributed_changes` field may be absent",
             "one-use\nwall-plus-monotonic half-open 300-second ceremony",
             "partial stage remains for incident review",
             "no-argument isolated `scripts/verify_r2_final_master_closure.py`",
@@ -2854,6 +2861,7 @@ class ArchitectureConstraintTests(unittest.TestCase):
             "one active master-targeted ruleset",
             "zero bypass actors",
             "strict app-bound\nrequired checks",
+            "`require_extra_approval_for_unattributed_changes` may be absent",
             "accepts only the exact manifest and attestation files",
             "rejects every legacy V1 external",
             "`ELIGIBLE_FOR_ISSUE38_FINAL_REVIEW`",
@@ -2864,7 +2872,7 @@ class ArchitectureConstraintTests(unittest.TestCase):
             with self.subTest(marker=marker):
                 self.assertIn(marker, security)
         for marker in (
-            "last_update: 2026-08-09",
+            "last_update: 2026-08-20",
             "Issue #110 Solo Maintainer Closure / Execution Confirmation checklist",
             "`backend.r2_solo_maintainer_closure` contains exactly ten files",
             "parameterless `prepare()` and `confirm(...)`",
@@ -2873,6 +2881,7 @@ class ArchitectureConstraintTests(unittest.TestCase):
             "three approved authenticated GET requests",
             "Python never reads or emits the GitHub token",
             "`pull_request.parameters.required_reviewers`",
+            "`pull_request.parameters.require_extra_approval_for_unattributed_changes`",
             "fourteen gates and eight ordered gap proofs",
             "real Windows console handles",
             "wall-clock plus monotonic-clock",
@@ -2906,12 +2915,24 @@ class ArchitectureConstraintTests(unittest.TestCase):
             with self.subTest(marker=marker):
                 self.assertIn(marker, guardrail_brief)
         for marker in (
+            "R2 GitHub unattributed-approval guardrail compatibility task brief",
+            "`pull_request.parameters.require_extra_approval_for_unattributed_changes=true`",
+            "`required_approving_review_count` 精确为整数 `0`",
+            "965-byte canonical configuration",
+            "fixed rejection code",
+            "不运行 `prepare`、`confirm`、protected verifier",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, unattributed_brief)
+        for marker in (
             "ADR 0011",
             "Authenticated GitHub guardrail observation",
             "`github_guardrail.py`",
             "`C:\\Program Files\\GitHub CLI\\gh.exe`",
             "`bypass_actors=[]`",
             "`required_reviewers=[]`",
+            "`parameters.require_extra_approval_for_unattributed_changes`",
+            "exact Boolean `true`",
             "965",
             "5f1c00727e4637c58abc7a8299f6c5846be0d8b6b3511d84bf3114e17422ca6e",
             "Ruleset existence is evidence only",
@@ -2945,10 +2966,12 @@ class ArchitectureConstraintTests(unittest.TestCase):
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, project_structure)
+        self.assertIn("exact-true unattributed-approval compatibility", project_structure)
         self.assertNotIn("`main()` reaches its\nexisting", architecture)
         self.assertIn("bootstrap cannot unlock production composition", architecture)
         self.assertNotIn("Issue #110 complete validation matrix", testing)
         self.assertIn("Issue #110 focused validation summary", testing)
+        self.assertIn("`require_extra_approval_for_unattributed_changes`", testing)
         self.assertIn("proposal comment `5212791186` section 8", testing)
 
     def test_python_modules_do_not_contain_raw_secret_literals(self) -> None:

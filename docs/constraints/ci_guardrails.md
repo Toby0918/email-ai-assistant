@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-14
+last_update: 2026-08-20
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -60,8 +60,11 @@ GET-only adapter with update checks and telemetry disabled; Python never reads
 or prints its keyring token. Separately bounded stderr is empty except for the
 exact content-free classic 404 diagnostic paired with HTTP 404 / exit 1. The beta
 `required_reviewers` field is compatible only when absent or exactly `[]`, and
-only that empty wire default is removed before comparison with the unchanged
-965-byte canonical configuration and fingerprint
+the public-preview `require_extra_approval_for_unattributed_changes` field is
+compatible only when absent or exactly `true` while
+`required_approving_review_count` is the exact integer `0`. Only those approved
+wire defaults are removed before comparison with the unchanged 965-byte
+canonical configuration and fingerprint
 `5f1c00727e4637c58abc7a8299f6c5846be0d8b6b3511d84bf3114e17422ca6e`.
 CI must not create, approve, mutate or layer a ruleset.
 

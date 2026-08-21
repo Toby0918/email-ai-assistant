@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-14
+last_update: 2026-08-20
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -1412,8 +1412,10 @@ Python never receives the keyring token, so it cannot read or print it.
 There is no caller credential, URL, method, fallback, or cache.
 The ruleset detail must explicitly expose
 `bypass_actors=[]`; `required_reviewers` is compatible only when absent or
-exactly `[]`, with the empty field removed before exact comparison to the
-unchanged 965-byte configuration and fingerprint
+exactly `[]`. `require_extra_approval_for_unattributed_changes` is compatible
+only when absent or exactly `true` while `required_approving_review_count` is
+the exact integer `0`. Only those approved wire defaults are removed before
+exact comparison to the unchanged 965-byte configuration and fingerprint
 `5f1c00727e4637c58abc7a8299f6c5846be0d8b6b3511d84bf3114e17422ca6e`.
 Ruleset `20601214` exists, but no reader may create or modify protection and its
 presence does not authorize live `prepare`, `confirm` or verifier execution.
