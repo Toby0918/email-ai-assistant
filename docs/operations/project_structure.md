@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-14
+last_update: 2026-08-20
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -26,7 +26,9 @@ source_type: operation_guide
   authenticated guardrail observer using the absolute Windows GitHub CLI,
   existing keyring identity, exactly three fixed GETs, sanitized environment,
   disabled update/telemetry side channels, separately bounded stdout/stderr,
-  strict bypass validation and empty-only `required_reviewers` compatibility;
+  strict bypass validation, empty-only `required_reviewers` compatibility, and
+  exact-true unattributed-approval compatibility only at exact integer zero
+  approvals;
   Python never reads or prints the token.
 - `backend/r2_solo_maintainer_closure/repository.py`: fixed clean/fresh master,
   raw Git, anonymous public hosted metadata, guardrail delegation, and

@@ -41,10 +41,8 @@ _SAFE_ENVIRONMENT_KEYS = (
 _MAX_OUTPUT = 1024 * 1024
 _TIMEOUT_SECONDS = 15
 _MISSING = object()
-_Runner = Callable[
-    [tuple[str, ...], dict[str, str]],
-    subprocess.CompletedProcess[bytes],
-]
+_EXTRA_APPROVAL = "require_extra_approval_for_unattributed_changes"
+_Runner = Callable[[tuple[str, ...], dict[str, str]], subprocess.CompletedProcess[bytes]]
 
 @dataclass(frozen=True, slots=True, repr=False)
 class _GuardrailObservation:
@@ -176,8 +174,14 @@ def _normalize_guardrail_detail(detail: object) -> dict[str, object]:
                 and (type(parameters["required_reviewers"]) is not list
                      or parameters["required_reviewers"] != []))):
         _reject()
+    extra_approval = parameters.get(_EXTRA_APPROVAL, _MISSING)
+    approval_count = parameters.get("required_approving_review_count")
+    if (extra_approval is not _MISSING and (extra_approval is not True
+            or type(approval_count) is not int or approval_count != 0)):
+        _reject()
     configuration = strict_object(canonical_json(projected))
-    configuration["rules"][pull_indices[0]]["parameters"].pop("required_reviewers", None)
+    for field in ("required_reviewers", _EXTRA_APPROVAL):
+        configuration["rules"][pull_indices[0]]["parameters"].pop(field, None)
     return configuration
 
 def _child_environment() -> dict[str, str]:

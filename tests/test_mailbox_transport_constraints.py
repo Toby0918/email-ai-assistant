@@ -15,7 +15,7 @@ from scripts.repo_utils import read_text
 ROOT = Path(__file__).resolve().parents[1]
 
 STATUS_GENERATOR_AST_SHA256 = (
-    "69de38f2ce59396f11232c8d1eafd262c696334e4b09ddd6366f06b6742b2579"
+    "cdfab75b584b9b1dada65d6cac16f288b1dbb11b6418d6d8d604d8739dcc6649"
 )
 
 POLICY_DOCS = (
@@ -713,7 +713,7 @@ def _generated_status_prose_nodes(path: Path, tree: ast.AST) -> set[int]:
         "    output = args.output if args.output.is_absolute() "
         "else ROOT / args.output\n"
         "    output.parent.mkdir(parents=True, exist_ok=True)\n"
-        "    output.write_text(build_project_status(), encoding='utf-8')\n"
+        "    output.write_text(build_project_status(), encoding='utf-8', newline='\\n')\n"
         "    return 0\n"
     ).body[0]
     parse_args_definitions = [

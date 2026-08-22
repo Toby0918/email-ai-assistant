@@ -211,6 +211,8 @@ class MechanicalRuleConstraintTests(unittest.TestCase):
             "exactly three fixed authenticated GET requests",
             "`bypass_actors=[]` must be explicit",
             "`required_reviewers` is absent or exactly `[]`",
+            "unattributed-approval is",
+            "exact integer zero approvals",
             "965 bytes",
             "5f1c00727e4637c58abc7a8299f6c5846be0d8b6b3511d84bf3114e17422ca6e",
             "The current ruleset exists",

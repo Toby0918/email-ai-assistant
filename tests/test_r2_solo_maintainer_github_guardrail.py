@@ -145,6 +145,43 @@ class GitHubGuardrailCompatibilityTests(unittest.TestCase):
             snapshot.ruleset_configuration_fingerprint,
         )
 
+    def test_zero_approval_ruleset_accepts_enabled_unattributed_default(self) -> None:
+        detail = _detail([])
+        detail["rules"][2]["parameters"][
+            "require_extra_approval_for_unattributed_changes"
+        ] = True
+
+        snapshot = collect_verified_guardrail(
+            _FakeReader(_observation(detail=detail))
+        )
+
+        self.assertEqual(snapshot.ruleset_configuration, ruleset_configuration_v1())
+        self.assertEqual(len(canonical_json(snapshot.ruleset_configuration)), 965)
+        self.assertEqual(
+            snapshot.ruleset_configuration_fingerprint,
+            "5f1c00727e4637c58abc7a8299f6c5846be0d8b6b3511d84bf3114e17422ca6e",
+        )
+
+    def test_unattributed_default_requires_exact_true_and_exact_zero_count(self) -> None:
+        field = "require_extra_approval_for_unattributed_changes"
+        for value in (False, 0, 1, None, "true", [], {}):
+            detail = _detail([])
+            detail["rules"][2]["parameters"][field] = value
+            with self.subTest(field_value=value):
+                self.assert_guardrail_rejected(
+                    _FakeReader(_observation(detail=detail))
+                )
+        for value in (True, False, 1, -1, None, "0"):
+            detail = _detail([])
+            detail["rules"][2]["parameters"][field] = True
+            detail["rules"][2]["parameters"][
+                "required_approving_review_count"
+            ] = value
+            with self.subTest(approval_count=value):
+                self.assert_guardrail_rejected(
+                    _FakeReader(_observation(detail=detail))
+                )
+
     def test_beta_field_may_be_absent(self) -> None:
         snapshot = collect_verified_guardrail(_FakeReader(_observation(detail=_detail())))
         self.assertEqual(snapshot.ruleset_configuration, ruleset_configuration_v1())

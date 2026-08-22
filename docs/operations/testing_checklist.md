@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-09
+last_update: 2026-08-20
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -41,10 +41,14 @@ fact that Python never reads or prints a token. Permit nonempty stderr only for
 the exact content-free classic 404 diagnostic paired with HTTP 404 / exit 1.
 Require explicit `bypass_actors=[]`. Accept
 `required_reviewers` only when absent or exactly `[]`, delete only the empty
-wire default, and prove canonical length 965 and fingerprint
+wire default. Accept `require_extra_approval_for_unattributed_changes` only when
+absent or exactly `true` at exact integer zero approvals; reject false, wrong
+types, boolean counts and nonzero counts. Delete only that accepted wire value,
+and prove canonical length 965 and fingerprint
 `5f1c00727e4637c58abc7a8299f6c5846be0d8b6b3511d84bf3114e17422ca6e`
 remain unchanged. Missing/nonempty bypass, nonempty/wrong-type reviewers,
-duplicate pull-request rules and all other drift fail closed.
+duplicate pull-request rules, unknown nested fields and all other drift fail
+closed.
 
 Do not run live `prepare`, `confirm` or the protected verifier in this task.
 Ruleset `20601214` exists, but none of those live commands is authorized.

@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-09
+last_update: 2026-08-20
 status: active
 owner: "@tobyWang"
 review_cycle: quarterly
@@ -58,9 +58,12 @@ disabled, separately bounded stdout/stderr, and no Python token read or print.
 Only the exact content-free classic 404 diagnostic may accompany HTTP 404 /
 exit 1 for that fixed absence check.
 Authenticated `bypass_actors` must be explicitly `[]`. The only wire response
-compatibility accepts `pull_request.parameters.required_reviewers` when absent
-or exactly `[]`, removing only that empty beta default before exact comparison.
-The canonical configuration remains 965 bytes with fingerprint
+compatibilities accept `pull_request.parameters.required_reviewers` when absent
+or exactly `[]` and accept
+`pull_request.parameters.require_extra_approval_for_unattributed_changes` when
+absent or exactly `true` only if `required_approving_review_count` is the exact
+integer `0`. Only those approved wire defaults are removed before exact
+comparison. The canonical configuration remains 965 bytes with fingerprint
 `5f1c00727e4637c58abc7a8299f6c5846be0d8b6b3511d84bf3114e17422ca6e`.
 
 Local gate inputs use private `LocalSourceProofV1` values. Each proof binds the

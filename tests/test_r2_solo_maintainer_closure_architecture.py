@@ -137,6 +137,7 @@ class SoloMaintainerClosureArchitectureTests(unittest.TestCase):
             "stderr=subprocess.PIPE",
             "shell=False",
             "required_reviewers",
+            "require_extra_approval_for_unattributed_changes",
             "allow_classic_missing",
             "_CLASSIC_MISSING_STDERR",
             "detail_id.isascii()",
