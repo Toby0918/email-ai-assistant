@@ -55,7 +55,8 @@ _CLASSIFIED_STALE_PATHS = (
     "docs/README.md", "docs/api/error_codes.md", "docs/data/data_dictionary.md", "docs/decisions/adr_0001_project_shape.md", "docs/decisions/adr_0003_no_auto_send.md",
     "docs/knowledge_base/action_rules.md", "docs/knowledge_base/business_terms.md", "docs/knowledge_base/customer_context_template.md", "docs/knowledge_base/email_categories.md",
     "docs/knowledge_base/priority_rules.md", "docs/knowledge_base/reply_guidelines.md", "docs/knowledge_base/risk_flags.md", "docs/operations/documentation_rules.md",
-    "docs/product/product_overview.md", "docs/product/user_flow.md", "docs/prompts/prompt_version_log.md", "docs/prompts/reply_draft_prompt.md", "docs/prompts/risk_detection_prompt.md", "docs/security/prompt_injection_rules.md")
+    "docs/operations/troubleshooting.md", "docs/product/feature_scope.md", "docs/product/product_overview.md", "docs/product/user_flow.md", "docs/prompts/prompt_version_log.md",
+    "docs/prompts/reply_draft_prompt.md", "docs/prompts/risk_detection_prompt.md", "docs/security/privacy_rules.md", "docs/security/prompt_injection_rules.md")
 _MAINTENANCE_CLASSIFICATIONS = frozenset(
     ("low", "stale_doc", path, "docs/operations/cleanup_agent.md")
     for path in _CLASSIFIED_STALE_PATHS)

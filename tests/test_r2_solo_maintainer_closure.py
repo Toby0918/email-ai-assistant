@@ -46,6 +46,30 @@ from backend.r2_solo_maintainer_closure import storage as storage_adapter
 
 ACK = "CONFIRM_SOLO_MAINTAINER_CLOSURE_V1_NOT_ISSUE39_AUTHORITY"
 ZERO = "0" * 64
+CURRENT_REVIEWED_STALE_PATHS = (
+    "docs/README.md",
+    "docs/api/error_codes.md",
+    "docs/data/data_dictionary.md",
+    "docs/decisions/adr_0001_project_shape.md",
+    "docs/decisions/adr_0003_no_auto_send.md",
+    "docs/knowledge_base/action_rules.md",
+    "docs/knowledge_base/business_terms.md",
+    "docs/knowledge_base/customer_context_template.md",
+    "docs/knowledge_base/email_categories.md",
+    "docs/knowledge_base/priority_rules.md",
+    "docs/knowledge_base/reply_guidelines.md",
+    "docs/knowledge_base/risk_flags.md",
+    "docs/operations/documentation_rules.md",
+    "docs/operations/troubleshooting.md",
+    "docs/product/feature_scope.md",
+    "docs/product/product_overview.md",
+    "docs/product/user_flow.md",
+    "docs/prompts/prompt_version_log.md",
+    "docs/prompts/reply_draft_prompt.md",
+    "docs/prompts/risk_detection_prompt.md",
+    "docs/security/privacy_rules.md",
+    "docs/security/prompt_injection_rules.md",
+)
 
 
 class _FakeClock:
@@ -314,7 +338,7 @@ class SoloMaintainerClosureTests(unittest.TestCase):
         )]
         with self.assertRaises(SoloMaintainerClosureError):
             local_evidence_adapter._fresh_subject("maintenance_scan_output", root, tracked)
-        self.assertEqual(len(local_evidence_adapter._MAINTENANCE_CLASSIFICATIONS), 19)
+        self.assertEqual(len(local_evidence_adapter._MAINTENANCE_CLASSIFICATIONS), 22)
         self.maintenance_scan.return_value = _classified_maintenance_findings(Finding)
         subject, observed = local_evidence_adapter._fresh_subject(
             "maintenance_scan_output", root, tracked
@@ -408,6 +432,26 @@ class SoloMaintainerClosureTests(unittest.TestCase):
             [item["evidence_count"] for item in candidate.manifest["gap_proofs"]],
             [2, 1, 1, 1, 1, 1, 3, 4],
         )
+
+    def test_prepare_accepts_current_reviewed_stale_document_set(self) -> None:
+        from scripts.maintenance_scan import Finding
+        repository, github = _fixture()
+        ports = _ports(repository, github, wall=(1_000,), monotonic=(10_000,))
+        self.maintenance_scan.return_value = [
+            Finding(
+                "low", "stale_doc", path, "fixed", "fixed",
+                "docs/operations/cleanup_agent.md",
+            )
+            for path in CURRENT_REVIEWED_STALE_PATHS
+        ]
+
+        with patch(
+            "backend.r2_solo_maintainer_closure.closure._fixed_ports",
+            return_value=ports,
+        ):
+            candidate = SoloMaintainerClosure().prepare()
+
+        self.assertEqual(candidate.status, "AWAITING_SOLO_MAINTAINER_CONFIRMATION")
         self.assertEqual(ports.storage.publications, [])
         self.assertEqual(
             SoloMaintainerClosureCandidateV1.from_json(
