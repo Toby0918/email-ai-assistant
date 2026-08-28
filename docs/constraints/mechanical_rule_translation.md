@@ -1109,8 +1109,9 @@ private-data container, or authorization to migrate.
    The #104 Adapter owning-module source hash and immediate reverification
    remain the only production-composition identity seam.
 4. Production `main()` accepts no terminal, clock, path, environment,
-   artifact, or synthetic unlock input. A future Issue #39 code allowlist and
-   separate authorization are required before any execution path exists.
+   artifact, or synthetic unlock input. Issue #39 does not amend these roots;
+   they remain dormant while the fixed orchestrator owns the only separately
+   authorized production execution path.
 
 ## Issue #104 production Adapter rules
 
@@ -1180,6 +1181,8 @@ private-data container, or authorization to migrate.
 
 ## Issue #39 orchestration mechanical rules
 
+The approved Issue #39 code allowlist permits only the fixed `backend.r2_issue39_orchestrator` composition root, `scripts/execute_project_container_cutover.py`, and its package-owned retained restart runner.
+
 1. Parse `scripts/execute_project_container_cutover.py` and the CLI to require
    exactly the `run` verb and reject path, force, cleanup, endpoint, provider,
    mailbox, vault, credential, callback, adapter, and environment unlock input.
@@ -1216,5 +1219,10 @@ private-data container, or authorization to migrate.
    `PROJECT_CONTAINER_CUTOVER_SUCCEEDED`. Require
    `LEGACY_FLAT_LAYOUT_RESTORED` only after the complete two-read legacy audit.
 10. Reject production imports from normal runtime, frontend, workflows,
-    provider, mailbox, vault, private-store, and cleanup surfaces. Test code may
-    import the package but must never execute the live fixed entry.
+     provider, mailbox, vault, private-store, and cleanup surfaces. Test code may
+     import the package but must never execute the live fixed entry.
+11. Recursively enumerate production Python imports and require the fixed script
+    to be the only external importer of the orchestrator. Require the retained
+    runner to contain only the exact fixed import-and-call bytes, and invoke all
+    historical standalone roots with poison inputs to prove unconditional
+    `DORMANT_NO_ISSUE39_APPROVAL` and zero operations.

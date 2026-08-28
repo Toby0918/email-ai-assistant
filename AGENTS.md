@@ -549,6 +549,8 @@ data capabilities remain unreachable. Implementation, tests, CI, merge, and
 closure evidence do not authorize a real Issue #39 execution; that requires a
 separate final operator authorization.
 
+The approved Issue #39 code allowlist permits only the fixed `backend.r2_issue39_orchestrator` composition root, `scripts/execute_project_container_cutover.py`, and its package-owned retained restart runner. The three historical standalone preflight, evidence, and transaction process roots remain unconditionally `DORMANT_NO_ISSUE39_APPROVAL`; no file, argument, environment value, acknowledgement, artifact, Adapter, callback, or synthetic marker can unlock them.
+
 ## 技术栈基线
 
 Python 后端负责邮件清洗、AI 调用、JSON 校验、SQLite 持久化和本地 API。AI 调用可以是显式启用的后端 OpenAI `gpt-5.6-sol` 单次多模态主路线、后端 DeepSeek 文本路线，或在用户单独确认后启用的后端本地 Ollama/Qwen/Gemma；所有 provider 默认必须保持关闭或规则兜底。OpenAI 和 DeepSeek 均复用固定版本的 OpenAI-compatible 客户端并使用代码固定的后端端点，不允许通过环境变量配置远程 base URL。必须保留现有版本约束：

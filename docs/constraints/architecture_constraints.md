@@ -1415,8 +1415,9 @@ exactly one publication command, and transaction retains exactly `execute`,
 `resume`, and `rollback`. Their contract and testing modules may prove the
 closed dormant result, V3 structural validation, replay/fingerprint rejection,
 and physical import isolation only. Windows fresh-console tests make no live
-execution claim. A future Issue #39 code allowlist plus separate authorization
-is required before an execution-confirmation primitive can become reachable.
+execution claim. Issue #39 leaves these standalone roots dormant and permits
+execution-confirmation reachability only inside its separately authorized fixed
+orchestrator graph.
 
 ## Issue #74 representative main-publication architecture
 
@@ -1796,10 +1797,14 @@ an Adapter attempt and becomes consumed by that attempt even on failure; replay
 fails closed.
 
 The primitive is not reachable from any production root in Issue #110. Future
-wiring requires separate Issue #38 approval followed by an Issue #39 exact code
-allowlist. Execution Confirmation can never satisfy or derive either approval.
+wiring required separate Issue #38 approval followed by an Issue #39 exact code
+allowlist. The latter now permits only the fixed Issue #39 orchestrator graph;
+Execution Confirmation can never satisfy or derive either approval or the
+still-separate real-host execution authorization.
 
 ## Issue #39 fixed production orchestration
+
+The approved Issue #39 code allowlist permits only the fixed `backend.r2_issue39_orchestrator` composition root, `scripts/execute_project_container_cutover.py`, and its package-owned retained restart runner.
 
 `backend.r2_issue39_orchestrator` is the sole production composition root for
 the canonical Project Container cutover. `scripts/execute_project_container_cutover.py`

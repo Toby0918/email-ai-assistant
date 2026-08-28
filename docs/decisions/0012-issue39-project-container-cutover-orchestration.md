@@ -10,9 +10,11 @@ source_type: decision_record
 
 ## Status
 
-Accepted for implementation and synthetic verification. This decision does not
-authorize the real incident-stage disposition, closure confirmation, protected
-verifier, or Project Container cutover. A later explicit execution
+Accepted for governed code enablement and synthetic verification. The exact
+production-consumer allowlist is limited to the fixed Issue 39 orchestrator,
+its sole script, and its package-owned retained restart runner. This decision
+does not authorize the real incident-stage disposition, closure confirmation,
+protected verifier, or Project Container cutover. A later explicit execution
 authorization is still required.
 
 ## Context
@@ -134,3 +136,5 @@ classification and operator-directed incident handling.
   service identities, forward publication, and complete reverse restoration.
 - Green tests, a merged PR, and this ADR are implementation evidence only and
   never authorize the real command.
+- The three historical standalone preflight, evidence, and transaction roots
+  remain unconditionally dormant and are not an alternate operator surface.

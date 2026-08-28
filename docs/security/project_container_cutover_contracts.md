@@ -113,8 +113,9 @@ deletion, and human-only final review are state-machine facts rather than a
 second handwritten command system. Verification binds the current final
 commit/tree, exact source-package and runbook hashes, package semantics, and
 same-binding retention proof. The document and receipt never authorize an
-operation; production remains `DORMANT_NO_ISSUE39_APPROVAL` until a future
-Issue #39 code allowlist and separate execution authority are approved.
+operation. The historical standalone roots remain
+`DORMANT_NO_ISSUE39_APPROVAL`; Issue #39 separately permits only its fixed
+orchestrator graph, and real-host execution authority remains a fresh decision.
 
 ## Issue #98 object-level retention ledger
 
@@ -281,9 +282,9 @@ Every valid fixed verb returns `DORMANT_NO_ISSUE39_APPROVAL` before TTY access,
 candidate construction, acknowledgement parsing, confirmation validation,
 Adapter lookup/reverification/invocation, journal append, callback, or host
 operation. No argument, environment value, file, artifact, acknowledgement,
-bootstrap mapping, or synthetic marker can unlock the state. A future Issue #39
-code allowlist and separate authorization are required before any execution
-path becomes reachable.
+bootstrap mapping, or synthetic marker can unlock the state. Issue #39 leaves
+these roots dormant and permits execution-confirmation reachability only in its
+fixed orchestrator graph; real-host execution remains separately authorized.
 
 ## Issue #110 closure publication boundary
 
@@ -970,8 +971,20 @@ The process packages import no provider, mailbox, vault, credential, private
 store/data, cleanup, deletion, overwrite, repair, or cross-root capability.
 Windows tests may prove fresh-console dormancy and pure TTY fact validation but
 make no authorization, publication, transaction, journal-mutation, or real-host
-claim. Future Issue #39 must separately approve both the code allowlist and the
-execution authority before these roots can consume an execution confirmation.
+claim. Issue #39 does not allow these roots to consume an execution
+confirmation; only the fixed orchestrator graph may do so, and its real-host
+execution authority remains a separate fresh decision.
+
+## Issue #39 governed code allowlist
+
+The approved Issue #39 code allowlist permits only the fixed `backend.r2_issue39_orchestrator` composition root, `scripts/execute_project_container_cutover.py`, and its package-owned retained restart runner.
+
+The fixed code path is reviewable and mergeable without becoming execution
+authority. The retained historical roots remain dormant, and the orchestrator
+must still pass exact closure/master/Issue 38/input/roster readiness plus fresh
+real-console, incident, action, recovery, and terminal confirmations before any
+corresponding effect. Tests, CI, merge, and closure evidence cannot substitute
+for the later explicit real-host authorization.
 
 ## Issue #74 create-only main and whole-tree DACL proof
 

@@ -368,6 +368,12 @@ cutover primitives only from the reviewed
 all normal-runtime, frontend, workflow, mailbox, provider, vault, private-store,
 cleanup, generic script, and synthetic-unlock consumers.
 
+The governed-enablement guard recursively requires the fixed script to be the
+only external production importer of the orchestrator, pins the package-owned
+retained runner to its exact import-and-call bytes, and proves all three
+historical standalone roots remain unconditionally
+`DORMANT_NO_ISSUE39_APPROVAL` for poison inputs.
+
 The Issue #39 dynamic-roster tests are additive. They must not edit or relax the
 historical exact eight-embedded plus three-external contract tests. The new
 tests require bounded complete discovery and reject duplicate roots, partial
