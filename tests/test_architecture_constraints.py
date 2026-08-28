@@ -2799,6 +2799,9 @@ class ArchitectureConstraintTests(unittest.TestCase):
         architecture = read_text(
             ROOT / "docs" / "constraints" / "architecture_constraints.md"
         )
+        tooling = read_text(
+            ROOT / "docs" / "constraints" / "tooling_constraints.md"
+        )
         security = read_text(
             ROOT / "docs" / "security" / "project_container_cutover_contracts.md"
         )
@@ -2842,6 +2845,7 @@ class ArchitectureConstraintTests(unittest.TestCase):
             "five hosted check records",
             "fourteen local evidence records",
             "eight ordered gap proofs",
+            "fixed twenty-two-entry",
             "GitHub Actions app `15368`",
             "exactly one active `master-solo-maintainer-closure-v1`",
             "`require_extra_approval_for_unattributed_changes` field may be absent",
@@ -2872,7 +2876,7 @@ class ArchitectureConstraintTests(unittest.TestCase):
             with self.subTest(marker=marker):
                 self.assertIn(marker, security)
         for marker in (
-            "last_update: 2026-08-20",
+            "last_update: 2026-08-28",
             "Issue #110 Solo Maintainer Closure / Execution Confirmation checklist",
             "`backend.r2_solo_maintainer_closure` contains exactly ten files",
             "parameterless `prepare()` and `confirm(...)`",
@@ -2883,6 +2887,7 @@ class ArchitectureConstraintTests(unittest.TestCase):
             "`pull_request.parameters.required_reviewers`",
             "`pull_request.parameters.require_extra_approval_for_unattributed_changes`",
             "fourteen gates and eight ordered gap proofs",
+            "exactly twenty-two reviewed low-risk",
             "real Windows console handles",
             "wall-clock plus monotonic-clock",
             "half-open 300-second",
@@ -2900,6 +2905,7 @@ class ArchitectureConstraintTests(unittest.TestCase):
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, task_template)
+        self.assertIn("exactly\ntwenty-two reviewed low-risk", tooling)
         for marker in (
             "R2 GitHub guardrail response compatibility task brief",
             "docs/templates/agent_task_brief_template.md",
