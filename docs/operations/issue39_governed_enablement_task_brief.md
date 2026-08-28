@@ -217,5 +217,8 @@ Issue 39 command is run.
   focused/static/status/transport regression passed 86 tests. The post-review
   complete Issue 39 discovery passed 93 tests with one expected skip; the
   architecture/mechanical/static/status/transport set passed 141 tests.
+- The second complete Standards/Spec review reported zero findings on both
+  axes and confirmed that every first-review finding was resolved. It also
+  confirmed the amended A/M/D allowlist and the no-real-host-effect boundary.
 - No real cutover command, closure confirm, protected verifier, service
   operation, ACL change, database swap, or other real-host mutation was run.
