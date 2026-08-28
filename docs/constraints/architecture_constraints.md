@@ -115,7 +115,9 @@ The three runner jobs are independent. All installs use `--require-hashes`;
 receipts bind 31 exact installed distributions, platform wheel hashes, and nine
 direct import-byte observations. The portable job discovers the full `tests/`
 suite and removes only exact registered Windows-native skips; every remaining
-skip fails. Windows native and Windows process-isolation claims run only on fixed
+skip fails. The Windows path/open-handle metadata proof uses the exact registered
+reason `Windows path/handle metadata proof`; an unregistered spelling fails
+portable provenance. Windows native and Windows process-isolation claims run only on fixed
 Windows runner images. Their receipts are evidence, never authority, and no package in
 this module is consumed by normal runtime or the #39 cutover surface.
 

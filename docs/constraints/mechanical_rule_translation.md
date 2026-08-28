@@ -107,7 +107,8 @@ source_type: operation_guide
    missing-file skip or `continue-on-error` bypass. Require two 31-distribution
    platform locks and `--require-hashes` for all three installs.
 4. Run full portable discovery after removing only exact registered native
-   skips, plus the Windows-native and independent-Windows suites, with zero
+   skips, including exact `Windows path/handle metadata proof` for the verifier
+   regression, plus the Windows-native and independent-Windows suites, with zero
    failed tests and zero unclassified skips; run repository leakage and
    reject any finding before a receipt can be created.
 5. Bind every receipt to the exact final commit/tree, selected-entry and byte

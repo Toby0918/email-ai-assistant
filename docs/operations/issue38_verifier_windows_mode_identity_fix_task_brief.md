@@ -55,6 +55,8 @@ index 和 size 稳定，但 `os.lstat()` 报告 mode `0o100777`，同一打开�
 
 - `scripts/verify_r2_final_master_closure.py`
 - `tests/test_close_r2_final_master.py`
+- `backend/r2_ci_provenance_v2/suites.py`
+- `tests/test_r2_ci_provenance_v2.py`
 - `docs/constraints/architecture_constraints.md`
 - `docs/constraints/tooling_constraints.md`
 - `docs/constraints/mechanical_rule_translation.md`
@@ -73,6 +75,8 @@ index 和 size 稳定，但 `os.lstat()` 报告 mode `0o100777`，同一打开�
 3. 保留现有普通文件类型检查、safe component metadata、前后 identity、完整 bytes
    和非 Windows executable-bit 检查。
 4. 通过定向测试、完整测试和机械/架构/静态/维护/泄漏护栏验证。
+5. 将 Windows-only 回归测试的 exact skip reason 加入 portable provenance 封闭注册表；
+   其他未登记 skip 继续 fail closed。
 
 ## 9. 数据结构或接口变化
 
@@ -165,6 +169,11 @@ index 和 size 稳定，但 `os.lstat()` 报告 mode `0o100777`，同一打开�
   发布还必须由五项独立 CI 全部成功门禁。
 - Matt 双轴 code review：Standards 0 findings；Spec 初审唯一 P2 为缺少单轮完整
   全绿证据，已由上述第三轮结果关闭。
+- PR #120 首轮 `portable-provenance` 因新增 Windows-only test 的 skip reason 未登记而
+  fail closed；registry 契约红测复现后，仅加入 exact
+  `Windows path/handle metadata proof` 条目并保留其他 unclassified skip 拒绝。
+- registry 聚焦测试 1 项、provenance+closure 30 项及 architecture/mechanical/static
+  89 项通过；更新后的 PR CI 仍须重新完整验证。
 
 待完成：
 

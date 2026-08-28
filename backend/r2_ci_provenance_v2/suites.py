@@ -67,6 +67,7 @@ _PORTABLE_NATIVE_SKIP_REASONS = (
     "physical Windows claim",
     "Windows NTFS sandbox required",
     "Windows real TTY proof",
+    "Windows path/handle metadata proof",
     "Windows process proof",
     "Windows NTFS/TTY/process proof",
     "Windows junction contract",
