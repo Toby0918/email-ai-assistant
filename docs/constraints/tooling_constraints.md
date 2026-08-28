@@ -1193,9 +1193,10 @@ ACL, evidence store, provider, mailbox, vault, private store, or private data.
 
 Pure focused tests may validate strict V3/confirmation schemas, TTY fact
 binding, half-open 300-second validity, durable replay rejection, and #104
-Adapter identity/order contracts with synthetic values. A future Issue #39
-code allowlist and separate authorization are required before any production
-execution-confirmation consumer or real Adapter invocation is allowed.
+Adapter identity/order contracts with synthetic values. The approved Issue #39
+code allowlist does not unlock these standalone roots; execution confirmation
+and host effects are reachable only through the fixed Issue #39 orchestrator
+and still require a separate fresh real-host execution authorization.
 
 ## Issue #74 representative main-publication tooling boundary
 
@@ -1450,6 +1451,8 @@ permission-bit differences. Ordinary-file type, reparse/link rejection, exact
 bytes, and Git tree mode remain mandatory; other platforms retain full mode.
 
 ## Issue #39 production tooling boundary
+
+The approved Issue #39 code allowlist permits only the fixed `backend.r2_issue39_orchestrator` composition root, `scripts/execute_project_container_cutover.py`, and its package-owned retained restart runner.
 
 The only live cutover entry is
 `python -I -B scripts\execute_project_container_cutover.py run` from a visible,

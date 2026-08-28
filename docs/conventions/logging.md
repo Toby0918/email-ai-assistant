@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-07
+last_update: 2026-08-28
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -270,3 +270,17 @@ values, or retained staging details. The protected verifier likewise emits
 only its fixed eligibility/failure result. Expected validation failure remains
 content-free and must not use `logger.exception`, `exc_info=True`, or raw
 exception output.
+
+## 13. Issue #39 governed entry is silent
+
+The approved Issue #39 code allowlist permits only the fixed `backend.r2_issue39_orchestrator` composition root, `scripts/execute_project_container_cutover.py`, and its package-owned retained restart runner.
+
+Direct or indirect production imports of the package or fixed
+script outside that allowlist are rejected. The complete fixed script source
+and actual retained `__main__.py` payload remain mechanically pinned.
+
+This code enablement adds no diagnostic surface and does not authorize a real
+host run. A separately authorized run may emit only the orchestrator's existing
+fixed content-free status/failure tokens; it must not log exceptions, paths,
+host state, closure material, execution claims, journal/evidence contents,
+provider or private-data detail.

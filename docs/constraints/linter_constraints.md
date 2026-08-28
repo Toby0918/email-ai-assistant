@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-20
+last_update: 2026-08-28
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -1197,9 +1197,9 @@ scripts, cleanup, scheduler, and workflows must not consume it.
 
 The historical operator-envelope surface is removed. Static guards reject V1
 or V2 envelope, key, signature, issuer, compatibility, and fallback code. The
-V3 binding and execution-confirmation values are capability-free; a future
-Issue #39 allowlist is required before any production consumer may make them
-reachable.
+V3 binding and execution-confirmation values are capability-free. Issue #39
+permits them only inside its fixed orchestrator graph; the three standalone
+process roots remain dormant and cannot consume them.
 
 Focused tests pin unconditional `DORMANT_NO_ISSUE39_APPROVAL` before TTY,
 candidate, confirmation, Adapter, or callback access, fixed public fields, and
@@ -1432,10 +1432,11 @@ docs/constraints/architecture_constraints.md
   artifact, acknowledgement, bootstrap mapping, or synthetic marker can unlock
   this state.
 - `ApprovedCutoverBindingV3` and the execution-confirmation contracts remain
-  dormant primitives outside the production process graph. A future Issue #39
-  code allowlist and separate authorization are required before any live path
-  may validate a confirmation and invoke exactly one Adapter. `main()` accepts
-  no terminal or clock injection.
+  dormant primitives outside the production process graph. The Issue #39 code
+  allowlist permits only the fixed orchestrator graph to validate a fresh
+  confirmation and invoke its exact catalog-owned action. The historical
+  standalone roots remain dormant. `main()` accepts no terminal or clock
+  injection.
 - Production role fingerprints must bind normalized top-level function code,
   defaults, keyword defaults, function state, recursively referenced globals and
   builtins, and exact command-parameter type surfaces. Closed semantic frames
@@ -1512,11 +1513,16 @@ docs/constraints/architecture_constraints.md
 
 ## Issue #39 fixed orchestrator static boundary
 
+The approved Issue #39 code allowlist permits only the fixed `backend.r2_issue39_orchestrator` composition root, `scripts/execute_project_container_cutover.py`, and its package-owned retained restart runner.
+
 - The only executable production consumer of the reviewed cutover primitives is
   `backend.r2_issue39_orchestrator`, reached only through
-  `scripts/execute_project_container_cutover.py`. Reject imports from normal
-  runtime, frontend, workflows, mailbox, provider, vault, private-store,
-  cleanup, and every other script.
+  `scripts/execute_project_container_cutover.py`. Reject direct and indirect
+  imports of the package or fixed script from normal runtime, frontend,
+  workflows, mailbox, provider, vault, private-store, cleanup, and every other
+  script. Pin the complete fixed script source and the actual retained
+  `__main__.py` archive argument; an unused matching import or bytes constant is
+  not sufficient.
 - The script and CLI accept exactly `run`. Reject argparse/path/root/source/
   target/force/cleanup/adapter/callback/environment/endpoint/provider/mailbox/
   vault/credential/private-data surfaces and reject imports of those

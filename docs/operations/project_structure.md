@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-20
+last_update: 2026-08-28
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -766,6 +766,10 @@ backend runtime or frontend consumes the closure or confirmation modules.
 
 ## Issue #39 one-command Project Container cutover
 
+- The governed code allowlist permits only the fixed orchestrator package, its
+  sole script, and the package-owned retained restart runner. The historical
+  standalone preflight/evidence/transaction roots remain
+  `DORMANT_NO_ISSUE39_APPROVAL` and are not a second production entry.
 - `backend/r2_issue39_orchestrator/`: the sole fixed production composition
   root for Issue #39. Its closed values, zero-mutation readiness, real-console
   gate, exact incident adapter, dynamic linked-worktree roster, fixed catalog,
@@ -789,3 +793,6 @@ backend runtime or frontend consumes the closure or confirmation modules.
   tests and Windows-only test-owned synthetic incident, native, complete
   forward, and complete real-handler reverse flows. They never invoke the real
   fixed CLI or touch the canonical host layout.
+- `tests/test_r2_issue39_governed_enablement.py`: recursively pins the exact
+  external production importer, retained runner bytes, and continued dormancy
+  of all three historical standalone roots.

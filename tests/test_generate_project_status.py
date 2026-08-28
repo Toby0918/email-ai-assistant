@@ -859,6 +859,22 @@ class GenerateProjectStatusTests(unittest.TestCase):
         self.assertNotIn("Current live no-ruleset state", report)
         self.assertNotIn("the future ruleset", report)
 
+    def test_issue39_governed_enablement_boundary_is_reported(self) -> None:
+        module = load_script_module(SCRIPT, "generate_project_status_issue39")
+        report = module.build_project_status()
+
+        for marker in (
+            "Issue #39 one-command Project Container orchestration",
+            "governed code allowlist permits only",
+            "package-owned retained restart runner",
+            "historical standalone preflight/evidence/transaction roots remain",
+            "`DORMANT_NO_ISSUE39_APPROVAL`",
+            "Code enablement, tests, CI, and merge are implementation evidence only",
+            "real execution still requires a separate final authorization",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, report)
+
     def test_main_writes_requested_output(self) -> None:
         module = load_script_module(SCRIPT, "generate_project_status")
 
