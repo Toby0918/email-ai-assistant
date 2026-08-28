@@ -87,6 +87,11 @@ and verified import origins before repository import. It accepts only the two
 new canonical files, rereads current GitHub state, rejects all legacy V1
 external/signature artifacts without fallback and can return only
 `ELIGIBLE_FOR_ISSUE38_FINAL_REVIEW` with approval/execution/#39 counts at zero.
+On Windows, path/open-handle identity compares device, file index, size, and
+only `stat.S_IFMT(st_mode)` because CPython may synthesize different permission
+bits for the same ordinary file. Object type, reparse/link rejection, full raw
+bytes, and Git tree mode remain fail closed; non-Windows identity retains the
+complete `st_mode`.
 Eligibility is evidence, never Issue #38 approval or Issue #39 authority.
 
 ## Issue #100 Git-object CI provenance architecture

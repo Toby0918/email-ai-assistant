@@ -1444,6 +1444,10 @@ read-only public GitHub access solely to verify one frozen repository and the
 two new closure files. It never accepts a repository/path/artifact argument,
 legacy signature file, credential, provider, mailbox, vault, private data,
 host Adapter, ruleset mutation, Issue #38 approval, or Issue #39 command.
+Its Windows path/open-handle identity projection retains device, file index,
+size, and `stat.S_IFMT(st_mode)` while ignoring only CPython-synthesized
+permission-bit differences. Ordinary-file type, reparse/link rejection, exact
+bytes, and Git tree mode remain mandatory; other platforms retain full mode.
 
 ## Issue #39 production tooling boundary
 

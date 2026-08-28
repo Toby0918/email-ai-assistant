@@ -7,7 +7,8 @@ import io
 import inspect
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+import stat
 import subprocess
 import tempfile
 from types import SimpleNamespace
@@ -615,6 +616,27 @@ class CloseR2FinalMasterTests(unittest.TestCase):
                                       candidate_fingerprint="b" * 64)
             with self.subTest(name=name), self.assertRaises(ValueError):
                 verifier._require_receipt_links(manifest, forged, candidate)
+
+    @unittest.skipUnless(os.name == "nt", "Windows path/handle metadata proof")
+    def test_verifier_accepts_stable_windows_path_handle_mode_projection(self) -> None:
+        relative = PurePosixPath("restart_local_service.cmd")
+        path = verifier.ROOT.joinpath(*relative.parts)
+        expected = path.read_bytes()
+        _path, identities = verifier._require_safe_tracked_path(
+            verifier.ROOT, relative
+        )
+        path_mode = os.lstat(path).st_mode
+        with path.open("rb") as stream:
+            handle_mode = os.fstat(stream.fileno()).st_mode
+
+        self.assertNotEqual(path_mode, handle_mode)
+        self.assertEqual(stat.S_IFMT(path_mode), stat.S_IFMT(handle_mode))
+        self.assertEqual(
+            verifier._read_exact_tracked_file(
+                verifier.ROOT, relative, expected, identities
+            ),
+            expected,
+        )
 
     def test_verifier_rejects_case_insensitive_incident_siblings(self) -> None:
         conflicts = (
