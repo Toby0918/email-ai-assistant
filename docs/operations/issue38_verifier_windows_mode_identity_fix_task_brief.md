@@ -160,10 +160,13 @@ index 和 size 稳定，但 `os.lstat()` 报告 mode `0o100777`，同一打开�
   连续 6 次通过。
 - 第二轮全量运行 `Ran 2850 tests`，唯一错误为运行约 66 分钟后 maintenance scan
   子进程超过固定 10 秒；该用例随后 2.784 秒通过，直接 scan 2.822 秒通过。
-- 因两轮全套未在同一次进程中全绿，本地完整套件状态如实保留为有环境时序缺陷；
-  发布仍必须由五项独立 CI 全部成功门禁。
+- 第三轮全量运行 `Ran 2850 tests in 4003.609s`，结果
+  `OK (skipped=4)`；完整测试验收已满足。前两轮不同的资源时序结果仍保留在本记录，
+  发布还必须由五项独立 CI 全部成功门禁。
+- Matt 双轴 code review：Standards 0 findings；Spec 初审唯一 P2 为缺少单轮完整
+  全绿证据，已由上述第三轮结果关闭。
 
 待完成：
 
-- 双轴 code review、PR 和五项 CI。
+- Spec 复核、PR 和五项 CI。
 - 合并后在新 exact-master LF 工作树运行真实无参数 protected verifier。
