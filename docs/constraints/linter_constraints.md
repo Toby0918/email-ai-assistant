@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-20
+last_update: 2026-08-28
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -1517,9 +1517,12 @@ The approved Issue #39 code allowlist permits only the fixed `backend.r2_issue39
 
 - The only executable production consumer of the reviewed cutover primitives is
   `backend.r2_issue39_orchestrator`, reached only through
-  `scripts/execute_project_container_cutover.py`. Reject imports from normal
-  runtime, frontend, workflows, mailbox, provider, vault, private-store,
-  cleanup, and every other script.
+  `scripts/execute_project_container_cutover.py`. Reject direct and indirect
+  imports of the package or fixed script from normal runtime, frontend,
+  workflows, mailbox, provider, vault, private-store, cleanup, and every other
+  script. Pin the complete fixed script source and the actual retained
+  `__main__.py` archive argument; an unused matching import or bytes constant is
+  not sufficient.
 - The script and CLI accept exactly `run`. Reject argparse/path/root/source/
   target/force/cleanup/adapter/callback/environment/endpoint/provider/mailbox/
   vault/credential/private-data surfaces and reject imports of those

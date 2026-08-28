@@ -1222,7 +1222,9 @@ The approved Issue #39 code allowlist permits only the fixed `backend.r2_issue39
      provider, mailbox, vault, private-store, and cleanup surfaces. Test code may
      import the package but must never execute the live fixed entry.
 11. Recursively enumerate production Python imports and require the fixed script
-    to be the only external importer of the orchestrator. Require the retained
-    runner to contain only the exact fixed import-and-call bytes, and invoke all
-    historical standalone roots with poison inputs to prove unconditional
+    to be the only external importer of the orchestrator. Reject direct or
+    indirect imports of that fixed script, pin its complete source, and bind the
+    actual retained `__main__.py` archive argument to the exact fixed
+    import-and-call bytes; an unused matching constant is not sufficient. Invoke
+    all historical standalone roots with poison inputs to prove unconditional
     `DORMANT_NO_ISSUE39_APPROVAL` and zero operations.

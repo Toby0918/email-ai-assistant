@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-20
+last_update: 2026-08-28
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -369,9 +369,10 @@ all normal-runtime, frontend, workflow, mailbox, provider, vault, private-store,
 cleanup, generic script, and synthetic-unlock consumers.
 
 The governed-enablement guard recursively requires the fixed script to be the
-only external production importer of the orchestrator, pins the package-owned
-retained runner to its exact import-and-call bytes, and proves all three
-historical standalone roots remain unconditionally
+only external production importer of the orchestrator, rejects direct or
+indirect production imports of that fixed script, pins the complete fixed
+script source and the actual package-owned `__main__.py` payload to their exact
+import-and-call bytes, and proves all three historical standalone roots remain unconditionally
 `DORMANT_NO_ISSUE39_APPROVAL` for poison inputs.
 
 The Issue #39 dynamic-roster tests are additive. They must not edit or relax the

@@ -80,6 +80,7 @@ docs/constraints/ci_guardrails.md
 docs/constraints/linter_constraints.md
 docs/constraints/mechanical_rule_translation.md
 docs/constraints/tooling_constraints.md
+docs/conventions/logging.md
 docs/decisions/0012-issue39-project-container-cutover-orchestration.md
 docs/operations/project_status_log.md
 docs/operations/project_structure.md
@@ -87,6 +88,7 @@ docs/security/project_container_cutover_contracts.md
 scripts/generate_project_status.py
 tests/test_generate_project_status.py
 tests/test_mailbox_transport_constraints.py
+tests/test_static_linter_constraints.py
 ```
 
 ### Delete
@@ -104,13 +106,22 @@ SHA-256 of the approved status generator. The user's standing authorization to
 auto-approve necessary in-scope follow-on decisions covers this mechanical hash
 update; it adds no capability and changes no transport rule.
 
+Allowlist amendment 02 adds only `docs/conventions/logging.md` and
+`tests/test_static_linter_constraints.py`. The Standards review identified the
+repository's mandatory linter-rule synchronization rule; the user's standing
+authorization to auto-approve necessary in-scope follow-on decisions covers
+these documentation/test-only paths. They add no production capability.
+
 ## 8. Technical design
 
 1. Add one static/behavioral guard at the production-consumer seam.
-2. Recursively inspect production Python imports and require that only the fixed
-   script imports `backend.r2_issue39_orchestrator` from outside the package.
-3. Require the retained runner source to be the exact fixed import-and-call
-   bytes owned by `production_anchor_package.py`.
+2. Recursively inspect production Python imports, including relative and
+   from-package spellings; require that only the fixed script imports
+   `backend.r2_issue39_orchestrator` from outside the package and that no
+   production module imports the fixed script.
+3. Pin the fixed script's complete source and bind the actual retained
+   `__main__.py` archive argument to the exact import-and-call bytes owned by
+   `production_anchor_package.py`.
 4. Invoke all ten historical standalone verbs with poison objects and require
    zero reads, zero publication/mutation, and
    `DORMANT_NO_ISSUE39_APPROVAL`.
@@ -147,7 +158,8 @@ update; it adds no capability and changes no transport rule.
    real-host execution still requires a separate fresh authorization.
 5. Focused, affected, architecture, mechanical, documentation, full-suite,
    maintenance, and leakage checks pass.
-6. Standards and Spec review report no unresolved findings before commit.
+6. Standards and Spec review report no unresolved findings before PR and merge;
+   review fixes must be committed and re-reviewed first.
 7. PR checks pass before merge; merge does not execute the real command.
 
 ## 12. Test plan
@@ -177,8 +189,7 @@ Issue 39 command is run.
 
 - [x] Read the exact-master `AGENTS.md`, current Project Status Log, and
   applicable constraints.
-- [x] Read `ask-matt`, `codebase-design`, and `tdd`; `code-review` is reserved
-  for the pre-commit review phase.
+- [x] Read and applied `ask-matt`, `codebase-design`, `tdd`, and `code-review`.
 - [x] Confirmed the frozen base commit/tree and clean isolated worktree.
 - [x] Confirmed Issue 38 is closed and Issue 39 is open.
 - [x] Confirmed the task changes no real host state.
@@ -198,5 +209,13 @@ Issue 39 command is run.
   four expected skips.
 - Maintenance scanning returned success with only pre-existing low-severity
   stale-document findings; repository leakage scanning returned `total=0`.
+- The first Standards/Spec review exposed import-spelling and indirect-entry
+  false negatives, an unbound retained-runner constant, mandatory linter-doc
+  synchronization, stale document dates, and a review-gate wording mismatch.
+  The guard was strengthened test-first, amendment 02 synchronized the required
+  logging/static-linter paths, document dates were refreshed, and the affected
+  focused/static/status/transport regression passed 86 tests. The post-review
+  complete Issue 39 discovery passed 93 tests with one expected skip; the
+  architecture/mechanical/static/status/transport set passed 141 tests.
 - No real cutover command, closure confirm, protected verifier, service
   operation, ACL change, database swap, or other real-host mutation was run.

@@ -21,6 +21,30 @@ from backend.r2_transaction_process.production_v2 import (
 ROOT = Path(__file__).resolve().parents[1]
 ORCHESTRATOR = ROOT / "backend" / "r2_issue39_orchestrator"
 ENTRY = ROOT / "scripts" / "execute_project_container_cutover.py"
+ORCHESTRATOR_MODULE = "backend.r2_issue39_orchestrator"
+ENTRY_MODULE = "scripts.execute_project_container_cutover"
+EXPECTED_ENTRY_SOURCE = (
+    '"""Fixed one-command Issue #39 Project Container cutover entry."""\n'
+    "\n"
+    "from __future__ import annotations\n"
+    "\n"
+    "from pathlib import Path\n"
+    "import sys\n"
+    "\n"
+    "\n"
+    "ROOT = Path(__file__).resolve().parents[1]\n"
+    "if str(ROOT) not in sys.path:\n"
+    "    sys.path.insert(0, str(ROOT))\n"
+    "\n"
+    "from backend.r2_issue39_orchestrator.cli import main  # noqa: E402\n"
+    "\n"
+    "\n"
+    'if __name__ == "__main__":\n'
+    "    main()\n"
+)
+EXPECTED_RUNNER_BYTES = (
+    b"from backend.r2_issue39_orchestrator.cli import main\nmain()\n"
+)
 ALLOWLIST_STATEMENT = (
     "The approved Issue #39 code allowlist permits only the fixed "
     "`backend.r2_issue39_orchestrator` composition root, "
@@ -43,50 +67,75 @@ class _Poison:
 
 
 class Issue39GovernedEnablementTest(unittest.TestCase):
+    def test_governed_import_detection_covers_valid_python_spellings(self) -> None:
+        cases = (
+            (
+                "from backend import r2_issue39_orchestrator",
+                ROOT / "backend" / "consumer.py",
+            ),
+            (
+                "from .r2_issue39_orchestrator import cli",
+                ROOT / "backend" / "consumer.py",
+            ),
+            (
+                "from scripts import execute_project_container_cutover",
+                ROOT / "backend" / "consumer.py",
+            ),
+        )
+        for source, path in cases:
+            with self.subTest(source=source):
+                self.assertTrue(
+                    _imports_governed_surface(ast.parse(source), path)
+                )
+
     def test_only_fixed_script_imports_orchestrator_from_production(self) -> None:
-        importers = set()
+        orchestrator_importers = set()
+        entry_importers = set()
         candidates = tuple((ROOT / "backend").rglob("*.py")) + tuple(
             (ROOT / "scripts").rglob("*.py")
         )
         for path in candidates:
-            if path.is_relative_to(ORCHESTRATOR):
-                continue
             tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-            if _imports_orchestrator(tree):
-                importers.add(path.relative_to(ROOT).as_posix())
+            modules = _imported_modules(tree, path)
+            relative = path.relative_to(ROOT).as_posix()
+            if not path.is_relative_to(ORCHESTRATOR) and any(
+                _is_module_or_child(module, ORCHESTRATOR_MODULE)
+                for module in modules
+            ):
+                orchestrator_importers.add(relative)
+            if any(
+                _is_module_or_child(module, ENTRY_MODULE) for module in modules
+            ):
+                entry_importers.add(relative)
 
         self.assertEqual(
-            importers,
+            orchestrator_importers,
             {"scripts/execute_project_container_cutover.py"},
         )
+        self.assertEqual(entry_importers, set())
 
     def test_fixed_script_and_retained_runner_have_one_exact_entry(self) -> None:
-        script = ast.parse(ENTRY.read_text(encoding="utf-8"), filename=str(ENTRY))
-        imports = {
-            (node.module, tuple(alias.name for alias in node.names))
-            for node in ast.walk(script)
-            if isinstance(node, ast.ImportFrom)
-        }
-        self.assertIn(
-            ("backend.r2_issue39_orchestrator.cli", ("main",)),
-            imports,
-        )
+        self.assertEqual(ENTRY.read_text(encoding="utf-8"), EXPECTED_ENTRY_SOURCE)
 
         anchor = ast.parse(
             (ORCHESTRATOR / "production_anchor_package.py").read_text(
                 encoding="utf-8"
             )
         )
-        runner_values = {
-            node.value
+        main_entries = [
+            node
             for node in ast.walk(anchor)
-            if isinstance(node, ast.Constant) and isinstance(node.value, bytes)
-            and b"r2_issue39_orchestrator.cli" in node.value
-        }
-        self.assertEqual(
-            runner_values,
-            {b"from backend.r2_issue39_orchestrator.cli import main\nmain()\n"},
-        )
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Name)
+            and node.func.id == "_zip_entry"
+            and len(node.args) == 3
+            and isinstance(node.args[1], ast.Constant)
+            and node.args[1].value == "__main__.py"
+        ]
+        self.assertEqual(len(main_entries), 1)
+        payload = main_entries[0].args[2]
+        self.assertIsInstance(payload, ast.Constant)
+        self.assertEqual(payload.value, EXPECTED_RUNNER_BYTES)
 
     def test_historical_standalone_roots_remain_unconditionally_dormant(self) -> None:
         poison = _Poison()
@@ -148,19 +197,42 @@ class Issue39GovernedEnablementTest(unittest.TestCase):
                 )
 
 
-def _imports_orchestrator(tree: ast.AST) -> bool:
+def _imports_governed_surface(tree: ast.AST, path: Path) -> bool:
+    modules = _imported_modules(tree, path)
+    return any(
+        _is_module_or_child(module, governed)
+        for module in modules
+        for governed in (ORCHESTRATOR_MODULE, ENTRY_MODULE)
+    )
+
+
+def _imported_modules(tree: ast.AST, path: Path) -> set[str]:
+    modules = set()
+    relative_parts = path.relative_to(ROOT).with_suffix("").parts
+    package_parts = relative_parts[:-1]
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
-            if any(
-                alias.name.startswith("backend.r2_issue39_orchestrator")
-                for alias in node.names
-            ):
-                return True
-        if isinstance(node, ast.ImportFrom) and (node.module or "").startswith(
-            "backend.r2_issue39_orchestrator"
-        ):
-            return True
-    return False
+            modules.update(alias.name for alias in node.names)
+        if isinstance(node, ast.ImportFrom):
+            if node.level:
+                parent_count = node.level - 1
+                if parent_count > len(package_parts):
+                    continue
+                base_parts = package_parts[: len(package_parts) - parent_count]
+            else:
+                base_parts = ()
+            module_parts = tuple(filter(None, (node.module or "").split(".")))
+            imported_from = ".".join((*base_parts, *module_parts))
+            if imported_from:
+                modules.add(imported_from)
+            for alias in node.names:
+                if alias.name != "*":
+                    modules.add(".".join(filter(None, (imported_from, alias.name))))
+    return modules
+
+
+def _is_module_or_child(module: str, expected: str) -> bool:
+    return module == expected or module.startswith(expected + ".")
 
 
 if __name__ == "__main__":

@@ -1094,6 +1094,21 @@ class StaticLinterConstraintTests(unittest.TestCase):
                 self.assertNotIn(forbidden, source)
         self.assertNotIn("github_guardrail", package_init)
 
+    def test_issue39_governed_enablement_docs_are_synchronized(self) -> None:
+        statement = (
+            "The approved Issue #39 code allowlist permits only the fixed "
+            "`backend.r2_issue39_orchestrator` composition root, "
+            "`scripts/execute_project_container_cutover.py`, and its "
+            "package-owned retained restart runner."
+        )
+        for path in (
+            ROOT / "docs" / "constraints" / "architecture_constraints.md",
+            ROOT / "docs" / "constraints" / "linter_constraints.md",
+            ROOT / "docs" / "conventions" / "logging.md",
+        ):
+            with self.subTest(path=path.relative_to(ROOT).as_posix()):
+                self.assertIn(statement, read_text(path))
+
     def test_docs_markdown_front_matter_status_uses_allowed_values(self) -> None:
         docs = ROOT / "docs"
         if not docs.exists():
