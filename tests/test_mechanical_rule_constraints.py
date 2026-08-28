@@ -197,6 +197,9 @@ class MechanicalRuleConstraintTests(unittest.TestCase):
             ROOT / "docs" / "constraints" / "mechanical_rule_translation.md"
         )
         ci = read_text(ROOT / "docs" / "constraints" / "ci_guardrails.md")
+        verifier = read_text(
+            ROOT / "scripts" / "verify_r2_final_master_closure.py"
+        )
         for marker in (
             "Issue #110 publication and validation rules",
             "exactly ten\n   modules",
@@ -228,6 +231,10 @@ class MechanicalRuleConstraintTests(unittest.TestCase):
             "Git-common DACL mutation, kernel filter, or volume lock",
             "only-new-file inventory",
             "recursive legacy-surface rejection",
+            "normalize only the path/open-handle mode",
+            "`stat.S_IFMT(st_mode)`",
+            "retain full `st_mode` identity on non-Windows",
+            "synthesized permission",
             "Do not execute the live verifier",
             "full discovery, maintenance scan",
             "callable leakage scan",
@@ -237,6 +244,12 @@ class MechanicalRuleConstraintTests(unittest.TestCase):
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, mechanical)
+        self.assertIn(
+            'stat.S_IFMT(value.st_mode) if os.name == "nt" else value.st_mode',
+            verifier,
+        )
+        self.assertIn("not stat.S_ISREG(opened.st_mode)", verifier)
+        self.assertIn("observed != expected", verifier)
         for marker in (
             "authenticated fixed GET-only guardrail observation",
             "Python never reads or emits the token",

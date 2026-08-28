@@ -81,7 +81,7 @@ class R2CiProvenanceV2Tests(unittest.TestCase):
                         dependency_locks=_dependency_locks(),
                     )
 
-    def test_portable_registry_excludes_the_windows_composition_evidence_test(self):
+    def test_portable_native_skip_reason_registry_is_exact(self):
         self.assertEqual(
             portable_native_skip_reason_registry_v2(),
             (
@@ -92,6 +92,7 @@ class R2CiProvenanceV2Tests(unittest.TestCase):
                 "physical Windows claim",
                 "Windows NTFS sandbox required",
                 "Windows real TTY proof",
+                "Windows path/handle metadata proof",
                 "Windows process proof",
                 "Windows NTFS/TTY/process proof",
                 "Windows junction contract",

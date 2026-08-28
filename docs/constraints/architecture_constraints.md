@@ -87,6 +87,11 @@ and verified import origins before repository import. It accepts only the two
 new canonical files, rereads current GitHub state, rejects all legacy V1
 external/signature artifacts without fallback and can return only
 `ELIGIBLE_FOR_ISSUE38_FINAL_REVIEW` with approval/execution/#39 counts at zero.
+On Windows, path/open-handle identity compares device, file index, size, and
+only `stat.S_IFMT(st_mode)` because CPython may synthesize different permission
+bits for the same ordinary file. Object type, reparse/link rejection, full raw
+bytes, and Git tree mode remain fail closed; non-Windows identity retains the
+complete `st_mode`.
 Eligibility is evidence, never Issue #38 approval or Issue #39 authority.
 
 ## Issue #100 Git-object CI provenance architecture
@@ -110,7 +115,9 @@ The three runner jobs are independent. All installs use `--require-hashes`;
 receipts bind 31 exact installed distributions, platform wheel hashes, and nine
 direct import-byte observations. The portable job discovers the full `tests/`
 suite and removes only exact registered Windows-native skips; every remaining
-skip fails. Windows native and Windows process-isolation claims run only on fixed
+skip fails. The Windows path/open-handle metadata proof uses the exact registered
+reason `Windows path/handle metadata proof`; an unregistered spelling fails
+portable provenance. Windows native and Windows process-isolation claims run only on fixed
 Windows runner images. Their receipts are evidence, never authority, and no package in
 this module is consumed by normal runtime or the #39 cutover surface.
 

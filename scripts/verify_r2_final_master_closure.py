@@ -494,7 +494,8 @@ def _safe_component_metadata(path, expected_type):
 
 
 def _file_identity(value):
-    return value.st_dev, value.st_ino, value.st_mode, value.st_size
+    mode = stat.S_IFMT(value.st_mode) if os.name == "nt" else value.st_mode
+    return value.st_dev, value.st_ino, mode, value.st_size
 
 
 def _windows_tree_alias(relative):

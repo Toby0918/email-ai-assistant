@@ -215,6 +215,10 @@ It re-materializes and validates the current frozen Git tree before importing
 repository code, requires a clean exact master, rereads public hosted checks
 and the current GitHub guardrail snapshot, accepts only the two new canonical
 files, and rejects all legacy V1 external/signature artifacts without fallback.
+On Windows it compares path/open-handle identity using device, file index, size,
+and file type while ignoring only CPython-synthesized permission-bit differences;
+reparse/link paths, non-regular objects, byte drift and Git tree-mode drift still
+fail closed. Non-Windows identity continues to compare the complete mode.
 The sole success status is:
 
 ```text

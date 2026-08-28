@@ -79,7 +79,10 @@ source_type: operation_guide
    safe-path, clean-index/worktree, fresh fixed-remote, verified-tree, and
    verified-import chain. Accept only the two new files and explicitly reject
    every legacy V1 external/signature artifact, compatibility parser, fallback,
-   or alternate trust path.
+   or alternate trust path. On Windows normalize only the path/open-handle mode
+   field to `stat.S_IFMT(st_mode)`; still compare device, file index, size and
+   object type, reject reparse/link paths, require exact bytes and Git tree mode,
+   and retain full `st_mode` identity on non-Windows.
 8. Emit only `ELIGIBLE_FOR_ISSUE38_FINAL_REVIEW`; bind one operator and zero
    independent/external/hosted-human reviewers. Closure evidence is not Issue
    #38 approval, ruleset approval, Issue #39 authorization, or host execution.
@@ -104,7 +107,8 @@ source_type: operation_guide
    missing-file skip or `continue-on-error` bypass. Require two 31-distribution
    platform locks and `--require-hashes` for all three installs.
 4. Run full portable discovery after removing only exact registered native
-   skips, plus the Windows-native and independent-Windows suites, with zero
+   skips, including exact `Windows path/handle metadata proof` for the verifier
+   regression, plus the Windows-native and independent-Windows suites, with zero
    failed tests and zero unclassified skips; run repository leakage and
    reject any finding before a receipt can be created.
 5. Bind every receipt to the exact final commit/tree, selected-entry and byte
@@ -1159,7 +1163,10 @@ private-data container, or authorization to migrate.
    failure-stage retention. No test claims the OS cannot paste or capture.
 6. Test the fixed no-argument verifier raw-Git chain, only-new-file inventory,
    recursive legacy-surface rejection, current GitHub-state reread, and
-   content-free eligibility output. Do not execute the live verifier in this
+   content-free eligibility output. On Windows, test a stable ordinary file
+   whose path and opened-handle metadata differ only in synthesized permission
+   bits; preserve type, device, file-index, size, byte and Git-mode rejection.
+   Do not execute the live verifier in this
    issue: ruleset `20601214` exists, but live verification remains separately
    unauthorized.
 7. Run the focused closure, execution-confirmation, binding, Adapter,

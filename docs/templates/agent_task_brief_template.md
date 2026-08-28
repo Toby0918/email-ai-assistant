@@ -392,6 +392,7 @@ Maintainer Attestation, production-binding authority, or Execution Confirmation.
 [ ] `confirm()` uses stable real Windows console handles, two once-only visible exact inputs, and one-use wall-clock plus monotonic-clock freshness over a half-open 300-second interval.
 [ ] Publication remains create-only/no-replace, rejects target, legacy, and stage collisions, performs no repair, overwrite, deletion, or cleanup, and any partial stage remains for incident review.
 [ ] The no-argument protected verifier recomputes Git and canonical evidence independently, accepts only the manifest and Solo Maintainer Attestation, and rejects every legacy V1 external/signature artifact.
+[ ] On Windows the protected verifier ignores only synthesized path/open-handle permission-bit differences by comparing `stat.S_IFMT(st_mode)`; device, file index, size, object type, reparse/link rejection, exact bytes and Git tree mode remain mandatory, while non-Windows retains full mode.
 [ ] `ApprovedCutoverBindingV3` completely replaces V2 and preserves one operator, zero independent reviewers, zero external signers, and no public-key/signature/envelope authority input.
 [ ] Every Execution Confirmation binds the exact V3 binding, closure evidence, command/action, durable journal head, next sequence, transition, and remaining reverse plan; its claim is append-before-attempt and the attempt consumes it even on failure.
 [ ] Restart accepts historical reconstruction from exact durable journal records only; no reconstructed historical claim becomes fresh authority.

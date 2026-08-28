@@ -2852,6 +2852,8 @@ class ArchitectureConstraintTests(unittest.TestCase):
             "one-use\nwall-plus-monotonic half-open 300-second ceremony",
             "partial stage remains for incident review",
             "no-argument isolated `scripts/verify_r2_final_master_closure.py`",
+            "only `stat.S_IFMT(st_mode)`",
+            "non-Windows identity retains the\ncomplete `st_mode`",
             "rejects all legacy V1\nexternal/signature artifacts",
             "`ELIGIBLE_FOR_ISSUE38_FINAL_REVIEW`",
             "`SOLE_MAINTAINER_SELF_REVIEW`",
@@ -2894,6 +2896,8 @@ class ArchitectureConstraintTests(unittest.TestCase):
             "create-only/no-replace",
             "partial stage remains for incident review",
             "protected verifier",
+            "synthesized path/open-handle permission-bit differences",
+            "device, file index, size, object type",
             "`ApprovedCutoverBindingV3`",
             "append-before-attempt",
             "historical reconstruction",
@@ -2906,6 +2910,8 @@ class ArchitectureConstraintTests(unittest.TestCase):
             with self.subTest(marker=marker):
                 self.assertIn(marker, task_template)
         self.assertIn("exactly\ntwenty-two reviewed low-risk", tooling)
+        self.assertIn("`stat.S_IFMT(st_mode)`", tooling)
+        self.assertIn("other platforms retain full mode", tooling)
         for marker in (
             "R2 GitHub guardrail response compatibility task brief",
             "docs/templates/agent_task_brief_template.md",
