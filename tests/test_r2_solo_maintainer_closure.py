@@ -50,6 +50,7 @@ CURRENT_REVIEWED_STALE_PATHS = (
     "docs/README.md",
     "docs/api/error_codes.md",
     "docs/data/data_dictionary.md",
+    "docs/decisions/0009-project-container-and-repository-boundaries.md",
     "docs/decisions/adr_0001_project_shape.md",
     "docs/decisions/adr_0003_no_auto_send.md",
     "docs/knowledge_base/action_rules.md",
@@ -60,6 +61,7 @@ CURRENT_REVIEWED_STALE_PATHS = (
     "docs/knowledge_base/reply_guidelines.md",
     "docs/knowledge_base/risk_flags.md",
     "docs/operations/documentation_rules.md",
+    "docs/operations/project_container_migration_task_brief.md",
     "docs/operations/troubleshooting.md",
     "docs/product/feature_scope.md",
     "docs/product/product_overview.md",
@@ -338,7 +340,7 @@ class SoloMaintainerClosureTests(unittest.TestCase):
         )]
         with self.assertRaises(SoloMaintainerClosureError):
             local_evidence_adapter._fresh_subject("maintenance_scan_output", root, tracked)
-        self.assertEqual(len(local_evidence_adapter._MAINTENANCE_CLASSIFICATIONS), 22)
+        self.assertEqual(len(local_evidence_adapter._MAINTENANCE_CLASSIFICATIONS), 24)
         self.maintenance_scan.return_value = _classified_maintenance_findings(Finding)
         subject, observed = local_evidence_adapter._fresh_subject(
             "maintenance_scan_output", root, tracked
@@ -399,6 +401,16 @@ class SoloMaintainerClosureTests(unittest.TestCase):
             tuple(getattr(item, name) for name in fields) for item in values
         ))
         self.assertEqual(normalize(materialized), normalize(direct))
+
+    def test_reviewed_paths_match_classification_registry(self) -> None:
+        expected = {
+            ("low", "stale_doc", path, "docs/operations/cleanup_agent.md")
+            for path in CURRENT_REVIEWED_STALE_PATHS
+        }
+        self.assertEqual(
+            local_evidence_adapter._MAINTENANCE_CLASSIFICATIONS,
+            frozenset(expected),
+        )
 
     def test_prepare_returns_exact_review_candidate_without_writing(self) -> None:
         repository, github = _fixture()

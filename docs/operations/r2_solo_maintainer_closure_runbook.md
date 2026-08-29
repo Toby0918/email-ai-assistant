@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-28
+last_update: 2026-08-29
 status: active
 owner: "@tobyWang"
 review_cycle: as_needed
@@ -98,7 +98,7 @@ receipt was created and retained. Generated status, leakage and maintenance
 are freshly rerun against the verified checkout. Status equivalence normalizes
 only platform line endings and the unique date/date/branch snapshot fields and
 still binds the frozen status blob; every other byte is exact. Leakage must be
-empty. Maintenance must produce twenty-two unique classifications exactly equal
+empty. Maintenance must produce twenty-four unique classifications exactly equal
 to the fixed `(severity, category, path, doc)` registry; missing, duplicate, or
 new paths block closure.
 

@@ -205,7 +205,7 @@ class MechanicalRuleConstraintTests(unittest.TestCase):
             "exactly ten\n   modules",
             "numeric job id equals the hosted record",
             "generated-status normalized equivalence",
-            "twenty-two unique classifications exactly",
+            "twenty-four unique classifications exactly",
             "only `prepare` and `confirm`",
             "duplicate/extra/missing keys",
             "lone surrogates",

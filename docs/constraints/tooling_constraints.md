@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-28
+last_update: 2026-08-29
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -1397,7 +1397,7 @@ guardrail collection to private `github_guardrail.py`.
 consume the approved pure CI-suite/runbook registries and fixed read-only
 project-status, maintenance and leakage modules. No other closure file gains
 those imports or capabilities. Its closed maintenance registry contains exactly
-twenty-two reviewed low-risk `(severity, category, path, doc)` classifications;
+twenty-four reviewed low-risk `(severity, category, path, doc)` classifications;
 missing, duplicate, or additional classifications fail closed.
 
 Repository and hosted run/job acquisition remains code-fixed to the clean
