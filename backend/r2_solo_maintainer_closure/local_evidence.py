@@ -52,9 +52,9 @@ _QUALITY_STEPS = (
     "Run mechanical rule guardrails", "Run full test suite", "Run maintenance scan",
 )
 _CLASSIFIED_STALE_PATHS = (
-    "docs/README.md", "docs/api/error_codes.md", "docs/data/data_dictionary.md", "docs/decisions/adr_0001_project_shape.md", "docs/decisions/adr_0003_no_auto_send.md",
+    "docs/README.md", "docs/api/error_codes.md", "docs/data/data_dictionary.md", "docs/decisions/0009-project-container-and-repository-boundaries.md", "docs/decisions/adr_0001_project_shape.md", "docs/decisions/adr_0003_no_auto_send.md",
     "docs/knowledge_base/action_rules.md", "docs/knowledge_base/business_terms.md", "docs/knowledge_base/customer_context_template.md", "docs/knowledge_base/email_categories.md",
-    "docs/knowledge_base/priority_rules.md", "docs/knowledge_base/reply_guidelines.md", "docs/knowledge_base/risk_flags.md", "docs/operations/documentation_rules.md",
+    "docs/knowledge_base/priority_rules.md", "docs/knowledge_base/reply_guidelines.md", "docs/knowledge_base/risk_flags.md", "docs/operations/documentation_rules.md", "docs/operations/project_container_migration_task_brief.md",
     "docs/operations/troubleshooting.md", "docs/product/feature_scope.md", "docs/product/product_overview.md", "docs/product/user_flow.md", "docs/prompts/prompt_version_log.md",
     "docs/prompts/reply_draft_prompt.md", "docs/prompts/risk_detection_prompt.md", "docs/security/privacy_rules.md", "docs/security/prompt_injection_rules.md")
 _MAINTENANCE_CLASSIFICATIONS = frozenset(

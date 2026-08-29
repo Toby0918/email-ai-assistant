@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-28
+last_update: 2026-08-29
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -90,7 +90,7 @@ source_type: operation_guide
    zero, and maintenance findings read-only after checkout verification. Status
    normalization changes only platform line endings and the unique date/date/
    branch snapshot fields; every other byte is exact and the frozen status blob
-   remains bound. Maintenance requires twenty-two unique classifications exactly
+   remains bound. Maintenance requires twenty-four unique classifications exactly
    equal to the fixed `(severity, category, path, doc)` registry; a missing,
    duplicate, or newly stale path blocks closure. Use `quality_gate_review`,
    never `standards_review`, for the frozen quality-gate contract and hosted run.

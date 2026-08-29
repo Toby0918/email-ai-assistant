@@ -2845,7 +2845,7 @@ class ArchitectureConstraintTests(unittest.TestCase):
             "five hosted check records",
             "fourteen local evidence records",
             "eight ordered gap proofs",
-            "fixed twenty-two-entry",
+            "fixed twenty-four-entry",
             "GitHub Actions app `15368`",
             "exactly one active `master-solo-maintainer-closure-v1`",
             "`require_extra_approval_for_unattributed_changes` field may be absent",
@@ -2878,7 +2878,7 @@ class ArchitectureConstraintTests(unittest.TestCase):
             with self.subTest(marker=marker):
                 self.assertIn(marker, security)
         for marker in (
-            "last_update: 2026-08-28",
+            "last_update: 2026-08-29",
             "Issue #110 Solo Maintainer Closure / Execution Confirmation checklist",
             "`backend.r2_solo_maintainer_closure` contains exactly ten files",
             "parameterless `prepare()` and `confirm(...)`",
@@ -2889,7 +2889,7 @@ class ArchitectureConstraintTests(unittest.TestCase):
             "`pull_request.parameters.required_reviewers`",
             "`pull_request.parameters.require_extra_approval_for_unattributed_changes`",
             "fourteen gates and eight ordered gap proofs",
-            "exactly twenty-two reviewed low-risk",
+            "exactly twenty-four reviewed low-risk",
             "real Windows console handles",
             "wall-clock plus monotonic-clock",
             "half-open 300-second",
@@ -2909,7 +2909,7 @@ class ArchitectureConstraintTests(unittest.TestCase):
         ):
             with self.subTest(marker=marker):
                 self.assertIn(marker, task_template)
-        self.assertIn("exactly\ntwenty-two reviewed low-risk", tooling)
+        self.assertIn("exactly\ntwenty-four reviewed low-risk", tooling)
         self.assertIn("`stat.S_IFMT(st_mode)`", tooling)
         self.assertIn("other platforms retain full mode", tooling)
         for marker in (
