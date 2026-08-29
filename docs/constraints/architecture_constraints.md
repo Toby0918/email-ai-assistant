@@ -1812,6 +1812,14 @@ is its sole operator entry and accepts exactly `run`. Normal runtime, frontend,
 workflow, mailbox, provider, vault, private-store, and cleanup packages must not
 import or invoke this package.
 
+The initial entry is anchored to the fixed registered worktree
+`D:\Projects\email_ai_assistant\.worktrees\issue39-governed-enablement`. Before
+importing the composition root, the wrapper proves that its script Repository
+Root and current directory are that same original/resolved plain directory and
+that its own script is an ordinary single-link non-reparse file. This initial
+launcher is distinct from the external evidence runner held and executed
+before the first catalog effect.
+
 The root enforces the architectural order `zero-mutation readiness -> real
 Windows console -> separately confirmed fixed incident disposition -> fresh
 complete preparation -> fixed production binding`. Closure artifacts, eligible
@@ -1833,6 +1841,11 @@ or caller-selected dispatch. Handler selection uses the closed action phase and
 exact catalog-owned action name. Every forward, resume, rollback, and terminal
 action consumes a distinct fresh Execution Confirmation bound to the current
 durable journal head.
+Before each such claim, the owning Issue 39 adapter projects the exact bound
+phase, operation, command, direction, verified-state label and bounded sequence
+to one strict printable content-free context line. The generic V3 adapter then
+displays and reads only its candidate and acknowledgement. The context cannot
+be supplied by a caller and is never itself authority.
 
 The evidence runner and sequential create-only ledger are the only restart
 anchor. Before transfer, the runner bytes are held against write/delete sharing

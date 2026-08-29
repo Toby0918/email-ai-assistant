@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-28
+last_update: 2026-08-29
 status: active
 owner: "@tobyWang"
 review_cycle: quarterly
@@ -41,6 +41,12 @@ to be cleaned automatically.
 Add one versioned `backend.r2_issue39_orchestrator` composition root and one
 fixed script, `scripts/execute_project_container_cutover.py`. The script accepts
 only the `run` verb and owns no caller-selected paths or adapters.
+Its initial invocation is restricted to the code-fixed registered worktree
+`D:\Projects\email_ai_assistant\.worktrees\issue39-governed-enablement`.
+The wrapper rejects the legacy root, alternate worktrees, copied scripts and
+reparse aliases before importing the orchestrator. Before any catalog effect,
+the process still transfers to the independently verified external retained
+runner; the initial launcher and restart anchor are separate roles.
 
 The command order is a security boundary:
 
@@ -55,6 +61,9 @@ The command order is a security boundary:
    drift before binding production capabilities.
 5. Obtain a fresh, action-specific Execution Confirmation before every catalog
    action and before either terminal success or legacy-restoration sealing.
+   Every Issue 39 confirmation adapter first displays a strict content-free
+   phase/operation/command/direction/state/sequence context line. Only the
+   following candidate and acknowledgement are entered.
 
 Issue 39 discovers all linked worktrees during every fresh prepare, with a
 bounded maximum. It binds the root/common/admin identities and every checkout's
@@ -64,8 +73,11 @@ change stops before the next host effect. This Dynamic Cutover Roster is
 additive; the fixed eleven-worktree contracts remain historical rehearsal
 contracts and are not weakened.
 
-The production action catalog is closed and catalog-owned. For the current
-six-worktree baseline it contains 27 actions, of which 24 have host effects.
+The production action catalog is closed and catalog-owned. The portable
+six-worktree synthetic baseline contains 27 actions, of which 24 have host
+effects. A 2026-08-29 read-only live observation found 14 linked worktrees,
+which would derive 35 actions and 32 host effects if unchanged; production
+never treats either count as fixed and recomputes the bounded complete roster.
 Dispatch is determined by the action phase plus its exact catalog-owned name,
 not by a caller registry or a string-prefix fallback.
 

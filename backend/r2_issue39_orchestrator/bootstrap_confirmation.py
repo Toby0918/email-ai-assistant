@@ -12,6 +12,7 @@ from backend.r2_production_binding import (
     prepare_execution_confirmation_v1,
     production_action_fingerprint_v2,
 )
+from .confirmation_context import display_confirmation_context_v1
 
 
 def confirm_genesis(closure, package):
@@ -23,6 +24,8 @@ def confirm_genesis(closure, package):
     claim = _confirm(
         closure, package, ProductionCommandV2.EVIDENCE_PUBLICATION,
         owner, "0" * 64, 1,
+        operation="journal_genesis",
+        current_state="LEDGER_ABSENT_EXACT",
     )
     return claim, _clock(), owner, secrets.token_hex(32)
 
@@ -39,6 +42,8 @@ def confirm_evidence(closure, package, journal):
         journal.current_head_fingerprint,
         len(journal.execution_confirmation_claims) + 1,
         action,
+        operation="evidence_publication",
+        current_state="EVIDENCE_ABSENT_EXACT",
     ), _clock()
 
 
@@ -48,10 +53,15 @@ def confirm_resume(closure, package, journal):
         journal.journal_owner_fingerprint,
         journal.current_head_fingerprint,
         len(journal.execution_confirmation_claims) + 1,
+        operation="evidence_resume",
+        current_state="EVIDENCE_CLASSIFIED_EXACT",
     ), _clock()
 
 
-def _confirm(closure, package, command, owner, head, sequence, action=None):
+def _confirm(
+    closure, package, command, owner, head, sequence, action=None, *,
+    operation, current_state,
+):
     binding = closure.production
     candidate = prepare_execution_confirmation_v1(
         binding=binding,
@@ -69,6 +79,15 @@ def _confirm(closure, package, command, owner, head, sequence, action=None):
         transition_instance_fingerprint=package.reviewed_evidence_fingerprint,
         remaining_reverse_plan_fingerprint="0" * 64,
         claim_sequence=sequence,
+    )
+    display_confirmation_context_v1(
+        phase="evidence",
+        operation=operation,
+        command=command,
+        direction="none",
+        current_state=current_state,
+        sequence=sequence,
+        total=sequence,
     )
     return confirm_execution_confirmation_v1(candidate=candidate)
 

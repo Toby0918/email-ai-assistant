@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ast
+import hashlib
 from pathlib import Path
 import unittest
 
@@ -23,24 +24,8 @@ ORCHESTRATOR = ROOT / "backend" / "r2_issue39_orchestrator"
 ENTRY = ROOT / "scripts" / "execute_project_container_cutover.py"
 ORCHESTRATOR_MODULE = "backend.r2_issue39_orchestrator"
 ENTRY_MODULE = "scripts.execute_project_container_cutover"
-EXPECTED_ENTRY_SOURCE = (
-    '"""Fixed one-command Issue #39 Project Container cutover entry."""\n'
-    "\n"
-    "from __future__ import annotations\n"
-    "\n"
-    "from pathlib import Path\n"
-    "import sys\n"
-    "\n"
-    "\n"
-    "ROOT = Path(__file__).resolve().parents[1]\n"
-    "if str(ROOT) not in sys.path:\n"
-    "    sys.path.insert(0, str(ROOT))\n"
-    "\n"
-    "from backend.r2_issue39_orchestrator.cli import main  # noqa: E402\n"
-    "\n"
-    "\n"
-    'if __name__ == "__main__":\n'
-    "    main()\n"
+EXPECTED_ENTRY_SHA256 = (
+    "1b774a75f724a4ff5b98d3f8c13115ebd1e9e7d0ecc669619623779e0150f8a9"
 )
 EXPECTED_RUNNER_BYTES = (
     b"from backend.r2_issue39_orchestrator.cli import main\nmain()\n"
@@ -115,7 +100,19 @@ class Issue39GovernedEnablementTest(unittest.TestCase):
         self.assertEqual(entry_importers, set())
 
     def test_fixed_script_and_retained_runner_have_one_exact_entry(self) -> None:
-        self.assertEqual(ENTRY.read_text(encoding="utf-8"), EXPECTED_ENTRY_SOURCE)
+        entry_source = ENTRY.read_text(encoding="utf-8")
+        self.assertEqual(
+            hashlib.sha256(entry_source.encode("utf-8")).hexdigest(),
+            EXPECTED_ENTRY_SHA256,
+        )
+        self.assertIn(
+            r"D:\Projects\email_ai_assistant\.worktrees\issue39-governed-enablement",
+            entry_source,
+        )
+        self.assertLess(
+            entry_source.index("_initial_launch_anchor_matches"),
+            entry_source.index("from backend.r2_issue39_orchestrator.cli"),
+        )
 
         anchor = ast.parse(
             (ORCHESTRATOR / "production_anchor_package.py").read_text(

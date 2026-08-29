@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-14
+last_update: 2026-08-29
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -101,15 +101,21 @@ Expected additions or changes:
 
 ### 8.1 Public interfaces
 
-The public operator seam is:
+The public operator seam runs only from the code-fixed initial launcher
+worktree:
 
-```text
-python -I -B scripts\execute_project_container_cutover.py run
+```powershell
+Set-Location 'D:\Projects\email_ai_assistant\.worktrees\issue39-governed-enablement'
+& 'D:\Projects\email_ai_assistant\.venv\Scripts\python.exe' -I -B scripts\execute_project_container_cutover.py run
 ```
 
 It accepts exactly the `run` verb. It accepts no path, target, force, cleanup,
 adapter, authorization-file, endpoint, provider, mailbox, vault, or private-data
 argument. Unknown or extra input fails before a host capability is acquired.
+The wrapper also rejects a current directory or script root other than the
+fixed launcher, including the legacy Repository Root and reparse aliases,
+before importing the live orchestrator. The existing exact-master and clean
+Git readiness then revalidates the launcher checkout.
 
 The incident-stage disposition is not a generic file mover. It recognizes one
 code-fixed source leaf, archive leaf, two artifact filenames, byte lengths,
@@ -143,6 +149,12 @@ Each existing Execution Confirmation remains one action, append-before-attempt,
 single-use, and bound to the current journal head. The one command guides those
 fixed confirmation ceremonies inside one process invocation; it does not turn
 one confirmation into umbrella authority.
+Before every Issue 39 V3 confirmation, the owning adapter displays one strict
+`ISSUE39_CONFIRMATION_CONTEXT_V1` line containing only the closed phase,
+operation, command, direction, verified current-state label, and bounded
+sequence. The operator enters only the following candidate fingerprint and
+fixed acknowledgement. Context display failure stops before confirmation input
+or host effect.
 
 ### 8.3 Failure and recovery
 
@@ -203,8 +215,10 @@ a fresh resume claim and cannot be replaced by the new claim token.
 The catalog has no registration or caller-selected dispatch surface. It binds
 six foundation actions, one reconstruction action for every worktree in the
 fresh complete roster, eight managed-unit prepare/publish actions, and seven
-two-start validation actions. For the current six-worktree baseline this is
-exactly 27 actions. Each catalog item binds sequence, phase, command, host-effect
+two-start validation actions. The portable six-worktree synthetic baseline is
+exactly 27 actions; the 2026-08-29 read-only live roster had 14 linked
+worktrees and would derive 35 actions. Each catalog item binds sequence, phase,
+command, host-effect
 classification, implementation key, and distinct pre/post state fingerprints
 to the fresh preparation fingerprint.
 
@@ -261,8 +275,10 @@ Not applicable. The command accepts no email or model input and calls no provide
 6. Service quiescence precedes SQLite and directory mutation.
 7. Repository identity, the fresh bounded complete linked-worktree roster,
    Runtime, LocalData, CRX, Config, provider-disabled activation, two-start
-   validation, and final audit all bind the terminal success seal. The current
-   baseline contains six linked worktrees: two embedded and four external.
+   validation, and final audit all bind the terminal success seal. The portable
+   synthetic baseline contains six linked worktrees: two embedded and four
+   external. Production always uses the fresh complete roster; the 2026-08-29
+   read-only live observation contained 14 linked worktrees.
    Every worktree is bound by exact placement, Git identity, physical identity,
    administrative identity, branch, commit, common directory, and clean-status
    fingerprints. Any addition, removal, dirtiness, or identity drift after

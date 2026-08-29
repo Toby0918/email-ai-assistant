@@ -986,6 +986,19 @@ real-console, incident, action, recovery, and terminal confirmations before any
 corresponding effect. Tests, CI, merge, and closure evidence cannot substitute
 for the later explicit real-host authorization.
 
+The initial process is accepted only from the code-fixed registered launcher
+worktree. Its script root and current directory must be the same plain
+original/resolved directory, and the script must be an ordinary single-link
+non-reparse file; the legacy root, alternate worktrees, copied scripts and
+aliases stop before orchestrator import. This initial launcher transfers to the
+separately protected evidence runner before the first catalog effect.
+
+Every Issue 39 V3 confirmation is preceded by one strict content-free
+`ISSUE39_CONFIRMATION_CONTEXT_V1` line derived only from closed bound values.
+It exposes no path or caller text and is informational, never authority. The
+operator enters only the following candidate fingerprint and fixed
+acknowledgement; any context/display failure stops before input or effect.
+
 ## Issue #74 create-only main and whole-tree DACL proof
 
 The representative R2 tracer renames the fixed synthetic flat root to
