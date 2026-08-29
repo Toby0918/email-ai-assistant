@@ -1186,6 +1186,9 @@ The approved Issue #39 code allowlist permits only the fixed `backend.r2_issue39
 1. Parse `scripts/execute_project_container_cutover.py` and the CLI to require
    exactly the `run` verb and reject path, force, cleanup, endpoint, provider,
    mailbox, vault, credential, callback, adapter, and environment unlock input.
+   Pin the code-fixed initial launcher worktree and require its original/
+   resolved current directory, script root and ordinary non-reparse script
+   checks to precede the production-orchestrator import.
 2. Prove the CLI orders zero-mutation readiness before console acquisition and
    incident disposition, and performs a fresh full prepare after disposition
    before binding production actions.
@@ -1195,6 +1198,10 @@ The approved Issue #39 code allowlist permits only the fixed `backend.r2_issue39
 4. Require real-console identity for stdin/stdout/stderr and a fresh single-use
    candidate plus exact acknowledgement for incident disposition, every
    forward action, every resume/rollback action, and both terminal records.
+   Before each Issue 39 V3 candidate, require one strict printable content-free
+   context line derived only from the bound phase, operation, command,
+   direction, verified-state label and bounded sequence. Reject every module
+   that reaches the generic confirmation without that display.
 5. Parse the fixed catalog as phase-owned exact actions with no public
    constructor, registry, or prefix-selected fallback. Count only entries with
    `host_effect=True` as host effects.

@@ -15,6 +15,7 @@ from backend.r2_production_binding import (
 
 from .action_catalog import Issue39ProductionActionCatalogV1
 from .closure_binding import _Issue39ClosureBindingV1
+from .confirmation_context import display_confirmation_context_v1
 from .preflight_ledger import (
     _append_preflight_claim_v1,
     _append_preflight_observation_v1,
@@ -115,6 +116,7 @@ def _production_ports(prepared, closure, catalog, package):
     )
 
     def confirm(actual, command, current, ledger):
+        sequence = sum(item.kind == "claim" for item in ledger.records) + 1
         action = production_action_fingerprint_v2(
             closure.production,
             actual,
@@ -130,7 +132,20 @@ def _production_ports(prepared, closure, catalog, package):
             prior_journal_head_fingerprint=ledger.head,
             transition_instance_fingerprint=current,
             remaining_reverse_plan_fingerprint="0" * 64,
-            claim_sequence=sum(item.kind == "claim" for item in ledger.records) + 1,
+            claim_sequence=sequence,
+        )
+        display_confirmation_context_v1(
+            phase="preflight",
+            operation=command.value,
+            command=actual,
+            direction="none",
+            current_state=(
+                "PREFLIGHT_CLAIM_PENDING"
+                if actual is ProductionCommandV2.RESUME
+                else "READY_TO_OBSERVE"
+            ),
+            sequence=sequence,
+            total=6,
         )
         claim = confirm_execution_confirmation_v1(candidate=candidate)
         return claim, {
@@ -139,10 +154,8 @@ def _production_ports(prepared, closure, catalog, package):
         }
 
     return _Issue39PreflightPortsV1(
-        confirm,
-        lambda command: observe_fixed(command, prepared, catalog, package),
-        _open_preflight_ledger_v1,
-    )
+        confirm, lambda value: observe_fixed(value, prepared, catalog, package),
+        _open_preflight_ledger_v1)
 
 
 def _require_inputs(prepared, closure, catalog, package, phase, prior, ports):

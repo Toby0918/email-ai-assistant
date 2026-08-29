@@ -1454,11 +1454,23 @@ bytes, and Git tree mode remain mandatory; other platforms retain full mode.
 
 The approved Issue #39 code allowlist permits only the fixed `backend.r2_issue39_orchestrator` composition root, `scripts/execute_project_container_cutover.py`, and its package-owned retained restart runner.
 
-The only live cutover entry is
-`python -I -B scripts\execute_project_container_cutover.py run` from a visible,
-directly connected Windows console. stdin, stdout, and stderr must resolve to
+The only live cutover entry is `python -I -B
+scripts\execute_project_container_cutover.py run` from the code-fixed registered
+worktree `D:\Projects\email_ai_assistant\.worktrees\issue39-governed-enablement`
+and a visible, directly connected Windows console. Before importing the
+orchestrator, the wrapper requires its original/resolved Repository Root and
+current directory to be that same plain non-reparse directory and requires the
+fixed script to be a single-link regular non-reparse file. stdin, stdout, and
+stderr must resolve to
 the same real console and must not be pipes, files, `Tee-Object`, captured
 shells, scheduled tasks, IDE terminal proxies, or caller-supplied adapters.
+
+Every Issue 39 preflight, evidence/bootstrap, catalog, recovery, and terminal
+adapter writes exactly one strict content-free
+`ISSUE39_CONFIRMATION_CONTEXT_V1` line before the generic V3 adapter writes the
+candidate fingerprint and fixed acknowledgement. The context has closed
+phase/operation/command/direction/state values plus bounded sequence/count and
+contains no path or caller text. Display failure stops before input or effect.
 
 The production binder owns all paths. It fixes the canonical Container and
 nine roles, the incident archive, the Runtime source, the create-only

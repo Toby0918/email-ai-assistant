@@ -1527,6 +1527,16 @@ The approved Issue #39 code allowlist permits only the fixed `backend.r2_issue39
   target/force/cleanup/adapter/callback/environment/endpoint/provider/mailbox/
   vault/credential/private-data surfaces and reject imports of those
   capabilities.
+- Pin the initial launcher to
+  `D:\Projects\email_ai_assistant\.worktrees\issue39-governed-enablement` and
+  require its plain original/resolved root, current directory, and ordinary
+  single-link script checks before the orchestrator import. Reject alternate,
+  legacy-root, copied, environment-selected, or reparse launchers.
+- Require every module that calls the generic V3 confirmation inside Issue 39
+  to first display one strict `ISSUE39_CONFIRMATION_CONTEXT_V1` projection.
+  Its phase/operation/command/direction/state/sequence vocabulary is closed,
+  printable ASCII and content-free; reject path, free-form, newline, control,
+  or caller-supplied values.
 - The catalog values have module-owned constructors and exact phase-plus-name
   dispatch. Reject public registration, caller-created catalog values,
   prefix-only handler selection, dynamic import, `eval`, `exec`, shell strings,

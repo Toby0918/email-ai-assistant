@@ -26,12 +26,18 @@ a captured shell, pipe, redirection, `Tee-Object`, scheduled task, IDE terminal
 proxy, or stdin/stdout/stderr wrapper.
 
 ```powershell
-Set-Location 'D:\Projects\email_ai_assistant'
+Set-Location 'D:\Projects\email_ai_assistant\.worktrees\issue39-governed-enablement'
 & 'D:\Projects\email_ai_assistant\.venv\Scripts\python.exe' -I -B scripts\execute_project_container_cutover.py run
 ```
 
 The script accepts only `run`. It accepts no path, source, target, force,
 cleanup, credential, provider, mailbox, vault, or private-data option.
+The current directory and script Repository Root must both be the exact
+code-fixed launcher worktree above. The wrapper rejects the legacy Repository
+Root, an alternate worktree, a reparse alias, or a copied script before it
+imports the production orchestrator. The launcher must already be clean and at
+the exact closure-bound master; normal readiness proves that Git state again
+before any mutation capability is acquired.
 
 ## What the command proves before mutation
 
@@ -66,23 +72,36 @@ After the incident state is archived or already verified, the command performs
 a completely fresh prepare. Any roster, master, closure, issue, input,
 placement, identity, or cleanliness drift stops before production binding.
 
-Every subsequent catalog action prints its own fresh candidate fingerprint and
-the following exact acknowledgement:
+Every preflight, evidence/bootstrap, catalog, recovery, and terminal Execution
+Confirmation first prints one informational line such as:
+
+```text
+ISSUE39_CONFIRMATION_CONTEXT_V1 phase=catalog operation=legacy_service_quiescence command=execute direction=forward state=PRE_STATE_EXACT sequence=1 total=35
+```
+
+The context vocabulary is code-owned, printable ASCII, content-free, and bound
+to the action facts used to construct the following candidate. It contains no
+caller path or free-form text and is not a line to enter. The console then
+prints the fresh candidate fingerprint and the following exact acknowledgement:
 
 ```text
 CONFIRM_R2_ISSUE39_EXECUTION_V1_NOT_CLOSURE_ATTESTATION
 ```
 
-Enter those two displayed lines only after checking the action and current
-state shown by the visible console. Each confirmation is single-use, bound to
+Enter only the candidate fingerprint and acknowledgement after checking the
+preceding context line. Each confirmation is single-use, bound to
 the exact action and durable journal head, and cannot authorize a later action.
 Resume, rollback, terminal success, and legacy-restoration sealing also require
 their own fresh confirmations.
 
 ## Fixed action order
 
-For the current six-worktree roster, the catalog contains 27 actions and 24
-host effects:
+The portable synthetic baseline retains six linked worktrees and therefore 27
+actions with 24 host effects. The 2026-08-29 read-only live baseline contained
+14 linked worktrees and would derive 35 actions with 32 host effects if it
+remained unchanged. Neither count is authorization or a production constant:
+fresh prepare derives the actual bounded roster, and every context line shows
+the resulting catalog total.
 
 1. Quiesce the legacy service; retain the legacy anchor; publish the Container
    and `main`; apply the exact ACL tree; relocate the repository.
