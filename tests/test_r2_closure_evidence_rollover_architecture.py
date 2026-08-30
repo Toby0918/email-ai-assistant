@@ -160,6 +160,32 @@ class ClosureEvidenceRolloverArchitectureTests(unittest.TestCase):
         }
         self.assertEqual(reasons, {"Windows NTFS sandbox required"})
         self.assertTrue(reasons <= set(portable_native_skip_reason_registry_v2()))
+        direct_native_methods = [
+            node
+            for node in ast.walk(tree)
+            if isinstance(node, ast.FunctionDef)
+            and any(
+                isinstance(item, ast.Attribute)
+                and item.attr == "FixedClosureEvidenceStorage"
+                for item in ast.walk(node)
+            )
+        ]
+        self.assertTrue(direct_native_methods)
+        for method in direct_native_methods:
+            decorator_reasons = {
+                item.args[1].value
+                for item in method.decorator_list
+                if isinstance(item, ast.Call)
+                and isinstance(item.func, ast.Attribute)
+                and item.func.attr == "skipUnless"
+                and len(item.args) == 2
+                and isinstance(item.args[1], ast.Constant)
+            }
+            self.assertEqual(
+                decorator_reasons,
+                {"Windows NTFS sandbox required"},
+                method.name,
+            )
 
 
 if __name__ == "__main__":

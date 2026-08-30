@@ -252,6 +252,9 @@ rollover；新的 #38 人工 final review 与任何 #39 真实 cutover 仍需分
 - PR #124 首轮 `portable-provenance` 以固定码 `R2_CI_PROVENANCE_INVALID` fail closed；
   根因为新增 Windows-only tests 使用了未登记的 skip reason。修复统一复用既有
   `Windows NTFS sandbox required`，并新增 architecture guard；rollover 25/25、
-  CI-provenance 17/17 聚焦回归通过，等待新的 PR checks。
+  CI-provenance 17/17 聚焦回归通过。第二轮 portable suite 进入实际测试后再次以同一
+  固定码 fail closed；根因为一个直接调用 Windows-only storage 的 collect test 漏标
+  Windows skip。该 test 已纳入同一登记值，AST guard 也要求所有直接 storage tests
+  显式使用该值；rollover 25/25 再次通过，等待新的 PR checks。
 - PR、五项 CI、merge、merged-master CI、exact-master LF、live rollover、fresh closure、
   protected verifier 与新的 #38 final review：待后续受控步骤填写。

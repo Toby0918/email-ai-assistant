@@ -309,6 +309,7 @@ class ClosureEvidenceRolloverTests(unittest.TestCase):
                 ), self.assertRaises(ClosureEvidenceRolloverError):
                     repository_adapter.FixedRolloverRepository().collect(OLD_COMMIT, OLD_TREE)
 
+    @unittest.skipUnless(os.name == "nt", "Windows NTFS sandbox required")
     def test_storage_collects_only_valid_cross_bound_active_evidence(self) -> None:
         copied = {
             "manifest_fingerprint": MANIFEST_FINGERPRINT,
