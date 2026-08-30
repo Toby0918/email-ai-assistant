@@ -50,6 +50,20 @@ GitHub Actions app id `15368`; the provenance jobs must share one run and
 attempt. A PR run can validate implementation but cannot satisfy the hosted
 closure-evidence contract.
 
+## Historical closure evidence rollover gate
+
+This maintenance change does not modify workflow bytes. The existing five
+required checks must exercise the focused contract/architecture tests, native
+Windows no-replace rename test, static and mechanical guards, full suite,
+maintenance scan and leakage scan. All tests use synthetic temporary evidence;
+CI never reads or moves the real Git-common closure.
+
+Green PR or post-merge checks prove only the implementation bytes. They do not
+authorize a live rollover, fresh closure confirmation, protected verifier,
+Issue #38 approval, or Issue #39 execution. A live rollover requires its own
+exact frozen-master authorization and must stop on any candidate, Git, artifact,
+identity, DACL or target drift.
+
 Ruleset `20601214` now exists as separately approved GitHub state. A fresh
 closure observation must still prove the exact `master` target, active state,
 explicit `bypass_actors=[]`, deletion and non-fast-forward protection, strict

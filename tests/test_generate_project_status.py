@@ -875,6 +875,27 @@ class GenerateProjectStatusTests(unittest.TestCase):
             with self.subTest(marker=marker):
                 self.assertIn(marker, report)
 
+    def test_historical_closure_evidence_rollover_is_reported(self) -> None:
+        module = load_script_module(SCRIPT, "generate_project_status_rollover")
+        report = module.build_project_status()
+
+        for marker in (
+            "Historical closure evidence rollover is implemented",
+            "independent five-file `backend.r2_closure_evidence_rollover` package",
+            "`scripts/rollover_r2_solo_maintainer_closure.py run`",
+            "canonical 300-second single-use candidate",
+            "strict historical-ancestor closure",
+            "Windows file/stream/DACL identities",
+            "same-parent, same-volume, no-replace directory rename",
+            "no caller path/ref/repository/command",
+            "No live rollover was run",
+            "`backend/r2_closure_evidence_rollover/storage.py`",
+            "`tests/test_r2_closure_evidence_rollover.py`",
+            "`docs/operations/r2_closure_evidence_rollover_task_brief.md`",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, report)
+
     def test_main_writes_requested_output(self) -> None:
         module = load_script_module(SCRIPT, "generate_project_status")
 

@@ -284,3 +284,16 @@ host run. A separately authorized run may emit only the orchestrator's existing
 fixed content-free status/failure tokens; it must not log exceptions, paths,
 host state, closure material, execution claims, journal/evidence contents,
 provider or private-data detail.
+
+## 14. Historical closure evidence rollover is silent
+
+`backend.r2_closure_evidence_rollover` and its fixed CLI write no log records. They
+must not log the candidate, receipt, artifact bytes, paths, identities, DACLs,
+fingerprints, Git state, exception text, traceback, environment values, or
+historical directory details. Every failure crosses the process boundary only as a
+fixed content-free error code and must not use `logger.exception`, `exc_info=True`,
+or dynamic exception interpolation.
+
+The CLI's exact canonical candidate on stderr and exact canonical receipt on stdout
+are bounded operator output, not logging. They grant no Issue #38 approval, execution
+authority, or Issue #39 authority.

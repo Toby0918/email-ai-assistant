@@ -273,6 +273,12 @@ review and confirmation by the same sole maintainer. It does not claim
 separation of duties or independent review.
 _Avoid_: Independent approval, external authority
 
+**Historical Closure Evidence**:
+A prior Solo Maintainer Closure retained after its bound master stopped being
+current. It preserves the original evidence for audit but cannot satisfy the
+current closure, approval, or execution-authority boundary.
+_Avoid_: Migrated authority, current closure, backup approval
+
 **Hosted Evidence**:
 GitHub-hosted commit identity, check-run, workflow, and optional attestation
 evidence. It supports provenance and auditability but is not a second human

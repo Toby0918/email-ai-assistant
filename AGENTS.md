@@ -518,6 +518,18 @@ only the new manifest and Solo Maintainer Attestation receipt, rejects all
 legacy V1 external/signature artifacts, and can return only eligibility for a
 fresh Issue #38 review, never approval.
 
+When a later merged master makes the fixed active closure historical, only the
+separately approved `backend.r2_closure_evidence_rollover` maintenance seam may
+retain it. Its parameterless `prepare()` and
+`execute(exact_candidate_fingerprint)` bind a clean exact current master, a
+strict historical-ancestor closure, exact manifest/receipt bytes and Windows
+identity, and one deterministic absent historical target for 300 seconds. The
+commit is a same-parent, same-volume, no-replace directory rename that preserves
+the existing DACL and file identities; it has no copy, delete, overwrite,
+cleanup, repair, arbitrary path, Issue #38 approval, execution authority, or
+Issue #39 authority. Historical closure evidence is audit evidence only and the
+protected verifier continues to accept only the fixed active directory.
+
 `Execution Confirmation V1` is a distinct future one-action confirmation bound
 to the V3 binding, closure artifacts, current durable-journal head, sequence,
 transition and remaining reverse plan. In Issue #110 it is production-

@@ -202,6 +202,38 @@ SOLO_MAINTAINER_ATTESTATION_RECORDED
 The receipt still has approval, execution authority and Issue #39 authority at
 zero.
 
+## Historical evidence rollover after master drift
+
+If the active directory is internally valid but binds a strict ancestor of a
+new clean exact master, do not overwrite, delete, copy, repair or manually move
+it. After a separate exact authorization, run the fixed command only from the
+verified new-master worktree:
+
+```powershell
+& 'D:\Projects\email_ai_assistant\.venv\Scripts\python.exe' -I -B `
+  scripts\rollover_r2_solo_maintainer_closure.py run
+```
+
+The command prints one canonical 300-second candidate to stderr, fresh-rechecks
+the same Git/artifact/identity/DACL state, and consumes only that candidate. The
+only success status is:
+
+```text
+HISTORICAL_CLOSURE_EVIDENCE_RETAINED
+```
+
+The deterministic retained name is
+`r2-solo-maintainer-closure-v1.historical-<commit-16>-<manifest-16>` under the
+same Git common directory. Success is one same-parent, same-volume, no-replace
+directory rename preserving the two original files and their identities. Any
+failure or ambiguous post-commit state stops for a separate incident
+disposition; never rename back, delete, overwrite or clean up by pathname.
+
+Rollover is not closure confirmation, protected-verifier eligibility, Issue #38
+approval, Execution Confirmation, or Issue #39 authority. After success, create
+and confirm a fresh active closure against the new master, then run the protected
+verifier and obtain a new fourteen-item #38 final review.
+
 ## Read-only eligibility verification
 
 The protected verifier is no-argument and isolated:

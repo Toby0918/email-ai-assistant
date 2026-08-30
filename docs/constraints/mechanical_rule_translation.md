@@ -8,6 +8,35 @@ source_type: operation_guide
 
 # Mechanical Rule Translation
 
+## Historical closure evidence rollover rules
+
+1. Require the fixed five-file package, exact `__all__`, parameterless
+   constructor/`prepare()`, and one-string `execute()` seam. Reject every
+   caller path, ref, repository, command, environment or host capability.
+2. Parse the active two-file closure with the existing strict canonical
+   validators; require exact manifest/receipt cross-bindings, old Git object and
+   tree existence, strict ancestry, clean HEAD equal to local origin/master,
+   and an absent deterministic historical target.
+3. Fingerprint the exact current/old Git identities, both artifact hashes,
+   original Windows directory/file/stream/DACL identities, and target name in a
+   300-second single-use candidate. Wrong, stale, replayed or freshly drifted
+   state fails before the rename. Enforce the half-open 300-second window with
+   both wall and monotonic clocks at entry and at the native commit boundary.
+4. Read both exact payloads through writer-excluding native handles, then hold a
+   pending source-directory oplock across the child-handle release required by
+   Windows directory rename. Compare the held parent identity and DACL with the
+   candidate-bound values before mutation; reject reparse points, hard links,
+   ADS, casing collisions and target races. Preserve the DACL and commit only
+   with a same-parent no-replace directory rename.
+5. After rename, require source absence plus exact target bytes, file set,
+   streams, DACL and identity. Never copy, delete, overwrite, repair, clean up,
+   or attempt pathname rollback after an ambiguous result.
+6. Keep approval, execution authority and Issue #39 authority at zero. The
+   historical directory is audit evidence and never satisfies the protected
+   verifier's fixed active-directory input.
+7. Run native tests only in test-owned temporary NTFS directories. Do not read
+   or mutate the real Git-common closure in automated validation.
+
 ## Issue #110 Solo Maintainer Closure rules
 
 1. Parse every closure JSON object with duplicate-key rejection, exact key/type

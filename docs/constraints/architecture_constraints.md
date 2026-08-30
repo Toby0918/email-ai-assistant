@@ -31,6 +31,37 @@ The assurance mode is exactly `SOLE_MAINTAINER_SELF_REVIEW`: one operator and
 zero independent, external, or hosted-human reviewers. It records evidence and
 never expands approval or execution authority.
 
+## Historical closure evidence rollover architecture
+
+`backend.r2_closure_evidence_rollover` is disjoint from both the ten-file
+closure package and the Issue #39 orchestrator. Its only exported coordinator is
+parameterless `ClosureEvidenceRollover`; `prepare()` returns one canonical
+300-second candidate and `execute(exact_candidate_fingerprint)` consumes it at
+most once. The half-open expiry is enforced by both wall time and a private
+monotonic deadline before rederivation and again at the commit boundary. No
+production caller path exists.
+
+The candidate binds current commit/tree, strict historical commit/tree,
+manifest and receipt fingerprints and SHA-256 values, a path-independent
+Windows identity/DACL/stream projection, and the deterministic historical name
+`r2-solo-maintainer-closure-v1.historical-<commit-16>-<manifest-16>`. Current
+HEAD must equal the local remote-tracking master and be clean; the old commit
+must exist with the manifest-bound tree and be a strict ancestor.
+
+Execution rederives the complete state before entering storage and again at the
+native commit boundary. The candidate separately binds the Git-common parent
+identity and DACL. Storage reads exact bytes through writer-excluding file
+handles, then retains a pending source-directory oplock while the child handles
+must be released for the Windows directory rename; the candidate-bound parent
+handle is checked before mutation. It preserves the original DACL, rejects
+reparse/link/ADS/name/identity/target drift, and commits only by same-parent
+no-replace rename. It
+does not copy, rewrite, delete, overwrite, repair, clean up, or roll back by
+pathname. The historical directory is durable audit evidence, is ignored as a
+current closure input, and carries zero approval/execution/Issue #39 authority.
+
+## Issue #110 hosted closure evidence architecture
+
 The repository and hosted-evidence adapters use fixed Git plumbing and fixed
 anonymous public HTTPS `api.github.com` endpoints with bounded reads, system
 TLS and no credential or caller URL. Hosted evidence must be the newest exact

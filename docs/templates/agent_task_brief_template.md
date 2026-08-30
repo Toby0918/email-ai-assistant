@@ -399,6 +399,10 @@ Maintainer Attestation, production-binding authority, or Execution Confirmation.
 [ ] Every production process root unconditionally returns `DORMANT_NO_ISSUE39_APPROVAL` before reading argv, TTY, clocks, candidates, artifacts, bootstraps, or Adapters.
 [ ] Closure and Execution Confirmation preserve zero Issue #38 approval and zero Issue #39 authority or execution; neither can derive or substitute for either approval.
 [ ] Validation remains synthetic/offline only and grants no authority to access or mutate a real host, provider, mailbox, vault, private data, signer, or cleanup surface.
+[ ] If stale active closure evidence is in scope, only the independent five-file rollover package may retain it after proving a clean exact current master and strict historical ancestor.
+[ ] Rollover uses a 300-second single-use exact candidate and a same-parent, same-volume, no-replace directory rename that preserves exact bytes, identities, streams, and DACL.
+[ ] Historical closure evidence remains audit-only; copy, delete, overwrite, repair, cleanup, pathname rollback, Issue #38 approval, execution authority, and Issue #39 authority remain zero.
+[ ] Automated rollover tests use only test-owned temporary NTFS evidence and never read or mutate the real Git-common closure.
 ```
 
 ## 23. 执行后记录

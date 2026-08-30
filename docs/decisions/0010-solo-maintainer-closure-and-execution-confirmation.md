@@ -136,5 +136,13 @@ remain deliberately disjoint.
   Execution Confirmation.
 - Partial create-only stages and legacy artifacts are never automatically
   migrated, overwritten or deleted.
+- A separately authorized historical-evidence rollover may retain one valid
+  stale active closure only after master advances. It is a 300-second,
+  single-use compare-and-swap followed by a same-parent, same-volume,
+  identity- and DACL-preserving no-replace rename to a deterministic historical
+  name. It performs no copy, deletion, overwrite, cleanup, repair or pathname
+  rollback and creates no current approval or execution authority.
+- The protected verifier continues to accept only the fixed active directory;
+  historical closure evidence is audit evidence and cannot satisfy #38 or #39.
 - Existing Adapter identity, preflight, rollback/recovery, retention/no-deletion,
   provider-disabled, mailbox, vault and private-data boundaries remain intact.
