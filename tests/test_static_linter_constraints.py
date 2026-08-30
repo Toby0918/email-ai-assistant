@@ -959,6 +959,43 @@ class StaticLinterConstraintTests(unittest.TestCase):
             with self.subTest(marker=marker):
                 self.assertIn(marker, text)
 
+    def test_historical_closure_rollover_static_guards_are_documented(self) -> None:
+        linter = read_text(ROOT / "docs" / "constraints" / "linter_constraints.md")
+        tooling = read_text(ROOT / "docs" / "constraints" / "tooling_constraints.md")
+        template = read_text(
+            ROOT / "docs" / "templates" / "agent_task_brief_template.md"
+        )
+        logging = read_text(ROOT / "docs" / "conventions" / "logging.md")
+        for marker in (
+            "Historical closure evidence rollover guards",
+            "exactly five Python files",
+            "accepts only `exact_candidate_fingerprint`",
+            "CLI exposes exactly `run`",
+            "no copy, replace, unlink, remove, rmdir, rmtree",
+            "copy/deletion/overwrite/cleanup counts at zero",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, linter)
+        for marker in (
+            "Historical closure evidence rollover tooling boundary",
+            "fixed local read-only Git observations",
+            "same-parent Windows no-replace directory rename",
+            "prints the short-lived candidate before execution",
+            "grants zero Issue #38\napproval",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, tooling)
+        self.assertIn("independent five-file rollover package", template)
+        self.assertIn("same-parent, same-volume, no-replace directory rename", template)
+        for marker in (
+            "Historical closure evidence rollover is silent",
+            "candidate, receipt, artifact bytes, paths, identities, DACLs",
+            "fixed content-free error code",
+            "operator output, not logging",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, logging)
+
     def test_issue110_static_capability_rules_are_documented(self) -> None:
         architecture = read_text(
             ROOT / "docs" / "constraints" / "architecture_constraints.md"

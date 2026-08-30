@@ -192,6 +192,33 @@ class MechanicalRuleConstraintTests(unittest.TestCase):
         self.assertIn("Linux", ci)
         self.assertIn("Issues #58/#59", ci)
 
+    def test_historical_closure_rollover_rules_are_documented(self) -> None:
+        mechanical = read_text(
+            ROOT / "docs" / "constraints" / "mechanical_rule_translation.md"
+        )
+        ci = read_text(ROOT / "docs" / "constraints" / "ci_guardrails.md")
+        for marker in (
+            "Historical closure evidence rollover rules",
+            "fixed five-file package",
+            "strict ancestry",
+            "300-second single-use candidate",
+            "same-parent no-replace directory rename",
+            "Never copy, delete, overwrite, repair, clean up",
+            "never satisfies the protected\n   verifier's fixed active-directory input",
+            "test-owned temporary NTFS directories",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, mechanical)
+        for marker in (
+            "Historical closure evidence rollover gate",
+            "does not modify workflow bytes",
+            "native\nWindows no-replace rename test",
+            "CI never reads or moves the real Git-common closure",
+            "do not\nauthorize a live rollover",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, ci)
+
     def test_issue110_mechanical_rules_are_documented(self) -> None:
         mechanical = read_text(
             ROOT / "docs" / "constraints" / "mechanical_rule_translation.md"

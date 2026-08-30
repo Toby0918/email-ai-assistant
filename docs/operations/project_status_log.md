@@ -17,7 +17,7 @@ source_type: operation_guide
 |---|---|
 | Generated on | 2026-08-29 |
 | Current stage | multimodal_current_email_offline_ready_live_pending |
-| Git branch | codex/closure-maintenance-drift-fix |
+| Git branch | codex/closure-evidence-rollover |
 | Git HEAD reference | Run `git rev-parse --short HEAD` in this workspace |
 | Working tree status | Run `git status --short --ignored` in this workspace |
 
@@ -71,6 +71,8 @@ Issue #104 three-stateful-Adapter seam remains implemented offline in `backend.r
 
 Issue #110 Solo Maintainer Closure is implemented in `backend.r2_solo_maintainer_closure`, `backend.r2_production_binding`, and `scripts/close_r2_final_master.py`. The strict two-file trust model binds one frozen clean master, the five exact GitHub Actions hosted checks, fourteen evidence records, eight ordered gap proofs, one exact active master-ruleset snapshot, one canonical manifest, and one Solo Maintainer Attestation with assurance counts one operator and zero independent/external/hosted-human reviewers. Private typed local proofs bind canonical values, relevant frozen blobs, same-SHA hosted records/job steps, and fresh status/maintenance/leakage observations without claiming durable runtime receipt instances. `ApprovedCutoverBindingV3` removes V2 public keys, signatures, envelopes, and issuers; execution confirmation binds closure, attestation, exact action/journal/plan/TTY/time facts and a create-only durable claim, but remains unreachable from production. The legacy final-master/global-gate/external-artifact/signature paths are removed rather than retained as aliases. GitHub ruleset `20601214` exists for `master`, and the private guardrail reader observes it through authenticated fixed GET-only GitHub CLI calls backed by the active keyring login; Python neither reads nor prints the token. The compatibility layer accepts the additive beta `required_reviewers=[]` response shape and the absent-or-exact-true `require_extra_approval_for_unattributed_changes` default only at exact integer zero approving reviews. It removes only those approved wire values before canonical comparison; missing or non-empty bypass actors, false or wrongly typed defaults, Boolean or nonzero approval counts, and every other drift fail closed. No live `prepare`, `confirm`, or protected verifier was run or authorized by this local compatibility work, and #38/#39 remain unchanged. Closure and CI evidence do not approve Issue #38, create or approve a ruleset, authorize or execute Issue #39, mutate a real host, access provider/mailbox/vault/private data, clean retained stages, push, or merge.
 
+Historical closure evidence rollover is implemented in the independent five-file `backend.r2_closure_evidence_rollover` package and fixed `scripts/rollover_r2_solo_maintainer_closure.py run` entry. Its parameterless coordinator creates one canonical 300-second single-use candidate bound to a clean exact current master, a strict historical-ancestor closure, exact manifest/receipt bytes and candidate linkage, Windows file/stream/DACL identities, separately bound Git-common parent identity/DACL, and one deterministic absent historical target. Wall and private monotonic clocks enforce the half-open window at entry and commit. Execution rederives the complete state before the native commit boundary, reads bytes through writer-excluding handles, retains a pending source-directory oplock across the child-handle release required by Windows, verifies the candidate-bound parent handle, and performs only a same-parent, same-volume, no-replace directory rename while preserving bytes, identities, and DACL. It has no caller path/ref/repository/command, copy, delete, overwrite, repair, cleanup, pathname rollback, Issue #38 approval, execution authority, or Issue #39 authority. Automated verification uses only test-owned temporary evidence and never reads or moves the real Git-common closure. No live rollover was run by this implementation work.
+
 Issue #39 one-command Project Container orchestration is implemented in `backend.r2_issue39_orchestrator` and `scripts/execute_project_container_cutover.py`. Its governed code allowlist permits only that fixed composition root, the fixed script, and the package-owned retained restart runner; the three historical standalone preflight/evidence/transaction roots remain `DORMANT_NO_ISSUE39_APPROVAL`. The initial wrapper now accepts only the code-fixed registered `issue39-governed-enablement` launcher worktree and rejects the legacy root, alternate/copy/reparse launchers before importing the orchestrator. Its production order is zero-mutation closure/Issue #38/input/complete dynamic-roster readiness, fixed real-console confirmation, exact incident disposition, fresh complete prepare, create-only evidence plus retained-anchor transfer, and a dynamic closed catalog. The portable six-worktree synthetic baseline remains 27 actions/24 host effects; a 2026-08-29 read-only live observation found 14 linked worktrees, which would derive 35/32 if unchanged, but fresh prepare is authoritative. Every preflight, evidence/bootstrap, catalog, recovery and terminal V3 confirmation first displays one strict content-free bound action-context line, followed by the existing fresh candidate and fixed acknowledgement. Every host effect uses a fresh action-bound durable claim and journaled intent; restart classifies two stable observations without replaying an already-present effect, while rollback retains failed state. Terminal success requires a journal-reconstructed ordered validation receipt and two fresh full audits of layout, roster, Git, ACL, managed units, provider-disabled service identity, and the single deterministic rule-fallback row. Code enablement, tests, CI, and merge are implementation evidence only. This repair has not executed real incident disposition, evidence publication, cutover, resume or rollback; real execution still requires a separate final authorization.
 
 The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器扩展, with current-message collection only after an explicit user click.
@@ -107,6 +109,7 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 | `R2 production Adapter binding remediation: docs/operations/r2_production_adapter_binding_remediation_task_brief.md` | yes |
 | `R2 Solo Maintainer Closure boundary: docs/operations/r2_solo_maintainer_closure_task_brief.md` | yes |
 | `R2 Solo Maintainer Closure operator sequence: docs/operations/r2_solo_maintainer_closure_runbook.md` | yes |
+| `R2 historical closure evidence rollover boundary: docs/operations/r2_closure_evidence_rollover_task_brief.md` | yes |
 | `R2 GitHub unattributed-approval compatibility: docs/operations/r2_github_guardrail_unattributed_approval_compatibility_task_brief.md` | yes |
 | `Solo Maintainer Closure and execution-confirmation decision: docs/decisions/0010-solo-maintainer-closure-and-execution-confirmation.md` | yes |
 
@@ -160,6 +163,15 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 | `docs/operations/r2_solo_maintainer_closure_runbook.md` | yes |
 | `docs/decisions/0010-solo-maintainer-closure-and-execution-confirmation.md` | yes |
 | `docs/decisions/0011-authenticated-github-guardrail-observation.md` | yes |
+| `backend/r2_closure_evidence_rollover/__init__.py` | yes |
+| `backend/r2_closure_evidence_rollover/contracts.py` | yes |
+| `backend/r2_closure_evidence_rollover/repository.py` | yes |
+| `backend/r2_closure_evidence_rollover/storage.py` | yes |
+| `backend/r2_closure_evidence_rollover/rollover.py` | yes |
+| `scripts/rollover_r2_solo_maintainer_closure.py` | yes |
+| `tests/test_r2_closure_evidence_rollover.py` | yes |
+| `tests/test_r2_closure_evidence_rollover_architecture.py` | yes |
+| `docs/operations/r2_closure_evidence_rollover_task_brief.md` | yes |
 | `backend/cutover_contracts/__init__.py` | yes |
 | `backend/cutover_contracts/_canonical.py` | yes |
 | `backend/cutover_contracts/authorization.py` | yes |
@@ -681,7 +693,7 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 
 | Status | Count |
 |---|---:|
-| active | 129 |
+| active | 130 |
 | draft | 24 |
 | deprecated | 5 |
 | missing_front_matter | 0 |

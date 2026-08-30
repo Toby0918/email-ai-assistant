@@ -8,6 +8,27 @@ source_type: operation_guide
 
 # Static Linter Constraints
 
+## Historical closure evidence rollover guards
+
+- `backend/r2_closure_evidence_rollover` contains exactly five Python files and
+  exports only the coordinator, candidate, receipt, fixed error and error code.
+  The coordinator constructor and `prepare()` are parameterless; `execute()`
+  accepts only `exact_candidate_fingerprint`.
+- The package must not import Issue #39 orchestration, runtime, frontend,
+  mailbox, provider, vault, SQLite, network or broad filesystem-copy modules.
+  `repository.py` performs fixed Git observations and owns only the
+  capability-free evidence-observation/cross-binding value; `storage.py` alone
+  imports the closure storage's bounded native identity and commit primitives.
+- The CLI exposes exactly `run`, reads no input, and forwards the candidate it
+  just prepared. There is no path/ref/repository/command/environment selector.
+- Storage contains no copy, replace, unlink, remove, rmdir, rmtree, cleanup,
+  repair or overwrite call. It uses a same-parent no-replace handle rename and
+  compares exact payloads, streams, DACL and file identities before and after.
+  Wall and monotonic time both enforce the half-open 300-second window.
+- Candidate and receipt schemas are canonical, closed and content-free. Every
+  approval, execution-authority and Issue #39 count remains zero; the receipt
+  also fixes copy/deletion/overwrite/cleanup counts at zero.
+
 ## R2 Issue #110 Solo Maintainer Closure guards
 
 - `backend/r2_solo_maintainer_closure/` must contain exactly ten Python

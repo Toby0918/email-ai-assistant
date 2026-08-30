@@ -2795,6 +2795,38 @@ class ArchitectureConstraintTests(unittest.TestCase):
         self.assertIn("Code-fixed create-only `python312._pth`", security)
         self.assertIn("Issues #58/#59", security)
 
+    def test_historical_closure_evidence_rollover_is_documented(self) -> None:
+        architecture = read_text(
+            ROOT / "docs" / "constraints" / "architecture_constraints.md"
+        )
+        agents = read_text(ROOT / "AGENTS.md")
+        decision = read_text(
+            ROOT
+            / "docs"
+            / "decisions"
+            / "0010-solo-maintainer-closure-and-execution-confirmation.md"
+        )
+        runbook = read_text(
+            ROOT / "docs" / "operations" / "r2_solo_maintainer_closure_runbook.md"
+        )
+        for marker in (
+            "Historical closure evidence rollover architecture",
+            "disjoint from both the ten-file\nclosure package and the Issue #39 orchestrator",
+            "parameterless `ClosureEvidenceRollover`",
+            "300-second candidate",
+            "strict historical commit/tree",
+            "path-independent\nWindows identity/DACL/stream projection",
+            "same-parent no-replace rename",
+            "does not copy, rewrite, delete, overwrite, repair, clean up",
+            "zero approval/execution/Issue #39 authority",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, architecture)
+        self.assertIn("`backend.r2_closure_evidence_rollover` maintenance seam", agents)
+        self.assertIn("identity- and DACL-preserving no-replace rename", decision)
+        self.assertIn("Historical evidence rollover after master drift", runbook)
+        self.assertIn("HISTORICAL_CLOSURE_EVIDENCE_RETAINED", runbook)
+
     def test_issue110_solo_maintainer_architecture_is_documented(self) -> None:
         architecture = read_text(
             ROOT / "docs" / "constraints" / "architecture_constraints.md"

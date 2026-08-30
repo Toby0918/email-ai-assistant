@@ -1450,6 +1450,28 @@ size, and `stat.S_IFMT(st_mode)` while ignoring only CPython-synthesized
 permission-bit differences. Ordinary-file type, reparse/link rejection, exact
 bytes, and Git tree mode remain mandatory; other platforms retain full mode.
 
+## Historical closure evidence rollover tooling boundary
+
+`backend.r2_closure_evidence_rollover` is an independent maintenance package
+with five fixed Python files. Its public constructor accepts no argument and
+exposes only `prepare()` plus `execute(exact_candidate_fingerprint)`.
+`repository.py` may run only fixed local read-only Git observations for HEAD,
+tree, `refs/remotes/origin/master`, clean status, the historical object/tree,
+strict ancestry, plus capability-free evidence-observation and closure
+cross-binding validation. `storage.py` alone may read the fixed active closure,
+sample fixed Windows identity/stream/DACL state, and perform one same-parent
+Windows no-replace directory rename; it reuses only the closure package's
+canonical validators and bounded native handle primitives.
+This is the sole same-parent Windows no-replace directory rename capability.
+
+The package accepts no path, repository, ref, command, environment, URL,
+credential, GitHub, network, mailbox, provider, vault, private-data, runtime,
+SQLite, service, frontend, cleanup, copy, deletion, overwrite or repair
+capability. `scripts/rollover_r2_solo_maintainer_closure.py` exposes exactly
+`run`, prints the short-lived candidate before execution, and forwards only its
+own exact candidate fingerprint. It never reads stdin and grants zero Issue #38
+approval, execution authority, or Issue #39 authority.
+
 ## Issue #39 production tooling boundary
 
 The approved Issue #39 code allowlist permits only the fixed `backend.r2_issue39_orchestrator` composition root, `scripts/execute_project_container_cutover.py`, and its package-owned retained restart runner.
