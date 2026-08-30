@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-29
+last_update: 2026-08-30
 status: active
 owner: "@tobyWang"
 review_cycle: quarterly
@@ -64,6 +64,12 @@ The command order is a security boundary:
    Every Issue 39 confirmation adapter first displays a strict content-free
    phase/operation/command/direction/state/sequence context line. Only the
    following candidate and acknowledgement are entered.
+
+The fixed reviewed incident source and archive share the single leaf
+`.r2-solo-maintainer-closure-v1.incident-794aea72b0012d1de728f3b87f7f25c2f7c9ae3ac8f66777845010635fc69721`.
+The source parent and archive parent remain separately code-fixed. No obsolete
+`.stage-...` alias, caller path, discovery fallback, or alternate leaf is
+accepted.
 
 Issue 39 discovers all linked worktrees during every fresh prepare, with a
 bounded maximum. It binds the root/common/admin identities and every checkout's

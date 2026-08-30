@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-29
+last_update: 2026-08-30
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -122,6 +122,11 @@ code-fixed source leaf, archive leaf, two artifact filenames, byte lengths,
 SHA-256 hashes, and DACL transition. It uses DACL-only Windows APIs and one
 same-volume no-replace directory move. Failure retains the source or destination
 and never deletes, repairs, overwrites, or rolls back content.
+
+The exact retained source/archive leaf is
+`.r2-solo-maintainer-closure-v1.incident-794aea72b0012d1de728f3b87f7f25c2f7c9ae3ac8f66777845010635fc69721`.
+The earlier `.stage-794aea72...` spelling is stale historical preparation state
+and is not a compatibility alias or accepted production source.
 
 ### 8.2 Orchestration seam
 

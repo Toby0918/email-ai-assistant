@@ -22,7 +22,7 @@ class _IncidentBinding:
 
 
 _LEAF = (
-    ".r2-solo-maintainer-closure-v1.stage-"
+    ".r2-solo-maintainer-closure-v1.incident-"
     "794aea72b0012d1de728f3b87f7f25c2f7c9ae3ac8f66777845010635fc69721"
 )
 _ARTIFACTS = (

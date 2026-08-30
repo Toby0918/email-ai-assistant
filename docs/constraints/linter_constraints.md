@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-28
+last_update: 2026-08-30
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -1567,6 +1567,10 @@ The approved Issue #39 code allowlist permits only the fixed `backend.r2_issue39
   dispatch. Reject public registration, caller-created catalog values,
   prefix-only handler selection, dynamic import, `eval`, `exec`, shell strings,
   and arbitrary subprocess commands.
+- Pin the incident binding to the exact retained
+  `.r2-solo-maintainer-closure-v1.incident-794aea72b0012d1de728f3b87f7f25c2f7c9ae3ac8f66777845010635fc69721`
+  leaf under the two fixed parents. Reject the obsolete `.stage-...` spelling,
+  aliases, discovery, enumeration, caller paths, and alternate leaves.
 - Production dynamic-roster code is versioned separately from the historical
   fixed-eleven rehearsal contracts. Static checks must preserve the old exact
   assertions and require the new code to bind complete bounded discovery rather

@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-28
+last_update: 2026-08-30
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -992,6 +992,14 @@ original/resolved directory, and the script must be an ordinary single-link
 non-reparse file; the legacy root, alternate worktrees, copied scripts and
 aliases stop before orchestrator import. This initial launcher transfers to the
 separately protected evidence runner before the first catalog effect.
+
+Incident disposition recognizes only the exact retained leaf
+`.r2-solo-maintainer-closure-v1.incident-794aea72b0012d1de728f3b87f7f25c2f7c9ae3ac8f66777845010635fc69721`
+under the fixed Git-common source parent or fixed incident-archive parent. The
+obsolete `.stage-794aea72...` name is rejected rather than retained as an
+alternate binding. Artifact lengths/hashes, protected DACL, fixed-volume,
+reparse rejection, destination absence, no-replace move, and zero deletion
+remain mandatory.
 
 Every Issue 39 V3 confirmation is preceded by one strict content-free
 `ISSUE39_CONFIRMATION_CONTEXT_V1` line derived only from closed bound values.

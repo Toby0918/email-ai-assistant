@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-29
+last_update: 2026-08-30
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -1229,6 +1229,10 @@ The approved Issue #39 code allowlist permits only the fixed `backend.r2_issue39
 3. Require the zero-mutation reader to validate the two closure artifacts,
    eligible master, Issue 38 closed state, fixed input manifest, complete
    linked-worktree roster, and exact incident source/archive state.
+   Parse the private binding and require the exact retained
+   `.r2-solo-maintainer-closure-v1.incident-794aea72b0012d1de728f3b87f7f25c2f7c9ae3ac8f66777845010635fc69721`
+   leaf for both fixed parents, with no `.stage-...` alias or caller-selected
+   alternate.
 4. Require real-console identity for stdin/stdout/stderr and a fresh single-use
    candidate plus exact acknowledgement for incident disposition, every
    forward action, every resume/rollback action, and both terminal records.

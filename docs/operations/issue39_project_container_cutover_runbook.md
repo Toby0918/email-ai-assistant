@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-14
+last_update: 2026-08-30
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -51,6 +51,12 @@ reads and fixed GitHub GET requests. It requires all of the following:
   per-worktree placement, Git, physical, branch, commit, and clean identities;
 - either the exact reviewed incident source or its exact verified archive, with
   no conflicting source/destination state.
+
+The sole incident leaf is code-fixed as
+`.r2-solo-maintainer-closure-v1.incident-794aea72b0012d1de728f3b87f7f25c2f7c9ae3ac8f66777845010635fc69721`.
+The source may exist only under the fixed Git-common directory and the verified
+archive may exist only under `D:\IncidentArchives\email_ai_assistant\issue38`.
+The obsolete `.stage-794aea72...` name is not an accepted alias.
 
 Any failure returns a fixed blocked status before incident disposition or
 cutover mutation.
