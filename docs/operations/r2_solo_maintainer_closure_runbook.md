@@ -229,6 +229,14 @@ directory rename preserving the two original files and their identities. Any
 failure or ambiguous post-commit state stops for a separate incident
 disposition; never rename back, delete, overwrite or clean up by pathname.
 
+On a production parent without `FILE_DELETE_CHILD`, the fixed storage adapter
+uses a candidate-bound pending parent namespace guard and one held source
+control handle. It accepts only the exact protected read/execute source DACL,
+temporarily grants standard `DELETE` to the object owner, obtains the source
+rename handle, then restores and verifies the exact original DACL before normal
+commit-boundary rechecks. It does not change the Git-common parent DACL. This is
+part of the fixed rollover implementation, not authority for a manual ACL edit.
+
 Rollover is not closure confirmation, protected-verifier eligibility, Issue #38
 approval, Execution Confirmation, or Issue #39 authority. After success, create
 and confirm a fresh active closure against the new master, then run the protected

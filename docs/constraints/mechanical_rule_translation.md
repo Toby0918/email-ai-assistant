@@ -22,12 +22,17 @@ source_type: operation_guide
    300-second single-use candidate. Wrong, stale, replayed or freshly drifted
    state fails before the rename. Enforce the half-open 300-second window with
    both wall and monotonic clocks at entry and at the native commit boundary.
-4. Read both exact payloads through writer-excluding native handles, then hold a
-   pending source-directory oplock across the child-handle release required by
-   Windows directory rename. Compare the held parent identity and DACL with the
-   candidate-bound values before mutation; reject reparse points, hard links,
-   ADS, casing collisions and target races. Preserve the DACL and commit only
-   with a same-parent no-replace directory rename.
+4. Read both exact payloads through writer-excluding native handles. Under a
+   pending candidate-bound parent namespace guard, accept only the exact
+   protected read/execute source DACL, temporarily add standard `DELETE` only
+   for the object owner, obtain the rename handle, then restore and verify the
+   original DACL before closing the temporary control/parent handles. Never
+   mutate the Git-common parent DACL. Hold a pending source-directory oplock
+   across the child-handle release required by Windows directory rename.
+   Compare the held parent identity and DACL again before mutation; reject
+   reparse points, hard links, ADS, casing collisions and target races.
+   Preserve the final DACL and commit only with a same-parent no-replace
+   directory rename.
 5. After rename, require source absence plus exact target bytes, file set,
    streams, DACL and identity. Never copy, delete, overwrite, repair, clean up,
    or attempt pathname rollback after an ambiguous result.

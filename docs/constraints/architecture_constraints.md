@@ -51,9 +51,16 @@ must exist with the manifest-bound tree and be a strict ancestor.
 Execution rederives the complete state before entering storage and again at the
 native commit boundary. The candidate separately binds the Git-common parent
 identity and DACL. Storage reads exact bytes through writer-excluding file
-handles, then retains a pending source-directory oplock while the child handles
-must be released for the Windows directory rename; the candidate-bound parent
-handle is checked before mutation. It preserves the original DACL, rejects
+handles. If the bound parent lacks `FILE_DELETE_CHILD`, storage first retains a
+pending candidate-bound parent namespace guard, verifies the exact protected
+read/execute source DACL, temporarily adds only standard `DELETE` for the object
+owner through a held control handle, obtains the rename handle, and immediately
+restores and rechecks the exact original DACL. The temporary control/parent
+handles close before the normal source-directory oplock and commit-boundary
+rechecks. The candidate-bound parent DACL is never changed. Storage then retains
+a pending source-directory oplock while the child handles must be released for
+the Windows directory rename; the candidate-bound parent handle is checked
+again before mutation. It preserves the original DACL, rejects
 reparse/link/ADS/name/identity/target drift, and commits only by same-parent
 no-replace rename. It
 does not copy, rewrite, delete, overwrite, repair, clean up, or roll back by

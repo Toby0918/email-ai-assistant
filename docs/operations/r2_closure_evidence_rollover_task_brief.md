@@ -258,3 +258,18 @@ rollover；新的 #38 人工 final review 与任何 #39 真实 cutover 仍需分
   显式使用该值；rollover 25/25 再次通过，等待新的 PR checks。
 - PR、五项 CI、merge、merged-master CI、exact-master LF、live rollover、fresh closure、
   protected verifier 与新的 #38 final review：待后续受控步骤填写。
+
+## 24. 2026-08-30 source DELETE guard incident maintenance
+
+在 master `3ca0faddb9b6384941974c23e891aac18588246b` 上的单次 live rollover
+于 pre-rename `_open_rollover_guards()` 中失败：两个 file/oplock/stream guards 通过，
+active closure directory 的 `DELETE | READ_CONTROL | FILE_READ_ATTRIBUTES` open 返回
+Win32 error 5。只读 disposition 证明真实 Git-common parent 不授予
+`FILE_DELETE_CHILD`，而 native test 的临时 parent 隐含授予该权限。
+
+后续修复由
+`docs/operations/r2_closure_rollover_delete_guard_incident_task_brief.md` 治理：仅在
+candidate-bound pending parent namespace guard 下，通过 held source control handle
+短暂向 object owner 授予 standard `DELETE`，取得 rename handle 后立即恢复并验证 exact
+protected read/execute DACL。Git-common parent DACL 不变，测试只使用自有临时 NTFS
+目录；本维护不授权或重试 live rollover。

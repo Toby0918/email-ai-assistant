@@ -972,6 +972,8 @@ class StaticLinterConstraintTests(unittest.TestCase):
             "accepts only `exact_candidate_fingerprint`",
             "CLI exposes exactly `run`",
             "no copy, replace, unlink, remove, rmdir, rmtree",
+            "`D:P(A;;0x001200a9;;;WD)(A;;SD;;;OW)`",
+            "no named-path or Git-common parent DACL\n  writer exists",
             "copy/deletion/overwrite/cleanup counts at zero",
         ):
             with self.subTest(marker=marker):
@@ -980,6 +982,7 @@ class StaticLinterConstraintTests(unittest.TestCase):
             "Historical closure evidence rollover tooling boundary",
             "fixed local read-only Git observations",
             "same-parent Windows no-replace directory rename",
+            "fixed owner-delete\nsource-DACL bridge",
             "prints the short-lived candidate before execution",
             "grants zero Issue #38\napproval",
         ):

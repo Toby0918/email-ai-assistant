@@ -54,9 +54,10 @@ closure-evidence contract.
 
 This maintenance change does not modify workflow bytes. The existing five
 required checks must exercise the focused contract/architecture tests, native
-Windows no-replace rename test, static and mechanical guards, full suite,
-maintenance scan and leakage scan. All tests use synthetic temporary evidence;
-CI never reads or moves the real Git-common closure.
+Windows no-replace rename test, production-shaped parent-without-delete-child
+DACL preservation test, static and mechanical guards, full suite, maintenance
+scan and leakage scan. All tests use synthetic temporary evidence; CI never
+reads, changes the DACL of, or moves the real Git-common closure.
 
 Green PR or post-merge checks prove only the implementation bytes. They do not
 authorize a live rollover, fresh closure confirmation, protected verifier,

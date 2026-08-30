@@ -2817,6 +2817,8 @@ class ArchitectureConstraintTests(unittest.TestCase):
             "strict historical commit/tree",
             "path-independent\nWindows identity/DACL/stream projection",
             "same-parent no-replace rename",
+            "temporarily adds only standard `DELETE` for the object\nowner",
+            "candidate-bound parent DACL is never changed",
             "does not copy, rewrite, delete, overwrite, repair, clean up",
             "zero approval/execution/Issue #39 authority",
         ):
@@ -2824,6 +2826,7 @@ class ArchitectureConstraintTests(unittest.TestCase):
                 self.assertIn(marker, architecture)
         self.assertIn("`backend.r2_closure_evidence_rollover` maintenance seam", agents)
         self.assertIn("identity- and DACL-preserving no-replace rename", decision)
+        self.assertIn("parent without `FILE_DELETE_CHILD`", decision)
         self.assertIn("Historical evidence rollover after master drift", runbook)
         self.assertIn("HISTORICAL_CLOSURE_EVIDENCE_RETAINED", runbook)
 
