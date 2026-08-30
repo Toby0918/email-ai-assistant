@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-29
+last_update: 2026-08-30
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -1503,6 +1503,11 @@ nine roles, the incident archive, the Runtime source, the create-only
 hash-locked wheelhouse and lock, the historical SQLite source or separately
 proven first-start absence, CRX, Config, evidence parent, and journal. No CLI,
 environment variable, mapping, callback, or manifest may redirect them.
+
+The incident binding uses exactly the retained
+`.r2-solo-maintainer-closure-v1.incident-794aea72b0012d1de728f3b87f7f25c2f7c9ae3ac8f66777845010635fc69721`
+leaf under its two fixed parents. The obsolete `.stage-...` spelling is not an
+alias, fallback, or selectable input.
 
 Immediately before the retained runner is executed, the binder independently
 verifies the complete fixed evidence package and exact protected DACL, opens

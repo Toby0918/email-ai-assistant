@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import inspect
+from pathlib import Path
 import sys
 import unittest
 from types import SimpleNamespace
@@ -11,6 +12,9 @@ from unittest.mock import call, patch
 from backend.r2_issue39_orchestrator.incident_contracts import (
     IncidentDispositionStatusV1,
     fixed_incident_stage_contract_v1,
+)
+from backend.r2_issue39_orchestrator.incident_binding import (
+    _fixed_incident_binding,
 )
 from backend.r2_issue39_orchestrator.incident_windows import (
     _open_move_handle_with_restored_dacl,
@@ -22,6 +26,22 @@ from backend.r2_issue39_orchestrator.testing_incident import (
 
 
 class Issue39IncidentDispositionContractTests(unittest.TestCase):
+    def test_production_binding_uses_exact_retained_incident_leaf(self) -> None:
+        binding = _fixed_incident_binding()
+        leaf = (
+            ".r2-solo-maintainer-closure-v1.incident-"
+            "794aea72b0012d1de728f3b87f7f25c2f7c9ae3ac8f66777845010635fc69721"
+        )
+
+        self.assertEqual(
+            binding.source,
+            Path(r"D:\Projects\email_ai_assistant\.git") / leaf,
+        )
+        self.assertEqual(
+            binding.destination,
+            Path(r"D:\IncidentArchives\email_ai_assistant\issue38") / leaf,
+        )
+
     def test_production_entry_is_parameterless_and_contract_is_fixed(self) -> None:
         self.assertEqual(
             tuple(inspect.signature(dispose_fixed_incident_stage_v1).parameters),

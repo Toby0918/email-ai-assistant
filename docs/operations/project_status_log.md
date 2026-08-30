@@ -17,7 +17,7 @@ source_type: operation_guide
 |---|---|
 | Generated on | 2026-08-30 |
 | Current stage | multimodal_current_email_offline_ready_live_pending |
-| Git branch | codex/closure-rollover-delete-guard-fix |
+| Git branch | codex/issue39-incident-binding-drift-fix |
 | Git HEAD reference | Run `git rev-parse --short HEAD` in this workspace |
 | Working tree status | Run `git status --short --ignored` in this workspace |
 
@@ -693,7 +693,7 @@ The selected daily frontend remains the Tencent Exmail Chrome / Edge 浏览器�
 
 | Status | Count |
 |---|---:|
-| active | 131 |
+| active | 132 |
 | draft | 24 |
 | deprecated | 5 |
 | missing_front_matter | 0 |

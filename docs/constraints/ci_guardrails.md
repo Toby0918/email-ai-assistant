@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-28
+last_update: 2026-08-30
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -402,6 +402,11 @@ durable claim/intent recovery prefixes, no-repeat classification, two-read
 terminal audits, exact success token, retained-state policy, and absence of
 real-host CLI execution. Green CI remains evidence only and cannot authorize
 the real command.
+
+The fixed-incident regression must pin the exact retained `.incident-794aea72...`
+source/archive leaf and reject the obsolete `.stage-794aea72...` spelling. It
+must not read, move, rename, copy, delete, or change the DACL of real evidence;
+native behavior remains confined to test-owned temporary Windows objects.
 
 ## 5. 失败处理原则
 

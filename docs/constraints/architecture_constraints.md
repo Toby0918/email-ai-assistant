@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-29
+last_update: 2026-08-30
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -1864,6 +1864,13 @@ complete preparation -> fixed production binding`. Closure artifacts, eligible
 master, Issue 38 closed state, fixed inputs, complete roster, and incident state
 must all be observed before a mutation capability is acquired. The post-
 disposition prepare must rebuild every value rather than accept a cached result.
+
+The incident source and deterministic archive target share exactly the
+code-fixed retained leaf
+`.r2-solo-maintainer-closure-v1.incident-794aea72b0012d1de728f3b87f7f25c2f7c9ae3ac8f66777845010635fc69721`.
+There is no `.stage-...` compatibility alias, caller-provided path, enumeration,
+or fallback selection. Existing artifact, DACL, volume, reparse, no-replace,
+identity, and zero-delete checks remain unchanged.
 
 Issue #39 introduces the additive `Dynamic Cutover Roster`. Every fresh prepare
 discovers all linked worktrees within the fixed bound and binds the root/common/

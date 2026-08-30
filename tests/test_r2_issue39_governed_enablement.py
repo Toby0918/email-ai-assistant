@@ -24,6 +24,10 @@ ORCHESTRATOR = ROOT / "backend" / "r2_issue39_orchestrator"
 ENTRY = ROOT / "scripts" / "execute_project_container_cutover.py"
 ORCHESTRATOR_MODULE = "backend.r2_issue39_orchestrator"
 ENTRY_MODULE = "scripts.execute_project_container_cutover"
+RETAINED_INCIDENT_LEAF = (
+    ".r2-solo-maintainer-closure-v1.incident-"
+    "794aea72b0012d1de728f3b87f7f25c2f7c9ae3ac8f66777845010635fc69721"
+)
 EXPECTED_ENTRY_SHA256 = (
     "1b774a75f724a4ff5b98d3f8c13115ebd1e9e7d0ecc669619623779e0150f8a9"
 )
@@ -52,6 +56,32 @@ class _Poison:
 
 
 class Issue39GovernedEnablementTest(unittest.TestCase):
+    def test_fixed_incident_binding_pins_exact_retained_leaf(self) -> None:
+        binding_path = ORCHESTRATOR / "incident_binding.py"
+        tree = ast.parse(
+            binding_path.read_text(encoding="utf-8"),
+            filename=str(binding_path),
+        )
+        leaf_assignments = [
+            node
+            for node in tree.body
+            if isinstance(node, ast.Assign)
+            and any(
+                isinstance(target, ast.Name) and target.id == "_LEAF"
+                for target in node.targets
+            )
+        ]
+
+        self.assertEqual(len(leaf_assignments), 1)
+        self.assertEqual(
+            ast.literal_eval(leaf_assignments[0].value),
+            RETAINED_INCIDENT_LEAF,
+        )
+        self.assertNotIn(
+            ".r2-solo-maintainer-closure-v1.stage-",
+            binding_path.read_text(encoding="utf-8"),
+        )
+
     def test_governed_import_detection_covers_valid_python_spellings(self) -> None:
         cases = (
             (
