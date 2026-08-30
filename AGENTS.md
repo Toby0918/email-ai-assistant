@@ -530,6 +530,16 @@ cleanup, repair, arbitrary path, Issue #38 approval, execution authority, or
 Issue #39 authority. Historical closure evidence is audit evidence only and the
 protected verifier continues to accept only the fixed active directory.
 
+The rollover source handle may bridge a production parent that lacks
+`FILE_DELETE_CHILD` only through one fixed, handle-only DACL transition: under a
+candidate-bound pending parent namespace guard, the exact protected
+read/execute source DACL temporarily grants standard `DELETE` to the object
+owner. The implementation must obtain the rename handle, restore and verify the
+exact original DACL on every retained source handle, and close the temporary
+control/parent handles before the normal commit-boundary rechecks. It never
+changes the Git-common parent DACL, and tests may exercise this only in their own
+temporary NTFS directories.
+
 `Execution Confirmation V1` is a distinct future one-action confirmation bound
 to the V3 binding, closure artifacts, current durable-journal head, sequence,
 transition and remaining reverse plan. In Issue #110 it is production-

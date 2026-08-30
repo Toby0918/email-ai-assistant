@@ -1459,8 +1459,12 @@ exposes only `prepare()` plus `execute(exact_candidate_fingerprint)`.
 tree, `refs/remotes/origin/master`, clean status, the historical object/tree,
 strict ancestry, plus capability-free evidence-observation and closure
 cross-binding validation. `storage.py` alone may read the fixed active closure,
-sample fixed Windows identity/stream/DACL state, and perform one same-parent
-Windows no-replace directory rename; it reuses only the closure package's
+sample fixed Windows identity/stream/DACL state, perform the fixed owner-delete
+source-DACL bridge under a held candidate-bound parent namespace guard, and
+perform one same-parent Windows no-replace directory rename. The bridge accepts
+only the exact protected read/execute DACL, never changes the Git-common parent
+DACL, and must restore and verify the original source DACL before normal commit
+rechecks. Storage reuses only the closure package's
 canonical validators and bounded native handle primitives.
 This is the sole same-parent Windows no-replace directory rename capability.
 

@@ -142,6 +142,13 @@ remain deliberately disjoint.
   identity- and DACL-preserving no-replace rename to a deterministic historical
   name. It performs no copy, deletion, overwrite, cleanup, repair or pathname
   rollback and creates no current approval or execution authority.
+- A parent without `FILE_DELETE_CHILD` is bridged only while a candidate-bound
+  parent namespace guard is pending: the exact protected source DACL briefly
+  grants standard `DELETE` to its object owner through a held control handle.
+  The rename handle is obtained, the exact original DACL is restored and
+  rechecked, and the temporary handles close before normal commit rechecks. The
+  Git-common parent DACL is never changed and the retained historical evidence
+  keeps the original DACL.
 - The protected verifier continues to accept only the fixed active directory;
   historical closure evidence is audit evidence and cannot satisfy #38 or #39.
 - Existing Adapter identity, preflight, rollback/recovery, retention/no-deletion,

@@ -202,7 +202,9 @@ class MechanicalRuleConstraintTests(unittest.TestCase):
             "fixed five-file package",
             "strict ancestry",
             "300-second single-use candidate",
-            "same-parent no-replace directory rename",
+            "same-parent no-replace\n   directory rename",
+            "temporarily add standard `DELETE` only\n   for the object owner",
+            "Never\n   mutate the Git-common parent DACL",
             "Never copy, delete, overwrite, repair, clean up",
             "never satisfies the protected\n   verifier's fixed active-directory input",
             "test-owned temporary NTFS directories",
@@ -213,7 +215,8 @@ class MechanicalRuleConstraintTests(unittest.TestCase):
             "Historical closure evidence rollover gate",
             "does not modify workflow bytes",
             "native\nWindows no-replace rename test",
-            "CI never reads or moves the real Git-common closure",
+            "production-shaped parent-without-delete-child\nDACL preservation test",
+            "CI never\nreads, changes the DACL of, or moves the real Git-common closure",
             "do not\nauthorize a live rollover",
         ):
             with self.subTest(marker=marker):

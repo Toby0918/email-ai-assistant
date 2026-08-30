@@ -279,6 +279,14 @@ current. It preserves the original evidence for audit but cannot satisfy the
 current closure, approval, or execution-authority boundary.
 _Avoid_: Migrated authority, current closure, backup approval
 
+**Closure Source Delete Guard**:
+The fixed Windows rollover bridge used when the Git-common parent does not grant
+delete-child. A candidate-bound parent namespace guard protects one handle-only,
+owner-delete DACL transition; the original protected source DACL is restored and
+verified before the normal commit boundary and remains unchanged on retained
+historical evidence.
+_Avoid_: Parent ACL repair, permanent delete permission, general ACL mutator
+
 **Hosted Evidence**:
 GitHub-hosted commit identity, check-run, workflow, and optional attestation
 evidence. It supports provenance and auditability but is not a second human

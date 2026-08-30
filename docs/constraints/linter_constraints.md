@@ -22,7 +22,12 @@ source_type: operation_guide
 - The CLI exposes exactly `run`, reads no input, and forwards the candidate it
   just prepared. There is no path/ref/repository/command/environment selector.
 - Storage contains no copy, replace, unlink, remove, rmdir, rmtree, cleanup,
-  repair or overwrite call. It uses a same-parent no-replace handle rename and
+  repair or overwrite call. Its sole `SetKernelObjectSecurity` use is the fixed
+  source control-handle bridge between exact
+  `D:P(A;;0x001200a9;;;WD)` and
+  `D:P(A;;0x001200a9;;;WD)(A;;SD;;;OW)`; no named-path or Git-common parent DACL
+  writer exists. It restores and verifies the original source DACL before the
+  normal commit boundary, uses a same-parent no-replace handle rename, and
   compares exact payloads, streams, DACL and file identities before and after.
   Wall and monotonic time both enforce the half-open 300-second window.
 - Candidate and receipt schemas are canonical, closed and content-free. Every

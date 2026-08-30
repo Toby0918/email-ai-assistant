@@ -429,10 +429,38 @@ class ClosureEvidenceRolloverTests(unittest.TestCase):
                         _grant_cleanup_access(candidate)
 
     @unittest.skipUnless(os.name == "nt", "Windows NTFS sandbox required")
+    def test_storage_commit_preserves_dacls_without_parent_delete_child(self) -> None:
+        common, source, payloads, observation, owner = _native_observation(
+            parent_sddl="D:P(A;;GRGWGX;;;WD)"
+        )
+        target = common / TARGET
+        parent_dacl = _read_path_dacl(common)
+        source_dacl = _read_path_dacl(source)
+        try:
+            storage_adapter.FixedClosureEvidenceStorage().commit(
+                observation, lambda: None
+            )
+            self.assertFalse(source.exists())
+            self.assertTrue(target.exists())
+            self.assertEqual(_read_path_dacl(common), parent_dacl)
+            self.assertEqual(_read_path_dacl(target), source_dacl)
+            self.assertEqual(
+                tuple((target / name).read_bytes() for name in storage_adapter._FILES),
+                payloads,
+            )
+        finally:
+            _set_path_dacl(common, "D:P(A;;FA;;;WD)")
+            for candidate in (source, target):
+                if candidate.exists():
+                    _grant_cleanup_access(candidate)
+            owner.cleanup()
+
+    @unittest.skipUnless(os.name == "nt", "Windows NTFS sandbox required")
     def test_terminal_target_collision_preserves_source_and_competitor(self) -> None:
         common, source, payloads, observation, owner = _native_observation()
         target = common / TARGET
         sentinel = b"synthetic competitor"
+        parent_dacl, source_dacl = _read_path_dacl(common), _read_path_dacl(source)
         def collide() -> None:
             target.mkdir()
             (target / "competitor.bin").write_bytes(sentinel)
@@ -441,6 +469,8 @@ class ClosureEvidenceRolloverTests(unittest.TestCase):
                 storage_adapter.FixedClosureEvidenceStorage().commit(observation, collide)
             self.assertEqual(tuple((source / name).read_bytes() for name in storage_adapter._FILES), payloads)
             self.assertEqual((target / "competitor.bin").read_bytes(), sentinel)
+            self.assertEqual(_read_path_dacl(common), parent_dacl)
+            self.assertEqual(_read_path_dacl(source), source_dacl)
         finally:
             for candidate in (source, target):
                 if candidate.exists():
@@ -567,7 +597,7 @@ class ClosureEvidenceRolloverTests(unittest.TestCase):
             other.cleanup()
 
 
-def _native_observation():
+def _native_observation(*, parent_sddl: str | None = None):
     owner = tempfile.TemporaryDirectory()
     common = Path(owner.name)
     source = common / "r2-solo-maintainer-closure-v1"
@@ -576,6 +606,8 @@ def _native_observation():
     for name, payload in zip(storage_adapter._FILES, payloads, strict=True):
         (source / name).write_bytes(payload)
     _protect_closure(source)
+    if parent_sddl is not None:
+        _set_path_dacl(common, parent_sddl)
     identity, parent_identity, parent_dacl = storage_adapter._observe_identity(common, source, payloads)
     observation = storage_adapter._create_observation(
         manifest=payloads[0], receipt=payloads[1], historical_commit_oid=OLD_COMMIT,
@@ -601,6 +633,51 @@ def _protect_closure(source: Path) -> None:
 
 def _set_full_access(path: Path) -> None:
     _grant_cleanup_access(path)
+
+
+def _read_path_dacl(path: Path) -> bytes:
+    flags = 0x02200000 if path.is_dir() else 0x00200000
+    handle = storage_adapter._windows_open(path, 0x00020080, 0x7, flags)
+    close = storage_adapter._api("CloseHandle", (ctypes.c_void_p,))
+    try:
+        return storage_adapter._read_locked_acl(handle, False)
+    finally:
+        close(handle)
+
+
+def _set_path_dacl(path: Path, sddl: str) -> None:
+    convert = storage_adapter._api(
+        "ConvertStringSecurityDescriptorToSecurityDescriptorW",
+        (
+            ctypes.c_wchar_p, ctypes.c_uint32, ctypes.POINTER(ctypes.c_void_p),
+            ctypes.POINTER(ctypes.c_uint32),
+        ),
+        ctypes.c_int,
+        "advapi32",
+    )
+    secure = storage_adapter._api(
+        "SetKernelObjectSecurity",
+        (ctypes.c_void_p, ctypes.c_uint32, ctypes.c_void_p),
+        ctypes.c_int,
+        "advapi32",
+    )
+    descriptor, length = ctypes.c_void_p(), ctypes.c_uint32()
+    close = storage_adapter._api("CloseHandle", (ctypes.c_void_p,))
+    handle = None
+    try:
+        if convert(sddl, 1, ctypes.byref(descriptor), ctypes.byref(length)) != 1:
+            raise OSError(ctypes.get_last_error())
+        flags = 0x02200000 if path.is_dir() else 0x00200000
+        handle = storage_adapter._windows_open(path, 0x00060080, 0x7, flags)
+        if secure(handle, 0x80000004, descriptor) != 1:
+            raise OSError(ctypes.get_last_error())
+    finally:
+        if handle is not None:
+            close(handle)
+        if descriptor.value:
+            storage_adapter._api(
+                "LocalFree", (ctypes.c_void_p,), ctypes.c_void_p
+            )(descriptor)
 
 
 def _grant_cleanup_access(directory: Path) -> None:

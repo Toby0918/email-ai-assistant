@@ -118,6 +118,18 @@ class ClosureEvidenceRolloverArchitectureTests(unittest.TestCase):
         )
         self.assertTrue(calls.isdisjoint(banned), calls & banned)
 
+    def test_source_delete_access_escalation_is_fixed_and_parent_preserving(self) -> None:
+        storage = (PACKAGE / "storage.py").read_text(encoding="utf-8")
+        self.assertIn('_LOCKED_DACL = "D:P(A;;0x001200a9;;;WD)"', storage)
+        self.assertIn(
+            '_OWNER_DELETE_DACL = "D:P(A;;0x001200a9;;;WD)(A;;SD;;;OW)"',
+            storage,
+        )
+        self.assertEqual(storage.count('"SetKernelObjectSecurity"'), 1)
+        self.assertNotIn("SetNamedSecurityInfo", storage)
+        self.assertIn("_require_parent_guard(namespace_guards[0]", storage)
+        self.assertIn("_fixed_dacl(control, _LOCKED_DACL, apply=True)", storage)
+
     def test_native_primitives_remain_behind_storage_boundary(self) -> None:
         repository = (PACKAGE / "repository.py").read_text(encoding="utf-8")
         storage = (PACKAGE / "storage.py").read_text(encoding="utf-8")
