@@ -11,6 +11,7 @@ from unittest.mock import patch
 
 import backend.r2_closure_evidence_rollover as public
 from backend.r2_closure_evidence_rollover import ClosureEvidenceRollover
+from backend.r2_ci_provenance_v2 import portable_native_skip_reason_registry_v2
 from scripts import rollover_r2_solo_maintainer_closure as cli
 
 
@@ -144,6 +145,21 @@ class ClosureEvidenceRolloverArchitectureTests(unittest.TestCase):
     def test_existing_closure_package_remains_exactly_ten_files(self) -> None:
         package = ROOT / "backend/r2_solo_maintainer_closure"
         self.assertEqual(len([item for item in package.iterdir() if item.is_file()]), 10)
+
+    def test_windows_cases_use_one_registered_portable_skip_reason(self) -> None:
+        path = ROOT / "tests/test_r2_closure_evidence_rollover.py"
+        tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+        reasons = {
+            node.args[1].value
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "skipUnless"
+            and len(node.args) == 2
+            and isinstance(node.args[1], ast.Constant)
+        }
+        self.assertEqual(reasons, {"Windows NTFS sandbox required"})
+        self.assertTrue(reasons <= set(portable_native_skip_reason_registry_v2()))
 
 
 if __name__ == "__main__":

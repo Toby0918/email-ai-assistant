@@ -249,5 +249,9 @@ rollover；新的 #38 人工 final review 与任何 #39 真实 cutover 仍需分
   `R2_ISSUE39_LEGACY_SERVICE_AMBIGUOUS`；未停止或修改该用户进程，待隔离 CI 复核。
 - maintenance scan：exit 0，仅报告 24 项已知 low stale-doc；repository leakage scan：
   exit 0、零 finding；`git diff --check`：exit 0。
+- PR #124 首轮 `portable-provenance` 以固定码 `R2_CI_PROVENANCE_INVALID` fail closed；
+  根因为新增 Windows-only tests 使用了未登记的 skip reason。修复统一复用既有
+  `Windows NTFS sandbox required`，并新增 architecture guard；rollover 25/25、
+  CI-provenance 17/17 聚焦回归通过，等待新的 PR checks。
 - PR、五项 CI、merge、merged-master CI、exact-master LF、live rollover、fresh closure、
   protected verifier 与新的 #38 final review：待后续受控步骤填写。

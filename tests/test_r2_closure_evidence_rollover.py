@@ -370,7 +370,7 @@ class ClosureEvidenceRolloverTests(unittest.TestCase):
                 with self.assertRaises(ClosureEvidenceRolloverError):
                     storage_adapter._require_cross_binding(manifest, receipt)
 
-    @unittest.skipUnless(os.name == "nt", "Windows no-replace evidence rollover")
+    @unittest.skipUnless(os.name == "nt", "Windows NTFS sandbox required")
     def test_storage_commit_preserves_bytes_identity_and_never_clobbers(self) -> None:
         with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as directory:
             common = Path(directory)
@@ -427,7 +427,7 @@ class ClosureEvidenceRolloverTests(unittest.TestCase):
                     if candidate.exists():
                         _grant_cleanup_access(candidate)
 
-    @unittest.skipUnless(os.name == "nt", "Windows terminal collision")
+    @unittest.skipUnless(os.name == "nt", "Windows NTFS sandbox required")
     def test_terminal_target_collision_preserves_source_and_competitor(self) -> None:
         common, source, payloads, observation, owner = _native_observation()
         target = common / TARGET
@@ -446,7 +446,7 @@ class ClosureEvidenceRolloverTests(unittest.TestCase):
                     _grant_cleanup_access(candidate)
             owner.cleanup()
 
-    @unittest.skipUnless(os.name == "nt", "Windows parent DACL race")
+    @unittest.skipUnless(os.name == "nt", "Windows NTFS sandbox required")
     def test_parent_dacl_drift_fails_before_rename(self) -> None:
         common, source, payloads, observation, owner = _native_observation()
         try:
@@ -463,7 +463,7 @@ class ClosureEvidenceRolloverTests(unittest.TestCase):
                 _grant_cleanup_access(source)
             owner.cleanup()
 
-    @unittest.skipUnless(os.name == "nt", "Windows artifact guards")
+    @unittest.skipUnless(os.name == "nt", "Windows NTFS sandbox required")
     def test_hard_link_ads_and_reparse_are_rejected(self) -> None:
         cases = ("hard_link", "ads", "reparse")
         for case in cases:
@@ -491,7 +491,7 @@ class ClosureEvidenceRolloverTests(unittest.TestCase):
                 with self.assertRaises(Exception):
                     verifier()
 
-    @unittest.skipUnless(os.name == "nt", "Windows writer exclusion")
+    @unittest.skipUnless(os.name == "nt", "Windows NTFS sandbox required")
     def test_identity_observation_excludes_concurrent_writers(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             common = Path(raw)
@@ -515,7 +515,7 @@ class ClosureEvidenceRolloverTests(unittest.TestCase):
             self.assertEqual(attempts, ["denied"])
             self.assertEqual((source / storage_adapter._FILES[0]).read_bytes(), payloads[0])
 
-    @unittest.skipUnless(os.name == "nt", "Windows commit drift guards")
+    @unittest.skipUnless(os.name == "nt", "Windows NTFS sandbox required")
     def test_file_write_and_parent_identity_drift_fail_before_rename(self) -> None:
         for case in ("file_write", "source_dacl", "parent_identity"):
             common, source, payloads, observation, owner = _native_observation()
@@ -547,7 +547,7 @@ class ClosureEvidenceRolloverTests(unittest.TestCase):
                     _grant_cleanup_access(source)
                 owner.cleanup()
 
-    @unittest.skipUnless(os.name == "nt", "Windows same-parent contract")
+    @unittest.skipUnless(os.name == "nt", "Windows NTFS sandbox required")
     def test_cross_parent_target_rejected_without_callback(self) -> None:
         common, source, payloads, _observation_value, owner = _native_observation()
         callback = []
