@@ -442,6 +442,7 @@ class ClosureEvidenceRolloverTests(unittest.TestCase):
             )
             self.assertFalse(source.exists())
             self.assertTrue(target.exists())
+            self.assertEqual(tuple(path.name for path in common.iterdir()), (TARGET,))
             self.assertEqual(_read_path_dacl(common), parent_dacl)
             self.assertEqual(_read_path_dacl(target), source_dacl)
             self.assertEqual(
@@ -453,6 +454,38 @@ class ClosureEvidenceRolloverTests(unittest.TestCase):
             for candidate in (source, target):
                 if candidate.exists():
                     _grant_cleanup_access(candidate)
+            owner.cleanup()
+
+    @unittest.skipUnless(os.name == "nt", "Windows NTFS sandbox required")
+    def test_temporary_delete_dacl_readback_failure_restores_source(self) -> None:
+        common, source, _payloads, observation, owner = _native_observation(
+            parent_sddl="D:P(A;;GRGWGX;;;WD)"
+        )
+        original_dacl = _read_path_dacl(source)
+        fixed_dacl = storage_adapter._fixed_dacl
+
+        def reject_after_temporary_apply(handle, sddl, *, apply):
+            result = fixed_dacl(handle, sddl, apply=apply)
+            if sddl == storage_adapter._OWNER_DELETE_DACL:
+                raise ClosureEvidenceRolloverError(
+                    RolloverErrorCode.PUBLICATION_REJECTED
+                )
+            return result
+
+        try:
+            with patch.object(
+                storage_adapter, "_fixed_dacl", side_effect=reject_after_temporary_apply
+            ), self.assertRaises(ClosureEvidenceRolloverError):
+                storage_adapter.FixedClosureEvidenceStorage().commit(
+                    observation, lambda: None
+                )
+            self.assertTrue(source.exists())
+            self.assertFalse((common / TARGET).exists())
+            self.assertEqual(_read_path_dacl(source), original_dacl)
+        finally:
+            _set_path_dacl(common, "D:P(A;;FA;;;WD)")
+            if source.exists():
+                _grant_cleanup_access(source)
             owner.cleanup()
 
     @unittest.skipUnless(os.name == "nt", "Windows NTFS sandbox required")

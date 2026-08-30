@@ -120,10 +120,12 @@ none
 - read-only incident probe 精确定位 source-directory open 的 Win32 error 5；probe 的
   terminal rename 被内存桩阻断，source/target existence 和两个 artifact SHA-256 前后相同。
 - production-shaped parent-without-delete-child tracer test 在旧实现上固定失败，修复后
-  通过；focused rollover/native/architecture 26/26 通过。
-- rollover + existing closure + protected-verifier affected suites 82/82 通过。
+  通过；临时 DACL write-success/readback-failure 回归同样先红后绿，并证明 original DACL
+  在异常路径恢复。focused rollover/native/architecture 28/28 通过。
+- rollover + existing closure + protected-verifier affected suites 在新增异常路径用例后为
+  83/83 通过。
 - architecture/static/mechanical/status suites 130/130 通过。
-- mailbox generator trust-hash regressions和 server 网络边界用例单独复核 3/3 通过。
+- mailbox generator trust-hash regressions 和 server 网络边界用例单独复核 3/3 通过。
 - full discovery 运行 2898 项、5 项预期跳过；本改动导致的 2 项 generator trust-hash
   failures 已修复。另有 2 项既有 `R2_ISSUE39_LEGACY_SERVICE_AMBIGUOUS`，对应用户现场
   localhost preview service；另 1 项 server connection-aborted 在单独重跑时通过。未停止、

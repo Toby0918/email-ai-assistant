@@ -147,8 +147,8 @@ def _open_source_guard(
                 or _windows_identity(control) != identity[:2]
                 or _read_locked_acl(control, False) != original):
             raise ClosureEvidenceRolloverError(RolloverErrorCode.PUBLICATION_REJECTED)
-        _fixed_dacl(control, _OWNER_DELETE_DACL, apply=True)
         escalated = True
+        _fixed_dacl(control, _OWNER_DELETE_DACL, apply=True)
         rename_handle = _windows_open(source, 0x00030080, 0x5, 0x42200000)
         _fixed_dacl(control, _LOCKED_DACL, apply=True)
         escalated = False
