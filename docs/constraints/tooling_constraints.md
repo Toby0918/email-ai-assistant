@@ -1538,6 +1538,19 @@ initial state. The only permitted Git mutation commands are the exact bounded
 worktree repair/move operations inside the reviewed handler; fetch, prune,
 clone, reset, stash, delete, overwrite, and cleanup remain forbidden.
 
+Repository preparation uses only bounded, stdin-closed Git reads for object
+format, HEAD tree, regular stage-zero index, ordinary index flags, untracked
+names, and the four fixed attributes `filter`, `working-tree-encoding`, `text`,
+and `eol`. Every attribute must be `unspecified`; no clean filter or encoding
+driver is executed. A held
+file read records the raw relocation size and SHA-256. Its index identity is
+proved either by direct raw blob equality or the single code-owned CRLF-to-LF
+projection with no NUL or remaining bare CR. HEAD-tree/index equality, ordinary
+flags, the empty untracked set, index bytes, and attribute evidence are repeated
+after the reads and must remain exact. There is no caller path, arbitrary
+attribute, filter, encoding, normalizer, hidden index flag, or dirty-checkout
+escape.
+
 Runtime publication uses only Python 3.12.13 with SQLite 3.50.4, the reviewed
 source-tree manifest, the complete offline wheelhouse, and fixed isolated
 verification flags. Subprocess output is incrementally bounded and the child

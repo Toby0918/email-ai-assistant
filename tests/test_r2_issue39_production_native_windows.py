@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import os
 import sqlite3
 import subprocess
@@ -99,6 +100,157 @@ class Issue39ProductionNativeWindowsTest(unittest.TestCase):
         self.assertTrue(repository_exact(host))
         relocate_repository(host, "rollback")
         self.assertTrue(repository_exact(host, reverse=True))
+
+    def test_clean_autocrlf_checkout_binds_raw_bytes_and_index_blob(self):
+        repository = self.root / "autocrlf-repository"
+        repository.mkdir()
+        raw_bytes = b"anonymous first\r\nanonymous second\nanonymous third\r\n"
+        tracked = repository / "tracked.txt"
+        self._git(repository, "init")
+        self._git(repository, "config", "user.email", "synthetic@example.test")
+        self._git(repository, "config", "user.name", "Synthetic")
+        self._git(repository, "config", "core.autocrlf", "true")
+        tracked.write_bytes(raw_bytes)
+        self._git(repository, "add", "tracked.txt")
+        self._git(repository, "commit", "-m", "synthetic autocrlf")
+        self.assertEqual(
+            self._git_output(
+                repository, "status", "--porcelain=v1", "-z",
+                "--untracked-files=all",
+            ),
+            b"",
+        )
+        index_oid = self._git_output(
+            repository, "rev-parse", ":tracked.txt"
+        ).decode("ascii").strip()
+
+        manifest = review_repository_manifest(repository)
+
+        self.assertEqual(len(manifest.entries), 1)
+        entry = manifest.entries[0]
+        self.assertEqual(entry.relative, "tracked.txt")
+        self.assertEqual(entry.git_oid, index_oid)
+        self.assertEqual(entry.size_bytes, len(raw_bytes))
+        self.assertEqual(entry.sha256, hashlib.sha256(raw_bytes).hexdigest())
+
+    def test_repository_manifest_rejects_non_clean_checkout(self):
+        repository = self.root / "non-clean-repository"
+        repository.mkdir()
+        tracked = repository / "tracked.txt"
+        self._git(repository, "init")
+        self._git(repository, "config", "user.email", "synthetic@example.test")
+        self._git(repository, "config", "user.name", "Synthetic")
+        tracked.write_bytes(b"anonymous tracked\n")
+        self._git(repository, "add", "tracked.txt")
+        self._git(repository, "commit", "-m", "synthetic clean")
+        (repository / "untracked.txt").write_bytes(b"anonymous untracked\n")
+
+        with self.assertRaisesRegex(
+            ValueError, "^R2_ISSUE39_REPOSITORY_NOT_CLEAN$"
+        ):
+            review_repository_manifest(repository)
+
+    def test_repository_manifest_rejects_custom_filter_attribute(self):
+        repository = self.root / "filter-repository"
+        repository.mkdir()
+        self._git(repository, "init")
+        self._git(repository, "config", "user.email", "synthetic@example.test")
+        self._git(repository, "config", "user.name", "Synthetic")
+        (repository / ".gitattributes").write_bytes(
+            b"tracked.txt filter=custom\n"
+        )
+        (repository / "tracked.txt").write_bytes(b"anonymous tracked\n")
+        self._git(repository, "add", ".gitattributes", "tracked.txt")
+        self._git(repository, "commit", "-m", "synthetic filter attribute")
+        self._git(repository, "config", "filter.custom.clean", "cmd /c exit 19")
+        self._git(repository, "config", "filter.custom.required", "true")
+
+        with self.assertRaisesRegex(
+            ValueError, "^R2_ISSUE39_REPOSITORY_ATTRIBUTES_INVALID$"
+        ):
+            review_repository_manifest(repository)
+
+    def test_repository_manifest_rejects_explicit_checkout_attributes(self):
+        cases = (
+            ("working-tree-encoding", "working-tree-encoding=UTF-8"),
+            ("text", "text"),
+            ("eol", "eol=crlf"),
+        )
+        for name, rule in cases:
+            with self.subTest(attribute=name):
+                repository = self.root / f"{name}-repository"
+                repository.mkdir()
+                self._git(repository, "init")
+                self._git(
+                    repository, "config", "user.email",
+                    "synthetic@example.test",
+                )
+                self._git(repository, "config", "user.name", "Synthetic")
+                (repository / ".gitattributes").write_text(
+                    f"tracked.txt {rule}\n", encoding="ascii", newline="\n"
+                )
+                (repository / "tracked.txt").write_bytes(
+                    b"anonymous tracked\n"
+                )
+                self._git(repository, "add", ".gitattributes", "tracked.txt")
+                self._git(
+                    repository, "commit", "-m",
+                    f"synthetic {name} attribute",
+                )
+
+                with self.assertRaisesRegex(
+                    ValueError, "^R2_ISSUE39_REPOSITORY_ATTRIBUTES_INVALID$"
+                ):
+                    review_repository_manifest(repository)
+
+    def test_repository_manifest_rejects_staged_and_unstaged_content(self):
+        for state in ("staged", "unstaged"):
+            with self.subTest(state=state):
+                repository = self.root / f"{state}-repository"
+                repository.mkdir()
+                tracked = repository / "tracked.txt"
+                self._git(repository, "init")
+                self._git(
+                    repository, "config", "user.email",
+                    "synthetic@example.test",
+                )
+                self._git(repository, "config", "user.name", "Synthetic")
+                tracked.write_bytes(b"anonymous original\n")
+                self._git(repository, "add", "tracked.txt")
+                self._git(repository, "commit", "-m", "synthetic original")
+                tracked.write_bytes(b"anonymous changed\n")
+                if state == "staged":
+                    self._git(repository, "add", "tracked.txt")
+
+                expected = (
+                    "R2_ISSUE39_REPOSITORY_NOT_CLEAN"
+                    if state == "staged"
+                    else "R2_ISSUE39_REPOSITORY_BYTE_DRIFT"
+                )
+                with self.assertRaisesRegex(ValueError, f"^{expected}$"):
+                    review_repository_manifest(repository)
+
+    def test_repository_manifest_rejects_hidden_index_flags(self):
+        for flag in ("--assume-unchanged", "--skip-worktree"):
+            with self.subTest(flag=flag):
+                repository = self.root / flag.removeprefix("--")
+                repository.mkdir()
+                tracked = repository / "tracked.txt"
+                self._git(repository, "init")
+                self._git(
+                    repository, "config", "user.email",
+                    "synthetic@example.test",
+                )
+                self._git(repository, "config", "user.name", "Synthetic")
+                tracked.write_bytes(b"anonymous tracked\n")
+                self._git(repository, "add", "tracked.txt")
+                self._git(repository, "commit", "-m", "synthetic tracked")
+                self._git(repository, "update-index", flag, "tracked.txt")
+
+                with self.assertRaisesRegex(
+                    ValueError, "^R2_ISSUE39_REPOSITORY_NOT_CLEAN$"
+                ):
+                    review_repository_manifest(repository)
 
     def test_reparse_source_is_rejected_without_touching_target(self):
         real = self.root / "real"

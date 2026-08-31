@@ -1023,6 +1023,19 @@ It exposes no path or caller text and is informational, never authority. The
 operator enters only the following candidate fingerprint and fixed
 acknowledgement; any context/display failure stops before input or effect.
 
+Issue 39 repository preparation binds the raw relocation bytes independently
+from the regular stage-zero index blob identity. Raw byte size and SHA-256 are
+preserved in the manifest; the index OID is accepted only by direct raw blob
+equality or one code-owned CRLF-to-LF projection with at least one CRLF, no NUL,
+no remaining bare CR, and exact projected OID equality. Filter-free HEAD-tree/
+index equality, ordinary index flags, the empty untracked set, the complete
+index payload, and only the fixed `filter`, `working-tree-encoding`,
+`text`, and `eol` attributes are observed before and after review. Every
+attribute must be `unspecified`. Arbitrary filter execution, encoding,
+attribute expansion, caller normalization/path selection, hidden index flags,
+true content drift, and non-clean or unstable state fail closed before evidence
+publication.
+
 ## Issue #74 create-only main and whole-tree DACL proof
 
 The representative R2 tracer renames the fixed synthetic flat root to

@@ -869,6 +869,12 @@ class GenerateProjectStatusTests(unittest.TestCase):
             "package-owned retained restart runner",
             "historical standalone preflight/evidence/transaction roots remain",
             "`DORMANT_NO_ISSUE39_APPROVAL`",
+            "stable regular stage-zero index before and after review",
+            "exact raw relocation size/SHA-256",
+            "no Git filter or encoding driver runs",
+            "durably completed the three before-evidence preflight observations",
+            "`accepted=0`, and `host_actions=0`",
+            "has not retried evidence publication, cutover, resume, or rollback",
             "Code enablement, tests, CI, and merge are implementation evidence only",
             "real execution still requires a separate final authorization",
         ):

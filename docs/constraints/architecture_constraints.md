@@ -1894,6 +1894,17 @@ next host effect. Historical Issue #56/#57/#58 fixed eight-embedded plus three-
 external rehearsal contracts remain unchanged and must not be treated as the
 production discovery rule.
 
+Fresh production preparation binds the exact stage-zero index and the raw
+working-tree bytes that repository relocation will move. A tracked file is
+eligible when its raw Git blob OID equals the index OID, or when the sole
+code-owned clean projection replaces CRLF pairs with LF, leaves no bare CR or
+NUL, and exactly equals that index OID. The manifest keeps the index OID plus
+the raw byte size and SHA-256. Filter-free clean-state evidence, the complete index payload, and
+the four fixed `filter`, `working-tree-encoding`, `text`, and `eol` attribute
+observations are checked before and after review; every attribute must be
+`unspecified`. No Git filter, encoding adapter, attribute expansion, caller
+normalizer, hidden index flag, or alternate path is executable or accepted.
+
 The production catalog is module-owned and has no registry, public constructor,
 or caller-selected dispatch. Handler selection uses the closed action phase and
 exact catalog-owned action name. Every forward, resume, rollback, and terminal

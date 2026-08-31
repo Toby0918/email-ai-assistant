@@ -1584,6 +1584,15 @@ The approved Issue #39 code allowlist permits only the fixed `backend.r2_issue39
   fixed-eleven rehearsal contracts. Static checks must preserve the old exact
   assertions and require the new code to bind complete bounded discovery rather
   than a caller-supplied count or selection.
+- Production repository review must bind every regular stage-zero index OID and
+  the exact raw working-tree size/SHA-256 used by relocation. Permit only raw
+  blob equality or the code-owned CRLF-to-LF projection with no NUL or remaining
+  bare CR and exact projected index-OID equality. Require filter-free HEAD-tree/
+  index/ordinary-flag/untracked clean-state evidence, stable index bytes, and
+  only `unspecified` values for the fixed `filter`,
+  `working-tree-encoding`, `text`, and `eol` queries before and after review.
+  Reject Git filter execution, arbitrary attributes, encodings, normalizers,
+  paths, hidden index flags, dirty state, or index/attribute drift.
 - Real-console, incident, journal, evidence, native host, Runtime, database,
   service, and audit capabilities remain in their narrow owning modules. Test
   helpers may inject only closed synthetic values and test-owned temporary

@@ -97,6 +97,17 @@ After the incident state is archived or already verified, the command performs
 a completely fresh prepare. Any roster, master, closure, issue, input,
 placement, identity, or cleanliness drift stops before production binding.
 
+During that prepare, repository review requires HEAD-tree/index equality,
+ordinary index flags, an empty untracked set, and a stable regular stage-zero
+index. Each manifest entry keeps the exact raw byte size and
+SHA-256 that relocation will move, together with the index blob OID. Raw bytes
+may differ from the index only for the built-in CRLF-to-LF projection, with no
+NUL or remaining bare CR and exact projected OID equality. The fixed
+`filter`, `working-tree-encoding`, `text`, and `eol` attributes must all be
+`unspecified`; no Git filter or encoding driver runs. A dirty checkout, true
+content change, hidden index flag, explicit attribute, or index/attribute drift stops before
+evidence publication.
+
 Every preflight, evidence/bootstrap, catalog, recovery, and terminal Execution
 Confirmation first prints one informational line such as:
 
