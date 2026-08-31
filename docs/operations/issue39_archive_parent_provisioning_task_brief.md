@@ -23,7 +23,7 @@ fix
 ## 3. Current status
 
 ```text
-implementation_complete_pending_ci
+ready_for_merge
 ```
 
 ## 4. Task goal
@@ -232,26 +232,30 @@ Implemented:
 
 Verification:
 - red regression: missing parent returned INCIDENT_STOP on the old code;
-- focused archive-parent/incident/zero-readiness/CLI: 23 passed;
+- focused archive-parent/incident/zero-readiness/CLI: 28 passed;
 - architecture 51 passed; static linter 31 passed; mechanical 11 passed;
 - governed enablement 6 passed; status generator 37 passed;
 - exact failure follow-up: host architecture 7 passed, preflight architecture
   8 passed, mailbox transport 15 passed;
-- Issue 39 suite: 108 passed, 2 skipped, 2 environment errors caused by the
+- Issue 39 suite: 112 passed, 2 skipped, 2 environment errors caused by the
   unrelated existing Python process on 127.0.0.1:8765;
 - full suite before exact static-allowlist follow-up: 2,909 run, 2,898 passed,
   5 skipped, 4 static failures subsequently fixed and focused-green, plus the
   same 2 environment errors;
 - git diff --check, maintenance scan, and repository leakage scan: exit 0.
 
-Local full-suite acceptance remains pending rather than recorded as passed:
-the two production-native Windows cases are blocked by the unrelated pre-
-existing listener on `127.0.0.1:8765`. That user-owned process is not stopped
-or modified by this task. The required clean-host CI result remains pending and
-must be recorded before merge.
+Local full-suite acceptance retains one environment qualification: the two
+production-native Windows cases are blocked by the unrelated pre-existing
+listener on `127.0.0.1:8765`. That user-owned process was not stopped or
+modified. Clean-host PR #127 head `6b8a6f1f47d97e42f96415636926895910454c72`
+then completed the exact five required checks successfully: `quality-gates`,
+`portable-provenance`, `windows-native-provenance`,
+`windows-independent-provenance`, and `provenance-reconciliation`. The final
+documentation-only head must repeat the same 5/5 result before merge.
 
 No real archive parent, incident evidence, disposition, cutover, resume,
 rollback, provider, mailbox, vault, or private-data operation was executed.
-Remaining: two-axis review, commit finalization, PR, CI, merge, and the separate
-post-merge exact-master closure/protected-verifier/Issue 38 review chain.
+Two-axis review completed with zero Standards and zero Spec findings. Remaining:
+final documentation-only CI, merge, and the separate post-merge exact-master
+closure/protected-verifier/Issue 38 review chain.
 ```
