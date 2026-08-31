@@ -1267,11 +1267,14 @@ The approved Issue #39 code allowlist permits only the fixed `backend.r2_issue39
    stage-zero index and each relocation source's exact raw size/SHA-256. Accept
    only direct raw blob/index equality or one code-owned CRLF-to-LF projection
    with no NUL or remaining bare CR and exact projected index-OID equality.
+   Enable projection only for include-free exact true repository/worktree mode,
+   or the fixed Git system true mode when no override exists.
    Before and after file reads, require identical HEAD-tree/index equality,
-   ordinary index flags, empty untracked set, index payload, and `unspecified`
-   results for only `filter`, `working-tree-encoding`, `text`, and `eol`.
-   Reject filter execution, hidden index flags, arbitrary attributes/encodings,
-   non-clean state, content drift, and index or attribute drift.
+   ordinary index flags, empty untracked set, index/config evidence, and absent
+   tracked `.gitattributes`, fixed `.git/info/attributes`, and repository/system
+   `core.attributesFile`. Reject `check-attr`, filter execution, hidden index
+   flags, arbitrary attributes/encodings, non-clean state, content drift, and
+   index/config/source drift.
 9. On Windows, run the real fixed production handlers only against a caller-
    owned temporary synthetic topology. Cover complete forward success, direct
    LIFO reverse through every host-effect handler, collisions, reparses,

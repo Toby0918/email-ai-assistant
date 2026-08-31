@@ -133,6 +133,31 @@ class Issue39ProductionNativeWindowsTest(unittest.TestCase):
         self.assertEqual(entry.size_bytes, len(raw_bytes))
         self.assertEqual(entry.sha256, hashlib.sha256(raw_bytes).hexdigest())
 
+    def test_autocrlf_false_eol_only_dirty_checkout_is_rejected(self):
+        repository = self.root / "autocrlf-false-repository"
+        repository.mkdir()
+        tracked = repository / "tracked.txt"
+        self._git(repository, "init")
+        self._git(repository, "config", "user.email", "synthetic@example.test")
+        self._git(repository, "config", "user.name", "Synthetic")
+        self._git(repository, "config", "core.autocrlf", "false")
+        tracked.write_bytes(b"anonymous first\nanonymous second\n")
+        self._git(repository, "add", "tracked.txt")
+        self._git(repository, "commit", "-m", "synthetic LF")
+        tracked.write_bytes(b"anonymous first\r\nanonymous second\r\n")
+        self.assertNotEqual(
+            self._git_output(
+                repository, "status", "--porcelain=v1", "-z",
+                "--untracked-files=all",
+            ),
+            b"",
+        )
+
+        with self.assertRaisesRegex(
+            ValueError, "^R2_ISSUE39_REPOSITORY_BYTE_DRIFT$"
+        ):
+            review_repository_manifest(repository)
+
     def test_repository_manifest_rejects_non_clean_checkout(self):
         repository = self.root / "non-clean-repository"
         repository.mkdir()
@@ -164,6 +189,42 @@ class Issue39ProductionNativeWindowsTest(unittest.TestCase):
         self._git(repository, "commit", "-m", "synthetic filter attribute")
         self._git(repository, "config", "filter.custom.clean", "cmd /c exit 19")
         self._git(repository, "config", "filter.custom.required", "true")
+
+        with self.assertRaisesRegex(
+            ValueError, "^R2_ISSUE39_REPOSITORY_ATTRIBUTES_INVALID$"
+        ):
+            review_repository_manifest(repository)
+
+    def test_repository_manifest_rejects_external_attributes_file(self):
+        repository = self.root / "external-attributes-repository"
+        repository.mkdir()
+        external = self.root / "external.attributes"
+        external.write_bytes(b"*.txt synthetic-unrelated=value\n")
+        self._git(repository, "init")
+        self._git(repository, "config", "user.email", "synthetic@example.test")
+        self._git(repository, "config", "user.name", "Synthetic")
+        self._git(repository, "config", "core.attributesFile", str(external))
+        (repository / "tracked.txt").write_bytes(b"anonymous tracked\n")
+        self._git(repository, "add", "tracked.txt")
+        self._git(repository, "commit", "-m", "synthetic external attributes")
+
+        with self.assertRaisesRegex(
+            ValueError, "^R2_ISSUE39_REPOSITORY_ATTRIBUTES_INVALID$"
+        ):
+            review_repository_manifest(repository)
+
+    def test_repository_manifest_rejects_git_info_attributes(self):
+        repository = self.root / "info-attributes-repository"
+        repository.mkdir()
+        self._git(repository, "init")
+        self._git(repository, "config", "user.email", "synthetic@example.test")
+        self._git(repository, "config", "user.name", "Synthetic")
+        (repository / "tracked.txt").write_bytes(b"anonymous tracked\n")
+        self._git(repository, "add", "tracked.txt")
+        self._git(repository, "commit", "-m", "synthetic info attributes")
+        (repository / ".git" / "info" / "attributes").write_bytes(
+            b"*.txt synthetic-unrelated=value\n"
+        )
 
         with self.assertRaisesRegex(
             ValueError, "^R2_ISSUE39_REPOSITORY_ATTRIBUTES_INVALID$"

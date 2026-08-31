@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import os
 from pathlib import PurePosixPath
 
 from backend.cutover_managed_activation.windows_file_handles import (
@@ -10,8 +11,7 @@ from backend.cutover_managed_activation.windows_file_handles import (
 )
 
 
-_REVIEWED_ATTRIBUTES = ("filter", "working-tree-encoding", "text", "eol")
-_ATTRIBUTE_BATCH_SIZE = 32
+_ABSENT_CONFIG = b"R2_ISSUE39_CONFIG_ABSENT"
 
 
 def parse_index(payload):
@@ -57,37 +57,42 @@ def require_clean_repository(root, git, indexed):
     return head, flags, untracked
 
 
-def require_safe_attributes(root, git, relatives):
-    evidence = []
-    for start in range(0, len(relatives), _ATTRIBUTE_BATCH_SIZE):
-        batch = relatives[start:start + _ATTRIBUTE_BATCH_SIZE]
-        payload = git(
-            root,
-            ("check-attr", "-z", *_REVIEWED_ATTRIBUTES, "--", *batch),
-        )
-        fields = payload.split(b"\0")
-        if not fields or fields[-1] != b"":
-            raise ValueError("R2_ISSUE39_REPOSITORY_ATTRIBUTES_INVALID")
-        fields.pop()
-        if len(fields) != len(batch) * len(_REVIEWED_ATTRIBUTES) * 3:
-            raise ValueError("R2_ISSUE39_REPOSITORY_ATTRIBUTES_INVALID")
-        position = 0
-        for relative in batch:
-            for attribute in _REVIEWED_ATTRIBUTES:
-                expected = (
-                    relative.encode("utf-8"), attribute.encode("ascii"),
-                    b"unspecified",
-                )
-                if tuple(fields[position:position + 3]) != expected:
-                    raise ValueError(
-                        "R2_ISSUE39_REPOSITORY_ATTRIBUTES_INVALID"
-                    )
-                position += 3
-        evidence.append(payload)
-    return tuple(evidence)
+def require_no_attribute_sources(root, git, indexed):
+    if any(path.name.casefold() == ".gitattributes" for *_, path in indexed):
+        raise ValueError("R2_ISSUE39_REPOSITORY_ATTRIBUTES_INVALID")
+    repository_value = _config_value(
+        root, git, ("config", "--no-includes"), "core.attributesFile"
+    )
+    system_value = _config_value(
+        root, git, ("config", "--system", "--no-includes"),
+        "core.attributesFile",
+    )
+    if repository_value != _ABSENT_CONFIG or system_value != _ABSENT_CONFIG:
+        raise ValueError("R2_ISSUE39_REPOSITORY_ATTRIBUTES_INVALID")
+    info_attributes = root / ".git" / "info" / "attributes"
+    if os.path.lexists(info_attributes):
+        raise ValueError("R2_ISSUE39_REPOSITORY_ATTRIBUTES_INVALID")
+    return repository_value, system_value, False
 
 
-def review_file(path, oid, *, limit):
+def controlled_crlf_mode(root, git):
+    repository_value = _config_value(
+        root, git, ("config", "--no-includes"), "core.autocrlf"
+    )
+    system_value = git(
+        root,
+        (
+            "config", "--system", "--no-includes", "--type=bool",
+            "--default=false", "--get", "core.autocrlf",
+        ),
+    ).strip()
+    allowed = repository_value == b"true" or (
+        repository_value == _ABSENT_CONFIG and system_value == b"true"
+    )
+    return repository_value, system_value, allowed
+
+
+def review_file(path, oid, *, limit, allow_crlf_projection):
     api = WindowsReadHandleApi()
     handle = api.open_existing(path, deny_write=True)
     try:
@@ -100,7 +105,8 @@ def review_file(path, oid, *, limit):
     if _git_blob_oid(payload) != oid:
         projected = payload.replace(b"\r\n", b"\n")
         if (
-            b"\r\n" not in payload or b"\0" in payload
+            not allow_crlf_projection
+            or b"\r\n" not in payload or b"\0" in payload
             or b"\r" in projected or _git_blob_oid(projected) != oid
         ):
             raise ValueError("R2_ISSUE39_REPOSITORY_BYTE_DRIFT")
@@ -134,6 +140,16 @@ def _git_blob_oid(payload):
     return hashlib.sha1(
         b"blob " + str(len(payload)).encode("ascii") + b"\0" + payload
     ).hexdigest()
+
+
+def _config_value(root, git, prefix, name):
+    return git(
+        root,
+        (
+            *prefix, "--default=" + _ABSENT_CONFIG.decode("ascii"),
+            "--get", name,
+        ),
+    ).strip()
 
 
 def _lower_hex(value):

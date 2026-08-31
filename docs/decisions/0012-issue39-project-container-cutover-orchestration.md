@@ -99,13 +99,16 @@ The production repository manifest binds two representations without treating
 them as interchangeable. `git_oid` is the regular stage-zero index identity;
 `size_bytes` and `sha256` are the exact raw checkout bytes later moved. Direct
 raw blob equality is preferred. A clean Windows checkout may instead use only
-the code-owned CRLF-to-LF projection when it contains no NUL, leaves no bare CR,
-and exactly reaches the index OID. Preparation requires filter-free HEAD-tree/
+the code-owned CRLF-to-LF projection when include-free repository/worktree mode
+is exact true, or when it is absent and the fixed Git system mode is true. The
+projection contains no NUL, leaves no bare CR, and exactly reaches the index
+OID. Preparation requires filter-free HEAD-tree/
 index equality, ordinary index flags, an empty untracked set, and stable index/
-attribute observations before and after the raw reads. The only queried
-attributes are `filter`, `working-tree-encoding`, `text`, and `eol`, and all
-must be `unspecified`; Git filters, encodings, arbitrary attributes, caller
-normalizers, hidden index flags, and alternate paths remain rejected.
+config/source-absence observations before and after the raw reads. Tracked
+`.gitattributes`, fixed `.git/info/attributes`, and effective repository/system
+`core.attributesFile` are rejected. `check-attr`, Git filters, encodings,
+arbitrary attributes, caller normalizers, hidden index flags, and alternate
+paths remain unreachable.
 
 The production action catalog is closed and catalog-owned. The portable
 six-worktree synthetic baseline contains 27 actions, of which 24 have host

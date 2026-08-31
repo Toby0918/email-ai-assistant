@@ -35,9 +35,9 @@ while their stage-zero index blobs contain LF bytes.
 
 Keep binding the exact raw working-tree size and SHA-256 used by relocation,
 while independently proving that either those raw bytes are the stage-zero Git
-blob or one code-owned CRLF-to-LF clean projection is that blob. Reject every
-other content change, non-clean repository, staged/index drift, custom Git
-filter, working-tree encoding, or explicit text/EOL attribute.
+blob or one code-owned CRLF-to-LF clean projection under the exact controlled
+true mode is that blob. Reject every other content change, non-clean repository,
+staged/index drift, Git attribute source, custom filter, or encoding expansion.
 
 ## 5. Non-goals
 
@@ -102,9 +102,15 @@ decision before modification.
 `review_repository_manifest(root)` remains the public seam. It first requires
 filter-free clean-state evidence: HEAD tree equals the complete regular stage-
 zero index, every index flag is ordinary, and the untracked set is empty. It
-queries only the four fixed attributes `filter`, `working-tree-encoding`,
-`text`, and `eol` through the already sanitized, hook-neutralized, stdin-closed
-Git runner and requires every result to be `unspecified`; no filter is executed.
+rejects any tracked `.gitattributes`, fixed `.git/info/attributes`, or effective
+repository/system `core.attributesFile`. All config reads use `--no-includes`;
+no attribute file, `check-attr`, or filter is read or executed.
+
+The same include-free config evidence binds `core.autocrlf`. A repository or
+worktree override must be exact `true`; when no override exists, the fixed Git
+installation's system value must normalize to exact `true`. Only that mode can
+unlock the code-owned CRLF-to-LF projection. Exact raw/index equality remains
+valid when the mode is false because it performs no normalization.
 
 Each tracked file is still opened through the writer-denying bounded Windows
 handle. Its exact raw byte size and SHA-256 remain the relocation evidence. The
@@ -138,8 +144,9 @@ the original raw bytes, not the projection.
 1. A real Windows synthetic repository with `core.autocrlf=true` and clean
    mixed LF/CRLF checkout bytes produces a manifest whose raw SHA-256 differs
    from but whose controlled projection equals the index blob.
-2. True working-tree changes, staged changes, non-clean state, custom filter,
-   working-tree encoding, and explicit text/EOL attributes fail closed.
+2. An EOL-only dirty checkout with local `core.autocrlf=false`, true content
+   changes, staged changes, non-clean state, custom filters, tracked/info/
+   external attribute sources, and encoding expansion fail closed.
 3. Existing raw-byte-exact repositories and relocation/recovery behavior pass.
 4. The exact A/M/D diff equals this brief.
 5. Focused, Issue 39, architecture, mechanical, status, full-suite,
@@ -151,8 +158,9 @@ the original raw bytes, not the projection.
 Use the public `review_repository_manifest(root)` seam in the existing Windows
 native suite. First add the clean `core.autocrlf=true` case and observe RED.
 Implement only the controlled projection and observe GREEN. Add one rejection
-case at a time for true content, staged state, filter, encoding, text, and EOL
-attributes. Then run affected integration and complete repository gates.
+case at a time for local-false EOL dirtiness, true content, staged state,
+tracked/info/external attributes, filter, encoding, and hidden index flags.
+Then run affected integration and complete repository gates.
 
 ## 13. Rollback plan
 
@@ -179,12 +187,13 @@ SHA-bound Issue 39 cutover authorization.
   `R2_ISSUE39_REPOSITORY_BYTE_DRIFT` against the frozen implementation, then
   passed after the dual binding was implemented.
 - Filter-free clean-state review now binds HEAD/index equality, ordinary index
-  flags, an empty untracked set, stable fixed attributes, and raw relocation
-  bytes without executing a Git clean filter.
+  flags, an empty untracked set, include-free controlled clean mode, absent
+  attribute-source surfaces, and raw relocation bytes without executing a Git
+  clean filter.
 - The actual legacy Repository Root passed the new read-only review with 481
   entries and content-free manifest fingerprint
   `7cca14d278af5f4c4d93ba4825f7fc8191d30105ec469e5b6effd1ea8bc749cb`.
-- Six focused clean/drift/attribute/hidden-index tests pass. The complete Issue
+- Nine focused clean-mode/drift/attribute-source/hidden-index tests pass. The complete Issue
   39 run executed 123 tests: 119 passed, two registered skips remained, and the
   same two legacy-service ambiguity errors reproduced independently on the
   unchanged exact `d5063fd2...` baseline.
@@ -195,5 +204,8 @@ SHA-bound Issue 39 cutover authorization.
   corrected and its complete owning architecture/mechanical/focused set then
   passed 75/75.
 - Maintenance reported no high or medium finding and only the existing 24 low
-  stale-document findings. Standards/Spec review, PR, CI, and merge remain
+  stale-document findings. Initial Standards/Spec review found the local-false
+  EOL-only and arbitrary attribute-source gaps; both reproduced RED, were fixed
+  fail closed, and the combined focused/status/architecture/mechanical/leakage
+  gate then passed 156/156. Standards/Spec re-review, PR, CI, and merge remain
   pending.

@@ -1587,12 +1587,14 @@ The approved Issue #39 code allowlist permits only the fixed `backend.r2_issue39
 - Production repository review must bind every regular stage-zero index OID and
   the exact raw working-tree size/SHA-256 used by relocation. Permit only raw
   blob equality or the code-owned CRLF-to-LF projection with no NUL or remaining
-  bare CR and exact projected index-OID equality. Require filter-free HEAD-tree/
-  index/ordinary-flag/untracked clean-state evidence, stable index bytes, and
-  only `unspecified` values for the fixed `filter`,
-  `working-tree-encoding`, `text`, and `eol` queries before and after review.
-  Reject Git filter execution, arbitrary attributes, encodings, normalizers,
-  paths, hidden index flags, dirty state, or index/attribute drift.
+  bare CR and exact projected index-OID equality. Unlock projection only for an
+  include-free exact true repository/worktree mode or, absent that override,
+  the fixed Git system true mode. Require filter-free HEAD-tree/index/ordinary-
+  flag/untracked clean-state evidence and stable index/config/source-absence
+  evidence before and after review. Reject tracked `.gitattributes`, fixed
+  `.git/info/attributes`, repository/system `core.attributesFile`, `check-attr`,
+  Git filter execution, encodings, normalizers, paths, hidden index flags,
+  dirty state, or index/config/source drift.
 - Real-console, incident, journal, evidence, native host, Runtime, database,
   service, and audit capabilities remain in their narrow owning modules. Test
   helpers may inject only closed synthetic values and test-owned temporary

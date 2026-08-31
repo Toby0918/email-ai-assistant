@@ -1027,14 +1027,16 @@ Issue 39 repository preparation binds the raw relocation bytes independently
 from the regular stage-zero index blob identity. Raw byte size and SHA-256 are
 preserved in the manifest; the index OID is accepted only by direct raw blob
 equality or one code-owned CRLF-to-LF projection with at least one CRLF, no NUL,
-no remaining bare CR, and exact projected OID equality. Filter-free HEAD-tree/
+no remaining bare CR, and exact projected OID equality. Projection requires an
+include-free exact true repository/worktree mode, or the fixed Git system true
+mode when no override exists. Filter-free HEAD-tree/
 index equality, ordinary index flags, the empty untracked set, the complete
-index payload, and only the fixed `filter`, `working-tree-encoding`,
-`text`, and `eol` attributes are observed before and after review. Every
-attribute must be `unspecified`. Arbitrary filter execution, encoding,
-attribute expansion, caller normalization/path selection, hidden index flags,
-true content drift, and non-clean or unstable state fail closed before evidence
-publication.
+index payload, and include-free config/source-absence evidence are observed
+before and after review. Tracked `.gitattributes`, fixed
+`.git/info/attributes`, and effective repository/system `core.attributesFile`
+are rejected; `check-attr`, arbitrary filter execution, encoding, attribute-file
+reads, caller normalization/path selection, hidden index flags, true content
+drift, and non-clean or unstable state fail closed before evidence publication.
 
 ## Issue #74 create-only main and whole-tree DACL proof
 

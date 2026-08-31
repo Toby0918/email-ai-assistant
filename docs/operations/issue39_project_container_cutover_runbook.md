@@ -102,11 +102,13 @@ ordinary index flags, an empty untracked set, and a stable regular stage-zero
 index. Each manifest entry keeps the exact raw byte size and
 SHA-256 that relocation will move, together with the index blob OID. Raw bytes
 may differ from the index only for the built-in CRLF-to-LF projection, with no
-NUL or remaining bare CR and exact projected OID equality. The fixed
-`filter`, `working-tree-encoding`, `text`, and `eol` attributes must all be
-`unspecified`; no Git filter or encoding driver runs. A dirty checkout, true
-content change, hidden index flag, explicit attribute, or index/attribute drift stops before
-evidence publication.
+NUL or remaining bare CR and exact projected OID equality. Projection requires
+include-free exact true repository/worktree `core.autocrlf`, or the fixed Git
+system true value when no override exists. Tracked `.gitattributes`, fixed
+`.git/info/attributes`, and effective repository/system `core.attributesFile`
+are rejected; no `check-attr`, Git filter, attribute file, or encoding driver
+runs. A dirty checkout, true content change, hidden index flag, or index/config/
+attribute-source drift stops before evidence publication.
 
 Every preflight, evidence/bootstrap, catalog, recovery, and terminal Execution
 Confirmation first prints one informational line such as:

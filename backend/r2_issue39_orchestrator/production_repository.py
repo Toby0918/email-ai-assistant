@@ -52,9 +52,10 @@ class Issue39RepositoryManifestV1:
 def review_repository_manifest(root):
     from .production_foundation import _git
     from .production_repository_review import (
+        controlled_crlf_mode,
         parse_index,
         require_clean_repository,
-        require_safe_attributes,
+        require_no_attribute_sources,
         review_file,
     )
 
@@ -62,20 +63,21 @@ def review_repository_manifest(root):
         raise ValueError("R2_ISSUE39_REPOSITORY_OBJECT_FORMAT_INVALID")
     payload = _git(root, ("ls-files", "--stage", "-z"))
     indexed = parse_index(payload)
-    attributes = require_safe_attributes(
-        root, _git, tuple(relative for relative, _, _, _ in indexed)
-    )
+    attributes = require_no_attribute_sources(root, _git, indexed)
+    clean_mode = controlled_crlf_mode(root, _git)
     clean = require_clean_repository(root, _git, indexed)
-    entries, directories = _collect_entries(root, indexed, review_file)
+    entries, directories = _collect_entries(
+        root, indexed, review_file, clean_mode[2]
+    )
     entries.sort(key=lambda item: item.relative)
     if not 1 <= len(entries) <= 10_000 or len(entries) != len({item.relative for item in entries}):
         raise ValueError("R2_ISSUE39_REPOSITORY_MANIFEST_INVALID")
     if _git(root, ("ls-files", "--stage", "-z")) != payload:
         raise ValueError("R2_ISSUE39_REPOSITORY_INDEX_DRIFT")
-    if require_safe_attributes(
-        root, _git, tuple(relative for relative, _, _, _ in indexed)
-    ) != attributes:
+    if require_no_attribute_sources(root, _git, indexed) != attributes:
         raise ValueError("R2_ISSUE39_REPOSITORY_ATTRIBUTES_INVALID")
+    if controlled_crlf_mode(root, _git) != clean_mode:
+        raise ValueError("R2_ISSUE39_REPOSITORY_CLEAN_MODE_DRIFT")
     if require_clean_repository(root, _git, indexed) != clean:
         raise ValueError("R2_ISSUE39_REPOSITORY_NOT_CLEAN")
     body = {
@@ -97,13 +99,14 @@ def review_repository_manifest(root):
     )
 
 
-def _collect_entries(root, indexed, review_file):
+def _collect_entries(root, indexed, review_file, allow_crlf_projection):
     entries = []
     directories = set()
     total_bytes = 0
     for relative, _, oid, path in indexed:
         observed = review_file(
-            root / Path(*path.parts), oid, limit=_MAX_FILE_BYTES
+            root / Path(*path.parts), oid, limit=_MAX_FILE_BYTES,
+            allow_crlf_projection=allow_crlf_projection,
         )
         entries.append(Issue39RepositoryEntryV1(relative, oid, *observed))
         total_bytes += observed[0]
