@@ -1263,20 +1263,32 @@ The approved Issue #39 code allowlist permits only the fixed `backend.r2_issue39
    identities. Addition, removal, dirtiness, or drift must stop before the next
    host effect. Preserve historical fixed-eleven rehearsal assertions in their
    existing versioned suites.
-8. On Windows, run the real fixed production handlers only against a caller-
+8. Require production repository review to bind a clean complete regular
+   stage-zero index and each relocation source's exact raw size/SHA-256. Accept
+   only direct raw blob/index equality or one code-owned CRLF-to-LF projection
+   with no NUL or remaining bare CR and exact projected index-OID equality.
+   Enable projection only for include-free exact true repository/worktree mode,
+   or the fixed Git system true mode when no override exists.
+   Before and after file reads, require identical HEAD-tree/index equality,
+   ordinary index flags, empty untracked set, index/config evidence, and absent
+   tracked `.gitattributes`, fixed `.git/info/attributes`, and repository/system
+   `core.attributesFile`. Reject `check-attr`, filter execution, hidden index
+   flags, arbitrary attributes/encodings, non-clean state, content drift, and
+   index/config/source drift.
+9. On Windows, run the real fixed production handlers only against a caller-
    owned temporary synthetic topology. Cover complete forward success, direct
    LIFO reverse through every host-effect handler, collisions, reparses,
    partial repository/worktree/ACL/managed publication, service identity,
    database writes, roster drift, and terminal/legacy two-read audits.
    Include production-observer reverse post-effect crashes, retained legacy-
    recovery intent before process start, and semantic terminal-frame tampering.
-9. Require the durable terminal success seal before the exact public token
+10. Require the durable terminal success seal before the exact public token
    `PROJECT_CONTAINER_CUTOVER_SUCCEEDED`. Require
    `LEGACY_FLAT_LAYOUT_RESTORED` only after the complete two-read legacy audit.
-10. Reject production imports from normal runtime, frontend, workflows,
+11. Reject production imports from normal runtime, frontend, workflows,
      provider, mailbox, vault, private-store, and cleanup surfaces. Test code may
      import the package but must never execute the live fixed entry.
-11. Recursively enumerate production Python imports and require the fixed script
+12. Recursively enumerate production Python imports and require the fixed script
     to be the only external importer of the orchestrator. Reject direct or
     indirect imports of that fixed script, pin its complete source, and bind the
     actual retained `__main__.py` archive argument to the exact fixed

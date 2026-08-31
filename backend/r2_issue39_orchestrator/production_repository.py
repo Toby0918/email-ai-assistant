@@ -17,8 +17,6 @@ from .production_native import create_directory_no_replace, move_no_replace
 
 _MAX_FILE_BYTES = 16 * 1024 * 1024
 _MAX_TOTAL_BYTES = 256 * 1024 * 1024
-
-
 @dataclass(frozen=True, slots=True, repr=False)
 class Issue39RepositoryEntryV1:
     relative: str
@@ -53,35 +51,35 @@ class Issue39RepositoryManifestV1:
 
 def review_repository_manifest(root):
     from .production_foundation import _git
+    from .production_repository_review import (
+        controlled_crlf_mode,
+        parse_index,
+        require_clean_repository,
+        require_no_attribute_sources,
+        review_file,
+    )
 
     if _git(root, ("rev-parse", "--show-object-format")).strip() != b"sha1":
         raise ValueError("R2_ISSUE39_REPOSITORY_OBJECT_FORMAT_INVALID")
     payload = _git(root, ("ls-files", "--stage", "-z"))
-    entries = []
-    directories = set()
-    total_bytes = 0
-    for record in payload.split(b"\0"):
-        if not record:
-            continue
-        prefix, raw_path = record.split(b"\t", 1)
-        mode, oid, stage = prefix.decode("ascii").split(" ")
-        relative = raw_path.decode("utf-8")
-        path = PurePosixPath(relative)
-        if (
-            mode not in {"100644", "100755"} or stage != "0"
-            or path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts)
-        ):
-            raise ValueError("R2_ISSUE39_REPOSITORY_MANIFEST_INVALID")
-        observed = _review_file(root / Path(*path.parts), oid)
-        entries.append(Issue39RepositoryEntryV1(relative, oid, *observed))
-        total_bytes += observed[0]
-        if total_bytes > _MAX_TOTAL_BYTES:
-            raise ValueError("R2_ISSUE39_REPOSITORY_MANIFEST_INVALID")
-        for index in range(1, len(path.parts)):
-            directories.add(PurePosixPath(*path.parts[:index]).as_posix())
+    indexed = parse_index(payload)
+    attributes = require_no_attribute_sources(root, _git, indexed)
+    clean_mode = controlled_crlf_mode(root, _git)
+    clean = require_clean_repository(root, _git, indexed)
+    entries, directories = _collect_entries(
+        root, indexed, review_file, clean_mode[2]
+    )
     entries.sort(key=lambda item: item.relative)
     if not 1 <= len(entries) <= 10_000 or len(entries) != len({item.relative for item in entries}):
         raise ValueError("R2_ISSUE39_REPOSITORY_MANIFEST_INVALID")
+    if _git(root, ("ls-files", "--stage", "-z")) != payload:
+        raise ValueError("R2_ISSUE39_REPOSITORY_INDEX_DRIFT")
+    if require_no_attribute_sources(root, _git, indexed) != attributes:
+        raise ValueError("R2_ISSUE39_REPOSITORY_ATTRIBUTES_INVALID")
+    if controlled_crlf_mode(root, _git) != clean_mode:
+        raise ValueError("R2_ISSUE39_REPOSITORY_CLEAN_MODE_DRIFT")
+    if require_clean_repository(root, _git, indexed) != clean:
+        raise ValueError("R2_ISSUE39_REPOSITORY_NOT_CLEAN")
     body = {
         "entries": [{
             "relative": item.relative, "git_oid": item.git_oid,
@@ -99,6 +97,24 @@ def review_repository_manifest(root):
         body["source_identity_fingerprint"], body["git_identity_fingerprint"],
         manifest,
     )
+
+
+def _collect_entries(root, indexed, review_file, allow_crlf_projection):
+    entries = []
+    directories = set()
+    total_bytes = 0
+    for relative, _, oid, path in indexed:
+        observed = review_file(
+            root / Path(*path.parts), oid, limit=_MAX_FILE_BYTES,
+            allow_crlf_projection=allow_crlf_projection,
+        )
+        entries.append(Issue39RepositoryEntryV1(relative, oid, *observed))
+        total_bytes += observed[0]
+        if total_bytes > _MAX_TOTAL_BYTES:
+            raise ValueError("R2_ISSUE39_REPOSITORY_MANIFEST_INVALID")
+        for index in range(1, len(path.parts)):
+            directories.add(PurePosixPath(*path.parts[:index]).as_posix())
+    return entries, directories
 
 
 def repository_manifest_from_mapping(value):
@@ -223,22 +239,6 @@ def _move_git(host, source, target):
     if not _git_exact(host, before) or os.path.lexists(after):
         raise ValueError("R2_ISSUE39_REPOSITORY_GIT_COLLISION")
     move_no_replace(before, after)
-
-
-def _review_file(path, oid):
-    api = WindowsReadHandleApi()
-    handle = api.open_existing(path, deny_write=True)
-    try:
-        observed = api.observe(handle)
-        size = api.require_size_bounded(handle, limit=_MAX_FILE_BYTES)
-        payload = api.read_bounded(handle, limit=size)
-        api.require_stable(handle, observed, path)
-    finally:
-        api.close(handle)
-    git_hash = hashlib.sha1(b"blob " + str(size).encode("ascii") + b"\0" + payload).hexdigest()
-    if git_hash != oid:
-        raise ValueError("R2_ISSUE39_REPOSITORY_BYTE_DRIFT")
-    return size, hashlib.sha256(payload).hexdigest()
 
 
 def _entry_exact(path, entry):

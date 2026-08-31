@@ -106,6 +106,7 @@ class ManagedActivationArchitectureTests(unittest.TestCase):
             "backend/r2_issue39_orchestrator/production_managed.py",
             "backend/r2_issue39_orchestrator/production_native.py",
             "backend/r2_issue39_orchestrator/production_repository.py",
+            "backend/r2_issue39_orchestrator/production_repository_review.py",
             "backend/r2_issue39_orchestrator/production_runtime_review.py",
             "backend/r2_issue39_orchestrator/production_service.py",
             "backend/r2_issue39_orchestrator/restart_anchor.py",
