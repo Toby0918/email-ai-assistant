@@ -408,6 +408,16 @@ source/archive leaf and reject the obsolete `.stage-794aea72...` spelling. It
 must not read, move, rename, copy, delete, or change the DACL of real evidence;
 native behavior remains confined to test-owned temporary Windows objects.
 
+The missing-parent regression must begin with all three archive components
+absent and prove `PROVISIONABLE -> READY` fingerprint drift, parent-handle-
+relative native create-only/no-replace behavior, fixed-drive NTFS/non-reparse
+placement, and the exact protected operator/LocalSystem/Administrators DACL.
+Wrong DACL, reparse, partial-prefix, post-confirmation competing create,
+filesystem/placement drift, and parent replacement cases must fail closed
+before the source move while retaining the competitor or partial test-owned
+state. CI must never create or inspect the real
+`D:\IncidentArchives\email_ai_assistant\issue38` hierarchy.
+
 ## 5. 失败处理原则
 
 如果 CI 失败，Agent 必须先阅读失败信息。  

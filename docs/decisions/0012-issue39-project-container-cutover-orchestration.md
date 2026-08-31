@@ -71,6 +71,22 @@ The source parent and archive parent remain separately code-fixed. No obsolete
 `.stage-...` alias, caller path, discovery fallback, or alternate leaf is
 accepted.
 
+The archive parent is also a fixed production boundary. Zero-mutation readiness
+binds whether the exact hierarchy
+`D:\IncidentArchives\email_ai_assistant\issue38` is already exact, safely
+provisionable, or blocked, together with component presence and opened
+identities. After the separate incident confirmation, disposition must
+reproduce that exact fingerprint before any create. A missing hierarchy may be
+created only as the three code-fixed components relative to held parent handles,
+and the full chain remains held and placement-revalidated through rename and
+artifact reread, with native create-only/no-replace semantics, fixed-drive NTFS
+and non-reparse validation, and one protected three-principal DACL. That
+DACL grants inheritable Full Control only to the current token SID, LocalSystem,
+and built-in Administrators. Existing mismatches, post-confirmation competition,
+parent replacement, and create collisions fail before the source move; partial
+create-only state is retained and never cleaned automatically. The drive root
+is read-only validated and its security is never changed.
+
 Issue 39 discovers all linked worktrees during every fresh prepare, with a
 bounded maximum. It binds the root/common/admin identities and every checkout's
 placement, physical identity, administrative identity, branch, commit, common

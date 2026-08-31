@@ -29,7 +29,7 @@ class Issue39CliTest(unittest.TestCase):
             lambda: calls.append("readiness"),
             lambda: calls.append("console"),
             lambda _readiness: calls.append("confirmation"),
-            lambda: calls.append("incident"),
+            lambda _readiness: calls.append("incident"),
             lambda: calls.append("prepare"),
             lambda _value: None,
         )
@@ -41,8 +41,8 @@ class Issue39CliTest(unittest.TestCase):
 
     def test_readiness_and_console_stop_before_incident_mutation(self):
         for readiness, console, expected in (
-            (_zero(False, "SOURCE_VERIFIED", "0" * 64), True, ["readiness"]),
-            (_zero(True, "SOURCE_VERIFIED", "b" * 64), False, ["readiness", "console"]),
+            (_zero(False, "SOURCE_VERIFIED", "READY", "0" * 64), True, ["readiness"]),
+            (_zero(True, "SOURCE_VERIFIED", "READY", "b" * 64), False, ["readiness", "console"]),
         ):
             with self.subTest(readiness=readiness, console=console):
                 calls = []
@@ -50,7 +50,7 @@ class Issue39CliTest(unittest.TestCase):
                     lambda: calls.append("readiness") or readiness,
                     lambda: calls.append("console") or console,
                     lambda _value: calls.append("confirmation") or True,
-                    lambda: calls.append("incident") or "VERIFIED",
+                    lambda _readiness: calls.append("incident") or "VERIFIED",
                     lambda: calls.append("prepare"),
                     lambda _value: calls.append("bind"),
                 )
@@ -68,10 +68,10 @@ class Issue39CliTest(unittest.TestCase):
     def test_blocked_fresh_prepare_never_binds_execution(self):
         calls = []
         ports = _Issue39CommandPorts(
-            lambda: _zero(True, "ARCHIVED", "b" * 64),
+            lambda: _zero(True, "ARCHIVED", "READY", "b" * 64),
             lambda: True,
             lambda _value: True,
-            lambda: "VERIFIED",
+            lambda _readiness: "VERIFIED",
             lambda: _prepared(Issue39PrepareStatusV1.BLOCKED_READINESS),
             lambda _value: calls.append("bind"),
         )
@@ -85,10 +85,10 @@ class Issue39CliTest(unittest.TestCase):
     def test_incident_disposition_must_verify_before_prepare(self):
         calls = []
         ports = _Issue39CommandPorts(
-            lambda: calls.append("readiness") or _zero(True, "SOURCE_VERIFIED", "b" * 64),
+            lambda: calls.append("readiness") or _zero(True, "SOURCE_VERIFIED", "READY", "b" * 64),
             lambda: calls.append("console") or True,
             lambda _value: calls.append("confirmation") or True,
-            lambda: "BLOCKED",
+            lambda _readiness: "BLOCKED",
             lambda: calls.append("prepare"),
             lambda _value: calls.append("bind"),
         )
@@ -101,10 +101,10 @@ class Issue39CliTest(unittest.TestCase):
     def test_success_order_is_readiness_console_incident_fresh_prepare_bind(self):
         calls = []
         ports = _Issue39CommandPorts(
-            lambda: calls.append("readiness") or _zero(True, "SOURCE_VERIFIED", "b" * 64),
+            lambda: calls.append("readiness") or _zero(True, "SOURCE_VERIFIED", "READY", "b" * 64),
             lambda: calls.append("console") or True,
             lambda _value: calls.append("confirmation") or True,
-            lambda: calls.append("incident") or "ARCHIVED",
+            lambda _readiness: calls.append("incident") or "ARCHIVED",
             lambda: calls.append("prepare") or _prepared(
                 Issue39PrepareStatusV1.PREPARED
             ),
@@ -131,8 +131,8 @@ class Issue39CliTest(unittest.TestCase):
             (Issue39ActionRunStatusV1.INCIDENT_STOP, Issue39CommandStatusV1.INCIDENT_STOP),
         ):
             ports = _Issue39CommandPorts(
-                lambda: _zero(True, "ARCHIVED", "b" * 64), lambda: True,
-                lambda _value: True, lambda: "VERIFIED",
+                lambda: _zero(True, "ARCHIVED", "READY", "b" * 64), lambda: True,
+                lambda _value: True, lambda _readiness: "VERIFIED",
                 lambda: _prepared(Issue39PrepareStatusV1.PREPARED),
                 lambda _value, status=action_status: Issue39ActionRunResultV1(
                     status, 3, 2, 5, None
@@ -168,7 +168,7 @@ class Issue39CliTest(unittest.TestCase):
             lambda: calls.append("readiness"),
             lambda: calls.append("console") or True,
             lambda _value: calls.append("incident-confirm"),
-            lambda: calls.append("incident"),
+            lambda _readiness: calls.append("incident"),
             lambda: calls.append("prepare"),
             lambda _value: calls.append("bind"),
             lambda: True,

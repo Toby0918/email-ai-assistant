@@ -15,15 +15,17 @@ from .production_inputs import (
 class Issue39ZeroMutationReadinessV1:
     baseline_eligible: bool
     incident_state: str
+    archive_parent_state: str
+    archive_parent_fingerprint: str = field(repr=False)
     readiness_fingerprint: str = field(repr=False)
 
     def __init__(self, *args, **kwargs):
         raise TypeError("Issue39ZeroMutationReadinessV1 is observer-owned")
 
     def ready(self):
-        return self.baseline_eligible and self.incident_state in {
-            "SOURCE_VERIFIED", "ARCHIVED"
-        }
+        return self.baseline_eligible and _parent_eligible(
+            self.incident_state, self.archive_parent_state
+        )
 
 
 @dataclass(frozen=True, slots=True, repr=False)
@@ -34,6 +36,7 @@ class _Issue39ZeroReadinessPortsV1:
     parse_receipt: object = field(repr=False)
     inputs: object = field(repr=False)
     incident: object = field(repr=False)
+    archive_parent: object = field(repr=False)
     issue38: object = field(repr=False)
 
 
@@ -53,6 +56,9 @@ def _observe_zero_mutation_readiness_v1(ports):
         receipt = ports.parse_receipt(receipt_payload)
         inputs = ports.inputs()
         incident = ports.incident()
+        archive_parent = ports.archive_parent()
+        from .archive_parent_windows import Issue39ArchiveParentReadinessV1
+
         eligible = (
             _closure_matches(manifest, receipt, current)
             and ports.issue38() == "CLOSED"
@@ -60,6 +66,8 @@ def _observe_zero_mutation_readiness_v1(ports):
             and current.issue39_authority_count == 0
             and current.execution_authority_count == 0
             and inputs.status is Issue39ProductionInputStatusV1.READY
+            and type(archive_parent) is Issue39ArchiveParentReadinessV1
+            and _parent_eligible(incident, archive_parent.state)
         )
         fingerprint = hashlib.sha256(
             b"r2-issue39-zero-mutation-readiness-v1\0"
@@ -67,10 +75,19 @@ def _observe_zero_mutation_readiness_v1(ports):
             + bytes.fromhex(receipt.receipt_fingerprint)
             + bytes.fromhex(inputs.manifest_sha256)
             + incident.encode("ascii")
+            + bytes.fromhex(archive_parent.readiness_fingerprint)
         ).hexdigest()
-        return _allocate(eligible, incident, fingerprint)
+        return _allocate(
+            eligible,
+            incident,
+            archive_parent.state,
+            fingerprint,
+            archive_parent.readiness_fingerprint,
+        )
     except Exception:
-        return _allocate(False, "BLOCKED", "0" * 64)
+        return _allocate(
+            False, "BLOCKED", "BLOCKED", "0" * 64, "0" * 64
+        )
 
 
 def _production_ports():
@@ -85,6 +102,9 @@ def _production_ports():
     from backend.r2_solo_maintainer_closure.storage import read_closure_artifacts
     from .github_readiness import read_fixed_issue38_state_v1
     from .incident_verify import observe_fixed_incident_state_v1
+    from .archive_parent_windows import (
+        observe_fixed_archive_parent_readiness_v1,
+    )
 
     def current():
         repository = FixedRepositoryPort().collect()
@@ -95,15 +115,31 @@ def _production_ports():
         SoloMaintainerClosureManifestV1.from_json,
         SoloMaintainerAttestationReceiptV1.from_json,
         verify_fixed_production_inputs_v1, observe_fixed_incident_state_v1,
+        observe_fixed_archive_parent_readiness_v1,
         read_fixed_issue38_state_v1,
     )
 
 
-def _allocate(eligible, incident, fingerprint):
+def _parent_eligible(incident, archive_parent):
+    return (
+        incident == "SOURCE_VERIFIED"
+        and archive_parent in {"PROVISIONABLE", "READY"}
+    ) or (incident == "ARCHIVED" and archive_parent == "READY")
+
+
+def _allocate(
+    eligible,
+    incident,
+    archive_parent,
+    fingerprint,
+    archive_parent_fingerprint="0" * 64,
+):
     value = object.__new__(Issue39ZeroMutationReadinessV1)
     for name, item in (
         ("baseline_eligible", eligible),
         ("incident_state", incident),
+        ("archive_parent_state", archive_parent),
+        ("archive_parent_fingerprint", archive_parent_fingerprint),
         ("readiness_fingerprint", fingerprint),
     ):
         object.__setattr__(value, name, item)

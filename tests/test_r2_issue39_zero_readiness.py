@@ -10,6 +10,9 @@ from backend.r2_issue39_orchestrator.zero_readiness import (
     _Issue39ZeroReadinessPortsV1,
     _observe_zero_mutation_readiness_v1,
 )
+from backend.r2_issue39_orchestrator.archive_parent_windows import (
+    _allocate_readiness as _archive_parent,
+)
 
 
 class _Value:
@@ -35,8 +38,37 @@ class Issue39ZeroReadinessTest(unittest.TestCase):
             self.assertIs(result.ready(), expected)
             self.assertNotIn("mutation", calls)
 
+    def test_archive_parent_state_is_bound_and_blocked_before_mutation(self):
+        results = {}
+        for parent_state, expected in (
+            ("PROVISIONABLE", True),
+            ("READY", True),
+            ("BLOCKED", False),
+        ):
+            calls = []
+            ports = _ports(
+                calls,
+                issue="CLOSED",
+                artifacts=True,
+                parent_state=parent_state,
+            )
 
-def _ports(calls, *, issue, artifacts):
+            result = _observe_zero_mutation_readiness_v1(ports)
+
+            self.assertIs(result.ready(), expected)
+            self.assertEqual(result.archive_parent_state, parent_state)
+            self.assertEqual(
+                result.archive_parent_fingerprint,
+                {"PROVISIONABLE": "1", "READY": "2", "BLOCKED": "0"}[
+                    parent_state
+                ] * 64,
+            )
+            self.assertNotIn("mutation", calls)
+            results[parent_state] = result.readiness_fingerprint
+        self.assertNotEqual(results["PROVISIONABLE"], results["READY"])
+
+
+def _ports(calls, *, issue, artifacts, parent_state="READY"):
     manifest = _Value(
         manifest_fingerprint="a" * 64,
         final_master_binding_fingerprint="b" * 64,
@@ -74,7 +106,14 @@ def _ports(calls, *, issue, artifacts):
         lambda: calls.append("current") or manifest,
         read_artifacts, lambda _payload: manifest,
         lambda _payload: receipt, lambda: inputs,
-        lambda: "ARCHIVED", lambda: issue,
+        lambda: "SOURCE_VERIFIED",
+        lambda: _archive_parent(
+            parent_state,
+            {"PROVISIONABLE": "1", "READY": "2", "BLOCKED": "0"}[
+                parent_state
+            ] * 64,
+        ),
+        lambda: issue,
     )
 
 

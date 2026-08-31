@@ -1571,6 +1571,15 @@ The approved Issue #39 code allowlist permits only the fixed `backend.r2_issue39
   `.r2-solo-maintainer-closure-v1.incident-794aea72b0012d1de728f3b87f7f25c2f7c9ae3ac8f66777845010635fc69721`
   leaf under the two fixed parents. Reject the obsolete `.stage-...` spelling,
   aliases, discovery, enumeration, caller paths, and alternate leaves.
+- Pin archive-parent production code to the exact components
+  `D:\IncidentArchives\email_ai_assistant\issue38` and parameterless observer/
+  provisioner entries. Reject public paths, configurable components or DACLs,
+  path-based `mkdir`, replace/open-if semantics, non-NTFS, reparses, inherited
+  or extra ACEs, drive-root ACL changes, and automatic partial-state cleanup.
+  Require the parent-state/presence/identity fingerprint before incident
+  confirmation, exact reproduction before create, and held-chain revalidation
+  through rename and artifact reread. Native tests stay under test-owned
+  temporary Windows objects.
 - Production dynamic-roster code is versioned separately from the historical
   fixed-eleven rehearsal contracts. Static checks must preserve the old exact
   assertions and require the new code to bind complete bounded discovery rather

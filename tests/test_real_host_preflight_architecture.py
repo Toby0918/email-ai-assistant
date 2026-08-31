@@ -818,6 +818,9 @@ class RealHostPreflightArchitectureTests(unittest.TestCase):
             "backend/r2_issue39_orchestrator/production_native.py": {
                 "expected_final_path",
             },
+            "backend/r2_issue39_orchestrator/archive_parent_windows.py": {
+                "expected_final_path",
+            },
         }
         candidates = [
             path

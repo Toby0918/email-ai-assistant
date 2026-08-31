@@ -58,6 +58,23 @@ The source may exist only under the fixed Git-common directory and the verified
 archive may exist only under `D:\IncidentArchives\email_ai_assistant\issue38`.
 The obsolete `.stage-794aea72...` name is not an accepted alias.
 
+The archive parent may begin absent. Zero-mutation readiness distinguishes the
+exact states `PROVISIONABLE`, `READY`, and `BLOCKED` and binds the state plus
+component presence and opened identities into the incident confirmation
+fingerprint. After confirmation, disposition must reproduce that exact
+fingerprint before any create. Only the code-fixed components
+`IncidentArchives`, `email_ai_assistant`, and `issue38` may be created below a
+held, read-only-validated `D:\` handle. The full validated/created chain remains
+held and placement-revalidated through the no-replace rename and artifact
+reread. Each missing
+component is native create-only/no-replace on fixed-drive NTFS, rejects reparses,
+and receives at creation the protected exact DACL for the current operator,
+LocalSystem, and built-in Administrators with inheritable Full Control. Existing
+wrong-DACL or reparse components, post-confirmation competition, parent
+replacement, and every create collision stop before the source move; no object
+is adopted, replaced, repaired, deleted, or cleaned. A retained exact partial chain
+may be verified and completed by a later separately confirmed run.
+
 Any failure returns a fixed blocked status before incident disposition or
 cutover mutation.
 
@@ -72,7 +89,9 @@ CONFIRM_ISSUE38_INCIDENT_STAGE_DISPOSITION_V1_NOT_CLOSURE_OR_CUTOVER
 
 Enter the displayed fingerprint as the first line and the exact acknowledgement
 as the second line within its fresh window. That ceremony authorizes only the
-fixed same-volume no-replace incident-stage move.
+fixed archive-parent provisioning, if still required, followed by the fixed
+same-volume no-replace incident-stage move. It authorizes no later cutover
+action.
 
 After the incident state is archived or already verified, the command performs
 a completely fresh prepare. Any roster, master, closure, issue, input,

@@ -17,6 +17,8 @@ class _ArtifactBinding:
 class _IncidentBinding:
     source: Path = field(repr=False)
     destination: Path = field(repr=False)
+    archive_anchor: Path = field(repr=False)
+    archive_components: tuple[str, ...] = field(repr=False)
     artifacts: tuple[_ArtifactBinding, ...] = field(repr=False)
     source_dacl: str = field(repr=False)
 
@@ -41,12 +43,15 @@ _ARTIFACTS = (
 
 def _fixed_incident_binding() -> _IncidentBinding:
     source = Path(r"D:\Projects\email_ai_assistant\.git") / _LEAF
-    destination = (
-        Path(r"D:\IncidentArchives\email_ai_assistant\issue38") / _LEAF
-    )
+    archive_anchor = Path("D:\\")
+    archive_components = ("IncidentArchives", "email_ai_assistant", "issue38")
+    destination_parent = archive_anchor.joinpath(*archive_components)
+    destination = destination_parent / _LEAF
     return _IncidentBinding(
         source,
         destination,
+        archive_anchor,
+        archive_components,
         _ARTIFACTS,
         "D:PAI(A;;0x1200a9;;;WD)",
     )

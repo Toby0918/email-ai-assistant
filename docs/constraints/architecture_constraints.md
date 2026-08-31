@@ -1872,6 +1872,19 @@ There is no `.stage-...` compatibility alias, caller-provided path, enumeration,
 or fallback selection. Existing artifact, DACL, volume, reparse, no-replace,
 identity, and zero-delete checks remain unchanged.
 
+The deterministic archive-parent boundary is likewise code-fixed to
+`D:\IncidentArchives\email_ai_assistant\issue38`. Its zero-mutation observer
+binds component presence plus opened identities and one of `PROVISIONABLE`,
+`READY`, or `BLOCKED` into the incident confirmation. After confirmation,
+disposition must reproduce that exact fingerprint before any create, then hold
+the validated/created chain through the no-replace rename and artifact reread.
+Native parent-relative `FILE_CREATE`, fixed-drive NTFS, non-reparse, exact
+placement and exact protected DACL checks remain mandatory. The DACL has
+exactly the current token SID, LocalSystem, and built-in Administrators as
+inheritable Full Control principals. Existing mismatch, post-confirmation
+competition, or parent replacement stops before the source move; partial state
+is retained without cleanup, and the drive-root DACL is never changed.
+
 Issue #39 introduces the additive `Dynamic Cutover Roster`. Every fresh prepare
 discovers all linked worktrees within the fixed bound and binds the root/common/
 admin identities plus every checkout's placement, Git identity, physical

@@ -150,6 +150,8 @@ class CutoverHostMutationArchitectureTests(unittest.TestCase):
             "backend/r2_main_publication/testing.py",
             "backend/r2_main_publication/windows_dacl.py",
             "backend/r2_issue39_orchestrator/durable_io.py",
+            "backend/r2_issue39_orchestrator/archive_parent_native.py",
+            "backend/r2_issue39_orchestrator/archive_parent_windows.py",
             "backend/r2_issue39_orchestrator/incident_security.py",
             "backend/r2_issue39_orchestrator/incident_verify.py",
             "backend/r2_issue39_orchestrator/incident_windows.py",

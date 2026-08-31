@@ -1509,6 +1509,20 @@ The incident binding uses exactly the retained
 leaf under its two fixed parents. The obsolete `.stage-...` spelling is not an
 alias, fallback, or selectable input.
 
+The fixed archive parent has exactly the three components
+`D:\IncidentArchives\email_ai_assistant\issue38`; neither the CLI nor any
+mapping, environment value, callback, manifest, registry, or caller can replace
+the drive, components, or DACL. Zero-readiness binds `PROVISIONABLE`, `READY`,
+or `BLOCKED` plus component presence and exact opened identities before
+incident confirmation. Disposition must reproduce that fingerprint, hold the
+validated/created chain through rename and reread, and use parent-handle-
+relative native `FILE_CREATE`, never replace,
+requires fixed-drive NTFS and non-reparse exact placement, and applies at create
+time a protected inheritable Full Control DACL containing only the current token
+SID, LocalSystem, and built-in Administrators. Existing drift, post-confirmation
+competition, or parent replacement fails before the source move; partial state
+is retained, and `D:\` is never ACL-mutated.
+
 Immediately before the retained runner is executed, the binder independently
 verifies the complete fixed evidence package and exact protected DACL, opens
 the runner without write/delete sharing, checks its bounded bytes and NTFS
