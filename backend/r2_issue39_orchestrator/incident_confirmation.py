@@ -25,6 +25,7 @@ def confirm_fixed_incident_disposition_v1(readiness) -> bool:
         if (
             type(readiness) is not Issue39ZeroMutationReadinessV1
             or readiness.incident_state != "SOURCE_VERIFIED"
+            or readiness.archive_parent_state not in {"PROVISIONABLE", "READY"}
             or not require_fixed_windows_console_v1()
         ):
             return False

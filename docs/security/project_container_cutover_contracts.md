@@ -1001,6 +1001,22 @@ alternate binding. Artifact lengths/hashes, protected DACL, fixed-volume,
 reparse rejection, destination absence, no-replace move, and zero deletion
 remain mandatory.
 
+The fixed incident archive parent is exactly
+`D:\IncidentArchives\email_ai_assistant\issue38`. Zero-readiness binds its
+`PROVISIONABLE`, `READY`, or `BLOCKED` state, component presence, and opened
+identities into the separate incident confirmation. After confirmation,
+disposition must reproduce the exact fingerprint before create and keep the
+validated/created chain held and placement-revalidated through rename and
+artifact reread. The parameterless provisioner creates only the three exact
+missing components relative to held parents with native `FILE_CREATE`, no replace, fixed-drive NTFS,
+non-reparse exact placement, and an at-create protected DACL. That DACL contains
+exactly inheritable Full Control ACEs for the current token SID, LocalSystem,
+and built-in Administrators. Existing drift, post-confirmation competition,
+parent replacement, and collisions fail before the source move; partial state
+is retained without repair or cleanup, and the `D:\` DACL is never changed. No
+public or caller-selected path, component, policy, or alternate archive root
+exists.
+
 Every Issue 39 V3 confirmation is preceded by one strict content-free
 `ISSUE39_CONFIRMATION_CONTEXT_V1` line derived only from closed bound values.
 It exposes no path or caller text and is informational, never authority. The

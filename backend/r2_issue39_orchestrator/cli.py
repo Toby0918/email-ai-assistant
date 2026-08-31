@@ -88,7 +88,7 @@ def _run_issue39_command_v1(*, argv, ports):
             and ports.confirm_incident(readiness) is not True
         ):
             return _result(Issue39CommandStatusV1.BLOCKED_PREPARE)
-        incident = ports.dispose_incident()
+        incident = ports.dispose_incident(readiness)
         if incident not in {"ARCHIVED", "VERIFIED"}:
             return _result(Issue39CommandStatusV1.BLOCKED_PREPARE)
         prepared = ports.prepare()
@@ -108,7 +108,7 @@ def _production_ports() -> _Issue39CommandPorts:
     from .incident_confirmation import confirm_fixed_incident_disposition_v1
     from .incident_contracts import IncidentDispositionStatusV1
     from .incident_verify import verify_fixed_incident_archive_v1
-    from .incident_windows import dispose_fixed_incident_stage_v1
+    from .incident_windows import _dispose_fixed_incident_stage_bound_v1
     from .production_binder import bind_and_run_fixed_issue39_execution_v1
     from .production_binder import resume_fixed_issue39_anchor_v1
     from .anchor_context import current_process_is_fixed_anchor_v1
@@ -116,10 +116,10 @@ def _production_ports() -> _Issue39CommandPorts:
         observe_fixed_issue39_zero_mutation_readiness_v1,
     )
 
-    def disposition():
+    def disposition(readiness):
         if verify_fixed_incident_archive_v1():
             return "VERIFIED"
-        result = dispose_fixed_incident_stage_v1()
+        result = _dispose_fixed_incident_stage_bound_v1(readiness)
         return (
             "ARCHIVED"
             if result.status is IncidentDispositionStatusV1.ARCHIVED

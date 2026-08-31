@@ -1233,6 +1233,16 @@ The approved Issue #39 code allowlist permits only the fixed `backend.r2_issue39
    `.r2-solo-maintainer-closure-v1.incident-794aea72b0012d1de728f3b87f7f25c2f7c9ae3ac8f66777845010635fc69721`
    leaf for both fixed parents, with no `.stage-...` alias or caller-selected
    alternate.
+   Parse the archive-parent binding and require only the exact fixed components
+   `D:\IncidentArchives\email_ai_assistant\issue38`. Require zero-readiness to
+   bind `PROVISIONABLE`, `READY`, or `BLOCKED` plus component presence and the
+   opened identities. Require exact fingerprint reproduction before create,
+   held-chain revalidation through rename/reread, native parent-relative
+   `FILE_CREATE`, no replace, fixed-drive NTFS,
+   non-reparse exact placement and the protected three-principal inheritable
+   Full Control DACL. Reject drive-root ACL mutation, arbitrary paths, competing
+   creates, parent replacement, wrong existing DACLs, and automatic partial-
+   state cleanup.
 4. Require real-console identity for stdin/stdout/stderr and a fresh single-use
    candidate plus exact acknowledgement for incident disposition, every
    forward action, every resume/rollback action, and both terminal records.

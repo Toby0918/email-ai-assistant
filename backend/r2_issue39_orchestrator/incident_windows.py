@@ -22,6 +22,12 @@ from .incident_contracts import (
 )
 from .durable_io import guard_directory, read_segment
 from .incident_security import _capture_dacl_sddl, _set_dacl, _temporary_sddl
+from .archive_parent_windows import (
+    _acquire_archive_parent_v1,
+    _allocate_readiness as _archive_parent_readiness,
+    _observe_archive_parent_readiness_v1,
+    _revalidate_archive_parent_lease,
+)
 
 
 _DACL_SECURITY_INFORMATION = 0x00000004
@@ -34,10 +40,24 @@ _SECURITY_INFORMATION = (
 def dispose_fixed_incident_stage_v1():
     """Archive only the code-fixed incident stage; accept no caller input."""
 
-    return _dispose_incident_stage_v1(_fixed_incident_binding())
+    binding = _fixed_incident_binding()
+    readiness = _observe_archive_parent_readiness_v1(binding)
+    return _dispose_incident_stage_v1(binding, readiness)
 
 
-def _dispose_incident_stage_v1(binding):
+def _dispose_fixed_incident_stage_bound_v1(readiness):
+    from .zero_readiness import Issue39ZeroMutationReadinessV1
+
+    if type(readiness) is not Issue39ZeroMutationReadinessV1:
+        return _result(IncidentDispositionStatusV1.INCIDENT_STOP)
+    parent = _archive_parent_readiness(
+        readiness.archive_parent_state,
+        readiness.archive_parent_fingerprint,
+    )
+    return _dispose_incident_stage_v1(_fixed_incident_binding(), parent)
+
+
+def _dispose_incident_stage_v1(binding, parent_readiness):
     if sys.platform != "win32" or type(binding) is not _IncidentBinding:
         return _result(IncidentDispositionStatusV1.INCIDENT_STOP)
     if not os.path.lexists(binding.source):
@@ -48,9 +68,12 @@ def _dispose_incident_stage_v1(binding):
         _require_artifacts(binding)
     except Exception:
         return _result(IncidentDispositionStatusV1.BLOCKED_ARTIFACT)
+    parent_lease = None
     try:
-        _move_with_restored_dacl(binding)
+        parent_lease = _acquire_archive_parent_v1(binding, parent_readiness)
+        _move_with_restored_dacl(binding, parent_lease)
         _require_artifacts(binding, destination=True)
+        _revalidate_archive_parent_lease(parent_lease, binding)
         return _result(
             IncidentDispositionStatusV1.ARCHIVED,
             artifacts=2,
@@ -62,10 +85,13 @@ def _dispose_incident_stage_v1(binding):
         return _result(IncidentDispositionStatusV1.BLOCKED_DESTINATION)
     except Exception:
         return _result(IncidentDispositionStatusV1.INCIDENT_STOP)
+    finally:
+        if parent_lease is not None:
+            parent_lease.close()
 
 
-def _move_with_restored_dacl(binding):
-    api = WindowsHandleApi()
+def _move_with_restored_dacl(binding, parent_lease):
+    api = parent_lease.api
     handles = []
     try:
         security_handle = api.open_existing(
@@ -82,11 +108,8 @@ def _move_with_restored_dacl(binding):
             api, binding, security_handle, before_sddl
         )
         handles.append(move_handle)
-        parent_handle = api.open_existing(
-            binding.destination.parent,
-            access=FILE_READ_ATTRIBUTES,
-        )
-        handles.append(parent_handle)
+        _revalidate_archive_parent_lease(parent_lease, binding)
+        parent_handle = parent_lease.parent_handle
         _require_move_objects(api, binding, move_handle, parent_handle)
         api.rename_no_replace(
             move_handle,
@@ -98,6 +121,7 @@ def _move_with_restored_dacl(binding):
             raise _DestinationFailure()
         if _capture_dacl_sddl(security_handle) != before_sddl:
             raise _DaclFailure()
+        _revalidate_archive_parent_lease(parent_lease, binding)
     finally:
         for handle in reversed(handles):
             try:
