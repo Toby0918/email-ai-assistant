@@ -177,7 +177,7 @@ SHA-bound Issue 39 cutover authorization.
 ## 15. Pre-execution checklist
 
 - [x] Read exact-master `AGENTS.md`, status log, constraints, context, and ADR.
-- [x] Applied Matt `diagnosing-bugs` and `tdd`; `code-review` is required before PR.
+- [x] Applied Matt `diagnosing-bugs`, `tdd`, and parallel Standards/Spec `code-review`.
 - [x] Confirmed `host_actions=0` and preserved the live evidence.
 - [x] Created a clean isolated LF worktree at the exact frozen base.
 
@@ -207,5 +207,5 @@ SHA-bound Issue 39 cutover authorization.
   stale-document findings. Initial Standards/Spec review found the local-false
   EOL-only and arbitrary attribute-source gaps; both reproduced RED, were fixed
   fail closed, and the combined focused/status/architecture/mechanical/leakage
-  gate then passed 156/156. Standards/Spec re-review, PR, CI, and merge remain
-  pending.
+  gate then passed 156/156. The independent Standards and Spec re-reviews both
+  passed with no remaining finding. PR, CI, and merge remain pending.
