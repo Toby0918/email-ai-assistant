@@ -273,7 +273,7 @@ def _maintenance_observation(root: Path, tracked_paths: tuple[str, ...]) -> str:
             or len(set(classifications)) != len(classifications)
             or set(classifications) != _MAINTENANCE_CLASSIFICATIONS):
         raise SoloMaintainerClosureError(ClosureErrorCode.EVIDENCE_REJECTED)
-    fields = tuple(maintenance.Finding.__dataclass_fields__)
+    fields = ("severity", "category", "path", "doc")
     values = sorted(({name: getattr(item, name) for name in fields} for item in findings),
                     key=lambda item: tuple(item[name] for name in fields))
     return fingerprint("r2-local-source-proof-v1", {

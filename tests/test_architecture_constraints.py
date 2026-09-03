@@ -2913,7 +2913,7 @@ class ArchitectureConstraintTests(unittest.TestCase):
             with self.subTest(marker=marker):
                 self.assertIn(marker, security)
         for marker in (
-            "last_update: 2026-08-29",
+            "last_update: 2026-09-03",
             "Issue #110 Solo Maintainer Closure / Execution Confirmation checklist",
             "`backend.r2_solo_maintainer_closure` contains exactly ten files",
             "parameterless `prepare()` and `confirm(...)`",
@@ -2925,6 +2925,7 @@ class ArchitectureConstraintTests(unittest.TestCase):
             "`pull_request.parameters.require_extra_approval_for_unattributed_changes`",
             "fourteen gates and eight ordered gap proofs",
             "exactly twenty-four reviewed low-risk",
+            "only those stable fields enter closure identity",
             "real Windows console handles",
             "wall-clock plus monotonic-clock",
             "half-open 300-second",

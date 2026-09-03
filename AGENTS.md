@@ -509,6 +509,9 @@ values, relevant frozen Git blob bindings plus same-SHA successful hosted job
 steps, or a freshly recomputed status/maintenance/leakage observation. A hosted
 typed-test execution proves only that the frozen contract tests ran; receipt-
 named sources do not claim that a durable runtime receipt instance exists.
+Fresh maintenance evidence must first equal the exact twenty-four-entry
+`(severity, category, path, doc)` registry; only those stable fields enter
+closure identity, while human-facing `message` and `fix` remain report text.
 
 Confirmation is a separate Windows real-console, two-visible-input, 300-second
 wall-plus-monotonic ceremony. Publication is fixed create-only/no-replace under

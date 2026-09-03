@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-30
+last_update: 2026-09-03
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -1398,7 +1398,9 @@ consume the approved pure CI-suite/runbook registries and fixed read-only
 project-status, maintenance and leakage modules. No other closure file gains
 those imports or capabilities. Its closed maintenance registry contains exactly
 twenty-four reviewed low-risk `(severity, category, path, doc)` classifications;
-missing, duplicate, or additional classifications fail closed.
+missing, duplicate, or additional classifications fail closed. After exact-set
+validation, only those four stable fields enter closure identity; human-facing
+`message` and `fix` rendering remains outside that identity.
 
 Repository and hosted run/job acquisition remains code-fixed to the clean
 local/fresh `master` chain and anonymous public `https://api.github.com`; it

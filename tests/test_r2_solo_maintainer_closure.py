@@ -361,6 +361,37 @@ class SoloMaintainerClosureTests(unittest.TestCase):
                     "maintenance_scan_output", root, ("AGENTS.md",)
                 )
 
+    def test_maintenance_proof_is_stable_across_rendered_calendar_age(self) -> None:
+        from scripts.maintenance_scan import Finding
+        repository, github = _fixture()
+
+        def proof_for_age(age: int, guidance: str) -> str:
+            self.maintenance_scan.return_value = [
+                Finding(
+                    severity,
+                    category,
+                    path,
+                    f"draft document has been stale for {age} days",
+                    guidance,
+                    doc,
+                )
+                for severity, category, path, doc in sorted(
+                    local_evidence_adapter._MAINTENANCE_CLASSIFICATIONS
+                )
+            ]
+            proofs = {
+                item.source: item
+                for item in build_local_source_proofs(
+                    repository, github, repository.root
+                )
+            }
+            return proofs["maintenance_scan_output"].proof_fingerprint
+
+        self.assertEqual(
+            proof_for_age(30, "review the document lifecycle"),
+            proof_for_age(31, "choose an updated document status"),
+        )
+
     def test_hosted_steps_require_exact_unique_successful_job_metadata(self) -> None:
         repository, github = _fixture()
         by_job = {item.job_name: item for item in github.hosted_evidence}
