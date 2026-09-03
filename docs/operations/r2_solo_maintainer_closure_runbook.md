@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-29
+last_update: 2026-09-03
 status: active
 owner: "@tobyWang"
 review_cycle: as_needed
@@ -100,7 +100,9 @@ only platform line endings and the unique date/date/branch snapshot fields and
 still binds the frozen status blob; every other byte is exact. Leakage must be
 empty. Maintenance must produce twenty-four unique classifications exactly equal
 to the fixed `(severity, category, path, doc)` registry; missing, duplicate, or
-new paths block closure.
+new paths block closure. Only those four stable fields enter the maintenance proof
+identity after validation. The report's human-facing `message` and `fix` remain
+visible operational guidance but cannot create calendar-only closure drift.
 
 ## Authenticated guardrail prerequisite
 

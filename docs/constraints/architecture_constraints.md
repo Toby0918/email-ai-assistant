@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-30
+last_update: 2026-09-03
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -109,6 +109,8 @@ verified checkout, require generated-status equivalence after normalizing only
 platform line endings and the unique date/date/branch snapshot fields, and bind
 the frozen status blob. Leakage is zero; maintenance classifications are unique
 and exactly equal the fixed twenty-four-entry `(severity, category, path, doc)` set.
+Only that stable projection enters maintenance proof identity; rendered finding
+messages and suggested fixes cannot introduce calendar-only identity drift.
 
 `prepare()` performs no write. Windows-only `confirm()` owns a one-use
 wall-plus-monotonic half-open 300-second ceremony over stable real stdin/stdout/

@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-20
+last_update: 2026-09-03
 status: active
 owner: "@tobyWang"
 review_cycle: quarterly
@@ -72,6 +72,13 @@ hosted-record/job-step, or fresh read-only observation subjects. The model uses
 `quality_gate_review` instead of fabricating a `standards_review`. A successful
 hosted typed-contract test is not evidence that a durable runtime receipt
 instance was created or retained.
+
+Fresh maintenance identity is derived only after the live read-only scan exactly
+matches the reviewed twenty-four-entry `(severity, category, path, doc)` registry.
+The proof binds those stable structured fields. Human-facing `message` and `fix`
+rendering remains available to the maintenance report but is excluded from closure
+identity so an unchanged checkout does not invalidate closure merely because
+`date.today()` advances.
 
 Confirmation is a one-use Windows real-console ceremony with two visible exact
 inputs, stable stdin/stdout/stderr console handles, and both wall and monotonic

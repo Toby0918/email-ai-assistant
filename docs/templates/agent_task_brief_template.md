@@ -1,5 +1,5 @@
 ---
-last_update: 2026-08-29
+last_update: 2026-09-03
 status: active
 owner: "@tobyWang"
 review_cycle: monthly
@@ -388,7 +388,7 @@ Maintainer Attestation, production-binding authority, or Execution Confirmation.
 [ ] The wire-only `pull_request.parameters.required_reviewers` field is accepted only when absent or exactly `[]`; only exact `[]` is removed, while missing/nonempty bypass and invalid reviewer values fail closed.
 [ ] The wire-only `pull_request.parameters.require_extra_approval_for_unattributed_changes` field is accepted only when absent or exact Boolean `true` at exact integer zero approving reviews; only that accepted value is removed, while false, wrong types, Boolean counts, nonzero counts, and every other drift fail closed.
 [ ] Closure preserves fourteen gates and eight ordered gap proofs; every finding, skip, divergence, leakage, private-data, provider, host-effect, cleanup, deletion, overwrite, failure, approval, execution, and Issue #39 count remains zero.
-[ ] Fresh maintenance evidence requires exactly twenty-four reviewed low-risk `(severity, category, path, doc)` classifications; missing, duplicate, or additional classifications fail closed.
+[ ] Fresh maintenance evidence requires exactly twenty-four reviewed low-risk `(severity, category, path, doc)` classifications; missing, duplicate, or additional classifications fail closed, and only those stable fields enter closure identity after validation.
 [ ] `confirm()` uses stable real Windows console handles, two once-only visible exact inputs, and one-use wall-clock plus monotonic-clock freshness over a half-open 300-second interval.
 [ ] Publication remains create-only/no-replace, rejects target, legacy, and stage collisions, performs no repair, overwrite, deletion, or cleanup, and any partial stage remains for incident review.
 [ ] The no-argument protected verifier recomputes Git and canonical evidence independently, accepts only the manifest and Solo Maintainer Attestation, and rejects every legacy V1 external/signature artifact.
