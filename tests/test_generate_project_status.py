@@ -907,6 +907,23 @@ class GenerateProjectStatusTests(unittest.TestCase):
             with self.subTest(marker=marker):
                 self.assertIn(marker, report)
 
+    def test_maintenance_observation_deepening_is_reported(self) -> None:
+        module = load_script_module(
+            SCRIPT, "generate_project_status_maintenance_observation"
+        )
+        report = module.build_project_status()
+
+        for marker in (
+            "Stable maintenance observation deepening is implemented locally",
+            "observer-owned immutable stable records",
+            "independent exact twenty-four-entry registry",
+            "no cache, persistence, closure fingerprint, caller scanner or callback",
+            "does not roll over or recreate closure evidence",
+            "`docs/operations/maintenance_observation_deepening_task_brief.md`",
+        ):
+            with self.subTest(marker=marker):
+                self.assertIn(marker, report)
+
     def test_main_writes_requested_output(self) -> None:
         module = load_script_module(SCRIPT, "generate_project_status")
 

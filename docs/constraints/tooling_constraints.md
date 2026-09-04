@@ -1401,6 +1401,14 @@ twenty-four reviewed low-risk `(severity, category, path, doc)` classifications;
 missing, duplicate, or additional classifications fail closed. After exact-set
 validation, only those four stable fields enter closure identity; human-facing
 `message` and `fix` rendering remains outside that identity.
+The maintenance module exposes one parameterless stable maintenance observation
+whose fixed implementation owns scanner composition, observer-owned immutable
+stable records, ordering, duplicate rejection and severity counts. It accepts
+no caller scanner or callback, performs no cache or persistence, and creates no
+closure fingerprint. `local_evidence.py` owns the independent exact twenty-four-entry
+registry and maps observation failure to the existing fixed
+closure error. Its internal materialized-tree test seam accepts only a root and
+sorted unique safe tracked-path tuple and is not a production closure input.
 
 Repository and hosted run/job acquisition remains code-fixed to the clean
 local/fresh `master` chain and anonymous public `https://api.github.com`; it

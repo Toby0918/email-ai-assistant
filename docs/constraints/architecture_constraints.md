@@ -111,6 +111,15 @@ the frozen status blob. Leakage is zero; maintenance classifications are unique
 and exactly equal the fixed twenty-four-entry `(severity, category, path, doc)` set.
 Only that stable projection enters maintenance proof identity; rendered finding
 messages and suggested fixes cannot introduce calendar-only identity drift.
+The existing `scripts/maintenance_scan.py` module owns the deep stable maintenance
+observation seam: fixed scanner composition, observer-owned immutable stable
+records, deterministic ordering, duplicate rejection and severity counts.
+`local_evidence.py` remains the sole closure consumer and owns the independent exact
+twenty-four-entry registry, canonical fingerprint and eligibility check.
+The production observation has no argument, no cache or persistence, and no
+caller-selected root, scanner or callback. The explicit materialized-tree seam
+is internal and accepts only a repository root plus a sorted unique safe tracked
+path tuple; it never becomes closure authority.
 
 `prepare()` performs no write. Windows-only `confirm()` owns a one-use
 wall-plus-monotonic half-open 300-second ceremony over stable real stdin/stdout/

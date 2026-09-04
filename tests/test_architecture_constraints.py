@@ -3022,6 +3022,37 @@ class ArchitectureConstraintTests(unittest.TestCase):
         self.assertIn("`require_extra_approval_for_unattributed_changes`", testing)
         self.assertIn("proposal comment `5212791186` section 8", testing)
 
+    def test_maintenance_observation_depth_contract_is_documented(self) -> None:
+        architecture = read_text(
+            ROOT / "docs" / "constraints" / "architecture_constraints.md"
+        )
+        tooling = read_text(
+            ROOT / "docs" / "constraints" / "tooling_constraints.md"
+        )
+        task_template = read_text(
+            ROOT / "docs" / "templates" / "agent_task_brief_template.md"
+        )
+        decision = read_text(
+            ROOT
+            / "docs"
+            / "decisions"
+            / "0010-solo-maintainer-closure-and-execution-confirmation.md"
+        )
+        structure = read_text(ROOT / "docs" / "operations" / "project_structure.md")
+
+        for text in (architecture, tooling, task_template, decision, structure):
+            normalized = " ".join(text.split())
+            with self.subTest(path=text[:40]):
+                self.assertIn("stable maintenance observation", normalized)
+                self.assertIn(
+                    "independent exact twenty-four-entry registry",
+                    normalized,
+                )
+        self.assertIn("no cache or persistence", architecture)
+        self.assertIn("no caller scanner or callback", tooling)
+        self.assertIn("observer-owned immutable", decision)
+        self.assertIn("`scripts/maintenance_scan.py`", structure)
+
     def test_python_modules_do_not_contain_raw_secret_literals(self) -> None:
         secret_patterns = {
             "openai_key": r"\bsk-[A-Za-z0-9_-]{10,}",

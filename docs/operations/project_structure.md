@@ -18,7 +18,9 @@ source_type: operation_guide
   eight-gap dependency derivation with fixed zero unsafe counters.
 - `backend/r2_solo_maintainer_closure/local_evidence.py`: private exact-source
   proofs over frozen typed subjects, same-SHA hosted execution and fixed fresh
-  status, maintenance and leakage observations.
+  status, maintenance and leakage observations. It consumes the deep stable
+  maintenance observation but retains the independent exact twenty-four-entry registry,
+  canonical fingerprint and eligibility decision.
 - `backend/r2_solo_maintainer_closure/hosted_evidence.py`: hosted-check,
   hosted-step and ruleset-snapshot values for the fixed five-check `master`/
   `push` GitHub Actions projection.
@@ -41,6 +43,11 @@ source_type: operation_guide
   facade, including the stable `FinalMasterBindingV1` seam consumed by V3.
 - `scripts/close_r2_final_master.py`: fixed `prepare`/`confirm` operator
   interface with no caller path, endpoint, credential, key, or destination.
+- `scripts/maintenance_scan.py`: existing report scanner plus the parameterless
+  stable maintenance observation seam. Fixed scanner composition produces
+  observer-owned immutable stable records, deterministic ordering, duplicate
+  rejection and severity counts with no cache or persistence, closure
+  fingerprint, caller scanner or callback.
 - `scripts/verify_r2_final_master_closure.py`: protected no-argument raw-Git
   verifier accepting only the new manifest and attestation and returning only
   content-free Issue #38 review eligibility.

@@ -129,10 +129,15 @@ class SoloMaintainerClosureTests(unittest.TestCase):
         self.status_builder = patch(
             "scripts.generate_project_status.build_project_status", return_value=status
         ).start()
-        from scripts.maintenance_scan import Finding
+        from scripts import maintenance_scan
+        Finding = maintenance_scan.Finding
+        self.stable_observation_builder = maintenance_scan.collect_stable_observation
+        observation = _observation_for_findings(
+            _classified_maintenance_findings(Finding)
+        )
         self.maintenance_scan = patch(
-            "scripts.maintenance_scan.collect_findings",
-            return_value=_classified_maintenance_findings(Finding),
+            "scripts.maintenance_scan.collect_stable_observation",
+            return_value=observation,
         ).start()
         self.leakage_scan = patch(
             "scripts.repository_leakage_scan.scan_repository", return_value=()
@@ -334,14 +339,17 @@ class SoloMaintainerClosureTests(unittest.TestCase):
         with self.assertRaises(SoloMaintainerClosureError):
             local_evidence_adapter._fresh_subject("repository_leakage_scan", root, tracked)
         from scripts.maintenance_scan import Finding
-        self.maintenance_scan.return_value = [Finding(
+        self.maintenance_scan.return_value = _observation_for_findings([Finding(
             "low", "stale_doc", "docs/newly-stale.md", "fixed", "fixed",
             "docs/operations/cleanup_agent.md"
-        )]
+        )], self.stable_observation_builder)
         with self.assertRaises(SoloMaintainerClosureError):
             local_evidence_adapter._fresh_subject("maintenance_scan_output", root, tracked)
         self.assertEqual(len(local_evidence_adapter._MAINTENANCE_CLASSIFICATIONS), 24)
-        self.maintenance_scan.return_value = _classified_maintenance_findings(Finding)
+        self.maintenance_scan.return_value = _observation_for_findings(
+            _classified_maintenance_findings(Finding),
+            self.stable_observation_builder,
+        )
         subject, observed = local_evidence_adapter._fresh_subject(
             "maintenance_scan_output", root, tracked
         )
@@ -352,8 +360,14 @@ class SoloMaintainerClosureTests(unittest.TestCase):
         from scripts.maintenance_scan import Finding
         root = Path(__file__).resolve().parents[1]
         classified = _classified_maintenance_findings(Finding)
-        for findings in ((), tuple(classified[:-1]), tuple(classified + classified[:1])):
-            self.maintenance_scan.return_value = findings
+        additional = classified + [Finding(
+            "low", "stale_doc", "docs/additional.md", "message", "fix",
+            "docs/operations/cleanup_agent.md",
+        )]
+        for findings in ((), tuple(classified[:-1]), tuple(additional)):
+            self.maintenance_scan.return_value = _observation_for_findings(
+                findings, self.stable_observation_builder
+            )
             with self.subTest(count=len(findings)), self.assertRaises(
                 SoloMaintainerClosureError
             ):
@@ -366,7 +380,7 @@ class SoloMaintainerClosureTests(unittest.TestCase):
         repository, github = _fixture()
 
         def proof_for_age(age: int, guidance: str) -> str:
-            self.maintenance_scan.return_value = [
+            self.maintenance_scan.return_value = _observation_for_findings([
                 Finding(
                     severity,
                     category,
@@ -378,7 +392,7 @@ class SoloMaintainerClosureTests(unittest.TestCase):
                 for severity, category, path, doc in sorted(
                     local_evidence_adapter._MAINTENANCE_CLASSIFICATIONS
                 )
-            ]
+            ], self.stable_observation_builder)
             proofs = {
                 item.source: item
                 for item in build_local_source_proofs(
@@ -391,6 +405,25 @@ class SoloMaintainerClosureTests(unittest.TestCase):
             proof_for_age(30, "review the document lifecycle"),
             proof_for_age(31, "choose an updated document status"),
         )
+
+    def test_maintenance_proof_consumes_stable_observation_seam(self) -> None:
+        from scripts import maintenance_scan
+
+        root = Path(__file__).resolve().parents[1]
+        self.maintenance_scan.reset_mock()
+        with patch(
+            "scripts.maintenance_scan.collect_findings",
+            side_effect=AssertionError("closure must not consume rendered findings"),
+        ):
+            subject, proof = local_evidence_adapter._fresh_subject(
+                "maintenance_scan_output",
+                root,
+                ("AGENTS.md",),
+            )
+
+        self.assertEqual(subject, "fresh:maintenance_scan_output")
+        self.assertEqual(len(proof), 64)
+        self.maintenance_scan.assert_called_once_with()
 
     def test_hosted_steps_require_exact_unique_successful_job_metadata(self) -> None:
         repository, github = _fixture()
@@ -423,15 +456,11 @@ class SoloMaintainerClosureTests(unittest.TestCase):
         from scripts import maintenance_scan, repository_leakage_scan
         root = Path(__file__).resolve().parents[1]
         tracked = tuple(sorted(repository_leakage_scan.list_git_tracked(root)))
-        direct = maintenance_scan.collect_findings()
-        materialized = local_evidence_adapter._materialized_findings(
-            maintenance_scan, repository_leakage_scan, root, tracked
+        direct = maintenance_scan.collect_stable_observation()
+        materialized = maintenance_scan._collect_materialized_stable_observation(
+            root, tracked
         )
-        fields = tuple(maintenance_scan.Finding.__dataclass_fields__)
-        normalize = lambda values: tuple(sorted(
-            tuple(getattr(item, name) for name in fields) for item in values
-        ))
-        self.assertEqual(normalize(materialized), normalize(direct))
+        self.assertEqual(materialized, direct)
 
     def test_reviewed_paths_match_classification_registry(self) -> None:
         expected = {
@@ -480,13 +509,13 @@ class SoloMaintainerClosureTests(unittest.TestCase):
         from scripts.maintenance_scan import Finding
         repository, github = _fixture()
         ports = _ports(repository, github, wall=(1_000,), monotonic=(10_000,))
-        self.maintenance_scan.return_value = [
+        self.maintenance_scan.return_value = _observation_for_findings([
             Finding(
                 "low", "stale_doc", path, "fixed", "fixed",
                 "docs/operations/cleanup_agent.md",
             )
             for path in CURRENT_REVIEWED_STALE_PATHS
-        ]
+        ], self.stable_observation_builder)
 
         with patch(
             "backend.r2_solo_maintainer_closure.closure._fixed_ports",
@@ -825,6 +854,18 @@ def _classified_maintenance_findings(finding_type):
             local_evidence_adapter._MAINTENANCE_CLASSIFICATIONS
         )
     ]
+
+
+def _observation_for_findings(findings, builder=None):
+    from scripts import maintenance_scan
+
+    builder = builder or maintenance_scan.collect_stable_observation
+    with patch.object(
+        maintenance_scan,
+        "collect_findings",
+        return_value=list(findings),
+    ):
+        return builder()
 
 
 def _ports(
