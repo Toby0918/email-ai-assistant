@@ -79,14 +79,18 @@ The proof binds those stable structured fields. Human-facing `message` and `fix`
 rendering remains available to the maintenance report but is excluded from closure
 identity so an unchanged checkout does not invalidate closure merely because
 `date.today()` advances.
-The existing maintenance module owns one parameterless stable maintenance
-observation with fixed scanner composition, observer-owned immutable records,
-deterministic ordering, duplicate rejection and derived severity counts. It has
-no cache, persistence, closure fingerprint, caller scanner or callback.
-`local_evidence.py` remains the sole closure consumer and retains the independent exact
-twenty-four-entry registry, canonical proof fingerprint and eligibility
-decision. An explicit internal materialized-tree seam exists for equivalence
-testing only and never substitutes for the fresh production observation.
+The existing maintenance module owns one stable maintenance observation model
+with fixed scanner composition, observer-owned immutable records, deterministic
+ordering, duplicate rejection and derived severity counts. Its ordinary
+maintenance interface remains parameterless and
+has no cache, persistence, closure fingerprint, caller scanner or callback.
+`local_evidence.py` remains the sole closure consumer and retains the independent
+exact twenty-four-entry registry, canonical proof fingerprint and eligibility
+decision. Closure derivation uses the explicit internal materialized-tree seam
+with only the root and sorted unique safe tracked-path tuple already bound by
+the verified repository snapshot. That scope-preserving call works identically
+in a checkout and in the protected verifier's intentionally Gitless materialized
+tree; it adds no public closure argument or authority.
 
 Confirmation is a one-use Windows real-console ceremony with two visible exact
 inputs, stable stdin/stdout/stderr console handles, and both wall and monotonic

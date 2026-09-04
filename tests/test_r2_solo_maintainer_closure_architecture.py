@@ -202,7 +202,11 @@ class SoloMaintainerClosureArchitectureTests(unittest.TestCase):
             encoding="utf-8"
         )
 
-        self.assertIn("maintenance.collect_stable_observation()", local_evidence)
+        self.assertIn(
+            "maintenance._collect_materialized_stable_observation(",
+            local_evidence,
+        )
+        self.assertNotIn("maintenance.collect_stable_observation()", local_evidence)
         self.assertNotIn("maintenance.collect_findings()", local_evidence)
         self.assertNotIn("_materialized_findings", local_evidence)
         for scanner in (
