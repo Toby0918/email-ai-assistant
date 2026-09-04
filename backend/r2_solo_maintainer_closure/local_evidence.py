@@ -261,11 +261,14 @@ def _fresh_subject(source: str, root: Path, tracked_paths: tuple[str, ...]) -> t
     else:
         value = _maintenance_observation(root, tracked_paths)
     return "fresh:" + source, value
-def _maintenance_observation(root: Path, _tracked_paths: tuple[str, ...]) -> str:
+def _maintenance_observation(root: Path, tracked_paths: tuple[str, ...]) -> str:
     from scripts import maintenance_scan as maintenance
     _require_module_root(maintenance, root)
     try:
-        observation = maintenance.collect_stable_observation()
+        observation = maintenance._collect_materialized_stable_observation(
+            root,
+            tracked_paths,
+        )
     except maintenance.MaintenanceObservationError:
         raise SoloMaintainerClosureError(
             ClosureErrorCode.EVIDENCE_REJECTED

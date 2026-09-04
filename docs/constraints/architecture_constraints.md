@@ -116,10 +116,13 @@ observation seam: fixed scanner composition, observer-owned immutable stable
 records, deterministic ordering, duplicate rejection and severity counts.
 `local_evidence.py` remains the sole closure consumer and owns the independent exact
 twenty-four-entry registry, canonical fingerprint and eligibility check.
-The production observation has no argument, no cache or persistence, and no
-caller-selected root, scanner or callback. The explicit materialized-tree seam
-is internal and accepts only a repository root plus a sorted unique safe tracked
-path tuple; it never becomes closure authority.
+The ordinary maintenance observation has no argument, no cache or persistence,
+and no caller-selected root, scanner or callback. The closure adapter uses the
+same fixed scanner composition through the internal materialized-tree seam,
+passing only the root and sorted unique safe tracked-path tuple already bound by
+the verified `RepositorySnapshotV1`. This prevents Git scope rediscovery in the
+protected verifier's Gitless materialized tree. Neither seam becomes closure
+authority, and the closure interface remains parameterless.
 
 `prepare()` performs no write. Windows-only `confirm()` owns a one-use
 wall-plus-monotonic half-open 300-second ceremony over stable real stdin/stdout/

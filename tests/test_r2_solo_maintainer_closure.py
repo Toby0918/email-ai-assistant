@@ -136,7 +136,7 @@ class SoloMaintainerClosureTests(unittest.TestCase):
             _classified_maintenance_findings(Finding)
         )
         self.maintenance_scan = patch(
-            "scripts.maintenance_scan.collect_stable_observation",
+            "scripts.maintenance_scan._collect_materialized_stable_observation",
             return_value=observation,
         ).start()
         self.leakage_scan = patch(
@@ -375,6 +375,21 @@ class SoloMaintainerClosureTests(unittest.TestCase):
                     "maintenance_scan_output", root, ("AGENTS.md",)
                 )
 
+    def test_materialized_maintenance_failure_maps_to_closure_rejection(self) -> None:
+        from scripts import maintenance_scan
+
+        self.maintenance_scan.side_effect = maintenance_scan.MaintenanceObservationError(
+            "MAINTENANCE_OBSERVATION_SCAN_FAILED"
+        )
+        with self.assertRaises(SoloMaintainerClosureError) as caught:
+            local_evidence_adapter._fresh_subject(
+                "maintenance_scan_output",
+                Path(__file__).resolve().parents[1],
+                ("AGENTS.md",),
+            )
+
+        self.assertEqual(caught.exception.code, ClosureErrorCode.EVIDENCE_REJECTED)
+
     def test_maintenance_proof_is_stable_across_rendered_calendar_age(self) -> None:
         from scripts.maintenance_scan import Finding
         repository, github = _fixture()
@@ -411,8 +426,9 @@ class SoloMaintainerClosureTests(unittest.TestCase):
 
         root = Path(__file__).resolve().parents[1]
         self.maintenance_scan.reset_mock()
-        with patch(
-            "scripts.maintenance_scan.collect_findings",
+        with patch.object(
+            maintenance_scan,
+            "collect_stable_observation",
             side_effect=AssertionError("closure must not consume rendered findings"),
         ):
             subject, proof = local_evidence_adapter._fresh_subject(
@@ -423,7 +439,32 @@ class SoloMaintainerClosureTests(unittest.TestCase):
 
         self.assertEqual(subject, "fresh:maintenance_scan_output")
         self.assertEqual(len(proof), 64)
-        self.maintenance_scan.assert_called_once_with()
+        self.maintenance_scan.assert_called_once_with(root, ("AGENTS.md",))
+
+    def test_maintenance_proof_uses_verified_materialized_scope(self) -> None:
+        from scripts import maintenance_scan
+
+        root = Path(__file__).resolve().parents[1]
+        tracked = ("AGENTS.md",)
+        observation = self.maintenance_scan.return_value
+        with patch.object(
+            maintenance_scan,
+            "collect_stable_observation",
+            side_effect=AssertionError("must not rediscover Git scope"),
+        ), patch.object(
+            maintenance_scan,
+            "_collect_materialized_stable_observation",
+            return_value=observation,
+        ) as materialized:
+            subject, proof = local_evidence_adapter._fresh_subject(
+                "maintenance_scan_output",
+                root,
+                tracked,
+            )
+
+        self.assertEqual(subject, "fresh:maintenance_scan_output")
+        self.assertEqual(len(proof), 64)
+        materialized.assert_called_once_with(root, tracked)
 
     def test_hosted_steps_require_exact_unique_successful_job_metadata(self) -> None:
         repository, github = _fixture()
