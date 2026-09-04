@@ -261,35 +261,30 @@ def _fresh_subject(source: str, root: Path, tracked_paths: tuple[str, ...]) -> t
     else:
         value = _maintenance_observation(root, tracked_paths)
     return "fresh:" + source, value
-def _maintenance_observation(root: Path, tracked_paths: tuple[str, ...]) -> str:
+def _maintenance_observation(root: Path, _tracked_paths: tuple[str, ...]) -> str:
     from scripts import maintenance_scan as maintenance
-    from scripts import repository_leakage_scan as leakage
     _require_module_root(maintenance, root)
-    _require_module_root(leakage, root)
-    findings = (maintenance.collect_findings() if (root / ".git").exists()
-                else _materialized_findings(maintenance, leakage, root, tracked_paths))
-    classifications = tuple((item.severity, item.category, item.path, item.doc) for item in findings)
+    try:
+        observation = maintenance.collect_stable_observation()
+    except maintenance.MaintenanceObservationError:
+        raise SoloMaintainerClosureError(
+            ClosureErrorCode.EVIDENCE_REJECTED
+        ) from None
+    if type(observation) is not maintenance.MaintenanceObservationV1:
+        raise SoloMaintainerClosureError(ClosureErrorCode.EVIDENCE_REJECTED)
+    classifications = tuple(item.as_tuple() for item in observation.records)
     if (len(classifications) != len(_MAINTENANCE_CLASSIFICATIONS)
             or len(set(classifications)) != len(classifications)
             or set(classifications) != _MAINTENANCE_CLASSIFICATIONS):
         raise SoloMaintainerClosureError(ClosureErrorCode.EVIDENCE_REJECTED)
     fields = ("severity", "category", "path", "doc")
-    values = sorted(({name: getattr(item, name) for name in fields} for item in findings),
-                    key=lambda item: tuple(item[name] for name in fields))
+    values = [{name: getattr(item, name) for name in fields}
+              for item in observation.records]
     return fingerprint("r2-local-source-proof-v1", {
         "subject_type": "FRESH_MAINTENANCE_SCAN", "source": "maintenance_scan_output",
-        "high_finding_count": 0, "classification_registry": sorted(
+        "high_finding_count": observation.high_count,
+        "classification_registry": sorted(
             [list(item) for item in _MAINTENANCE_CLASSIFICATIONS]), "findings": values})
-def _materialized_findings(maintenance, leakage, root, tracked_paths):
-    findings = []
-    scanners = (maintenance.scan_forbidden_files, maintenance.scan_backend_file_lengths,
-                maintenance.scan_backend_function_lengths, maintenance.scan_todo_fixme,
-                maintenance.scan_docs_metadata_and_staleness)
-    for scanner in scanners:
-        findings.extend(scanner())
-    findings.extend(maintenance.scan_repository_leakage(
-        scan=lambda: leakage.scan_repository(root, tracked_files=tracked_paths)))
-    return findings
 def _require_module_root(module: object, root: Path) -> None:
     try:
         if Path(module.ROOT).resolve() != root.resolve():

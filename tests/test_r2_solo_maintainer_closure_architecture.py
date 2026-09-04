@@ -196,6 +196,28 @@ class SoloMaintainerClosureArchitectureTests(unittest.TestCase):
         self.assertEqual(domains, {"r2-local-source-proof-v1"})
         self.assertNotIn("LocalSourceProofV1", closure.__all__)
 
+    def test_local_evidence_consumes_deep_stable_maintenance_seam(self) -> None:
+        local_evidence = (PACKAGE / "local_evidence.py").read_text(encoding="utf-8")
+        maintenance = (ROOT / "scripts" / "maintenance_scan.py").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("maintenance.collect_stable_observation()", local_evidence)
+        self.assertNotIn("maintenance.collect_findings()", local_evidence)
+        self.assertNotIn("_materialized_findings", local_evidence)
+        for scanner in (
+            "scan_forbidden_files",
+            "scan_backend_file_lengths",
+            "scan_backend_function_lengths",
+            "scan_todo_fixme",
+            "scan_docs_metadata_and_staleness",
+            "scan_repository_leakage",
+        ):
+            with self.subTest(scanner=scanner):
+                self.assertNotIn(f"maintenance.{scanner}", local_evidence)
+        self.assertIn("def collect_stable_observation()", maintenance)
+        self.assertIn("def _collect_materialized_stable_observation(", maintenance)
+
     def test_publication_revalidates_inside_commit_and_rename_is_terminal(self) -> None:
         source = (PACKAGE / "storage.py").read_text(encoding="utf-8")
         self.assertIn("before_commit(*payloads)\n        _release_file_guards", source)
