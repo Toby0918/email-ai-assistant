@@ -22,7 +22,7 @@ bugfix
 ## 3. Current status
 
 ```text
-implemented_worktree_only
+merged_with_generated_status_forward_correction_worktree_only
 ```
 
 ## 4. Goal
@@ -109,3 +109,23 @@ Implementation and tests are authorized from exact base
 `codex/protected-verifier-materialized-maintenance-fix`. Commit, push, PR,
 merge, closure rollover, new closure, protected-verifier retry, Issue #38 review,
 and Issue #39 authority remain zero.
+
+## 11. Post-merge generated-status drift correction
+
+PR #131 merged the maintenance fix at exact master
+`6ae6f846b56c7e089ce66edd4f92b974052690df`. The subsequent closure prepare
+correctly failed closed because adding this active task brief increased the
+generated active-document count from 136 to 137, while the checked-in
+`project_status_log.md` had not been regenerated after the document was added.
+The repository, GitHub, and materialized maintenance evidence stages otherwise
+remained consistent; the mismatch was isolated to the generated-versus-frozen
+status snapshot gate.
+
+The forward correction regenerates the checked-in project status from the
+merged tree and adds a regression test that compares normalized generated
+status with the normalized checked-in snapshot. It creates or mutates no
+closure artifact and changes no closure schema, evidence semantics,
+confirmation, publication, verifier behavior, or Issue #38/#39 authority. The
+changed frozen source, test, and generated-status bytes necessarily produce new
+derived source and evidence fingerprints. This correction does not retry
+closure prepare or protected verification.

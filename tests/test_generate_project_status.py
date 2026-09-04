@@ -924,6 +924,20 @@ class GenerateProjectStatusTests(unittest.TestCase):
             with self.subTest(marker=marker):
                 self.assertIn(marker, report)
 
+    def test_checked_in_status_matches_normalized_generated_snapshot(self) -> None:
+        module = load_script_module(
+            SCRIPT, "generate_project_status_checked_in_snapshot"
+        )
+
+        generated = module._normalize_status_snapshot(module.build_project_status())
+        checked_in = module._normalize_status_snapshot(
+            (ROOT / "docs" / "operations" / "project_status_log.md").read_text(
+                encoding="utf-8"
+            )
+        )
+
+        self.assertEqual(checked_in, generated)
+
     def test_main_writes_requested_output(self) -> None:
         module = load_script_module(SCRIPT, "generate_project_status")
 
