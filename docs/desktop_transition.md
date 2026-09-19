@@ -26,11 +26,13 @@ a runnable Windows artifact. All model and mailbox access remains disabled durin
 these checks. It does not claim that real-mailbox integration or AI answer quality
 has been accepted.
 
-The former migration/provenance workflows are removed on this branch. Master
-protection still requires legacy provenance checks until the maintainer reviews
-the transition; branch protection is not weakened by this source change. Merging
-requires reconciling that policy with the new Windows workflow. No check with a
-legacy provenance name is fabricated to bypass the old requirements.
+The former migration/provenance workflows are removed on this branch. After the
+first hosted Windows build passed, the maintainer-authorized ruleset transition
+removed the four retired provenance checks and retained strict quality-gates.
+The PR requirement, deletion and non-fast-forward protection, and bypass policy
+remain unchanged. No check with a legacy provenance name is fabricated to bypass
+the old requirements. The branch is submitted for review; master is not merged
+automatically.
 
 Local historical archives, runtime installations, builds, databases, configuration,
 logs and retirement receipts are excluded from Git. Encrypted local archives are
