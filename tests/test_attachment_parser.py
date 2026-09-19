@@ -335,6 +335,7 @@ class AttachmentParserTests(unittest.TestCase):
             attachment_insights=insights,
         )
         connection = sqlite3.connect(":memory:")
+        self.addCleanup(connection.close)
         initialize_schema(connection)
         save_analysis(
             connection,
@@ -479,6 +480,7 @@ class AttachmentParserTests(unittest.TestCase):
             attachment_insights=insights,
         )
         connection = sqlite3.connect(":memory:")
+        self.addCleanup(connection.close)
         initialize_schema(connection)
         save_analysis(
             connection,
@@ -651,6 +653,7 @@ class AttachmentParserTests(unittest.TestCase):
             attachment_insights=insights,
         )
         connection = sqlite3.connect(":memory:")
+        self.addCleanup(connection.close)
         initialize_schema(connection)
         save_analysis(
             connection,
@@ -865,6 +868,7 @@ class AttachmentParserTests(unittest.TestCase):
             attachment_insights=insights,
         )
         connection = sqlite3.connect(":memory:")
+        self.addCleanup(connection.close)
         initialize_schema(connection)
         save_analysis(
             connection,
@@ -982,6 +986,7 @@ class AttachmentParserTests(unittest.TestCase):
             attachment_insights=insights,
         )
         connection = sqlite3.connect(":memory:")
+        self.addCleanup(connection.close)
         initialize_schema(connection)
         save_analysis(
             connection,
