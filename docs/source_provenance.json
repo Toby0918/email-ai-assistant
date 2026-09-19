@@ -1,0 +1,485 @@
+{
+  "source_commit": "407f49b1a3b10786b496d339e4eb39a1f8cc30b2",
+  "files": [
+    {
+      "path": "backend/__init__.py",
+      "sha256": "47debcf087343dc8c4b00f1d4402e9b0a5adbe06ff36faa4ba11ba59165810d4"
+    },
+    {
+      "path": "backend/email_agent/__init__.py",
+      "sha256": "38c2c014e8e633da345cc469fbdc66aef51c50ba396a66844c27c808c1656f32"
+    },
+    {
+      "path": "backend/email_agent/analysis_budget.py",
+      "sha256": "617828e41d913232a53060fc001857611ceffb76ac9638f02fd330898d266c28"
+    },
+    {
+      "path": "backend/email_agent/analysis_diagnostics.py",
+      "sha256": "fdd2c152810689f0d06b2451d5a9286ec0bd0eccee86781d7643e0dfa14a31c9"
+    },
+    {
+      "path": "backend/email_agent/analysis_model_routes.py",
+      "sha256": "5703e710aa8d99082e567d377bf6b73cbe25064e9eb817e23bba6406e0e9fed9"
+    },
+    {
+      "path": "backend/email_agent/analysis_projection.py",
+      "sha256": "3d40efda3a9e60ea99cceaa25215a1cb1cbfd2d2c6230b9489874a887c6b3377"
+    },
+    {
+      "path": "backend/email_agent/analysis_provider_policy.py",
+      "sha256": "ce5b3b16ea4c43af23b0751df018eb572431c0295e8e8ff538f68d3755c29349"
+    },
+    {
+      "path": "backend/email_agent/analysis_repair.py",
+      "sha256": "a4ab3bab2c71305719e942bea03907c4a686ec7efe41cfe6977b78561f85f3ae"
+    },
+    {
+      "path": "backend/email_agent/analysis_route_support.py",
+      "sha256": "7e5dc8db4596b34b365e55a239a77469f0edd426b20b0984139361142be3388d"
+    },
+    {
+      "path": "backend/email_agent/analysis_schema.py",
+      "sha256": "7ac25a975e005e679b0c0b1f47c6ed1238499ef36f5d982c19713d4311c9a7bc"
+    },
+    {
+      "path": "backend/email_agent/analyzer.py",
+      "sha256": "a41bc9cf2c32eacfad551ef066f3c588670ac3bad97bfdbb85aae18762ce0868"
+    },
+    {
+      "path": "backend/email_agent/api.py",
+      "sha256": "0140af922b162d2416fa9d6e35a52e39b3c3298a5be0049f56694ab12ac2383c"
+    },
+    {
+      "path": "backend/email_agent/attachment_docx.py",
+      "sha256": "f4ded14a09d34b318d1940d05ceccc60c7440329a11c2dedf790d5197467abac"
+    },
+    {
+      "path": "backend/email_agent/attachment_fact_context.py",
+      "sha256": "e83f2eaadaf1d2672118ace0f5f1c93984f25ed529d80f9b0bb56f664edb9450"
+    },
+    {
+      "path": "backend/email_agent/attachment_fact_safety.py",
+      "sha256": "dac03b7658011106fdbcdedef235063b36802205da1c83ba6045285494eaa136"
+    },
+    {
+      "path": "backend/email_agent/attachment_facts.py",
+      "sha256": "9ee7a2a40f63790112dfc0b004048326261673871c290b623333979ea0faf16f"
+    },
+    {
+      "path": "backend/email_agent/attachment_identifiers.py",
+      "sha256": "1b2687d1340343facfb6f7c28170422cbcd5e68a6c24b387b094fdc7cbc7a9e7"
+    },
+    {
+      "path": "backend/email_agent/attachment_media_context.py",
+      "sha256": "a4d941d6baf64eca233a92ba872252e2f9296d4bbf9790356a27cbde1c2426fd"
+    },
+    {
+      "path": "backend/email_agent/attachment_model_context.py",
+      "sha256": "44ade4c1e31be3fcfdcb4b86929c27d6c10327a74e85eca8dac9509897addd75"
+    },
+    {
+      "path": "backend/email_agent/attachment_parser.py",
+      "sha256": "87ffa51dbeccec1258e1d75aa68a1703db160efb455c675c29e71c31e4c2953b"
+    },
+    {
+      "path": "backend/email_agent/attachment_prompt_metadata.py",
+      "sha256": "2209f6f2a04241af9bd3d9877e1db82102110069e43ec1337ba02b033826c76b"
+    },
+    {
+      "path": "backend/email_agent/attachment_remote_text.py",
+      "sha256": "96e1006d1ced7f3ede637fa3ce82eb4f13a04a9256664baa15c8286f58ac8a5d"
+    },
+    {
+      "path": "backend/email_agent/attachment_safety.py",
+      "sha256": "c9247f8edb9c49070a76537e8c948307761ae386ac32083a74964c0144aede25"
+    },
+    {
+      "path": "backend/email_agent/attachment_sentence_boundary.py",
+      "sha256": "a8d19c289d2096492ba62a713845bf233a1d794de4bb69eda943056f1ba1bbe0"
+    },
+    {
+      "path": "backend/email_agent/attachment_storage.py",
+      "sha256": "0e64acc18eb81842ebede4c42aac1c50e648b861040b58e06261c64c1c0e2ae8"
+    },
+    {
+      "path": "backend/email_agent/attachment_text.py",
+      "sha256": "4ca80cec6b297af624c87bbe095ef4250a1ea60c7d998c6d9337188e5889aaa8"
+    },
+    {
+      "path": "backend/email_agent/attachment_worker_control.py",
+      "sha256": "30e80febce720fd5c28e4e5217620d945cc95f1205d02dfd5041b3518e32bd94"
+    },
+    {
+      "path": "backend/email_agent/attachment_worker_transport.py",
+      "sha256": "54f4abc9a91f2096c0d7693ca8e0d338158a2af4af46c96276450650c65e3053"
+    },
+    {
+      "path": "backend/email_agent/config.py",
+      "sha256": "e1b73c6a6875c863a3f207ec1782c835e3ce37d6c2c7bfacaba407361dcf33ba"
+    },
+    {
+      "path": "backend/email_agent/database.py",
+      "sha256": "874a8db69f40072af71c0932286b2767bf449ae78cdbac30213268e1830b9248"
+    },
+    {
+      "path": "backend/email_agent/deepseek_analysis_contract.py",
+      "sha256": "fd4414eb871d4036e4ef9c0128e88e2f87b0ad2bbe3e6ebe05091c27ccf39782"
+    },
+    {
+      "path": "backend/email_agent/deepseek_analysis_schema.py",
+      "sha256": "12940cf0418f4666e3b3a523dd64cdbe2c83e62a9b495e72ab186e7b4fae6132"
+    },
+    {
+      "path": "backend/email_agent/deepseek_envelope_errors.py",
+      "sha256": "bc2bffa6f2181fe80ddeddaefecaf9dcfb5ab3489ab60b87baaea9f0f18357d8"
+    },
+    {
+      "path": "backend/email_agent/email_cleaner.py",
+      "sha256": "e7da61848cb7a8df7717ce1c7b9fe6e08bfd286c3b9bbf3da4d9321c8224647f"
+    },
+    {
+      "path": "backend/email_agent/email_facts.py",
+      "sha256": "569c8147867518262c7de03680e7ce25de5e66ac4ccad659b3872b568f571eed"
+    },
+    {
+      "path": "backend/email_agent/evidence_source.py",
+      "sha256": "2f417ca8f0d5cd4894b9c6b67686e246c0b981f8ab5b1ee78f3a13a49d6069c8"
+    },
+    {
+      "path": "backend/email_agent/frontend_assets.py",
+      "sha256": "83a5050a154c32228abb58442003cb02ce11eb691a2143d35db7e5699a9502cc"
+    },
+    {
+      "path": "backend/email_agent/image_media_safety.py",
+      "sha256": "32047afb0a59b54c1f7454d877eb095296c9ed9be485481da6cc882190faa29b"
+    },
+    {
+      "path": "backend/email_agent/legacy_model_analysis.py",
+      "sha256": "cbc20eb6403d2c9be5ad4115e11582ee078783a7d4bd25b9021fa8dfc5893fa8"
+    },
+    {
+      "path": "backend/email_agent/llm_client.py",
+      "sha256": "90270b6c3dc36ed7f5075e6e1326c55668f011e4fd947c0d6f74a5432d5dc0cb"
+    },
+    {
+      "path": "backend/email_agent/llm_errors.py",
+      "sha256": "6aa4a1961497974da958e967218def482c069bb8b10185f087ed8930bd62ce8b"
+    },
+    {
+      "path": "backend/email_agent/model_attachment_safety.py",
+      "sha256": "d70634265856191b1f813e20ad0c9e4104b917a7be35c2576d75771174fe7dfb"
+    },
+    {
+      "path": "backend/email_agent/model_context_projection.py",
+      "sha256": "a831a6239c2afb8de923799e9c31cfeed3173fc8f3e6ffda6e956ca32ff7a565"
+    },
+    {
+      "path": "backend/email_agent/model_context_selection.py",
+      "sha256": "6b7900abe280eefab37109474b08557a5efc1b2701096ea6e5ac46ba57d1812e"
+    },
+    {
+      "path": "backend/email_agent/model_cross_language_grounding.py",
+      "sha256": "0ba707f25211be3b977c04a1b955367d5ae5d82144444460fec8d41c230f039e"
+    },
+    {
+      "path": "backend/email_agent/model_exact_fact_safety.py",
+      "sha256": "16edf4bc522d19caf804917227bb6075862cf1ade5a1d902be3cb86c66977ebb"
+    },
+    {
+      "path": "backend/email_agent/model_grounding.py",
+      "sha256": "bb28b94bc562788fa3ba836b3f5c573e8107f2a4c3cc48a14ef279fc7fe18c65"
+    },
+    {
+      "path": "backend/email_agent/model_known_fact_consistency.py",
+      "sha256": "3d3cb10753d009bde16185c2f086c418bc479836e2a6e78cdbbc9a4f4770e96b"
+    },
+    {
+      "path": "backend/email_agent/model_multimodal_claim_safety.py",
+      "sha256": "a3be1eaaa4ae327cd10db01071cb0483c25233161750f6c7d6dfff5e969eb417"
+    },
+    {
+      "path": "backend/email_agent/model_request.py",
+      "sha256": "28caef7726c25526acc8ea88e907134d1d0d96ae4f6c5fdc61409b474270fac6"
+    },
+    {
+      "path": "backend/email_agent/model_result_safety.py",
+      "sha256": "cdcf602d8b34bdf5db688e55ef925ed6379c9a10b1afb5729879e9b2b4139326"
+    },
+    {
+      "path": "backend/email_agent/model_source_grounding.py",
+      "sha256": "a2f2638b8b089ce516d11c2302449d1917d124fa854a35d61cc22f07ad369ff9"
+    },
+    {
+      "path": "backend/email_agent/model_text_safety.py",
+      "sha256": "aa12908e7136136c92f939a8cbfddb80395514d36dc2022a9cfada729974034e"
+    },
+    {
+      "path": "backend/email_agent/model_visual_grounding.py",
+      "sha256": "635417ce138e79cc8d4c9d0df88a1d5846646e5b02d8256c427143a2323fc07c"
+    },
+    {
+      "path": "backend/email_agent/multimodal_media.py",
+      "sha256": "06967c8c7fe3d6284eb372a75378b57f30c79a9ce71bce018e0e5d27c68a76af"
+    },
+    {
+      "path": "backend/email_agent/office_embedded_media.py",
+      "sha256": "c83ee4d57526451a04266fa6e1d635209b725201e609d13527d8753f48ae276a"
+    },
+    {
+      "path": "backend/email_agent/openai_multimodal_client.py",
+      "sha256": "1ecb2edd0668e40a0ad35e6c1e8cc6736c22e1c364a97d262b20b794e816ef45"
+    },
+    {
+      "path": "backend/email_agent/participant_identity_aliases.py",
+      "sha256": "7a379eb156c662c25122ab25d1b11108910224646def6ea6bad632b4c83120bb"
+    },
+    {
+      "path": "backend/email_agent/pdf_media_safety.py",
+      "sha256": "37b1547049c9d92ac780cba26a21aecb0f232d354c369d55436188b719a62747"
+    },
+    {
+      "path": "backend/email_agent/private_analysis_route.py",
+      "sha256": "d1eb2fa1825612b3c6a92e10e7894e2537fcf48181023025ff71c2eabb29990e"
+    },
+    {
+      "path": "backend/email_agent/private_context_gate.py",
+      "sha256": "e2e7973cff410d82d55ec0ad035a4353d80fb9232856aca4737ff36bd1afbf77"
+    },
+    {
+      "path": "backend/email_agent/private_knowledge_context.py",
+      "sha256": "898743d40e01936800f1a9aa41b042b2a4a6857ae570a4c96304dd57dc12d425"
+    },
+    {
+      "path": "backend/email_agent/private_prompt_genericizer.py",
+      "sha256": "69bb82b047e57c9b9c993ef3d463533a6d2448663ecea9d396b6ffe410460d0a"
+    },
+    {
+      "path": "backend/email_agent/private_provider_output_gate.py",
+      "sha256": "487da4f416c7b100b55096fb80bd5d4fd2bc6ae47ab57a30faec4bc698879762"
+    },
+    {
+      "path": "backend/email_agent/prompt_context.py",
+      "sha256": "b5059b328d77c1013502e0be6b5d3be0af66ca8f45b16097fdadc2fe8bf43253"
+    },
+    {
+      "path": "backend/email_agent/prompt_source_projection.py",
+      "sha256": "6a23b3f410fc0f23d63c87f537aa8e6ca4e455ff3363223fb2d79a4355eafd70"
+    },
+    {
+      "path": "backend/email_agent/quantity_facts.py",
+      "sha256": "2407916aa3a7c0c49472c2c25b90588fdd3e252e417262237336f9e882bd3391"
+    },
+    {
+      "path": "backend/email_agent/resource_limitations.py",
+      "sha256": "f5d2e8f237723fa61004ff022a9fab915a92008b3737581ee1513c9515149c71"
+    },
+    {
+      "path": "backend/email_agent/rule_analyzer.py",
+      "sha256": "dd40758cd65e58ece9a713ee36259a732fad63671398fc66b312bfe4dbab2864"
+    },
+    {
+      "path": "backend/email_agent/rule_context.py",
+      "sha256": "382eccbdddb99fe46358c8f6eb207a2759b6ed8292f5ec5b107bdf285550599b"
+    },
+    {
+      "path": "backend/email_agent/rule_decision.py",
+      "sha256": "2b23d9ef9c16e2da8dcb91b027ffdfa6938542605e93175df225834d5235ff47"
+    },
+    {
+      "path": "backend/email_agent/rule_draft.py",
+      "sha256": "b70e6e5e3c41dc6d7a0f66719a87c22f54f4a4a68a2115eeda106a22070a494c"
+    },
+    {
+      "path": "backend/email_agent/rule_keywords.py",
+      "sha256": "753824e4a05c4dc91391f19d711f8076474002352c7075e895736f4ddb84354c"
+    },
+    {
+      "path": "backend/email_agent/server.py",
+      "sha256": "27381d3a6b95b839e9afa2b1db017d56c3975031d8ab8adb5da7744efb820e47"
+    },
+    {
+      "path": "backend/email_agent/thread_clauses.py",
+      "sha256": "35884fd6eeda76d59b24b600cf16add7f899086ec684acdb27754fed1aeb18ab"
+    },
+    {
+      "path": "backend/email_agent/thread_dates.py",
+      "sha256": "89bc47da492aa0d40491c60c52c9929f0f8d5b6431456971005841163636266f"
+    },
+    {
+      "path": "backend/email_agent/thread_intent.py",
+      "sha256": "f1d3e290ed49a56d5743c9c4c8028efcaf817b360064212d7c742806108f4ad1"
+    },
+    {
+      "path": "backend/email_agent/thread_outcomes.py",
+      "sha256": "74e5d63814918da1049f286e23676ec4ec2e99915b40265e725bc20b8bfe0765"
+    },
+    {
+      "path": "backend/email_agent/thread_participants.py",
+      "sha256": "df48d534a9cbcef2a9838618eb2f2641c05e9a46d3c2c483705bbd042011b9ff"
+    },
+    {
+      "path": "backend/email_agent/thread_positions.py",
+      "sha256": "bd57f3b7018db680142b4ef415c543d6db20602a99c55a43421786bd1876ed5a"
+    },
+    {
+      "path": "backend/email_agent/thread_prompt_projection.py",
+      "sha256": "35315a8552883e018c4c1df49a972194308ea386fb1dd8c605f0a0e07e9ba0bb"
+    },
+    {
+      "path": "backend/email_agent/thread_requests.py",
+      "sha256": "a102fa12fc0affd42ae7e7c7189f3865e78d01cd00c711e6c9f2cd8dc6842ff5"
+    },
+    {
+      "path": "backend/email_agent/thread_segments.py",
+      "sha256": "58b69bef7c576025d5c54881d2c88b31478b4d9d24deef7be512717daea6470f"
+    },
+    {
+      "path": "backend/email_agent/thread_timeline.py",
+      "sha256": "2427939e9e4c44b19edaf6859c79a574958aa714408e10f6e60a2b1980833451"
+    },
+    {
+      "path": "backend/exact_fact_patterns.py",
+      "sha256": "52088def193c2305a23337803dea161634c605f27cfe7b11bbac11d6041a272a"
+    },
+    {
+      "path": "backend/private_knowledge/__init__.py",
+      "sha256": "592f2dc96d45c70ad6ac94713a5f15d749ad26036f6473f9d33e8ec34bf46381"
+    },
+    {
+      "path": "backend/private_knowledge/authority_invariants.py",
+      "sha256": "56fbf7891a2c7c8312215de705c1ccf856b84d77aaf308ce86bc4ae6e849c826"
+    },
+    {
+      "path": "backend/private_knowledge/deidentifier.py",
+      "sha256": "c61e4af8c239f1b7c295deb1924cd2985771fce57451fc303bf332230e08073e"
+    },
+    {
+      "path": "backend/private_knowledge/entity_patterns.py",
+      "sha256": "13ebc914ea91bf29c905d4962821e095f6d62daabf0157f8a7cb28f02ff84df0"
+    },
+    {
+      "path": "backend/private_knowledge/errors.py",
+      "sha256": "1270e0df5e0a9a22717d405ff3b5e37cce9e457b194c545787d1247e5c5bc13f"
+    },
+    {
+      "path": "backend/private_knowledge/non_verbatim.py",
+      "sha256": "a520f3d75a45f5289350385be053fd1b7f399be258d30dd1d1824d4dec38d1cf"
+    },
+    {
+      "path": "backend/private_knowledge/residual_scanner.py",
+      "sha256": "ef9a3661baf0c08f7e87729f81bd75805c91aa77db9cce048d0ec1e2503768d3"
+    },
+    {
+      "path": "backend/private_knowledge/runtime_schema.py",
+      "sha256": "f8e2ac6cb0e0f660408a9ebfecb10c1862521f512f97099393bec2410a277e9f"
+    },
+    {
+      "path": "backend/private_knowledge/schema.py",
+      "sha256": "210512bc8762c8030c8ac6878f2d1490c6c26739b308dfe6e292a0f5f46ec69c"
+    },
+    {
+      "path": "frontend/browser_extension/background.js",
+      "sha256": "5983cc65c5750e562b11dd38c564afc62b5a00faf08c416eb8dcf4289dcda9b0"
+    },
+    {
+      "path": "frontend/browser_extension/content/current_message_collector.js",
+      "sha256": "0a33665a795bf97a15dbd38352bf09f9e262e1561824c9a16a4ff8a9dbb6e2c8"
+    },
+    {
+      "path": "frontend/browser_extension/content/exmail_adapter.js",
+      "sha256": "3c3af5e9b140f1bec094e6880df664e4a963a6b3bd045c40c863b5fad948928f"
+    },
+    {
+      "path": "frontend/browser_extension/content/exmail_visible_context.js",
+      "sha256": "a8bf453a4544894b4841a39145d6cd6edd145eb04d9916f24be1e6445a42d9ab"
+    },
+    {
+      "path": "frontend/browser_extension/content/exmail_visible_resource_classifier.js",
+      "sha256": "5c6c81d15abdec35544c7037abbe145e7c8356c499de29d882ead01488565b9e"
+    },
+    {
+      "path": "frontend/browser_extension/manifest.json",
+      "sha256": "28df22df154add90d080c1b9b0cb603d53b640e995a77131f955f230d07d3bdc"
+    },
+    {
+      "path": "frontend/browser_extension/popup.css",
+      "sha256": "26e98857bc2b4c796f986fa2187aeaac4740e33373c1793607d430360c055786"
+    },
+    {
+      "path": "frontend/browser_extension/popup.html",
+      "sha256": "98b92c888217f71a701cd4960d6b7c7099e05546d196170cf08cae4347775fac"
+    },
+    {
+      "path": "frontend/browser_extension/popup.js",
+      "sha256": "78a8d8e26391149bd847437a299a898961a3249592d4761c08618dc0ab6a719e"
+    },
+    {
+      "path": "frontend/browser_extension/shared/analysis_components.css",
+      "sha256": "1def5615a05a87560384d6ba26745faca159f14655effffe9d20773403103139"
+    },
+    {
+      "path": "frontend/browser_extension/shared/api_client.js",
+      "sha256": "fc4e504865938fa9598668806768651650c2341cad36b4067d46166aaae3c77d"
+    },
+    {
+      "path": "frontend/browser_extension/shared/manual_attachment_files.js",
+      "sha256": "fe489df067136a0feb00c13d870bbd5f9038ddea9cd15c241622b80c1c94735f"
+    },
+    {
+      "path": "frontend/browser_extension/shared/render_analysis.js",
+      "sha256": "15b48a62407b42e900f7882de4d3695913330cb730e3ab2b755fab50bb94cb01"
+    },
+    {
+      "path": "frontend/local_debug_page/app.js",
+      "sha256": "d7080e823d8e72fb68963bdf3a8a1222b974f3e798240d7da733bb06edf6bcc1"
+    },
+    {
+      "path": "frontend/local_debug_page/index.html",
+      "sha256": "85cb43eeab394b80ff72339b8a2a01b7dc302f178e60ee45449d85de75eeae33"
+    },
+    {
+      "path": "frontend/local_debug_page/styles.css",
+      "sha256": "1d7f52c8f51858b826b730c52aba81df6b3289ebafbeb17e08478c2652f42454"
+    },
+    {
+      "path": "requirements-ci-windows.lock",
+      "sha256": "62aae883098e72b75693ec24500292bb564307b22b07256466aa01a812bbed6b"
+    },
+    {
+      "path": "requirements.txt",
+      "sha256": "8fc5c0deb786edb725ca72d87446968e85bf0071fdcf8bcf2aaaeb65d5acb1e5"
+    },
+    {
+      "path": "tests/test_analysis_schema.py",
+      "sha256": "c1a9bfddb6150b97d3e503c9f63e5ae8a1885a1e39bf543f2cc8a6644c0fec7f"
+    },
+    {
+      "path": "tests/test_browser_extension_api_client.py",
+      "sha256": "262e2495b4e9437ac570f989146015e52fcb73de9b0db7f99ecec5a581a09d3b"
+    },
+    {
+      "path": "tests/test_rule_analyzer.py",
+      "sha256": "6122ea82afda3d0a528b645e55cd63b6bf8eb0ff75971944998815c1c46cdd4f"
+    },
+    {
+      "path": "tests/test_task9_attachment_semantics.py",
+      "sha256": "fd05e66ee311db2aadcff720f03d48ef8579a0061a88c2250e4a49205cf0b4f5"
+    },
+    {
+      "path": "backend/email_agent/logging_config.py",
+      "sha256": "d56ec18bf512d4182d44c8948919655f3baded476fe2f96b4720479c77dafd36"
+    },
+    {
+      "path": "tests/test_openai_multimodal_client.py",
+      "sha256": "fb3d811cc915a040ed09da662c3f3bdd1f491bedd6243f7b9c26244202e074ee"
+    },
+    {
+      "path": "tests/test_llm_client.py",
+      "sha256": "f2c1648c5ee46e8aa576373f34f11057b5e76c81db6eb0e2f4bba5536df6e5d7"
+    },
+    {
+      "path": "tests/test_attachment_parser.py",
+      "sha256": "e7e8f56ffcdcda8ebb46ed836afca9f217e218832781fd8847561af3c3ee80ea"
+    }
+  ]
+}

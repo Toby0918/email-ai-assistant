@@ -1,488 +1,60 @@
-# Email AI Assistant
+# Email AI Assistant 桌面版
 
-企业邮箱 AI 辅助窗口项目。用户打开一封企业邮件后，辅助窗口识别当前邮件，并在用户点击“分析此邮件”后生成摘要、优先级、分类、风险点、建议动作和回复草稿。
+这是独立重建的 Windows 程序，不依赖旧项目的目录迁移。项目位于 `D:\Projects\email_ai_assistant_rebuild`，应用自身的运行环境、数据、日志、临时文件和构建产物都保存在本目录。
 
-本项目不是批量邮件读取、批量邮箱扫描或报表自动化工具。
+## 启动
 
-## 第一阶段边界（当前仍适用）
+双击根目录的 `start.cmd`，或打开 `Program\EmailAssistant\EmailAssistant.exe`。运行成品不需要安装 Python、不需要激活虚拟环境、不需要手动启动后端。整个项目文件夹应一起保留，不要单独移动 exe。
 
-支持：
+在桌面窗口粘贴当前邮件的主题、发件人和正文，按需选择当前邮件附件，再点击“分析此邮件”。附件选择阶段不读取内容。结果包括处理建议、依据与限制和可编辑回复草稿；审核后勾选确认，再复制草稿到邮箱。程序不会发送、删除或归档邮件。
 
-- 用户点击按钮后分析当前打开的一封邮件。
-- 清洗邮件正文并生成结构化分析结果。
-- 在用户点击后，受限传输并解析当前邮件页面可见的图片、PDF、XLSX 和 DOCX 附件，并重建可见会话线程。
-- 展示摘要、优先级、分类、风险点、建议动作和回复草稿。
-- 将分析结果保存到本地 SQLite，用于调试、回看和功能验证。
+首次运行默认是本地规则模式，不调用远程 AI。可用“加载示例”验证运行。需要 AI 时，在“AI 设置”选择 OpenAI 或 DeepSeek 并输入自己的 API Key；设置仅在本次进程有效，退出后不保存密钥。启用远程 AI 后，界面在分析前持续展示内容披露。构建与验收没有使用真实邮箱或真实模型请求。
 
-不支持：
+## 腾讯企业邮箱扩展
 
-- 浏览器扩展和正常后端不接入真实邮箱账号或遍历邮箱；唯一例外是书面授权、管理员手动运行、与正常服务隔离的只读 IMAP 导入 CLI。
-- 不自动发送、删除或归档邮件。
-- 不自动扫描邮箱或批量分析所有邮件。
-- 不把 OpenAI API key、邮箱凭据、OAuth token 或服务端密钥放入前端。
-- 不自动代表用户承诺价格、交期、付款、合同或法律事项。
+现有产品扩展 0.2.3 保存在 `frontend\browser_extension`，源码来自已核对的现有主线，未用早期版本替换。它仍使用 `127.0.0.1:8765`，桌面程序启动时提供兼容后端。需要在 Chrome/Edge 的扩展管理页手动“加载已解压的扩展”并选择此文件夹。桌面程序本身不自动安装扩展或读取浏览器邮件。
 
-## 当前发布状态
+桌面粘贴分析可以独立使用；腾讯邮箱页面中的当前邮件提取由浏览器扩展承担。当前没有在真实邮箱中重新验收页面提取。
 
-- Current unpacked extension version: `0.2.3`.
-- 当前远程分析路线为 one OpenAI multimodal primary call、最多 one eligible DeepSeek text-only fallback、deterministic rules last；all providers disabled by default。
-- Task 9 synthetic provider and current-clicked Tencent smokes are complete；这些有界测试不授权后续新的真实邮箱操作。
-- Task 9 semantic accuracy repair is offline complete；parsed attachment status does not prove semantic correctness。当前/历史证据对齐、附件语义校验和确定性事实协调已通过离线门禁；任何新的真实操作仍需要 fresh explicit authorization。
+## 最新稳定依赖基线
 
-详细状态、预算与媒体边界见 `docs/operations/project_status_log.md` 和 `docs/decisions/0007-multimodal-current-email-analysis.md`。
+2026-09-19 从官方发布源核对后安装。主版本为 Python 3.14.7、SQLite 3.53.4、OpenAI SDK 3.16.2、cryptography 50.0.1、pypdf 6.19.0、python-dotenv 1.2.3。其余直接依赖见 `requirements.txt`，完整实际安装版本含间接依赖和构建工具见 `requirements-resolved.lock`。Tcl/Tk 使用 Python 附带的 9.0.4。
 
-## 快速入口
+版本来源：[Python 官方稳定版](https://www.python.org/downloads/windows/)、[SQLite 官方下载](https://www.sqlite.org/download.html)、[OpenAI SDK](https://pypi.org/project/openai/)、[PyInstaller](https://pypi.org/project/pyinstaller/)。SQLite 官方 ZIP 的 SHA3-256 已核对，记录见 `docs/sqlite_provenance.json`。Python 可执行文件来自已验证为 Python Software Foundation 有效签名的当前稳定运行时副本，仅在本目录内安装新依赖。
 
-- 项目规则入口：`AGENTS.md`
-- Agent 项目进度日志：`docs/operations/project_status_log.md`
-- 文档入口：`docs/README.md`
-- 项目结构：`docs/operations/project_structure.md`
-- 工具约束：`docs/constraints/tooling_constraints.md`
-- 架构约束：`docs/constraints/architecture_constraints.md`
-- 静态检查：`docs/constraints/linter_constraints.md`
-- CI 护栏：`docs/constraints/ci_guardrails.md`
-- 后台清理 Agent：`docs/operations/cleanup_agent.md`
-- 已退役的 Codex cleanup automation 记录：`docs/operations/cleanup_agent_codex.md`
+## 目录
 
-## 技术基线
+| 目录 | 用途 |
+| --- | --- |
+| `backend`、`desktop_app`、`frontend` | 产品代码、桌面窗口和浏览器扩展 |
+| `Runtime\Python3147` | 独立 Python 及已安装依赖 |
+| `Program\EmailAssistant` | Windows 程序及其打包依赖 |
+| `Data` | 本程序新建的本地分析数据库和请求附件临时目录 |
+| `Logs` | 不记录邮件正文或密钥的运行日志 |
+| `RuntimeTemp` | 应用和验证临时文件 |
+| `Build`、`Cache` | 打包结果、验证报告和下载缓存 |
+| `Config` | 预留非敏感配置位置；当前 API Key 不落盘 |
+| `docs`、`tests`、`scripts` | 来源记录、验证用例和构建脚本 |
 
-后端使用 Python 3.12.13。依赖版本锁定在 `requirements.txt`：
+`Build\retained_initial_py312_environment` 是明确升级版本前生成的停用试建环境，`Build\original-requirements-ci-windows.lock` 是原始来源锁文件；两者均不用于启动或构建。自动删除被策略阻止后采用保留方案，完整移入本项目 Build 目录，没有删除任何文件。
 
-- `beautifulsoup4==4.15.0`
-- `openpyxl==3.1.5`
-- `openai==2.45.0`
-- `python-dotenv==1.2.2`
-- `pypdf==6.14.2`
-- `python-docx==1.2.0`
-- `Pillow==12.3.0`
-- `pytesseract==0.3.13`
-- `cryptography==49.0.0`
+已核对 35 个安装包，其中 34 个与官方当前稳定版一致。`pydantic-core` 使用当前 Pydantic 2.13.5 明确要求的 2.46.5，而非不兼容的单独最新版 2.49.0；完整结果见 `docs/dependency_versions.json`。该约束通过 `pip check`，不以强行升级破坏可运行性。
 
-SQLite 使用运行时版本 3.50.4，不通过 `requirements.txt` 安装。
-
-## 本地配置
-
-复制 `.env.example` 为本地 `.env`，只配置后端本地分析服务需要的变量。`.env` 不得提交。
+## 验证与重建
 
 ```powershell
-Copy-Item .env.example .env
+.\Runtime\Python3147\python.exe -B -m unittest discover -s tests
+.\scripts\build_windows.ps1
 ```
 
-OpenAI 和 DeepSeek API key 只能放在后端本地环境或受控部署环境中，不能写入前端、浏览器扩展、Add-in 页面或 docs。
+打包脚本将临时和缓存位置固定在项目内，并执行打包后的 `--self-test`。机器可读结果写入 `Build\desktop-self-test.json`。该自检覆盖原生窗口、点击分析、人工审核门禁、静态资源、DOCX 子进程解析、附件清理、关闭后重新启动及结果持久化；只使用合成数据。它不证明真实模型的回答质量。
 
-第二阶段本地默认值如下；变量均只由 Python 后端读取：
+## 已知范围
 
-| 变量 | 默认值 | 用途 |
-|---|---|---|
-| `EMAIL_AGENT_LLM_PROVIDER` | `disabled` | 默认不调用模型；可显式设置为 `openai`、`deepseek` 或 `ollama` |
-| `EMAIL_AGENT_OPENAI_MODEL` | `gpt-5.6-sol` | OpenAI 多模态主模型；仅允许固定模型和官方端点 |
-| `EMAIL_AGENT_OPENAI_TIMEOUT_SECONDS` | `35` | OpenAI 单次调用上限 |
-| `EMAIL_AGENT_TEXT_FALLBACK_PROVIDER` | `disabled` | 仅显式设为 `deepseek` 时允许一次合格的文本回退 |
-| `EMAIL_AGENT_DEEPSEEK_MODEL` | `deepseek-v4-flash` | DeepSeek 直连或文本回退模型；也允许 `deepseek-v4-pro` |
-| `EMAIL_AGENT_DEEPSEEK_TIMEOUT_SECONDS` | `10` | DeepSeek 单次调用上限 |
-| `EMAIL_AGENT_DEEPSEEK_OUTPUT_MODE` | `conservative` | DeepSeek 默认保守输出模式 |
-| `EMAIL_AGENT_OLLAMA_BASE_URL` | `http://127.0.0.1:11434` | 后端本地 Ollama 地址 |
-| `EMAIL_AGENT_OLLAMA_MODEL` | `qwen3.6:latest` | 启用 Ollama 时的模型；可改为 `gemma4` |
-| `EMAIL_AGENT_OLLAMA_TIMEOUT_SECONDS` | `30` | 本地模型超时秒数 |
-| `EMAIL_AGENT_ATTACHMENT_TEMP_DIR` | `outputs/attachment_temp` | 后端受控临时附件目录 |
-| `EMAIL_AGENT_ATTACHMENT_RETENTION_HOURS` | `24` | 仅用于崩溃后孤儿文件清理；正常请求结束时立即删除临时文件 |
-| `EMAIL_AGENT_ATTACHMENT_MAX_FILES` | `5` | 单次请求最多附件数 |
-| `EMAIL_AGENT_ATTACHMENT_MAX_FILE_BYTES` | `10485760` | 单文件上限（10 MiB） |
-| `EMAIL_AGENT_ATTACHMENT_MAX_TOTAL_BYTES` | `26214400` | 单次请求总上限（25 MiB） |
-| `EMAIL_AGENT_PRIVATE_KNOWLEDGE_ENABLED` | `false` | 仅显式 `true` 时在服务启动阶段尝试加载已批准知识快照 |
-| `EMAIL_AGENT_PRIVATE_KNOWLEDGE_AUTHORITY_ROOT` | 空 | 项目和 OneDrive 外的私有 authority 绝对路径；不会进入公开输出 |
-| `EMAIL_AGENT_PRIVATE_KNOWLEDGE_SNAPSHOT_PATH` | 空 | 项目和 OneDrive 外的 `.pksnap` 绝对路径；不会进入公开输出 |
+图片 OCR 依赖可选 Tesseract；没有捆绑 OCR 引擎时会明确降级，不影响正文、PDF 文本、XLSX、DOCX 和规则分析。远程模型调用保持原有隐私与证据校验，失败或输出不安全时回落规则结果。历史邮箱导入、私有知识审批、旧数据库迁移和旧项目的迁移管理流程未接入桌面程序。
 
-图片 OCR 使用可选的 Tesseract 可执行程序。在本地规则路径中，Tesseract 缺失或 OCR 失败会安全降级；显式启用 OpenAI 多模态路线后，经本地筛查的当前邮件正文、业务图片和受支持文件可按点击前披露发送给远程模型。
+若启动提示 8765 端口占用，先退出另一个邮箱助手实例再启动；程序不会结束其他进程。应用数据库保存在本目录，因此复制整个目录也会复制已保存的分析结果。
 
-After you click Analyze, configured remote AI providers may receive locally deidentified current visible email text and selected current-message images or files after local screening. Media pixels or document content may contain identifying information and are not guaranteed to be fully deidentified. Processing is not local-only, and no zero-retention guarantee is made.
+## 历史资料与旧项目退役
 
-## 本地调试运行
-
-第一版使用本地调试页面验证“点击分析当前邮件”的辅助窗口体验，不接入真实邮箱账号。
-
-推荐使用服务管理脚本：
-
-```powershell
-python scripts/manage_local_service.py start
-python scripts/manage_local_service.py status
-python scripts/manage_local_service.py restart
-python scripts/manage_local_service.py stop
-```
-
-`start` 会在启动进程前执行一次过期附件清理；`restart` 会在停止和重新启动序列前执行一次，且不会通过嵌套 `start` 重复清理。成功输出只包含删除计数和服务状态。清理失败时命令返回通用可操作错误，不启动或重启服务，也不输出附件名、内容、私有 URL、cookie、token、OCR 文本或异常中的私有路径。请求处理时的既有清理仍保留；项目没有后台邮箱轮询器或常驻清理调度器。
-
-### Standalone Verification Mode
-
-Issue #31 adds a repository-only verification path with explicit temporary
-operational state. Create one absolute temporary directory and pass the same
-`--standalone-state-root` to every lifecycle command:
-
-```powershell
-$standaloneRoot = Join-Path ([System.IO.Path]::GetTempPath()) "email-ai-standalone-verification"
-New-Item -ItemType Directory -Path $standaloneRoot
-
-python scripts/manage_local_service.py start --standalone-state-root $standaloneRoot
-python scripts/manage_local_service.py status --standalone-state-root $standaloneRoot
-python scripts/manage_local_service.py health --standalone-state-root $standaloneRoot
-python scripts/manage_local_service.py analysis --standalone-state-root $standaloneRoot
-python scripts/manage_local_service.py restart --standalone-state-root $standaloneRoot
-python scripts/manage_local_service.py stop --standalone-state-root $standaloneRoot
-```
-
-The mode derives SQLite, attachment temporary files, logs, and PID state below
-that root and rejects pre-positioned reparse paths. The `analysis` command sends
-only its fixed `example.test` current-message fixture and succeeds only after a
-provider-disabled rule result is persisted. The mode ignores repository `.env`
-credentials and forces all providers and private knowledge off; mailbox ingest,
-private evaluation, and raw-vault capabilities are not connected. It preserves
-loopback validation, click confirmation, persistence, the
-5-file/10-MiB/25-MiB attachment limits, and cleanup behavior. Remove the
-temporary directory only after `stop` if its verification artifacts are no
-longer needed.
-
-### Managed Container Mode
-
-Issue #32 adds a boolean-only `--managed-container` mode for a repository already
-placed exactly at `email_ai_assistant\main`. It derives the container from
-`main` and accepts no container or operational-root override:
-
-```powershell
-python scripts/manage_local_service.py start --managed-container
-python scripts/manage_local_service.py status --managed-container
-python scripts/manage_local_service.py health --managed-container
-python scripts/manage_local_service.py analysis --managed-container
-python scripts/manage_local_service.py restart --managed-container
-python scripts/manage_local_service.py stop --managed-container
-```
-
-The launcher validates exact placement, all seven pre-existing ordinary zones,
-the pre-provisioned `Runtimes\venv\Scripts\python.exe`, writable targets, and any
-bounded `Config\settings.env` before starting. Config accepts only
-`EMAIL_AGENT_LOG_LEVEL` and `EMAIL_AGENT_INTERNAL_EMAIL_DOMAINS`; it never reads
-credentials or provider keys. SQLite uses `LocalData`, attachment temp uses
-`RuntimeTemp`, and logs/PID use `Logs`. The server remains loopback-only,
-click-only, provider-disabled, and receives resolved configuration rather than
-path data from a request.
-
-Source, frontend assets, Git, status generation, maintenance, and leakage
-scanning remain rooted at `main`. The current flat checkout must not be passed
-`--managed-container`: this Issue supplies code and synthetic verification only.
-It does not create the real layout, rebuild the runtime, move data or worktrees,
-or begin Issues #34–#40.
-
-Windows 可直接双击这些快捷脚本：
-
-```text
-start_local_service.cmd
-status_local_service.cmd
-restart_local_service.cmd
-stop_local_service.cmd
-```
-
-也可以前台直接运行旧入口：
-
-```powershell
-python scripts/run_local_debug.py
-```
-
-启动后打开：
-
-```text
-http://127.0.0.1:8765
-```
-
-可选私有知识默认为关闭。只有三个 `EMAIL_AGENT_PRIVATE_KNOWLEDGE_*` 配置同时满足
-安全门时，启动入口才会通过当前 Windows 用户范围 DPAPI 一次性打开 authority
-key envelope、验证并解密只读 snapshot，然后把不可变的已批准知识卡保存在内存。
-missing、expired、tampered、路径或 DPAPI 失败均静默返回空知识集，普通规则分析继续
-工作。请求处理期间没有 snapshot/DPAPI/filesystem access，也没有 reload、polling、
-hot update 或公开状态接口；修改配置或发布新 snapshot 后必须重启服务。
-
-本地服务仅允许绑定 `localhost` 或字面 IPv4 loopback（`127.0.0.0/8`）；不要使用 `0.0.0.0`、LAN/公网地址、DNS alias 或 IPv6。分析 POST 必须使用匹配实际端口的 loopback `Host` 和 `Content-Type: application/json`（可选 `charset=utf-8`）。
-
-页面只会在点击 `Analyze` 后调用本地后端接口。`EMAIL_AGENT_LLM_PROVIDER=disabled` 时使用本地规则分析器。OpenAI 主路线出现合格失败、显式配置 DeepSeek 且共享预算至少剩余 12 秒时，符合条件时先尝试一次 DeepSeek 文本回退；该回退被禁用、不合格、预算不足、失败或不安全时才返回规则结果。直接启用 DeepSeek 或 Ollama 的路线在缺少有效配置、超时或未通过安全校验时同样返回可校验的安全规则结果。
-
-## Tencent Exmail browser extension prototype
-
-Second-stage prototype files live in `frontend/browser_extension`.
-
-Current unpacked extension version: `0.2.3`.
-
-Local use:
-
-1. Start the backend with `start_local_service.cmd` or `python scripts/manage_local_service.py start`.
-2. Open Chrome or Edge extension management.
-3. Choose `Load unpacked`.
-4. Select the `frontend/browser_extension` folder.
-5. Confirm version `0.2.3`. After pulling or copying a new build, click `Reload` on the extension card before testing.
-6. Open Tencent Exmail Web at `https://exmail.qq.com/`.
-7. Click the extension icon to open the persistent side panel.
-8. Open one email, then click the side panel's `Analyze current email` button.
-
-The assistant runs in a persistent side panel, so clicking outside the assistant does not close it. The extension calls only the local backend. It does not store API keys, connect to a mailbox account, scan the mailbox, or automatically send/delete/archive email.
-
-Health and troubleshooting:
-
-- Run `python scripts/manage_local_service.py status`; a healthy managed service reports `running`, its PID, and the loopback URL only.
-- Or request `GET http://127.0.0.1:8765/api/health` and expect HTTP 200.
-- If startup reports attachment cleanup failure, verify `EMAIL_AGENT_ATTACHMENT_TEMP_DIR` and local directory permissions, then retry. The command intentionally omits the failing path.
-- If the extension cannot reach the backend, confirm port `8765`, restart the local service, then reload extension version `0.2.3`.
-- If image text is unavailable, install the Tesseract executable for optional OCR or accept the safe metadata-only degradation.
-
-Automated tests and synthetic fixtures cover the phase-two attachment/thread flow and lifecycle behavior. Task 9 synthetic provider and current-clicked Tencent smokes are complete for their approved bounded checks, and Task 9 semantic accuracy repair is offline complete. A parsed attachment status does not prove semantic correctness; the evidence-reconciliation and private human gold-standard gates pass offline. Fresh explicit authorization is still required for any new live operation, and no previous smoke authorizes mailbox navigation, scanning, sending, or another live provider call.
-
-## 可执行检查
-
-使用项目自带的约束测试检查文档元信息、敏感文件、架构边界、静态规则和机械规则：
-
-```powershell
-python -m unittest discover -s tests
-```
-
-如果系统 PATH 中没有 `python`，使用项目虚拟环境或 Codex bundled Python 运行同一命令。
-
-## Agent 项目进度日志
-
-项目进度日志不是普通开发日志，而是 Agent 接手任务前的上下文入口。它记录当前阶段、已建立护栏、关键文件状态、下一步建议和不可触碰边界。
-
-更新日志：
-
-```powershell
-python scripts/generate_project_status.py --output docs/operations/project_status_log.md
-```
-
-## Repository placement and local-service modes
-
-Issue #30 introduces the pure `RepositoryPlacement` and `OperationalLayout`
-interfaces in `backend/project_layout/`. Managed Container Mode accepts only the
-canonical `email_ai_assistant\main` relationship. Standalone Verification Mode
-requires an explicit synthetic or temporary state root. Issue #31 routes the
-existing local-service lifecycle through that temporary layout with disabled
-providers. Issue #32 adds the validated provider-disabled Managed launcher while
-the transition adapter continues to preserve current `.venv`, `outputs`, and
-`.worktrees` paths for the ordinary flat launcher. Issue #33 makes the complete
-Project Container an internally derived protected root for private stores.
-
-Issue #34 adds a separate pure `backend/container_audit/` contract. A manual
-caller must inject an independent trusted policy plus seven read-only,
-content-free metadata adapters; there is no CLI, default host adapter, runtime
-consumer, or real audit in this checkpoint. The function validates two stable
-snapshots and returns only fixed pass/fail status and accepted/rejected counts.
-These checkpoints do not perform the real Project Container migration or access
-mailbox/vault/credential/private-store state.
-
-Issue #35 adds `backend/migration_evidence/` as an offline manual Python
-interface with no CLI or default target. It discovers exact local branch refs
-and approved worktrees, creates an independently verified Git bundle, preserves
-approved dirty index/worktree source layers, and binds Git/selection/host
-evidence plus every payload with a canonical SHA-256 manifest. Forbidden
-credentials, signing material, SQLite, logs/PID, environments, IDE/cache/private
-data, and outputs are mechanically excluded before file reads. Publication is
-external, single-file, create-only, and reparse/race/drift fail-closed; public
-results contain fixed status/counts only.
-
-All Issue #35 automated verification uses temporary synthetic repositories and
-destinations. This implementation did not create a package from the real
-checkout. A real capture requires a separately reviewed exact target,
-content-free inclusion/exclusion manifest, local-ref and worktree selection,
-followed by fresh operator confirmation. Issue #36 and Issue #37 add only
-caller-owned temporary synthetic reparenting and Managed runtime activation
-rehearsals; neither accepts or operates on a real Repository Root, Runtime,
-SQLite database, extension artifact, Project Container, mailbox, provider,
-vault, private store, credential, ACL, or worktree.
-
-Issue #51 adds `backend/cutover_contracts/`, a pure, cross-platform,
-content-free contract layer. Immutable `CutoverProfileV1` binds the governing
-master, fixed roles and evidence, reviewed Git selections, the exact
-eleven-worktree roster, pinned Runtime/SQLite/CRX/Config/ACL rules,
-maintenance/no-cleanup policy, and rollback roles without accepting a host
-path. Four nominal real-host authorization types are operation-, phase-,
-profile-, master-, operator-, and validity-bound; the package can only parse
-and validate externally supplied canonical values and cannot create or mint
-real-host authority.
-
-Canonical `ReceiptEnvelopeV1` values use deterministic JSON, closed receipt
-type/status/detail/count schemas, and SHA-256 binding while rejecting unknown,
-duplicate, non-canonical, path-bearing, raw-identity-bearing, command,
-exception, database-content, or free-form inputs. Receipts and synthetic test
-authorizations cannot become execution authority. The no-argument default
-operator entry remains fixed at `BLOCKED_NO_APPROVED_COMMAND`; no real host
-adapter, preflight, evidence publication, migration, cutover, rollback or
-incident operation exists in that contract slice.
-
-Issue #52 adds `backend/cutover_journal/`, a standard-library, pathless,
-synthetic-only transaction proof. Create-only canonical records form an exact
-sequence/previous-hash/record-hash chain and require durable `INTENT`, exact
-effect observation, and `COMMITTED` for every forward and reverse action.
-Each owner claim gets a distinct synthetic lease, and the effect consumes a
-non-copyable/non-serializable store permit backed by one shared single-use
-issuance for the exact current lease, active durable `INTENT`, durable journal
-head, and hash-bound stable reread. One store-private atomic token claim selects
-the sole consumer, and one synthetic medium operation gate serializes
-append/restart/mint/claim/effect. A namespace-published current head must
-complete stable reread and full snapshot verification before any successor
-append or permit; a head advance, pending record, or durable observed fact
-invalidates an older permit. Exact in-memory Windows/Linux
-traces model pending-file, published-file, and namespace barriers without
-claiming real filesystem durability.
-
-Restart inspection consumes immutable synthetic snapshots and cannot append,
-resume, roll back, start a service, or touch host state. Explicit resume requires
-a fresh valid phase-`resume` authorization and never repeats an exact
-expected-post effect. Durable observed facts remain authoritative across fresh
-`RESUME_BOUND` renewal; verified pending direction, Profile/master/operator,
-identity mapping, and synthetic transition mapping all fail closed. Rollback
-uses only the exact pre-bound recovery authorization and journal-derived LIFO
-reverse steps. Public results expose only fixed status, phase, receipt
-fingerprint, and allowlisted counts. No real filesystem target, service, ACL,
-Git repository/worktree, Runtime, SQLite, provider, mailbox, vault, or private
-data is accessed.
-
-Issue #53 adds `backend/real_host_preflight/`, an internal read-only Windows
-composition boundary. Opened-handle observations bind volume identity, 128-bit
-file ID, object type, parent identity, normalized-name fingerprint, and reparse
-metadata; every controlled component is opened without following reparse points.
-The package-private Windows test seam also requires a root/marker
-identity-bound single-use permit and exactly one link for each controlled file.
-Every observer call reopens and validates the exact root and marker and holds
-those handle chains through the target observation. Aliases, missing or
-replaced markers, unexpected volume/filesystem state, unreadable objects,
-replacement, or identity drift fail closed.
-
-`CurrentTopologyPreflight` requires two complete identical observations.
-`PreMutationGate` is short-lived, nonce-bound, one-operation, single-use, and
-repeats exact source, target-parent, target-absence, reparse, Git, ACL, and
-volume checks. `RealHostBaselineCollector` preserves separate source-root,
-parent, finance, volume, operator-SID, and ACL evidence while projecting only a
-content-free `HostBaseline`. Callback evidence is reconstructed before use,
-and an independent canonical Profile snapshot is captured before any host
-callback. Source/parent/finance/target normalized names bind to that snapshot's
-exact role selections. Receipt and gate claims use module-owned atomic state,
-enforce exact nominal-class-to-observation-kind binding, and cannot be minted
-from a public envelope or reset through caller attributes.
-
-The exact #53 bridge composes seven caller-bound read-only callbacks into the
-unchanged nine-zone `ContainerAudit`.
-`FinalAuditCompositionReadyReceiptV1` proves composition readiness only and
-never claims that a pre-cutover final layout passed. The composition captures a
-detached canonical audit-policy snapshot and, before each audit run, snapshots
-it again and rebuilds adapters from the seven captured readers; callback-time
-mutation cannot relax the policy or retarget stored adapters. Windows
-integration runs only in test-owned temporary sandboxes; Linux covers portable
-contracts only.
-The zero-argument operator entry remains `BLOCKED_NO_APPROVED_COMMAND`, rejects
-test authorization, and has no service-control, ACL-apply, rename, worktree,
-Runtime-build, database-copy, artifact, Config, provider, mailbox, vault, or
-private-data capability. No real host target was accessed or changed. Issues
-#55 through #59 remain separate; Issues #38/#39 and parent Spec #50 remain
-unchanged.
-
-Issue #54 defines a profile-bound Migration Evidence workflow. Review consumes
-only the exact `CutoverProfileV1` dirty-source, local-ref, worktree,
-package-target, Git, and `RealHostBaseline` selections. Its content-free
-`MigrationEvidenceReviewReceiptV1` binds the operation, Profile, governing
-master, review, selection, Git, host, and allowlisted counts; the complete
-`MigrationEvidenceReview` remains in memory and is not persisted as alternate
-authority. The test-only synthetic binder also hard-links the sandbox marker
-into the package-target parent and requires that independent anchor at claim
-time, preventing same-path parent replacement from passing through inode reuse.
-
-Create runs in a physically separate create-only publication composition. It
-requires an exact `EvidencePublicationAuthorizationV1` and the exact confirmed
-review fingerprint, then repeats complete live discovery, including a fresh
-`HostBaseline`. Profile, selection, dirty-source, ref, worktree, Git, host,
-target, review, or receipt drift fails closed.
-`MigrationEvidenceCreatedReceiptV1` binds the review, package, manifest,
-package identity, and aggregate-count fingerprints. The creator may use shared
-pure package-format validation but cannot call the independent verifier
-capability.
-
-Verification runs in a separate read-only process that reads the package once
-through a bounded descriptor, verifies those exact bytes through the
-independent payload verifier, then requires an identical target reread while
-recomputing package and manifest hashes. It has no publication or
-package-mutation capability. Review, created, and verified receipts must agree
-on the same operation, Profile, master, review, hashes, and counts before they
-can form `MigrationEvidenceReceiptSetV1`; that set is evidence for a later
-pre-mutation gate, not authorization to migrate.
-
-Before Issue #39, all real Issue #54 entries remain locked and reject missing,
-wrong-phase, and test authorization. Executable verification is limited to
-test-owned temporary synthetic sandboxes. Receipts, results, stdout, stderr,
-and logs remain content-free and expose no path, ref, object ID, worktree name,
-or exception text. This boundary creates no real package and performs no real
-host preflight, service stop, repository move, ACL change, Runtime build,
-database copy, provider, mailbox, vault, private-store, or private-data
-operation. A Migration Evidence Package is evidence, not a backup, Runtime
-artifact, private-data container, or migration authorization.
-
-Issue #55 provides an internal `backend/cutover_host_mutation/` package for
-fixed-role Windows ACL proof and handle-relative no-clobber filesystem
-operations. The public package surface is portable content-free contracts only.
-Its internal Windows adapter can capture source/parent/finance descriptors,
-compare parent and finance exactly, apply the approved DACL only to a newly
-created empty Container, and verify inheritance across the eight exact direct
-zones. Container creation atomically installs a protected, non-inheritable
-operator construction guard with no add-child rights and holds root, marker,
-parent, and target handles until the journaled final DACL apply. ACL application
-uses direct Windows security APIs, retains owner and group, omits every
-owner/group/SACL update flag and pointer, and has no command, PowerShell,
-shell, `icacls`, or replayable transcript surface.
-
-The filesystem primitives require a durable Issue #52 INTENT before each
-effect. Create-only directories use parent-handle-relative `NtCreateFile` with
-`FILE_CREATE` and reject any existing target. File publication and object move
-use opened source and target-parent handles, no-replace
-handle-relative rename, same-volume and reparse checks, and post-effect
-128-bit file-ID equality. Results expose only fixed status/counts and
-fingerprints. Windows execution is confined to test-owned temporary NTFS
-sandboxes; Linux validates the portable schemas without claiming Windows ACL
-or NTFS behavior. The real mutation constructor remains locked before Issue
-#39 and rejects test authorization. No real host target or adjacent project ACL
-was accessed or changed.
-
-## 后台清理扫描
-
-旧 Codex `Weekly Cleanup Agent` 已由操作员删除，deprecated 记录见
-`docs/operations/cleanup_agent_codex.md` 和
-`docs/operations/codex_cleanup_task.md`。仓库仍包含单独的
-`.github/workflows/cleanup_agent.yml` weekly scheduled workflow definition；
-本次同步没有停用或移除它，后续处置需要单独 approved Issue。
-
-本地和 Codex 维护扫描目前只允许手动只读运行，不会自动删除文件、修改 Prompt、
-放宽约束或合并代码。未来 weekly code-review automation 仍未获实施授权；规划入口
-见 `docs/operations/project_container_migration_task_brief.md` 的 8.11 节。
-
-本地运行：
-
-```powershell
-python scripts/maintenance_scan.py --output outputs/cleanup_report.md
-```
-
-## GitHub 上传前检查
-
-上传或推送前请先运行：
-
-```powershell
-python -m unittest discover -s tests
-python scripts/maintenance_scan.py
-git status --short --ignored
-```
-
-确认不要提交 `.env`、真实邮件数据、SQLite 数据库、日志、`outputs/`、`.venv/`、`.idea/`、API key、邮箱凭据或 token。首次推送需要先创建 GitHub 仓库并添加远程地址，例如：
-
-```powershell
-git remote add origin https://github.com/<your-account>/<your-repo>.git
-git push -u origin master
-```
-
-## 主要实现目录
-
-当前主要目录：
-
-- `backend/email_agent/`：邮件清洗、AI 调用、JSON 校验、SQLite 持久化、本地 API。
-- `frontend/local_debug_page/`：只用于验证“点击分析当前邮件”的辅助窗口体验。
-- `tests/`：持续维护可执行约束和业务测试。
-
-第二阶段已选择 Tencent Exmail Chrome / Edge 浏览器扩展原型，位于 `frontend/browser_extension`。Outlook Add-in 和 Google Workspace Add-on 路线仍需后续单独确认。
+原迁移路线已取消。新目录沿用原仓库的 Git 历史；旧数据、配置和未提交修改保存在被 Git 排除的 `LegacyArchive`，不会自动接入程序。2026-09-19 已删除六个旧目录，旧主目录因受保护记录和自动审批拒绝仍有残留，不能视作已彻底删除。本地详细回执位于 `docs/retirement_20260919`。

@@ -1,0 +1,68 @@
+name: Windows Desktop
+
+on:
+  push:
+    branches: [master, 'codex/desktop-rebuild']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality-gates:
+    name: quality-gates
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.14.7'
+          architecture: x64
+      - name: Install exact compatible dependencies
+        shell: pwsh
+        run: |
+          python -m pip install --requirement requirements-resolved.lock
+          if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed' }
+          python -m pip check
+          if ($LASTEXITCODE -ne 0) { throw 'Dependency compatibility failed' }
+      - name: Install verified SQLite runtime
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path Cache -Force | Out-Null
+          Invoke-WebRequest -Uri 'https://www.sqlite.org/2026/sqlite-dll-win-x64-3530400.zip' -OutFile 'Cache/sqlite.zip'
+          python -c "import hashlib,pathlib; assert hashlib.sha3_256(pathlib.Path('Cache/sqlite.zip').read_bytes()).hexdigest() == 'deddee963c810d1eeac3ce5e15c7c41da21a1c54d7a39cf54fbf577d2f50de3a'"
+          if ($LASTEXITCODE -ne 0) { throw 'SQLite archive checksum mismatch' }
+          Expand-Archive -LiteralPath 'Cache/sqlite.zip' -DestinationPath 'Cache/sqlite'
+          $pythonRoot = Split-Path -Parent (Get-Command python).Source
+          Copy-Item -LiteralPath 'Cache/sqlite/sqlite3.dll' -Destination (Join-Path $pythonRoot 'DLLs/sqlite3.dll')
+          python -c "import sqlite3; assert sqlite3.sqlite_version == '3.53.4'"
+          if ($LASTEXITCODE -ne 0) { throw 'SQLite runtime mismatch' }
+      - name: Test, package and run the executable self-test
+        shell: pwsh
+        run: ./scripts/build_windows.ps1 -PythonExecutable (Get-Command python).Source
+      - name: Upload runnable Windows package
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: EmailAssistant-Windows-x64
+          path: |
+            Program/EmailAssistant/**
+            start.cmd
+            README.md
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload synthetic verification report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: desktop-self-test
+          path: Build/desktop-self-test.json
+          if-no-files-found: warn
+          retention-days: 14
