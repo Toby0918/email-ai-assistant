@@ -44,7 +44,26 @@ substituted. This neither reads nor overwrites the operator's clipboard.
 The executable self-test additionally exercises XLSX window analysis, stale draft
 rejection, DOCX parsing, cleanup and restart persistence using temporary data.
 
-## Live DeepSeek acceptance — pending
+## First live DeepSeek observation and required retest
+
+The operator's 2026-09-19 screenshot showed an accepted `ai_model` result labelled
+DeepSeek Flash and the XLSX quantity 1200 pcs. Connection/result acceptance was
+observed, but semantic acceptance failed: the delivery request was called a quote
+because of “No price has been agreed”, and “before promising” became a deadline.
+Both errors reproduced without a provider. The conservative DeepSeek route retains
+the local decision brief and draft while accepting limited AI augmentation, so
+those deterministic errors survived a successful model call.
+
+The corrected acceptance requires the delivery brief to remain delivery-focused
+when price is merely unset, action prerequisites to stay out of deadline facts,
+and actual weekday deadlines and separate quotation requests to remain intact.
+Native status must distinguish AI supplementation from rule-generated advice,
+display a readable engine name, and stay visible alongside the remote-content
+notice and Analyze button at the supported minimum window size.
+
+Source regressions cover both the rule boundary and conservative provider merge
+with a synthetic model response. A new live run of the corrected executable is
+still needed before accepting business quality.
 
 Open the freshly built program, choose DeepSeek in AI settings and enter the key
 there. Use `examples/desktop_acceptance/email.txt` and the generated synthetic
@@ -54,7 +73,7 @@ Confirm the attachment quantity is 1200 pcs, delivery remains unconfirmed, and
 the draft makes no invented price or delivery commitment. Edit and review it,
 then copy it; change the input and verify the old draft disappears.
 
-This manual step is not complete until the actual provider result is inspected.
+This manual retest is not complete until the corrected actual provider result is inspected.
 A fallback, timeout, blocked output or syntactically successful request alone does
 not pass semantic acceptance. Tencent mailbox extraction remains separately pending.
 

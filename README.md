@@ -8,7 +8,9 @@
 
 在桌面窗口粘贴当前邮件的主题、发件人和正文，按需选择当前邮件附件，再点击“分析此邮件”。附件选择阶段不读取内容。结果包括处理建议、依据与限制和可编辑回复草稿；审核后勾选确认，再复制草稿到邮箱。程序不会发送、删除或归档邮件。
 
-首次运行默认是本地规则模式，不调用远程 AI。可用“加载示例”验证运行。需要 AI 时，在“AI 设置”选择 OpenAI 或 DeepSeek 并输入自己的 API Key；设置仅在本次进程有效，退出后不保存密钥。启用远程 AI 后，界面在分析前持续展示内容披露。构建与验收没有使用真实邮箱或真实模型请求。
+首次运行默认是本地规则模式，不调用远程 AI。可用“加载示例”验证运行。需要 AI 时，在“AI 设置”选择 OpenAI 或 DeepSeek 并输入自己的 API Key；设置仅在本次进程有效，退出后不保存密钥。启用远程 AI 后，界面在分析前持续展示内容披露。构建与自动化验收不使用真实邮箱或真实模型请求。
+
+DeepSeek 当前采用保守补充模式：AI 可补充摘要、分类等信息，处理建议与草稿仍由本地规则生成，界面会明确说明。自动化测试不调用真实模型；首次人工 DeepSeek 样例已显示 AI 参与和附件数量，但暴露的本地规则误判修复后仍需重新验收业务质量。
 
 ## 腾讯企业邮箱扩展
 
@@ -49,7 +51,7 @@
 
 打包脚本将临时和缓存位置固定在项目内，并执行打包后的 `--self-test`。机器可读结果写入 `Build\desktop-self-test.json`。该自检覆盖原生窗口、点击分析、人工审核门禁、静态资源、DOCX 子进程解析、附件清理、关闭后重新启动及结果持久化；只使用合成数据。它不证明真实模型的回答质量。
 
-桌面邮件验收要求见 [desktop_mail_acceptance.md](docs/desktop_mail_acceptance.md)。修改邮件或附件后，旧分析、草稿和审核状态立即失效；编辑草稿后需重新勾选审核。运行 `Runtime\Python3147\python.exe -B scripts\create_desktop_acceptance_sample.py` 可生成本地 XLSX 验收样例，配套邮件在 `examples\desktop_acceptance\email.txt`。DeepSeek 使用官方当前名称 `deepseek-flash`；真实调用和业务回答质量仍待操作者输入密钥后验收。
+桌面邮件验收要求见 [desktop_mail_acceptance.md](docs/desktop_mail_acceptance.md)。修改邮件或附件后，旧分析、草稿和审核状态立即失效；编辑草稿后需重新勾选审核。运行 `Runtime\Python3147\python.exe -B scripts\create_desktop_acceptance_sample.py` 可生成本地 XLSX 验收样例，配套邮件在 `examples\desktop_acceptance\email.txt`。DeepSeek 使用官方当前名称 `deepseek-flash`；首轮真实样例已观察到 AI 参与，修复版本的业务回答质量仍待复测。
 
 ## 已知范围
 

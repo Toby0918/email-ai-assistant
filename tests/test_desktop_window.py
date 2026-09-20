@@ -142,6 +142,37 @@ class DesktopWindowTests(unittest.TestCase):
         self.assertNotIn("private diagnostic", self.window.status.get())
         self.assertEqual(self.window.draft.get("1.0", "end-1c"), draft)
 
+    def test_remote_notice_and_status_fit_minimum_window(self):
+        self.analyze_sample()
+        self.runtime.configure_provider("deepseek", "synthetic-not-a-live-key")
+        self.window.refresh_mode()
+        self.root.geometry("900x650")
+        self.root.deiconify()
+        self.root.update()
+
+        def descendants(widget):
+            for child in widget.winfo_children():
+                yield child
+                yield from descendants(child)
+
+        status_label = next(widget for widget in descendants(self.root)
+                            if "textvariable" in widget.keys()
+                            and str(widget.cget("textvariable")) == str(self.window.status))
+        self.assertTrue(status_label.winfo_ismapped())
+        self.assertLessEqual(status_label.winfo_rooty() + status_label.winfo_height(),
+                             self.root.winfo_rooty() + self.root.winfo_height())
+        self.assertLessEqual(self.window.notice.winfo_rooty() + self.window.notice.winfo_height(),
+                             status_label.winfo_rooty())
+        self.assertNotIn("{'source':", self.window.status.get())
+        self.assertTrue(self.window.analyze_button.winfo_ismapped())
+        self.assertGreater(self.window.body.winfo_height(), 40)
+        notebook = next(widget for widget in descendants(self.root) if widget.winfo_class() == "TNotebook")
+        notebook.select(1)
+        self.root.update()
+        review = next(widget for widget in descendants(self.root) if widget.winfo_class() == "TCheckbutton")
+        self.assertTrue(self.window.copy_button.winfo_ismapped())
+        self.assertLessEqual(review.winfo_rooty() + review.winfo_height(), self.window.copy_button.winfo_rooty())
+
 
 if __name__ == "__main__":
     unittest.main()

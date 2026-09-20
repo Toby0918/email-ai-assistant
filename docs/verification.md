@@ -10,13 +10,16 @@ source_type: operation_guide
 
 ## Current-email acceptance, 2026-09-19
 
-The source suite passed 176 tests, including six native-window regressions and
+The source suite passed 184 tests, including seven native-window regressions and
 the actual DeepSeek SDK serialization check using a synthetic HTTP transport.
 The rebuilt executable self-test passed XLSX window analysis and changed-email
 copy rejection alongside the earlier DOCX, cleanup and restart checks. The
-renderer JavaScript syntax check also passed. No real provider or mailbox was
-accessed. See docs/desktop_mail_acceptance.md for the remaining live DeepSeek
-step and the discovered general XLSX header-association limitation.
+renderer JavaScript syntax check also passed. Automated checks accessed no real
+provider or mailbox. The operator's first live screenshot showed DeepSeek
+participation but exposed local delivery/quote and deadline misclassifications.
+The subsequent seven acceptance regressions cover those fixes, conservative model
+merging and readable engine status. See docs/desktop_mail_acceptance.md for the
+required live retest and general XLSX header-association limitation.
 
 ## Initial desktop baseline
 

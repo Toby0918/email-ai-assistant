@@ -8,7 +8,7 @@ from pathlib import Path
 from tkinter import filedialog, messagebox, scrolledtext, ttk
 
 from .attachments import attachment_payload
-from .presentation import advice_text, details_text
+from .presentation import advice_text, details_text, engine_text
 from .settings import DISCLOSURE, show_settings
 
 
@@ -31,53 +31,64 @@ class DesktopWindow:
         style.configure("TButton", font=("Microsoft YaHei UI", 10), padding=6)
         shell = ttk.Frame(root, padding=18)
         shell.pack(fill="both", expand=True)
+        shell.columnconfigure(0, weight=1)
+        shell.rowconfigure(2, weight=1)
         header = ttk.Frame(shell)
-        header.pack(fill="x")
+        header.grid(row=0, column=0, sticky="ew")
         ttk.Label(header, text="邮件处理助手", font=("Microsoft YaHei UI", 19, "bold")).pack(side="left")
         self.settings_button = ttk.Button(header, text="AI 设置", command=self.settings)
         self.settings_button.pack(side="right")
         self.mode = tk.StringVar()
-        ttk.Label(shell, textvariable=self.mode, foreground="#475569").pack(anchor="w", pady=(8, 12))
+        ttk.Label(shell, textvariable=self.mode, foreground="#475569").grid(row=1, column=0, sticky="w", pady=(8, 12))
         self.refresh_mode()
         columns = ttk.Panedwindow(shell, orient="horizontal")
-        columns.pack(fill="both", expand=True)
+        columns.grid(row=2, column=0, sticky="nsew")
         left, right = ttk.Frame(columns, padding=(0, 0, 15, 0)), ttk.Frame(columns)
         columns.add(left, weight=1)
         columns.add(right, weight=2)
         self._build_input(left)
         self._build_output(right)
         self.notice = ttk.Label(shell, text="内容仅在点击分析后处理。分析结果保存在本机；原始附件按请求临时处理。", wraplength=1080, foreground="#475569")
-        self.notice.pack(fill="x", pady=(12, 4))
+        self.notice.grid(row=3, column=0, sticky="ew", pady=(12, 4))
         self.status = tk.StringVar(value="就绪。可粘贴当前邮件，或加载示例验证运行。")
-        ttk.Label(shell, textvariable=self.status, wraplength=1080).pack(fill="x")
+        self.status_label = ttk.Label(shell, textvariable=self.status, wraplength=1080)
+        self.status_label.grid(row=4, column=0, sticky="ew")
+        shell.bind("<Configure>", self._resize_footer)
         for value in self.fields.values():
             value.trace_add("write", self._input_changed)
         self.body.bind("<<Modified>>", self._body_changed)
         self._poll_id = root.after(80, self.poll)
         root.protocol("WM_DELETE_WINDOW", self.close)
 
+    def _resize_footer(self, event):
+        width = max(200, event.width - 36)
+        self.notice.configure(wraplength=width)
+        self.status_label.configure(wraplength=width)
+
     def _build_input(self, parent):
+        parent.columnconfigure(0, weight=1)
+        parent.rowconfigure(8, weight=1)
         top = ttk.Frame(parent)
-        top.pack(fill="x", pady=(0, 8))
+        top.grid(row=0, column=0, sticky="ew", pady=(0, 8))
         ttk.Label(top, text="当前邮件", font=("Microsoft YaHei UI", 12, "bold")).pack(side="left")
         ttk.Button(top, text="加载示例", command=self.load_sample).pack(side="right")
         self.fields = {}
-        for name, label in (("subject", "主题"), ("from", "发件人"), ("to", "收件人（可选）")):
-            ttk.Label(parent, text=label).pack(anchor="w", pady=(6, 3))
+        for index, (name, label) in enumerate((("subject", "主题"), ("from", "发件人"), ("to", "收件人（可选）"))):
+            ttk.Label(parent, text=label).grid(row=1 + index * 2, column=0, sticky="w", pady=(6, 3))
             value = tk.StringVar()
-            ttk.Entry(parent, textvariable=value).pack(fill="x")
+            ttk.Entry(parent, textvariable=value).grid(row=2 + index * 2, column=0, sticky="ew")
             self.fields[name] = value
-        ttk.Label(parent, text="正文 / 当前可见会话").pack(anchor="w", pady=(10, 3))
+        ttk.Label(parent, text="正文 / 当前可见会话").grid(row=7, column=0, sticky="w", pady=(10, 3))
         self.body = scrolledtext.ScrolledText(parent, wrap="word", height=12, font=("Microsoft YaHei UI", 10), undo=True)
-        self.body.pack(fill="both", expand=True)
+        self.body.grid(row=8, column=0, sticky="nsew")
         attachment_row = ttk.Frame(parent)
-        attachment_row.pack(fill="x", pady=8)
+        attachment_row.grid(row=9, column=0, sticky="ew", pady=8)
         ttk.Button(attachment_row, text="选择当前邮件附件", command=self.select_files).pack(side="left")
         ttk.Button(attachment_row, text="清空", command=self.clear_files).pack(side="right")
         self.file_label = tk.StringVar(value="未选择附件 · 最多 5 个，单个 10 MiB，总计 25 MiB")
-        ttk.Label(parent, textvariable=self.file_label, wraplength=350).pack(anchor="w")
+        ttk.Label(parent, textvariable=self.file_label, wraplength=350).grid(row=10, column=0, sticky="w")
         self.analyze_button = ttk.Button(parent, text="分析此邮件", command=self.analyze)
-        self.analyze_button.pack(fill="x", pady=(14, 0))
+        self.analyze_button.grid(row=11, column=0, sticky="ew", pady=(14, 0))
 
     def _build_output(self, parent):
         ttk.Label(parent, text="分析与回复", font=("Microsoft YaHei UI", 12, "bold")).pack(anchor="w", pady=(0, 12))
@@ -91,10 +102,13 @@ class DesktopWindow:
         self.draft_subject = tk.StringVar(value="尚未生成草稿")
         ttk.Label(draft, textvariable=self.draft_subject, wraplength=600).pack(anchor="w", pady=(0, 8))
         self.draft = self._text(draft, editable=True)
+        self.draft.pack_forget()
         self.reviewed = tk.BooleanVar(value=False)
-        ttk.Checkbutton(draft, text="我已审核并修改草稿，确认可以复制", variable=self.reviewed).pack(anchor="w", pady=8)
+        review_control = ttk.Checkbutton(draft, text="我已审核并修改草稿，确认可以复制", variable=self.reviewed)
         self.copy_button = ttk.Button(draft, text="复制已审核草稿", command=self.copy_draft)
-        self.copy_button.pack(anchor="e")
+        self.copy_button.pack(side="bottom", anchor="e")
+        review_control.pack(side="bottom", anchor="w", pady=8)
+        self.draft.pack(fill="both", expand=True)
         self.draft.bind("<<Modified>>", self._draft_changed)
         self.details = self._text(details, editable=False)
 
@@ -206,7 +220,7 @@ class DesktopWindow:
                 self.draft_subject.set(draft.get("subject", "回复草稿"))
                 self.set_text(self.draft, draft.get("body", ""), editable=True)
                 self.reviewed.set(False)
-                engine = result.get("analysis_engine", "unknown")
+                engine = engine_text(result.get("analysis_engine"))
                 self.status.set(f"分析完成 · {engine} · 请检查依据并人工审核回复。")
             else:
                 self.set_text(self.advice, "未完成分析。请检查输入、附件大小和服务状态后重试。")

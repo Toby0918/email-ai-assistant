@@ -126,8 +126,11 @@ def _find_measurements(text: str) -> list[str]:
 def _find_deadlines(text: str) -> list[str]:
     patterns = [
         r"\bwithin\s+\d+\s+(?:hours?|days?|weeks?)\b",
-        r"\bbefore\s+[A-Z][A-Za-z]+\b",
-        r"\bby\s+(?:today|tomorrow|[A-Z][A-Za-z]+\s+\d{1,2}|\d{1,2}/\d{1,2}/\d{2,4})\b",
+        r"\b(?:before|by)\s+(?:today|tomorrow|"
+        r"Mon(?:day)?|Tue(?:sday)?|Wed(?:nesday)?|Thu(?:rsday)?|Fri(?:day)?|Sat(?:urday)?|Sun(?:day)?|"
+        r"(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|"
+        r"Sep(?:tember)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)(?:\s+\d{1,2})?|"
+        r"\d{1,2}/\d{1,2}/\d{2,4})\b",
         r"\b(?:asap|urgent|today|tomorrow)\b",
         r"本周[一二三四五六日天]",
         r"今天|明天|尽快|马上",

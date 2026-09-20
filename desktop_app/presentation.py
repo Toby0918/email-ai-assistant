@@ -1,6 +1,28 @@
 """Plain-text rendering keeps untrusted mail and model text inert."""
 
 
+def engine_text(engine: object) -> str:
+    if not isinstance(engine, dict):
+        return "未确认分析引擎"
+    if engine.get("source") == "rule_fallback":
+        return "本地规则结果 · 未采用远程 AI 结果"
+    label = engine.get("label")
+    if not isinstance(label, str):
+        return "未确认分析引擎"
+    if engine.get("source") == "ai_model" and label in {
+        "DeepSeek Flash", "DeepSeek V4 Flash", "DeepSeek V4 Pro",
+    }:
+        # DesktopRuntime uses the conservative DeepSeek route for these labels.
+        return f"{label} 补充分析 · 处理建议和草稿由本地规则生成"
+    if engine.get("source") == "ai_model" and label == "OpenAI GPT-5.6 Sol":
+        return "OpenAI GPT-5.6 Sol"
+    if engine.get("source") == "ai_model" and label in {
+        "DeepSeek Flash text fallback", "DeepSeek V4 Flash text fallback", "DeepSeek V4 Pro text fallback",
+    }:
+        return "DeepSeek 文本回退分析"
+    return "未确认分析引擎"
+
+
 def advice_text(analysis: dict) -> str:
     brief = analysis.get("decision_brief", {})
     parts = ["处理结论", brief.get("one_line_conclusion", analysis.get("summary", "")),

@@ -3,11 +3,8 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 
 DISCLOSURE = (
-    "After you click Analyze, configured remote AI providers may receive locally "
-    "deidentified current visible email text and selected current-message images or "
-    "files after local screening. Media pixels or document content may contain "
-    "identifying information and are not guaranteed to be fully deidentified. "
-    "Processing is not local-only, and no zero-retention guarantee is made."
+    "点击分析后，所选远程 AI 可能接收经本地脱敏的当前可见邮件文字，以及经本地筛查的所选当前邮件图片或文件。"
+    "图片像素或文档内容仍可能包含身份信息，不能保证完全脱敏。处理并非仅在本地进行，也不保证远程服务零留存。"
 )
 PROVIDERS = {"本地规则（不调用 AI）": "disabled", "OpenAI": "openai", "DeepSeek": "deepseek"}
 

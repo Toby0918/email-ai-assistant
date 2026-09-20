@@ -52,6 +52,9 @@ def run_self_test(project: Path) -> dict:
             workbook.save(spreadsheet_path)
             workbook.close()
             window.paths = (spreadsheet_path,)
+            window.set_text(window.body,
+                            "Please confirm the delivery date. Please check with production "
+                            "before promising any delivery date. No price has been agreed.", editable=True)
             window.analyze_button.invoke()
             deadline = time.monotonic() + 15
             while window.busy and time.monotonic() < deadline:
@@ -62,6 +65,9 @@ def run_self_test(project: Path) -> dict:
             assert len(spreadsheet_insights) == 1
             assert spreadsheet_insights[0]["status"] == "parsed"
             assert "Quantity: 1200 pcs" in spreadsheet_insights[0]["key_facts"]
+            assert window.completed_analysis["category"] == "order_followup"
+            assert not [fact for fact in window.completed_analysis["decision_brief"]["key_facts"]
+                        if fact["label"] == "期限"]
             root.update()
             window.reviewed.set(True)
             window.fields["subject"].set("Different synthetic email")
@@ -105,6 +111,7 @@ def run_self_test(project: Path) -> dict:
                     "static_assets": "PASS", "restart_persistence": "PASS", "dependency_imports": "PASS",
                     "isolated_attachment_worker": "PASS", "attachment_cleanup": "PASS",
                     "xlsx_window_analysis": "PASS", "changed_email_copy_gate": "PASS",
+                    "delivery_rule_semantics": "PASS",
                     "provider_calls": 0, "live_mailbox_access": 0}
         finally:
             if root is not None:
