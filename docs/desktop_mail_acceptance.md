@@ -67,7 +67,9 @@ still needed before accepting business quality.
 
 Open the freshly built program, choose DeepSeek in AI settings and enter the key
 there. Use `examples/desktop_acceptance/email.txt` and the generated synthetic
-XLSX. The operator must click Analyze after reviewing the remote-content notice.
+XLSX. `email.txt` contains only the body; headers and expected results are separate
+in `examples/desktop_acceptance/README.md`. Keep expected results out of the body.
+The operator must click Analyze after reviewing the remote-content notice.
 Check that the result engine identifies DeepSeek, rather than Rule fallback.
 Confirm the attachment quantity is 1200 pcs, delivery remains unconfirmed, and
 the draft makes no invented price or delivery commitment. Edit and review it,
@@ -76,6 +78,14 @@ then copy it; change the input and verify the old draft disappears.
 This manual retest is not complete until the corrected actual provider result is inspected.
 A fallback, timeout, blocked output or syntactically successful request alone does
 not pass semantic acceptance. Tencent mailbox extraction remains separately pending.
+
+The second live screenshot confirmed the readable engine/footer and no false
+deadline, but included the old fixture's Expected review section in the body.
+The quotation conclusion persisted. A provider-disabled comparison using the
+actual local service and XLSX reproduced that conclusion only with the added
+review instructions; the clean body returned order_followup. The fixture is now
+split to prevent accidental mixed input. Broader price-mention false positives
+remain a rule limitation. Clean-input live semantic acceptance remains pending.
 
 Official model/request references checked on 2026-09-19:
 [Models & Pricing](https://api-docs.deepseek.com/quick_start/pricing/),
