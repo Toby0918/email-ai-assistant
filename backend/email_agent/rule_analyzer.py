@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from .analysis_schema import validate_analysis_result
@@ -28,6 +29,21 @@ from .thread_timeline import build_conversation_timeline
 
 _SECURITY_EVIDENCE = "邮件明确要求披露、分享或发送凭据、密码、密钥、Cookie 或令牌等秘密信息。"
 _SECURITY_RECOMMENDATION = "不要披露任何秘密信息；请先人工核验请求方身份和授权范围。"
+
+# An unset price is background, not itself a request for a quotation. Remove
+# only the finite absence statement, preserving requests in the same sentence.
+_UNSET_PRICE = re.compile(
+    r"\bno\s+prices?\s+(?:(?:has|have)\s+been\s+|(?:is|are|was|were)\s+)?"
+    r"(?:agreed|confirmed|set|specified)\b|"
+    r"\bprices?\s+(?:(?:has|have)\s+not\s+(?:yet\s+)?been|(?:is|are|was|were)\s+not)\s+"
+    r"(?:yet\s+)?(?:agreed|confirmed|set|specified)\b|"
+    r"价格(?:尚未|还未|未)(?:约定|确认|确定)",
+    re.IGNORECASE,
+)
+
+
+def _is_quote_context(text: str) -> bool:
+    return _contains(_UNSET_PRICE.sub("", text), *QUOTE_KEYWORDS)
 
 
 def build_rule_based_analysis(
@@ -59,7 +75,7 @@ def build_rule_based_analysis(
             text=text,
             facts=context.message_facts,
             summary_base=_summary_base(category, risks, text),
-            is_quote=_contains(text, *QUOTE_KEYWORDS),
+            is_quote=_is_quote_context(text),
             is_booking=_is_booking_context(text),
             is_meeting=_is_meeting_context(text),
             conversation_timeline=timeline,
@@ -96,7 +112,7 @@ def _category(text: str, risks: list[dict[str, str]]) -> str:
         return "order_followup"
     if _is_meeting_context(text):
         return "customer_inquiry"
-    if _contains(text, *QUOTE_KEYWORDS):
+    if _is_quote_context(text):
         return "customer_inquiry"
     if _contains(text, *DELIVERY_KEYWORDS):
         return "order_followup"
@@ -130,7 +146,7 @@ def _risk_flags(text: str, facts: EmailFacts) -> list[dict[str, str]]:
         risks.append(_risk("commitment_risk", "medium", _evidence("邮件提到新品开发、项目范围、成本目标或可行性评估。", facts), "回复前请核查项目范围、目标成本、技术可行性和内部评审意见，避免提前承诺价格、交期或质量结论。"))
     if _contains(text, *QUALITY_COMPLAINT_KEYWORDS):
         risks.append(_risk("quality_risk", "high", _evidence("邮件提到质量投诉或异常。", facts), "请先升级给质量负责人，并准备可审核的 RCA 或纠正措施回复。"))
-    if _contains(text, *QUOTE_KEYWORDS):
+    if _is_quote_context(text):
         risks.append(_risk("commitment_risk", "medium", _evidence("邮件要求确认价格、报价或交期。", facts), "回复前请确认报价、价格和交期，避免未经授权承诺。"))
     return risks
 
@@ -168,7 +184,7 @@ def _summary_base(category: str, risks: list[dict[str, str]], text: str) -> str:
     if category == "customer_inquiry":
         if _is_meeting_context(text):
             return "这封邮件主要关于会议或日程邀请，需要确认邀请有效性和是否参加。"
-        return "这封邮件主要关于报价或询价，需要准备信息并人工审核。" if _contains(text, *QUOTE_KEYWORDS) else "这封邮件主要是客户询问，需要人工查看后准备谨慎回复。"
+        return "这封邮件主要关于报价或询价，需要准备信息并人工审核。" if _is_quote_context(text) else "这封邮件主要是客户询问，需要人工查看后准备谨慎回复。"
     if category == "marketing":
         return "这封邮件主要是营销或参考资料，通常无需业务回复。"
     return "这封邮件需要人工查看后准备谨慎回复。"

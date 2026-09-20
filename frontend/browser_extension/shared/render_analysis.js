@@ -380,7 +380,7 @@
     }
     if (
       value.source === "ai_model" &&
-      ["DeepSeek V4 Flash text fallback", "DeepSeek V4 Pro text fallback"].includes(value.label)
+      ["DeepSeek Flash text fallback", "DeepSeek V4 Flash text fallback", "DeepSeek V4 Pro text fallback"].includes(value.label)
     ) {
       return { label: "DeepSeek text fallback", fallbackReason: DEEPSEEK_FALLBACK_REASON };
     }

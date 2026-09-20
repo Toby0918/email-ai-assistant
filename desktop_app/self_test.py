@@ -42,6 +42,42 @@ def run_self_test(project: Path) -> dict:
             window.copy_draft()
             assert "请先审核" in window.status.get()
             assert runtime.provider == "disabled"
+            # The packaged application must parse a spreadsheet through its window,
+            # not only import openpyxl successfully.
+            from openpyxl import Workbook
+            workbook = Workbook()
+            workbook.active.append(["Quantity", "1200 pcs"])
+            workbook.active.append(["Delivery", "Not confirmed; verify before replying"])
+            spreadsheet_path = Path(directory) / "synthetic-order.xlsx"
+            workbook.save(spreadsheet_path)
+            workbook.close()
+            window.paths = (spreadsheet_path,)
+            window.set_text(window.body,
+                            "Please confirm the delivery date. Please check with production "
+                            "before promising any delivery date. No price has been agreed.", editable=True)
+            window.analyze_button.invoke()
+            deadline = time.monotonic() + 15
+            while window.busy and time.monotonic() < deadline:
+                root.update()
+                time.sleep(0.02)
+            assert not window.busy and window.completed_analysis is not None
+            spreadsheet_insights = window.completed_analysis["attachment_insights"]
+            assert len(spreadsheet_insights) == 1
+            assert spreadsheet_insights[0]["status"] == "parsed"
+            assert "Quantity: 1200 pcs" in spreadsheet_insights[0]["key_facts"]
+            assert window.completed_analysis["category"] == "order_followup"
+            assert not [fact for fact in window.completed_analysis["decision_brief"]["key_facts"]
+                        if fact["label"] == "期限"]
+            draft_body = window.draft.get("1.0", "end-1c")
+            assert "1200 pcs" in draft_body and "before confirming any timing" in draft_body
+            assert "Please confirm" not in draft_body and "Please check" not in draft_body
+            root.update()
+            window.reviewed.set(True)
+            window.fields["subject"].set("Different synthetic email")
+            window.copy_draft()
+            assert window.completed_analysis is None and not window.reviewed.get()
+            assert not window.draft.get("1.0", "end-1c").strip()
+            assert "请先审核" in window.status.get()
             from docx import Document
             document = Document()
             document.add_paragraph("Material: brass. Finish: chrome. MOQ: 1200 pcs.")
@@ -77,6 +113,9 @@ def run_self_test(project: Path) -> dict:
                     "native_window": "PASS", "sample_analysis": "PASS", "human_review_gate": "PASS",
                     "static_assets": "PASS", "restart_persistence": "PASS", "dependency_imports": "PASS",
                     "isolated_attachment_worker": "PASS", "attachment_cleanup": "PASS",
+                    "xlsx_window_analysis": "PASS", "changed_email_copy_gate": "PASS",
+                    "delivery_rule_semantics": "PASS",
+                    "draft_request_echo_rejection": "PASS",
                     "provider_calls": 0, "live_mailbox_access": 0}
         finally:
             if root is not None:

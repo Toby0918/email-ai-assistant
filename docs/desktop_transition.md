@@ -31,8 +31,10 @@ first hosted Windows build passed, the maintainer-authorized ruleset transition
 removed the four retired provenance checks and retained strict quality-gates.
 The PR requirement, deletion and non-fast-forward protection, and bypass policy
 remain unchanged. No check with a legacy provenance name is fabricated to bypass
-the old requirements. The branch is submitted for review; master is not merged
-automatically.
+the old requirements. PR #133 was merged into master on 2026-09-19 as
+08b97bbbebf96e91a3fa043bdf0f07c80ad4b08a, and the hosted Windows quality-gates
+passed. Current-email business acceptance continues from that merged baseline;
+see docs/desktop_mail_acceptance.md.
 
 Local historical archives, runtime installations, builds, databases, configuration,
 logs and retirement receipts are excluded from Git. Encrypted local archives are
