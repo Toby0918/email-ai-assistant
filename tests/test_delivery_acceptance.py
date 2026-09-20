@@ -28,6 +28,33 @@ class DeliveryAcceptanceTests(unittest.TestCase):
         deadlines = [fact for fact in result["decision_brief"]["key_facts"] if fact["label"] == "期限"]
         self.assertEqual(deadlines, [])
 
+    def test_delivery_draft_keeps_attachment_quantity_without_echoing_customer_request(self):
+        result = build_rule_based_analysis(
+            "Delivery date confirmation", "buyer@example.test",
+            "Please review the attached synthetic order specification and confirm the delivery date. "
+            "The production schedule has not been confirmed. No price has been agreed.",
+            attachment_insights=[{"filename": "synthetic-order.xlsx", "type": "xlsx", "status": "parsed",
+                                  "summary": "XLSX content parsed.", "key_facts": ["Quantity: 1200 pcs"], "limitations": []}],
+        )
+        draft = result["reply_draft"]["body"]
+        self.assertIn("1200 pcs", draft)
+        self.assertIn("before confirming any timing", draft)
+        self.assertNotIn("Please review", draft)
+        self.assertNotIn("confirm the delivery date", draft)
+        self.assertTrue(result["reply_draft"]["needs_human_review"])
+
+    def test_draft_target_contains_structured_facts_not_customer_narrative(self):
+        result = build_rule_based_analysis(
+            "Quality issue after delivery", "buyer@example.test",
+            "We received 200 pcs with damaged surfaces for PO 123456. Please investigate the quality issue.",
+        )
+        draft = result["reply_draft"]["body"]
+        self.assertIn("200 pcs", draft)
+        self.assertIn("PO 123456", draft)
+        self.assertIn("escalate the quality issue", draft)
+        self.assertNotIn("We received", draft)
+        self.assertNotIn("Please investigate", draft)
+
     def test_real_weekday_deadline_and_explicit_quote_are_retained(self):
         result = self.analyze("Please provide a quote and confirm delivery before Friday.")
         self.assertEqual(result["category"], "customer_inquiry")

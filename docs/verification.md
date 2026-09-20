@@ -10,16 +10,22 @@ source_type: operation_guide
 
 ## Current-email acceptance, 2026-09-19
 
-The source suite passed 184 tests, including seven native-window regressions and
+The source suite passed 186 tests, including seven native-window regressions and
 the actual DeepSeek SDK serialization check using a synthetic HTTP transport.
 The rebuilt executable self-test passed XLSX window analysis and changed-email
 copy rejection alongside the earlier DOCX, cleanup and restart checks. The
 renderer JavaScript syntax check also passed. Automated checks accessed no real
 provider or mailbox. The operator's first live screenshot showed DeepSeek
 participation but exposed local delivery/quote and deadline misclassifications.
-The subsequent seven acceptance regressions cover those fixes, conservative model
-merging and readable engine status. See docs/desktop_mail_acceptance.md for the
-required live retest and general XLSX header-association limitation.
+The subsequent nine acceptance regressions cover those fixes, conservative model
+merging, readable engine status and rejection of customer request/issue narrative
+inside reply target clauses. The exact clean-input native XLSX flow and packaged
+self-test also check the draft retains quantity and cautious timing without
+echoing the customer's request. The operator's clean-input screenshot confirmed
+delivery classification and attachment quantity; the subsequent draft screenshot
+exposed the request echo now fixed. Operator review/copy of the corrected draft
+remains pending. See docs/desktop_mail_acceptance.md for acceptance boundaries and
+the general XLSX header-association limitation.
 
 ## Initial desktop baseline
 
@@ -41,8 +47,8 @@ This proves the tested executable path does not require the old project, a
 system Python command, or launching from the source directory. It does not prove
 compatibility with every other Windows computer or model response quality.
 
-Build/desktop-self-test.json is the actual last executable report. Build/build-output.log
-records tests and packaging. The shipped program is
+Build/desktop-self-test.json is the actual last executable report.
+Build/desktop-draft-fix-build.log records the latest tests and packaging. The shipped program is
 Program/EmailAssistant/EmailAssistant.exe. All configured data, logs, temporary,
 build and cache paths are under the new project. OS-managed caches and Windows
 runtime internals are outside application control.

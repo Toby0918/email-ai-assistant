@@ -100,11 +100,17 @@ class DesktopWindowTests(unittest.TestCase):
         workbook.close()
         with patch("desktop_app.window.filedialog.askopenfilenames", return_value=(str(attachment),)):
             self.window.select_files()
+        sample_body = (Path(__file__).resolve().parents[1] / "examples/desktop_acceptance/email.txt").read_text(encoding="utf-8")
+        self.window.set_text(self.window.body, sample_body, editable=True)
         self.analyze_sample()
         insights = self.window.completed_analysis["attachment_insights"]
         self.assertEqual(len(insights), 1)
         self.assertEqual(insights[0]["status"], "parsed")
         self.assertIn("1200", str(insights))
+        generated_draft = self.window.draft.get("1.0", "end-1c")
+        self.assertIn("1200 pcs", generated_draft)
+        self.assertIn("before confirming any timing", generated_draft)
+        self.assertNotIn("Please review", generated_draft)
         self.assertFalse(list((Path(self.temp.name) / "attachment_temp").glob("*")))
         self.window.reviewed.set(True)
         self.window.draft.insert("end", "\nI will verify the production schedule first.")

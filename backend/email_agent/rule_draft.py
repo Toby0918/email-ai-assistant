@@ -82,7 +82,9 @@ def _escalation_draft_line(category: str, target: str, facts: EmailFacts) -> str
 
 
 def _english_fact_clause(facts: EmailFacts) -> str:
-    items = [*facts.references, *facts.quantities, *facts.measurements, *facts.quality_issues[:1], *facts.requested_actions[:1], *facts.deadlines]
+    # Targets after "for" must be structured facts, not sentences spoken by the
+    # customer or deadline clauses that could become a promise in our reply.
+    items = [*facts.references, *facts.quantities, *facts.measurements]
     return "; ".join(item for item in _unique(items) if not _contains_chinese_char(item))
 
 

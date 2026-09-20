@@ -68,6 +68,9 @@ def run_self_test(project: Path) -> dict:
             assert window.completed_analysis["category"] == "order_followup"
             assert not [fact for fact in window.completed_analysis["decision_brief"]["key_facts"]
                         if fact["label"] == "期限"]
+            draft_body = window.draft.get("1.0", "end-1c")
+            assert "1200 pcs" in draft_body and "before confirming any timing" in draft_body
+            assert "Please confirm" not in draft_body and "Please check" not in draft_body
             root.update()
             window.reviewed.set(True)
             window.fields["subject"].set("Different synthetic email")
@@ -112,6 +115,7 @@ def run_self_test(project: Path) -> dict:
                     "isolated_attachment_worker": "PASS", "attachment_cleanup": "PASS",
                     "xlsx_window_analysis": "PASS", "changed_email_copy_gate": "PASS",
                     "delivery_rule_semantics": "PASS",
+                    "draft_request_echo_rejection": "PASS",
                     "provider_calls": 0, "live_mailbox_access": 0}
         finally:
             if root is not None:

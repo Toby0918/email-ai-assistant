@@ -87,6 +87,16 @@ review instructions; the clean body returned order_followup. The fixture is now
 split to prevent accidental mixed input. Broader price-mention false positives
 remain a rule limitation. Clean-input live semantic acceptance remains pending.
 
+The third clean-input screenshot confirmed the delivery conclusion and quantity
+attributed to the attachment. The subsequent draft screenshot exposed a separate
+failure: the template appended the customer's request sentence after the quantity,
+mixing customer and reply roles. Draft targets are now restricted to structured
+references, quantities and measurements, retaining free-form requests and issue
+narratives in analysis rather than copying them into reply sentences. Regressions
+cover the exact delivery sample and a quality complaint; native-window and bundled
+self-tests also verify the quantity and cautious timing wording without request echo.
+The fixed draft still requires operator review. Manual copy acceptance remains pending.
+
 Official model/request references checked on 2026-09-19:
 [Models & Pricing](https://api-docs.deepseek.com/quick_start/pricing/),
 [Thinking Mode](https://api-docs.deepseek.com/guides/thinking_mode/).
