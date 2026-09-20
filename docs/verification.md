@@ -8,7 +8,19 @@ source_type: operation_guide
 
 # Independent desktop verification
 
-The new project's unittest discovery passed 169 tests on Python 3.14.7 with
+## Current-email acceptance, 2026-09-19
+
+The source suite passed 176 tests, including six native-window regressions and
+the actual DeepSeek SDK serialization check using a synthetic HTTP transport.
+The rebuilt executable self-test passed XLSX window analysis and changed-email
+copy rejection alongside the earlier DOCX, cleanup and restart checks. The
+renderer JavaScript syntax check also passed. No real provider or mailbox was
+accessed. See docs/desktop_mail_acceptance.md for the remaining live DeepSeek
+step and the discovered general XLSX header-association limitation.
+
+## Initial desktop baseline
+
+The initial desktop baseline's unittest discovery passed 169 tests on Python 3.14.7 with
 SQLite 3.53.4 and the installed stable package set recorded in
 requirements-resolved.lock. The SDK compatibility test exercises actual SDK
 serialization via httpx2 MockTransport without opening a provider connection.
@@ -32,14 +44,15 @@ Program/EmailAssistant/EmailAssistant.exe. All configured data, logs, temporary,
 build and cache paths are under the new project. OS-managed caches and Windows
 runtime internals are outside application control.
 
-The original project was used only for allowlisted source reads. No old .env,
-database, private store, Git directory, browser signing key or migration evidence
-was copied. Pure deidentification and schema helpers remain because the analysis
-core imports them; no private-store reader or importer is connected.
+The application was built from allowlisted source reads. No old .env, database,
+private store or signing key was connected to runtime. Historical extraction and
+encrypted archival were separate authorized work, completed before the operator
+deleted the retired directories. Pure deidentification and schema helpers remain
+because the analysis core imports them; no private-store reader is connected.
 
 Scope limits: no real mailbox/UI extraction acceptance, no remote AI call, no
 private history import and no bundled Tesseract OCR executable. The original
-browser extension is available unchanged for separately operated current-mail
+browser extension is available for separately operated current-mail
 capture. pypdf's legacy decoder-limit compatibility currently emits deprecation
 warnings in some inherited tests; the tested 6.19.0 limits remain effective.
 

@@ -18,6 +18,7 @@ class DesktopWindow:
         self.paths = ()
         self.busy = False
         self.completed_analysis = None
+        self._input_revision = 0
         self._closed = False
         self._messages = queue.Queue()
         root.title("Email AI Assistant · 桌面版")
@@ -49,6 +50,9 @@ class DesktopWindow:
         self.notice.pack(fill="x", pady=(12, 4))
         self.status = tk.StringVar(value="就绪。可粘贴当前邮件，或加载示例验证运行。")
         ttk.Label(shell, textvariable=self.status, wraplength=1080).pack(fill="x")
+        for value in self.fields.values():
+            value.trace_add("write", self._input_changed)
+        self.body.bind("<<Modified>>", self._body_changed)
         self._poll_id = root.after(80, self.poll)
         root.protocol("WM_DELETE_WINDOW", self.close)
 
@@ -118,6 +122,21 @@ class DesktopWindow:
         self.set_text(self.body, "Please confirm delivery date for this order. Please check the production schedule before replying.", editable=True)
         self.clear_files()
 
+    def _input_changed(self, *_args):
+        self._input_revision += 1
+        self.completed_analysis = None
+        self.reviewed.set(False)
+        self.set_text(self.advice, "输入已更改，请重新分析当前邮件。")
+        self.set_text(self.details, "")
+        self.set_text(self.draft, "", editable=True)
+        self.draft_subject.set("尚未生成当前邮件的草稿")
+        self.status.set("输入已更改，请重新分析；此前的审核已失效。")
+
+    def _body_changed(self, _event=None):
+        if self.body.edit_modified():
+            self.body.edit_modified(False)
+            self._input_changed()
+
     def select_files(self):
         if self.busy:
             return
@@ -125,15 +144,18 @@ class DesktopWindow:
         if selected:
             self.paths = tuple(Path(path) for path in selected)
             self.file_label.set("；".join(path.name for path in self.paths))
+            self._input_changed()
 
     def clear_files(self):
         if not self.busy:
             self.paths = ()
             self.file_label.set("未选择附件 · 最多 5 个，单个 10 MiB，总计 25 MiB")
+            self._input_changed()
 
     def analyze(self):
         if self.busy:
             return
+        self._body_changed()
         payload = {key: value.get().strip() for key, value in self.fields.items()}
         payload["body_text"] = self.body.get("1.0", "end-1c").strip()
         if not payload["subject"] or not payload["from"] or not payload["body_text"]:
@@ -151,9 +173,9 @@ class DesktopWindow:
         self.analyze_button.configure(state="disabled")
         self.settings_button.configure(state="disabled")
         self.status.set("正在处理本次点击提交的内容，请稍候…")
-        threading.Thread(target=self._worker, args=(payload, self.paths), daemon=True).start()
+        threading.Thread(target=self._worker, args=(payload, self.paths, self._input_revision), daemon=True).start()
 
-    def _worker(self, payload, paths):
+    def _worker(self, payload, paths, revision):
         try:
             payload["attachment_files"] = attachment_payload(paths, user_confirmed=True)
             response = self.runtime.analyze(payload)
@@ -161,18 +183,21 @@ class DesktopWindow:
             response = {"ok": False, "error": {"code": "LOCAL_INPUT_OR_SERVICE_ERROR"}}
         except Exception:
             response = {"ok": False, "error": {"code": "LOCAL_ANALYSIS_ERROR"}}
-        self._messages.put(response)
+        self._messages.put((revision, response))
 
     def poll(self):
         try:
-            response = self._messages.get_nowait()
+            revision, response = self._messages.get_nowait()
         except queue.Empty:
             pass
         else:
             self.busy = False
             self.analyze_button.configure(state="normal")
             self.settings_button.configure(state="normal")
-            if response.get("ok"):
+            self._body_changed()
+            if revision != self._input_revision:
+                self.status.set("输入在分析期间发生变化，已丢弃旧结果。请重新分析当前邮件。")
+            elif response.get("ok"):
                 result = response["analysis"]
                 self.completed_analysis = result
                 self.set_text(self.advice, advice_text(result))
@@ -196,12 +221,18 @@ class DesktopWindow:
             self.draft.edit_modified(False)
 
     def copy_draft(self):
+        self._body_changed()
+        self._draft_changed()
         text = self.draft.get("1.0", "end-1c").strip()
-        if not text or not self.reviewed.get():
+        if self.busy or self.completed_analysis is None or not text or not self.reviewed.get():
             self.status.set("请先审核草稿，并勾选确认后再复制。")
             return
-        self.root.clipboard_clear()
-        self.root.clipboard_append(text)
+        try:
+            self.root.clipboard_clear()
+            self.root.clipboard_append(text)
+        except tk.TclError:
+            self.status.set("复制失败，草稿已保留。请稍后重试或手动复制。")
+            return
         self.status.set("已复制已审核草稿；请在邮箱中自行确认和发送。")
 
     def settings(self):

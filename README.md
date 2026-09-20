@@ -12,7 +12,7 @@
 
 ## 腾讯企业邮箱扩展
 
-现有产品扩展 0.2.3 保存在 `frontend\browser_extension`，源码来自已核对的现有主线，未用早期版本替换。它仍使用 `127.0.0.1:8765`，桌面程序启动时提供兼容后端。需要在 Chrome/Edge 的扩展管理页手动“加载已解压的扩展”并选择此文件夹。桌面程序本身不自动安装扩展或读取浏览器邮件。
+产品扩展 0.2.4 保存在 `frontend\browser_extension`，在已保留的 0.2.3 上增加当前 DeepSeek 文本回退名称的兼容显示。它仍使用 `127.0.0.1:8765`，桌面程序启动时提供兼容后端。需要在 Chrome/Edge 的扩展管理页手动“加载已解压的扩展”并选择此文件夹。桌面程序本身不自动安装扩展或读取浏览器邮件。
 
 桌面粘贴分析可以独立使用；腾讯邮箱页面中的当前邮件提取由浏览器扩展承担。当前没有在真实邮箱中重新验收页面提取。
 
@@ -36,7 +36,7 @@
 | `Config` | 预留非敏感配置位置；当前 API Key 不落盘 |
 | `docs`、`tests`、`scripts` | 来源记录、验证用例和构建脚本 |
 
-`Build\retained_initial_py312_environment` 是明确升级版本前生成的停用试建环境，`Build\original-requirements-ci-windows.lock` 是原始来源锁文件；两者均不用于启动或构建。自动删除被策略阻止后采用保留方案，完整移入本项目 Build 目录，没有删除任何文件。
+停用的 Python 3.12 试建环境和历史恢复验证目录已由操作者手动删除。`Build\original-requirements-ci-windows.lock` 仅保留原始依赖来源记录，不用于启动或构建。
 
 已核对 35 个安装包，其中 34 个与官方当前稳定版一致。`pydantic-core` 使用当前 Pydantic 2.13.5 明确要求的 2.46.5，而非不兼容的单独最新版 2.49.0；完整结果见 `docs/dependency_versions.json`。该约束通过 `pip check`，不以强行升级破坏可运行性。
 
@@ -49,12 +49,16 @@
 
 打包脚本将临时和缓存位置固定在项目内，并执行打包后的 `--self-test`。机器可读结果写入 `Build\desktop-self-test.json`。该自检覆盖原生窗口、点击分析、人工审核门禁、静态资源、DOCX 子进程解析、附件清理、关闭后重新启动及结果持久化；只使用合成数据。它不证明真实模型的回答质量。
 
+桌面邮件验收要求见 [desktop_mail_acceptance.md](docs/desktop_mail_acceptance.md)。修改邮件或附件后，旧分析、草稿和审核状态立即失效；编辑草稿后需重新勾选审核。运行 `Runtime\Python3147\python.exe -B scripts\create_desktop_acceptance_sample.py` 可生成本地 XLSX 验收样例，配套邮件在 `examples\desktop_acceptance\email.txt`。DeepSeek 使用官方当前名称 `deepseek-flash`；真实调用和业务回答质量仍待操作者输入密钥后验收。
+
 ## 已知范围
 
 图片 OCR 依赖可选 Tesseract；没有捆绑 OCR 引擎时会明确降级，不影响正文、PDF 文本、XLSX、DOCX 和规则分析。远程模型调用保持原有隐私与证据校验，失败或输出不安全时回落规则结果。历史邮箱导入、私有知识审批、旧数据库迁移和旧项目的迁移管理流程未接入桌面程序。
+
+XLSX 的“已解析”仅表示已读取受限内容。当前规则能提取明确标签和值，例如 `Quantity | 1200 pcs`，尚不能可靠关联任意多列表头和后续数值行，不能据此宣称理解了整张表格。
 
 若启动提示 8765 端口占用，先退出另一个邮箱助手实例再启动；程序不会结束其他进程。应用数据库保存在本目录，因此复制整个目录也会复制已保存的分析结果。
 
 ## 历史资料与旧项目退役
 
-原迁移路线已取消。新目录沿用原仓库的 Git 历史；旧数据、配置和未提交修改保存在被 Git 排除的 `LegacyArchive`，不会自动接入程序。2026-09-19 已删除六个旧目录，旧主目录因受保护记录和自动审批拒绝仍有残留，不能视作已彻底删除。本地详细回执位于 `docs/retirement_20260919`。
+原迁移路线已取消。新目录沿用原仓库的 Git 历史；历史资料提取后，操作者手动完成了约定旧项目、IncidentArchives 和临时验证目录的删除，约定的 13 个路径均已核对不存在。`LegacyArchive` 保留两份 Git bundle 和四份 Windows 当前用户绑定的加密归档，不会自动接入程序，也不上传 Git。加密归档不能视为脱离原 Windows 用户环境仍可解密的便携备份。详细回执在本地 `docs/retirement_20260919/manual_cleanup_completion.json`；回收站内容不在此次检查范围内。

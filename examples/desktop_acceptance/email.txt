@@ -1,0 +1,14 @@
+SYNTHETIC ACCEPTANCE FIXTURE — no real buyer or order
+
+Subject: Delivery date confirmation
+From: buyer@example.test
+To: sales@example.test
+
+Body:
+Please review the attached synthetic order specification and confirm the delivery date.
+The quantity is stated in the attachment. The production schedule has not been confirmed.
+Please check with production before promising any delivery date. No price has been agreed.
+
+Expected review:
+The attachment says Quantity: 1200 pcs. Delivery remains unconfirmed.
+The reply must not invent a confirmed delivery date or an agreed price.

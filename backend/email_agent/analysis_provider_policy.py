@@ -62,11 +62,11 @@ def provider_engine_label(config: Any, provider: str, *, fallback: bool = False)
     if provider == "openai":
         return "OpenAI GPT-5.6 Sol"
     if provider == "deepseek":
-        name = (
-            "DeepSeek V4 Pro"
-            if config.deepseek_model == "deepseek-v4-pro"
-            else "DeepSeek V4 Flash"
-        )
+        name = {
+            "deepseek-flash": "DeepSeek Flash",
+            "deepseek-v4-flash": "DeepSeek V4 Flash",
+            "deepseek-v4-pro": "DeepSeek V4 Pro",
+        }.get(config.deepseek_model, "DeepSeek")
         return name + (" text fallback" if fallback else "")
     return ""
 

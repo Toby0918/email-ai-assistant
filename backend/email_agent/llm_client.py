@@ -21,7 +21,7 @@ from .openai_multimodal_client import generate_openai_multimodal_analysis
 
 
 DEEPSEEK_BASE_URL = "https://api.deepseek.com"
-DEEPSEEK_MODELS = frozenset({"deepseek-v4-flash", "deepseek-v4-pro"})
+DEEPSEEK_MODELS = frozenset({"deepseek-flash", "deepseek-v4-flash", "deepseek-v4-pro"})
 
 
 def generate_analysis(
@@ -93,6 +93,8 @@ def configured_analysis_engine_label(config: AppConfig | None = None) -> str:
     if current.llm_provider == "openai":
         return "OpenAI"
     if current.llm_provider == "deepseek":
+        if current.deepseek_model == "deepseek-flash":
+            return "DeepSeek Flash"
         if current.deepseek_model == "deepseek-v4-flash":
             return "DeepSeek V4 Flash"
         if current.deepseek_model == "deepseek-v4-pro":

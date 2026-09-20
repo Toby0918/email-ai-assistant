@@ -23,7 +23,7 @@ FALLBACK_STAGES = frozenset({
 })
 SAFE_PROVIDERS = frozenset({"deepseek", "ollama", "openai", "disabled"})
 SAFE_MODELS = frozenset({
-    "deepseek-v4-flash", "deepseek-v4-pro", "gpt-5.6-sol", "local-model", "none",
+    "deepseek-flash", "deepseek-v4-flash", "deepseek-v4-pro", "gpt-5.6-sol", "local-model", "none",
 })
 SAFE_OUTPUT_MODES = frozenset({"model_led", "conservative"})
 FALLBACK_DETAILS = frozenset({
