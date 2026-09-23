@@ -19,6 +19,8 @@ from .attachment_fact_context import (
     local_fact_segment,
 )
 from .attachment_identifiers import extract_reference_facts
+from .price_basis import price_context_is_qualified, valid_price_fact
+from .document_business_facts import document_facts
 MAX_CANDIDATES_PER_CATEGORY = 3
 
 _SEPARATOR = r"\s*(?:[:#=|\-]\s*|\s+)"
@@ -114,9 +116,16 @@ _QUALITY_SIGNALS = (
 def extract_attachment_facts(
     text: str,
     metadata_facts: list[str] | None = None,
+    *,
+    price_facts: list[str] | None = None,
 ) -> list[str]:
     """Return diverse constructed facts; never return arbitrary source prose."""
     bounded_raw = bounded_attachment_source(text)
+    # Raw lines never become parser-authored table facts, even if they mimic
+    # their display schema. Only the worksheet reader can supply row mappings.
+    verified_prices = ([] if price_context_is_qualified(text) else
+                       [fact for fact in (price_facts or [])[:MAX_ATTACHMENT_FACTS] if valid_price_fact(fact)])
+    bounded_raw = "\n".join(line for line in bounded_raw.splitlines() if not valid_price_fact(line.strip()))
     groups = [
         _references(bounded_raw),
         _quantities(bounded_raw),
@@ -126,7 +135,7 @@ def extract_attachment_facts(
         _requested_actions(bounded_raw),
         _quality_issues(bounded_raw),
     ]
-    facts: list[str] = []
+    facts: list[str] = list(dict.fromkeys([*verified_prices, *document_facts(text)]))[:MAX_ATTACHMENT_FACTS]
     remainders: list[list[str]] = []
     for group in groups:
         if group:
@@ -151,6 +160,9 @@ def _quantities(text: str) -> list[str]:
 
 
 def _measurements(text: str) -> list[str]:
+    # A bare metre value followed by an address segment is not a dimension.
+    text = '\n'.join(line for line in text.splitlines()
+        if not re.search(r'\b\d+\s+M\s+\d+\s*,|\b(?:road|street|district|province|address)\b', line, re.I))
     return _matched_values(
         text,
         (_LABELED_MEASUREMENT, _DIMENSION, _SINGLE_MEASUREMENT),

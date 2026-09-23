@@ -6,6 +6,7 @@ import re
 from dataclasses import dataclass
 
 from .email_facts import EmailFacts, extract_email_facts
+from .email_cleaner import strip_business_boilerplate
 
 
 ATTACHMENT_SEMANTIC_REVIEW = (
@@ -43,6 +44,8 @@ _QUANTITY_UNITS = {
     "lbs": "lbs",
 }
 _BUSINESS_FACT_PREFIXES = (
+    "po row:", "inspection report:", "inspection object:", "shipping:",
+    "price basis:",
     "reference:",
     "quantity:",
     "measurement:",
@@ -68,7 +71,8 @@ def build_rule_context(
     insights: list[dict[str, object]],
 ) -> RuleAnalysisContext:
     """Use timeline evidence and only parsed attachment text for rule decisions."""
-    thread_text = _thread_text(timeline)
+    clean_body = strip_business_boilerplate(clean_body)
+    thread_text = strip_business_boilerplate(_thread_text(timeline))
     attachment_text = _parsed_attachment_text(insights)
     message_facts = extract_email_facts(
         subject,
@@ -77,7 +81,7 @@ def build_rule_context(
     )
     attachment_facts = extract_email_facts("", "", attachment_text)
     return RuleAnalysisContext(
-        text=_join(subject, sender, clean_body, thread_text, attachment_text).lower(),
+        text=_join(subject, clean_body, thread_text, attachment_text).lower(),
         message_facts=message_facts,
         facts=_merge_facts(message_facts, attachment_facts),
     )

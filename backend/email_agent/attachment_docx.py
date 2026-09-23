@@ -7,7 +7,10 @@ from typing import Any
 from .attachment_model_context import AttachmentAnalysisBundle
 from .attachment_safety import enforce_pdf_decoder_limits, office_package_limitation
 from .attachment_storage import StoredAttachment
+from .price_basis import PriceTable
 from .attachment_text import (
+    MAX_PDF_EXTRACTED_CHARACTERS,
+    MAX_XLSX_ROW_CHARACTERS,
     TextBudget,
     character_limitations,
     collect_xlsx_row,
@@ -22,8 +25,8 @@ MAX_DOCX_CELLS_PER_ROW = 20
 MAX_DOCX_PARAGRAPH_CHARACTERS = 1_000
 MAX_DOCX_CELL_CHARACTERS = 500
 MAX_DOCX_ROW_CHARACTERS = 1_100
-MAX_PDF_PAGES = 3
-MAX_PDF_PAGE_CHARACTERS = 1_000
+MAX_PDF_PAGES = 12
+MAX_PDF_PAGE_CHARACTERS = 8_000
 MAX_XLSX_SHEETS = 3
 MAX_XLSX_ROWS_PER_SHEET = 30
 
@@ -37,7 +40,7 @@ def parse_pdf_bundle(
     enforce_pdf_decoder_limits()
     reader = reader_factory(str(item.path), strict=True)
     try:
-        collector = TextBudget()
+        collector = TextBudget(MAX_PDF_EXTRACTED_CHARACTERS)
         for page in reader.pages[:MAX_PDF_PAGES]:
             if collector.exhausted:
                 collector.mark_omitted()
@@ -68,7 +71,10 @@ def parse_xlsx_bundle(
         worksheets = all_worksheets[:MAX_XLSX_SHEETS]
         limitations: list[str] = []
         collector = TextBudget()
-        for worksheet in worksheets:
+        price_row_count = 0
+        price_facts: list[str] = []
+        for sheet_number, worksheet in enumerate(worksheets, start=1):
+            price_table = PriceTable(sheet_number)
             if collector.exhausted:
                 collector.mark_omitted()
                 break
@@ -79,11 +85,18 @@ def parse_xlsx_bundle(
                 if collector.exhausted:
                     collector.mark_omitted()
                     break
+                price_fact = price_table.read_row(row, row_number)
+                if price_fact:
+                    price_row_count += 1
+                    if len(price_facts) < 5:
+                        price_facts.append(price_fact)
                 collect_xlsx_row(collector, str(worksheet.title), row)
                 if collector.exhausted and collector.truncated:
                     break
         if len(all_worksheets) > MAX_XLSX_SHEETS:
             limitations.append("Sheet limit reached; remaining sheets were not parsed.")
+        if price_row_count > 5:
+            limitations.append("Structured price facts are bounded; some recognized rows may be omitted. Review the complete table.")
     finally:
         workbook.close()
     return text_projector(
@@ -93,6 +106,7 @@ def parse_xlsx_bundle(
         [*character_limitations(collector), *limitations],
         "XLSX",
         fact_text=collector.fact_text,
+        price_facts=price_facts,
     )
 
 

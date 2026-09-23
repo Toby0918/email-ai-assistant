@@ -40,6 +40,7 @@ from backend.email_agent.attachment_media_context import (
 )
 from backend.email_agent.attachment_storage import StoredAttachment
 from backend.email_agent.attachment_text import sanitize_text
+from backend.email_agent.attachment_text import MAX_PDF_EXTRACTED_CHARACTERS
 from backend.email_agent.database import initialize_schema, save_analysis
 from backend.email_agent.multimodal_media import PreparedMediaAsset
 
@@ -1146,15 +1147,15 @@ class AttachmentParserTests(unittest.TestCase):
         with TemporaryDirectory() as directory:
             stored = self._write(directory, "dense.pdf", "pdf", b"synthetic")
             pages = [MagicMock(), MagicMock(), MagicMock()]
-            pages[0].extract_text.return_value = "A" * 5_000
-            pages[1].extract_text.return_value = "B" * 5_000
+            pages[0].extract_text.return_value = "A" * (MAX_PDF_EXTRACTED_CHARACTERS // 2 + 1)
+            pages[1].extract_text.return_value = "B" * (MAX_PDF_EXTRACTED_CHARACTERS // 2 + 1)
             pages[2].extract_text.return_value = "UNREACHED"
             reader = MagicMock()
             reader.pages = pages
 
             with patch.object(attachment_parser, "PdfReader", return_value=reader), patch(
                 "backend.email_agent.attachment_docx.MAX_PDF_PAGE_CHARACTERS",
-                attachment_parser.MAX_EXTRACTED_CHARACTERS,
+                MAX_PDF_EXTRACTED_CHARACTERS,
             ):
                 with patch.object(
                     attachment_parser,
@@ -1163,8 +1164,8 @@ class AttachmentParserTests(unittest.TestCase):
                 ) as text_insight:
                     result = parse_attachments([stored])
 
-            collected = text_insight.call_args.args[1]
-            self.assertLessEqual(len(collected), attachment_parser.MAX_EXTRACTED_CHARACTERS)
+            collected = text_insight.call_args.args[2]
+            self.assertLessEqual(len(collected), MAX_PDF_EXTRACTED_CHARACTERS)
             pages[1].extract_text.assert_called_once()
             pages[2].extract_text.assert_not_called()
             self.assertIn("Character limit", " ".join(result[0]["limitations"]))
@@ -1605,7 +1606,7 @@ class AttachmentParserTests(unittest.TestCase):
             with self.subTest(has_remaining_page=has_remaining_page):
                 pages = [MagicMock()]
                 pages[0].extract_text.return_value = (
-                    "A" * attachment_parser.MAX_EXTRACTED_CHARACTERS
+                    "A" * MAX_PDF_EXTRACTED_CHARACTERS
                 )
                 if has_remaining_page:
                     remaining_page = MagicMock()
@@ -1617,7 +1618,7 @@ class AttachmentParserTests(unittest.TestCase):
                     stored = self._write(directory, "exact.pdf", "pdf", b"synthetic")
                     with patch.object(attachment_parser, "PdfReader", return_value=reader), patch(
                         "backend.email_agent.attachment_docx.MAX_PDF_PAGE_CHARACTERS",
-                        attachment_parser.MAX_EXTRACTED_CHARACTERS,
+                        MAX_PDF_EXTRACTED_CHARACTERS,
                     ):
                         result = parse_attachments([stored])
 

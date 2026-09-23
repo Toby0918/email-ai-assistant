@@ -117,7 +117,7 @@ def _find_quantities(text: str) -> list[str]:
 
 def _find_measurements(text: str) -> list[str]:
     patterns = [
-        r"\b\d+(?:\.\d+)?\s*(?:mm|cm|m|inch|inches)\s*(?:\+/-\s*\d*(?:\.\d+)?)?",
+        r"(?<![\w/-])\d+(?:\.\d+)?\s*(?:mm|cm|m|inches|inch)\b\s*(?:\+/-\s*\d*(?:\.\d+)?)?",
         r"\b\d+(?:\.\d+)?\s*(?:x|×)\s*\d+(?:\.\d+)?\s*(?:mm|cm|m|inch|inches)\b",
     ]
     return _unique_short(_find_all(patterns, text))
