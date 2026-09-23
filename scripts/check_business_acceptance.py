@@ -65,7 +65,7 @@ def run() -> int:
         lines.append(f"| {row['id']} | {row['title']} | {label} | {row['remaining']} |")
     (output / "验收结果.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
     print(json.dumps({"checkpoint_pass": passed, "checkpoint_gaps": 22 - passed,
-                      "report": str(output / "验收结果.md")}, ensure_ascii=False))
+                      "report": str(output / "验收结果.md")}, ensure_ascii=True))
     return 0 if passed == len(rows) else 1
 
 
