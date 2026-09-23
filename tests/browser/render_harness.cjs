@@ -38,6 +38,7 @@ function harness() {
     'nextSteps', 'keyFacts', 'mustCheck', 'riskSignals', 'risks', 'actions', 'decisionBrief',
     'conclusion', 'currentRequest', 'draftBody', 'technicalDetails',
     'priority', 'category', 'confidence', 'summary', 'engine', 'fallbackBanner',
+    'draftSubject', 'draftReviewStatus', 'draftReviewReasons', 'copyButton',
   ].map(name => [name, document.createElement('div')]));
   return { context, document, fields, load, renderer: context.EmailAssistantRender };
 }

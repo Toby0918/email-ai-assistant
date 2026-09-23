@@ -102,9 +102,12 @@ test('popup clears every action on stale copy, service failure and partial rende
   result = { ok: false, error: { code: 'LOCAL_HTTP_ERROR' } };
   await get('analyze-button').dispatch('click');
   assertPageCleared(get);
-  const broken = fixture();
-  Object.defineProperty(broken.reply_draft, 'body', { get() { throw new Error('synthetic render failure'); } });
-  result = { ok: true, analysis: broken };
+  // A DOM write failure exercises partial-render cleanup without relying on unsafe input reads.
+  Object.defineProperty(get('draft'), 'value', {
+    get() { return ''; },
+    set(value) { if (value) throw new Error('synthetic DOM failure'); },
+  });
+  result = { ok: true, analysis: fixture() };
   await get('analyze-button').dispatch('click');
   assertPageCleared(get);
 });
