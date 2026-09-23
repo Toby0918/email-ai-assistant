@@ -24,6 +24,11 @@
         <div class="analysis-surface">
         <p id="fallback-banner" class="fallback-banner" hidden>远程模型结果未采用，本次使用安全规则结果。</p>
         <article class="work-card" aria-labelledby="work-conclusion">
+          <div class="decision-signals" role="group" aria-label="决策摘要">
+            <span class="decision-signals__item">优先级：<strong id="priority">-</strong></span>
+            <span class="decision-signals__item">分类：<strong id="category">-</strong></span>
+            <span class="decision-signals__item">置信度：<strong id="confidence">-</strong></span>
+          </div>
           <section class="work-card__section">
             <p class="work-card__label">处理结论</p>
             <h2 id="work-conclusion" class="work-card__conclusion">暂无分析</h2>
@@ -88,8 +93,6 @@
           <div class="analysis-details__body">
             <div id="technical-details">-</div>
             <div id="summary">暂无分析</div>
-            <div id="priority">-</div>
-            <div id="category">-</div>
             <div id="engine">-</div>
             <div id="decision-brief" class="analysis-list-field">-</div>
           </div>
