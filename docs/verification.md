@@ -1,5 +1,5 @@
 ---
-last_update: 2026-09-19
+last_update: 2026-09-23
 status: active
 owner: "@tobyWang"
 review_cycle: as_needed
@@ -7,6 +7,13 @@ source_type: operation_guide
 ---
 
 # Independent desktop verification
+
+## Browser Action Console, 2026-09-23
+
+Extension 0.2.5 adds the guarded evidence layer and lifecycle checks on top of
+the decision summary, action queue and read-only draft card. Current browser
+verification and deployment instructions are in [browser_verification.md](browser_verification.md).
+The earlier desktop counts below remain historical receipts, not current totals.
 
 ## Current-email acceptance, 2026-09-19
 

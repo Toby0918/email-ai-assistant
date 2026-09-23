@@ -104,6 +104,7 @@
   const ATTACHMENT_WINDOWS_PATH_MARKER_PATTERN = /(^|[^A-Za-z0-9])[A-Za-z]:[\\/]/;
   const ATTACHMENT_UNC_PATH_MARKER_PATTERN = /\\\\/;
   const ATTACHMENT_POSIX_PATH_MARKER_PATTERN = /(^|[\s="'(=：])\/[A-Za-z0-9._-]/;
+  const SENSITIVE_EVIDENCE_PATTERN = /\b(?:cookie|set-cookie|authorization|bearer|api[_ -]?key|access[_ -]?token|refresh[_ -]?token|token|password|secret)\b\s*[:=：]|\bbearer\s+\S+|\bsk-[A-Za-z0-9_-]{8,}|\b(?:traceback|stack trace|provider diagnostics?)\b/i;
 
   function renderAnalysis(fields, analysis) {
     const engine = engineSnapshot(ownDataProperty(analysis, "analysis_engine", "object"));
@@ -124,13 +125,13 @@
       renderDecisionBrief(fields.decisionBrief, briefValue);
     }
     if (fields.conversationTimeline) {
-      renderConversationTimeline(fields.conversationTimeline, analysis.conversation_timeline);
+      renderConversationTimeline(fields.conversationTimeline, ownDataProperty(analysis, "conversation_timeline", "object"));
     }
     if (fields.attachmentInsights) {
-      renderAttachmentInsights(fields.attachmentInsights, analysis.attachment_insights);
+      renderAttachmentInsights(fields.attachmentInsights, dataList(analysis, "attachment_insights"));
     }
-    if (fields.attachments && Array.isArray(analysis.attachments)) {
-      renderAttachments(fields.attachments, analysis.attachments);
+    if (fields.attachments && Array.isArray(ownDataProperty(analysis, "attachments", "object"))) {
+      renderAttachments(fields.attachments, dataList(analysis, "attachments"));
     }
     if (fields.risks) {
       renderListField(fields.risks, risks, formatRisk);
@@ -375,8 +376,8 @@
 
     const type = formatRiskType(item.type);
     const level = formatRiskLevel(item.level);
-    const evidence = textOrFallback(item.evidence, "");
-    const recommendation = textOrFallback(item.recommendation, "");
+    const evidence = safeAttachmentText(item.evidence, "");
+    const recommendation = safeAttachmentText(item.recommendation, "");
     const title = [type || "风险", level ? `（${level}）` : ""].join("");
     return structuredItem(title, [
       detailLine("依据", evidence),
@@ -462,13 +463,14 @@
 
   function formatAttachment(item) {
     if (!isPlainObject(item)) {
-      return textOrFallback(item, "");
+      return safeAttachmentText(item, "");
     }
-    const filename = textOrFallback(item.filename, "");
+    const filename = safeAttachmentText(ownDataProperty(item, "filename", "string"), "");
     if (!filename) {
       return "";
     }
-    const details = [textOrFallback(item.size, ""), textOrFallback(item.type, "")]
+    const size = ownDataProperty(item, "size", "string") || ownDataProperty(item, "size", "number");
+    const details = [safeAttachmentText(size, ""), safeAttachmentText(ownDataProperty(item, "type", "string"), "")]
       .filter(Boolean)
       .join(", ");
     return details ? `${filename} (${details})` : filename;
@@ -484,19 +486,24 @@
       return;
     }
 
+    timeline = {
+      ...stringRecord(timeline, ["previous_context", "current_status", "status_reason",
+        "latest_external_request", "latest_internal_commitment", "confidence"]),
+      open_items: recordList(timeline, "open_items", ["item", "owner_hint", "due_hint", "source"]),
+    };
     const items = [
       structuredItem("前情", [
-        detailLine("", safeDisplayText(timeline.previous_context, "暂无可用前情")),
+        detailLine("", safeAttachmentText(timeline.previous_context, "暂无可用前情")),
       ]),
       structuredItem("当前状态", [
         detailLine("状态", formatTimelineStatus(timeline.current_status)),
-        detailLine("原因", safeDisplayText(timeline.status_reason, "未提供状态说明")),
+        detailLine("原因", safeAttachmentText(timeline.status_reason, "未提供状态说明")),
       ]),
       structuredItem("最新外部请求", [
-        detailLine("", safeDisplayText(timeline.latest_external_request, "暂无明确外部请求")),
+        detailLine("", safeAttachmentText(timeline.latest_external_request, "暂无明确外部请求")),
       ]),
       structuredItem("最新内部承诺", [
-        detailLine("", safeDisplayText(timeline.latest_internal_commitment, "暂无明确内部承诺")),
+        detailLine("", safeAttachmentText(timeline.latest_internal_commitment, "暂无明确内部承诺")),
       ]),
       structuredItem("置信度", [
         detailLine("", formatTimelineConfidence(timeline.confidence)),
@@ -516,28 +523,24 @@
   }
 
   function formatOpenItem(item, index) {
-    const source = {
+    const source = allowlistedLabel({
       thread: "会话",
       attachment: "附件",
-    }[item.source] || "未注明";
+    }, item.source, "未注明");
     return structuredItem("待办 " + (index + 1), [
-      detailLine("事项", safeDisplayText(item.item, "未提供事项说明")),
+      detailLine("事项", safeAttachmentText(item.item, "未提供事项说明")),
       detailLine("负责人", formatOwnerHint(item.owner_hint)),
-      detailLine("期限", safeDisplayText(item.due_hint, "未指定")),
+      detailLine("期限", safeAttachmentText(item.due_hint, "未指定")),
       detailLine("来源", source),
     ]);
   }
 
   function formatTimelineStatus(value) {
-    return TIMELINE_STATUS_LABELS[value] || "状态未知";
+    return allowlistedLabel(TIMELINE_STATUS_LABELS, value, "状态未知");
   }
 
   function formatTimelineConfidence(value) {
-    return {
-      high: "高",
-      medium: "中",
-      low: "低",
-    }[value] || "未知";
+    return allowlistedLabel(CONFIDENCE_LABELS, value, "未知");
   }
 
   function renderAttachmentInsights(field, insights) {
@@ -576,14 +579,22 @@
     if (!isPlainObject(insight)) {
       return null;
     }
-    const status = ATTACHMENT_STATUS_LABELS[insight.status] || "状态未知";
-    const summaryFallback = insight.status === "parsed" ? "未提供解析摘要" : "暂无可用摘要";
-    const facts = safeAttachmentStringList(insight.key_facts);
+    insight = {
+      ...stringRecord(insight, ["filename", "type", "status", "summary"]),
+      key_facts: dataList(insight, "key_facts"),
+      limitations: dataList(insight, "limitations"),
+    };
+    const status = allowlistedLabel(ATTACHMENT_STATUS_LABELS, insight.status, "状态未知");
+    const parsed = insight.status === "parsed";
+    const facts = parsed ? safeAttachmentStringList(insight.key_facts) : [];
     const limitations = safeAttachmentStringList(insight.limitations);
     const lines = [
       detailLine("类型", formatAttachmentType(insight.type)),
       detailLine("状态", status),
-      detailLine("摘要", safeAttachmentText(insight.summary, summaryFallback)),
+      detailLine("读取说明", parsed
+        ? "已读取受限内容，不代表业务含义正确，仍需人工核查。"
+        : "未取得可用解析内容；仅展示附件信息与读取限制。"),
+      detailLine("摘要", parsed ? safeAttachmentText(insight.summary, "未提供解析摘要") : "暂无可用摘要"),
     ];
     if (facts.length === 0) {
       lines.push(detailLine("关键事实", "暂无关键事实"));
@@ -591,18 +602,15 @@
       facts.forEach((fact, index) => lines.push(detailLine("关键事实 " + (index + 1), fact)));
     }
     if (limitations.length === 0) {
-      const fallback = insight.status === "parsed"
-        ? "无已知解析限制"
-        : "未提供限制说明，需人工核查";
-      lines.push(detailLine("限制", fallback));
+      lines.push(detailLine("限制", "未提供限制说明，需人工核查"));
     } else {
       limitations.forEach((limitation, index) => lines.push(detailLine("限制 " + (index + 1), limitation)));
     }
-    return structuredItem(safeDisplayText(insight.filename, "未命名附件"), lines);
+    return structuredItem(safeAttachmentText(insight.filename, "未命名附件"), lines);
   }
 
   function formatAttachmentType(value) {
-    return ATTACHMENT_TYPE_LABELS[value] || safeDisplayText(value, "未知类型");
+    return allowlistedLabel(ATTACHMENT_TYPE_LABELS, value, "未知类型");
   }
 
   function safeAttachmentStringList(value) {
@@ -616,6 +624,9 @@
     const text = safeDisplayText(value, "");
     if (!text) {
       return fallback;
+    }
+    if (SENSITIVE_EVIDENCE_PATTERN.test(text)) {
+      return "[已隐藏敏感信息或诊断内容]";
     }
     return containsAttachmentPrivateReference(text) ? ATTACHMENT_REDACTION : text;
   }

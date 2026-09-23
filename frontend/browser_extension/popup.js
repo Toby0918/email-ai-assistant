@@ -55,8 +55,9 @@ async function analyzeCurrentMessage() {
       return;
     }
     if (!extraction.ok) {
-      fields.status.textContent = extraction.error ||
-        "Open a Tencent Exmail message or select email body text from that opened message first";
+      fields.status.textContent = extraction.error === "Open a Tencent Exmail tab first"
+        ? "Open a Tencent Exmail tab first"
+        : "Open a Tencent Exmail message or select email body text from that opened message first";
       return;
     }
     if (!hasUsableExtractedBody(extraction)) {
@@ -130,11 +131,11 @@ async function analyzeCurrentMessage() {
       fields.status.textContent = "Local analysis service unavailable. Please try again";
     }
   } finally {
-    clearManualAttachmentSelection();
     manualResult = null;
     mergedResult = null;
     analysisPayload = null;
     if (generation === analysisGeneration) {
+      clearManualAttachmentSelection();
       fields.analyzeButton.disabled = false;
       if (fields.manualAttachmentInput) {
         fields.manualAttachmentInput.disabled = false;
@@ -172,6 +173,7 @@ async function readManualAttachmentFiles() {
   ) {
     throw new Error("Manual attachment reader is unavailable.");
   }
+  setBusy(true, "正在读取所选附件。");
   return EmailAssistantManualAttachmentFiles.readSelectedFiles(files);
 }
 

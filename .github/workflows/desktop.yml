@@ -45,6 +45,11 @@ jobs:
           Copy-Item -LiteralPath 'Cache/sqlite/sqlite3.dll' -Destination (Join-Path $pythonRoot 'DLLs/sqlite3.dll')
           python -c "import sqlite3; assert sqlite3.sqlite_version == '3.53.4'"
           if ($LASTEXITCODE -ne 0) { throw 'SQLite runtime mismatch' }
+      - name: Check repository maintenance, leakage patterns and source status
+        shell: pwsh
+        run: |
+          python -B scripts/check_repository.py
+          if ($LASTEXITCODE -ne 0) { throw 'Repository checks failed' }
       - name: Test, package and run the executable self-test
         shell: pwsh
         run: ./scripts/build_windows.ps1 -PythonExecutable (Get-Command python).Source
@@ -70,6 +75,7 @@ jobs:
           name: desktop-self-test
           path: |
             Build/desktop-self-test.json
+            Build/project-status.json
             Build/business-acceptance/**
           if-no-files-found: warn
           retention-days: 14
