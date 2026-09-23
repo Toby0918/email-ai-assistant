@@ -101,15 +101,19 @@
         <section class="draft-section" aria-label="回复草稿">
           <div class="draft-card">
             <div class="draft-header">
-              <span class="draft-title">回复草稿</span>
-              <button id="copy-draft-button" type="button">复制草稿</button>
+              <div>
+                <h3 class="draft-title">回复草稿</h3>
+                <strong id="draft-review-status">需要人工审核</strong>
+              </div>
+              <button id="copy-draft-button" type="button" aria-describedby="draft-review-status draft-copy-notice" disabled>复制草稿</button>
             </div>
+            <p id="draft-copy-notice" class="draft-copy-notice" role="note">请先人工核对。复制仅包含正文，不会发送邮件。</p>
             <p class="draft-card__label">主题</p>
             <p id="draft-subject" class="draft-subject">-</p>
             <label for="draft" class="draft-card__label">正文</label>
-            <textarea id="draft" rows="5" readonly></textarea>
+            <textarea id="draft" rows="5" aria-describedby="draft-review-status draft-review-reasons" readonly></textarea>
             <div class="draft-review">
-              <strong id="draft-review-status">需要人工审核</strong>
+              <p class="draft-card__label">复制前核查</p>
               <div id="draft-review-reasons" class="analysis-list-field">-</div>
             </div>
           </div>

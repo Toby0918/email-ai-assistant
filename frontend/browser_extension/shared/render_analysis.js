@@ -144,7 +144,7 @@
       renderListField(fields.actions, recordList(analysis, "suggested_actions",
         ["type", "description", "owner_hint", "due_hint"]), formatAction);
     }
-    renderDraft(fields, analysis.reply_draft);
+    renderDraft(fields, ownDataProperty(analysis, "reply_draft", "object"));
   }
 
   function clearAnalysis(fields) {
@@ -181,6 +181,9 @@
     renderPlaceholderIfPresent(fields.risks);
     renderPlaceholderIfPresent(fields.actions);
     setFieldValue(fields.draftBody || fields.draft, "");
+    if (fields.copyButton) {
+      fields.copyButton.disabled = true;
+    }
     setFieldText(fields.draftSubject, "-");
     setFieldText(fields.draftReviewStatus, "需要人工审核");
     renderPlaceholderIfPresent(fields.draftReviewReasons);
@@ -318,20 +321,20 @@
   }
 
   function renderDraft(fields, value) {
-    const draft = isPlainObject(value) ? value : {};
-    const subject = textOrFallback(draft.subject, "-");
-    const body = textOrFallback(draft.body, "");
+    const subject = textOrFallback(ownDataProperty(value, "subject", "string"), "-");
+    const body = ownDataProperty(value, "body", "string") || "";
     setFieldText(fields.draftSubject, subject);
     setFieldValue(fields.draftBody || fields.draft, body);
     if (fields.draft && fields.draft !== fields.draftBody) {
       setFieldValue(fields.draft, body);
     }
-    setFieldText(
-      fields.draftReviewStatus,
-      draft.needs_human_review === true ? "需要人工审核" : "请在使用前人工审核",
-    );
+    if (fields.copyButton) {
+      fields.copyButton.disabled = !body.trim();
+    }
+    setFieldText(fields.draftReviewStatus, "需要人工审核");
     if (fields.draftReviewReasons) {
-      const reasons = Array.isArray(draft.review_reasons) ? draft.review_reasons : [];
+      const reasons = dataList(value, "review_reasons")
+        .filter((reason) => typeof reason === "string" && reason.trim());
       renderNonLinkedItems(
         fields.draftReviewReasons,
         reasons.map((reason) => structuredItem("", [detailLine("", reason)])),

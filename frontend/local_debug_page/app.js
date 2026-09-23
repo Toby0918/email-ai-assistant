@@ -94,16 +94,22 @@ fields.analyzeButton.addEventListener("click", async () => {
 });
 
 fields.copyButton.addEventListener("click", async () => {
-  const draft = fields.draftBody.value.trim();
-  if (!draft) {
+  const draft = fields.draftBody.value;
+  if (!draft.trim()) {
     fields.status.textContent = "No draft to copy";
     return;
   }
+  const generation = analysisGeneration;
+  const isCurrentDraft = () => generation === analysisGeneration && fields.draftBody.value === draft;
   try {
-    await navigator.clipboard.writeText(fields.draftBody.value);
-    fields.status.textContent = "Draft copied";
+    await navigator.clipboard.writeText(draft);
+    if (isCurrentDraft()) {
+      fields.status.textContent = "Draft copied";
+    }
   } catch (error) {
-    fields.status.textContent = "Copy failed";
+    if (isCurrentDraft()) {
+      fields.status.textContent = "Copy failed";
+    }
   }
 });
 

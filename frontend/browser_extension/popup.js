@@ -209,29 +209,34 @@ function attachmentMetadataForRender(payload, attachmentFiles) {
 }
 
 document.querySelector("#copy-draft-button").addEventListener("click", async () => {
-  const draft = fields.draft.value.trim();
-  if (!draft) {
+  const draft = fields.draft.value;
+  if (!draft.trim()) {
     fields.status.textContent = "No draft to copy";
     return;
   }
 
   const generation = analysisGeneration;
   const messageContext = renderedMessageContext;
+  const isCurrentDraft = () => generation === analysisGeneration &&
+    renderedMessageContext === messageContext && fields.draft.value === draft;
   if (
     !messageContext ||
     !await revalidateMessageContext(messageContext) ||
-    generation !== analysisGeneration ||
-    renderedMessageContext !== messageContext
+    !isCurrentDraft()
   ) {
     showStaleState(generation);
     return;
   }
 
   try {
-    await navigator.clipboard.writeText(fields.draft.value);
-    fields.status.textContent = "Draft copied";
+    await navigator.clipboard.writeText(draft);
+    if (isCurrentDraft()) {
+      fields.status.textContent = "Draft copied";
+    }
   } catch (error) {
-    fields.status.textContent = "Copy failed";
+    if (isCurrentDraft()) {
+      fields.status.textContent = "Copy failed";
+    }
   }
 });
 
@@ -298,11 +303,13 @@ async function revalidateMessageContext(messageContext) {
     const result = await chrome.tabs.sendMessage(tab.id, {
       type: "REVALIDATE_CURRENT_EMAIL",
     });
-    return Boolean(
-      result &&
-      result.ok === true &&
-      result.message_fingerprint === messageContext.fingerprint,
-    );
+    if (!result || result.ok !== true || result.message_fingerprint !== messageContext.fingerprint) {
+      return false;
+    }
+    // The operator may switch tabs while the content script is answering.
+    const currentTabs = await chrome.tabs.query({ active: true, currentWindow: true });
+    const currentTab = currentTabs && currentTabs[0];
+    return Boolean(currentTab && currentTab.id === messageContext.tabId && currentTab.url === tab.url);
   } catch (error) {
     return false;
   }
