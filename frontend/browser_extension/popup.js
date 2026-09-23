@@ -7,6 +7,7 @@ const fields = {
   nextSteps: document.querySelector("#work-next-steps"),
   keyFacts: document.querySelector("#work-key-facts"),
   mustCheck: document.querySelector("#work-must-check"),
+  riskSignals: document.querySelector("#work-risk-signals"),
   technicalDetails: document.querySelector("#technical-details"),
   priority: document.querySelector("#priority"),
   summary: document.querySelector("#summary"),
@@ -123,6 +124,8 @@ async function analyzeCurrentMessage() {
     fields.status.textContent = "分析完成";
   } catch (error) {
     if (generation === analysisGeneration) {
+      renderedMessageContext = null;
+      EmailAssistantRender.clearAnalysis(fields);
       fields.status.textContent = "Local analysis service unavailable. Please try again";
     }
   } finally {

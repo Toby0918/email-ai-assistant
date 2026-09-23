@@ -136,6 +136,36 @@ details > summary {
   color: var(--action-console-muted);
 }
 
+.action-queue {
+  display: grid;
+  gap: 12px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.action-queue > li {
+  min-width: 0;
+}
+
+.action-queue .analysis-list__item {
+  border-left-color: var(--action-console-action);
+}
+
+.reply-checks {
+  border: 1px solid #e0a800;
+  border-radius: 10px;
+  padding: 12px;
+  background: #fff7d6;
+  color: #5b4300;
+}
+
+.reply-checks .work-card__label,
+.reply-checks .analysis-list__label {
+  color: #5b4300;
+}
+
 .draft-header {
   display: flex;
   align-items: center;

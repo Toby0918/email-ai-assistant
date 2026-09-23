@@ -106,6 +106,8 @@
   function renderAnalysis(fields, analysis) {
     const engine = engineSnapshot(analysis.analysis_engine);
     const presentation = enginePresentation(engine);
+    const risks = recordList(analysis, "risk_flags", ["type", "level", "evidence", "recommendation"])
+      .filter((risk) => formatRiskType(risk.type) && formatRiskLevel(risk.level));
     renderTaskCard(fields, analysis, engine, presentation);
     setFieldText(fields.priority, formatPriority(analysis.priority));
     setFieldText(fields.summary, textOrFallback(analysis.summary, "未返回摘要"));
@@ -114,7 +116,7 @@
       fields.engine.textContent = presentation.label;
     }
     if (fields.decisionBrief) {
-      renderDecisionBrief(fields.decisionBrief, analysis.decision_brief);
+      renderDecisionBrief(fields.decisionBrief, ownDataProperty(analysis, "decision_brief", "object"));
     }
     if (fields.conversationTimeline) {
       renderConversationTimeline(fields.conversationTimeline, analysis.conversation_timeline);
@@ -126,10 +128,16 @@
       renderAttachments(fields.attachments, analysis.attachments);
     }
     if (fields.risks) {
-      renderListField(fields.risks, analysis.risk_flags, formatRisk);
+      renderListField(fields.risks, risks, formatRisk);
+    }
+    if (fields.riskSignals) {
+      renderNonLinkedItems(fields.riskSignals, risks.map((risk) => structuredItem(
+        `${formatRiskType(risk.type)}（${formatRiskLevel(risk.level)}）`, [],
+      )), "暂无已识别风险信号");
     }
     if (fields.actions) {
-      renderListField(fields.actions, analysis.suggested_actions, formatAction);
+      renderListField(fields.actions, recordList(analysis, "suggested_actions",
+        ["type", "description", "owner_hint", "due_hint"]), formatAction);
     }
     renderDraft(fields, analysis.reply_draft);
   }
@@ -143,6 +151,7 @@
     renderPlaceholderIfPresent(fields.nextSteps);
     renderPlaceholderIfPresent(fields.keyFacts);
     renderPlaceholderIfPresent(fields.mustCheck);
+    renderPlaceholderIfPresent(fields.riskSignals);
     renderPlaceholderIfPresent(fields.technicalDetails);
     if (fields.fallbackBanner) {
       fields.fallbackBanner.hidden = true;
@@ -172,7 +181,7 @@
   }
 
   function renderTaskCard(fields, analysis, engine, presentation) {
-    const brief = isPlainObject(analysis.decision_brief) ? analysis.decision_brief : {};
+    const brief = decisionBriefSnapshot(ownDataProperty(analysis, "decision_brief", "object"));
     setFieldText(fields.conclusion, textOrFallback(
       brief.one_line_conclusion,
       textOrFallback(analysis.summary, "暂无分析结论"),
@@ -196,10 +205,23 @@
           detailLine("事项", textOrFallback(item.step, "")),
           detailLine("负责人", formatOwnerHint(item.owner_hint)),
           detailLine("时间", textOrFallback(item.due_hint, "未指定")),
+          detailLine("来源", textOrFallback(item.source, "")),
         ],
       ))
       : [];
-    renderNonLinkedItems(field, items, "暂无建议动作");
+    if (!items.length || !canRenderChildren(field)) {
+      renderNonLinkedItems(field, items, "暂无建议动作");
+      return;
+    }
+    const doc = field.ownerDocument || document;
+    const queue = doc.createElement("ol");
+    queue.className = "action-queue";
+    for (const item of items) {
+      const row = doc.createElement("li");
+      row.appendChild(renderFormattedItem(doc, item));
+      queue.appendChild(row);
+    }
+    field.replaceChildren(queue);
   }
 
   function renderTaskFacts(field, facts) {
@@ -212,6 +234,33 @@
         : structuredItem("", [detailLine("", textOrFallback(item, ""))]))
       : [];
     renderNonLinkedItems(field, items, "暂无关键事实");
+  }
+
+  // Presentation only consumes own data fields; optional objects/accessors are not text.
+  function decisionBriefSnapshot(value) {
+    return {
+      ...stringRecord(value, ["one_line_conclusion", "requested_outcome", "confidence"]),
+      next_steps: recordList(value, "next_steps", ["step", "owner_hint", "due_hint", "source"])
+        .filter((item) => item.step).slice(0, 4),
+      key_facts: recordList(value, "key_facts", ["label", "value", "source"])
+        .filter((item) => item.value),
+      must_check: dataList(value, "must_check").filter((item) => typeof item === "string" && item.trim()),
+      missing_info: dataList(value, "missing_info").filter((item) => typeof item === "string" && item.trim()),
+      reply_recommendation: ownDataProperty(value, "reply_recommendation", "object"),
+    };
+  }
+
+  function stringRecord(value, keys) {
+    return Object.fromEntries(keys.map((key) => [key, ownDataProperty(value, key, "string") || ""]));
+  }
+
+  function dataList(value, key) {
+    const items = ownDataProperty(value, key, "object");
+    return Array.isArray(items) ? items : [];
+  }
+
+  function recordList(value, key, keys) {
+    return dataList(value, key).filter(isPlainObject).map((item) => stringRecord(item, keys));
   }
 
   function renderMustCheck(field, mustCheck, missingInfo) {
@@ -613,6 +662,7 @@
     if (!isPlainObject(value)) {
       return [];
     }
+    value = decisionBriefSnapshot(value);
     const items = [];
     items.push(structuredItem("行动结论", [
       detailLine("结论", textOrFallback(value.one_line_conclusion, "")),
@@ -643,6 +693,7 @@
       textOrFallback(item.step, ""),
       item.owner_hint ? `负责人：${formatOwnerHint(item.owner_hint)}` : "",
       item.due_hint ? `期限：${item.due_hint}` : "",
+      item.source ? `来源：${item.source}` : "",
     ].filter(Boolean).join("；");
     return detailLine(String(index + 1), details);
   }
@@ -806,23 +857,22 @@
   }
 
   function formatRiskType(value) {
-    const text = textOrFallback(value, "");
-    return text ? RISK_LABELS[text] || text : "";
+    return Object.prototype.hasOwnProperty.call(RISK_LABELS, value) ? RISK_LABELS[value] : "";
   }
 
   function formatRiskLevel(value) {
-    const text = textOrFallback(value, "");
-    return text ? RISK_LEVEL_LABELS[text] || text : "";
+    return Object.prototype.hasOwnProperty.call(RISK_LEVEL_LABELS, value) ? RISK_LEVEL_LABELS[value] : "";
   }
 
   function formatActionType(value) {
     const text = textOrFallback(value, "");
-    return text ? ACTION_LABELS[text] || text : "";
+    return Object.prototype.hasOwnProperty.call(ACTION_LABELS, text) ? ACTION_LABELS[text] : "";
   }
 
   function formatOwnerHint(value) {
-    const key = textOrFallback(value, "").toLowerCase();
-    return OWNER_LABELS[key] || "相关负责人";
+    const key = typeof value === "string" ? value.trim().toLowerCase() : "";
+    return Object.prototype.hasOwnProperty.call(OWNER_LABELS, key)
+      ? OWNER_LABELS[key] : "相关负责人";
   }
 
   function isPlainObject(value) {
@@ -834,8 +884,7 @@
   }
 
   function textOrFallback(value, fallback) {
-    const text = String(value || "").trim();
-    return text || fallback;
+    return safeDisplayText(value, fallback);
   }
 
   window.EmailAssistantRender = {
