@@ -13,6 +13,7 @@ const fields = {
   nextSteps: document.querySelector("#work-next-steps"),
   keyFacts: document.querySelector("#work-key-facts"),
   mustCheck: document.querySelector("#work-must-check"),
+  riskSignals: document.querySelector("#work-risk-signals"),
   technicalDetails: document.querySelector("#technical-details"),
   priority: document.querySelector("#priority"),
   summary: document.querySelector("#summary"),
@@ -42,6 +43,15 @@ const ANALYSIS_ERROR_STATUSES = Object.freeze({
   LOCAL_HTTP_ERROR: "本地分析服务请求失败，请重试。",
 });
 let analysisGeneration = 0;
+
+for (const field of [fields.subject, fields.from, fields.to, fields.sentAt, fields.attachmentsInput, fields.body]) {
+  field.addEventListener("input", () => {
+    analysisGeneration += 1;
+    EmailAssistantRender.clearAnalysis(fields);
+    fields.analyzeButton.disabled = false;
+    fields.status.textContent = "Email changed; analyze again";
+  });
+}
 
 fields.analyzeButton.addEventListener("click", async () => {
   const generation = ++analysisGeneration;
