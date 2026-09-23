@@ -14,7 +14,9 @@ DeepSeek 当前采用保守补充模式：AI 可补充摘要、分类等信息�
 
 ## 腾讯企业邮箱扩展
 
-产品扩展 0.2.4 保存在 `frontend\browser_extension`，在已保留的 0.2.3 上增加当前 DeepSeek 文本回退名称的兼容显示。它仍使用 `127.0.0.1:8765`，桌面程序启动时提供兼容后端。需要在 Chrome/Edge 的扩展管理页手动“加载已解压的扩展”并选择此文件夹。桌面程序本身不自动安装扩展或读取浏览器邮件。
+产品扩展 0.2.5 保存在 `frontend\browser_extension`，包含行动摘要、行动队列、只读审核复制卡及分层证据展示。附件“已解析”仅表示读到受限内容，不保证业务含义正确。它仍使用 `127.0.0.1:8765`，桌面程序启动时提供兼容后端。需要在 Chrome/Edge 的扩展管理页手动“加载已解压的扩展”并选择此文件夹。桌面程序本身不自动安装扩展或读取浏览器邮件。
+
+更新扩展后，在扩展管理页点击“重新加载”，并刷新已打开的腾讯邮箱页面，再重新分析当前邮件。浏览器部署、测试和当前验收状态见 [browser_verification.md](docs/browser_verification.md)。
 
 桌面粘贴分析可以独立使用；腾讯邮箱页面中的当前邮件提取由浏览器扩展承担。当前没有在真实邮箱中重新验收页面提取。
 
@@ -46,6 +48,7 @@ DeepSeek 当前采用保守补充模式：AI 可补充摘要、分类等信息�
 
 ```powershell
 .\Runtime\Python3147\python.exe -B -m unittest discover -s tests
+.\Runtime\Python3147\python.exe -B scripts\check_repository.py
 .\scripts\build_windows.ps1
 ```
 
