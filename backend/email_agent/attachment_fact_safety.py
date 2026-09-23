@@ -5,6 +5,8 @@ from __future__ import annotations
 import re
 
 from .attachment_identifiers import valid_constructed_reference
+from .price_basis import valid_price_fact
+from .document_business_facts import valid_document_fact
 
 
 MAX_ATTACHMENT_FACTS = 5
@@ -61,6 +63,10 @@ def sanitize_constructed_fact(value: object) -> str:
     if normalized.startswith("Reference: "):
         identifier = normalized.removeprefix("Reference: ")
         return normalized if valid_constructed_reference(identifier) else ""
+    if normalized.startswith("Price basis: "):
+        return normalized if valid_price_fact(normalized) else ""
+    if valid_document_fact(normalized):
+        return normalized
     return normalized if any(pattern.fullmatch(normalized) for pattern in _CONSTRUCTED_FACTS) else ""
 
 

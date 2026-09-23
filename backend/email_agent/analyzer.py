@@ -72,6 +72,7 @@ def analyze_current_email(
         fallback = build_rule_based_analysis(
             subject, sender, clean_body, attachment_insights=insights,
             conversation_timeline=timeline.public_timeline,
+            visible_history=str(email.get("body_text") or "")[:20_000],
         )
         context = _route_context(
             email, subject, sender, clean_body, timeline, bundles, insights,

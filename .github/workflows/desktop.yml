@@ -48,6 +48,11 @@ jobs:
       - name: Test, package and run the executable self-test
         shell: pwsh
         run: ./scripts/build_windows.ps1 -PythonExecutable (Get-Command python).Source
+      - name: Verify bounded synthetic business checkpoints
+        shell: pwsh
+        run: |
+          python -B scripts/check_business_acceptance.py
+          if ($LASTEXITCODE -ne 0) { throw 'Business checkpoint verification failed' }
       - name: Upload runnable Windows package
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -63,6 +68,8 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: desktop-self-test
-          path: Build/desktop-self-test.json
+          path: |
+            Build/desktop-self-test.json
+            Build/business-acceptance/**
           if-no-files-found: warn
           retention-days: 14

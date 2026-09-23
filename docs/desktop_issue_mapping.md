@@ -5,6 +5,20 @@ The four UI issues below originally specify browser side-panel/local-web behavio
 Their history and unchecked acceptance remain open. Native desktop coverage is
 recorded separately; it is not evidence of Tencent mailbox extraction acceptance.
 
+## Business repair delivery, 2026-09-23
+
+[Issue #135](https://github.com/Toby0918/email-ai-assistant/issues/135) tracks
+the current-email business repairs implemented after PR #134. Their bounded
+specification and verification are in `business_acceptance.md` and
+`business_repair_20260922.md`. The recorded local baseline is 236 tests,
+22 synthetic checkpoints, executable self-test, and 41 explicit checks across
+eight selected real GUI cases. These records are distinct from hosted checks
+on the delivery commit and from operator business sign-off.
+
+Issue #135 changes bounded backend behavior, so it is a separate delivery from
+the original browser-only UI tickets below. The historical browser acceptance
+criteria and dependencies remain intact; this delivery does not close them.
+
 | Issue | Desktop coverage | Remaining original scope |
 | --- | --- | --- |
 | [#24 Decision summary](https://github.com/Toby0918/email-ai-assistant/issues/24) | Conclusion and requested outcome appear in the advice tab; provider identity appears in status/details. | Browser shared-renderer hierarchy, allowlisted priority/category/confidence presentation and pending/unknown-engine states need their original verification. |

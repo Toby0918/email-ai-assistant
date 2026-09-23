@@ -10,6 +10,9 @@ from html.parser import HTMLParser
 _SKIPPED_HTML_TAGS = {"script", "style", "blockquote"}
 DEFAULT_THREAD_SEGMENT_MAX_CHARS = 2_000
 DEFAULT_THREAD_SOURCE_MAX_CHARS = 20_000
+_HISTORY_FROM = re.compile(r"^\s*(?:from|de|发件人)\s*[:：]\s*\S", re.I)
+_HISTORY_SENT = re.compile(r"^\s*(?:sent|date|enviad[ao](?:\s+(?:em|el))?|发送时间|日期)\s*[:：]", re.I)
+_HISTORY_CONTEXT = re.compile(r"^\s*(?:to|para|subject|assunto|asunto|收件人|主题)\s*[:：]", re.I)
 
 
 # Reduce HTML to plain text before prompt construction to limit markup influence.
@@ -49,7 +52,17 @@ def clean_email_body(body_text: str | None = None, body_html: str | None = None)
     html_source = body_html if isinstance(body_html, str) else ""
     source = _html_to_text(html_source) if html_source else text_source
     source = _strip_quote_history(source)
-    return _normalize_text(source)
+    return _normalize_text(strip_business_boilerplate(source))
+
+
+def strip_business_boilerplate(text: str) -> str:
+    """Remove standalone notices, never a whole tail or a business clause."""
+    notice = re.compile(
+        r'Internal Communication:\s*For internal\s*&\s*partner use only\.?|'
+        r'Unless otherwise agreed in writing, all business is subject to the '
+        r'[\w .–-]{1,80} Standard Trading Conditions available at '
+        r'[\w./:-]{1,180} or on request\.?', re.I)
+    return '\n'.join(line for line in text.splitlines() if not notice.fullmatch(line.strip()))
 
 
 def clean_thread_segment_text(
@@ -101,11 +114,21 @@ def _normalize_text(text: str) -> str:
 
 def _strip_quote_history(text: str) -> str:
     lines: list[str] = []
-    for line in text.splitlines():
-        if _is_quote_history_marker(line):
+    source_lines = text.splitlines()
+    for index, line in enumerate(source_lines):
+        if _is_quote_history_marker(line) or _is_history_header_block(source_lines, index):
             break
         lines.append(line)
     return "\n".join(lines)
+
+
+def _is_history_header_block(lines: list[str], index: int) -> bool:
+    """Require a header group; ordinary 'From:' / 'De:' business text survives."""
+    if not _HISTORY_FROM.match(lines[index]):
+        return False
+    following = lines[index + 1:index + 7]
+    return (any(_HISTORY_SENT.match(line) for line in following)
+            and any(_HISTORY_CONTEXT.match(line) for line in following))
 
 
 def _strip_thread_noise(text: str) -> str:

@@ -20,6 +20,7 @@ from .attachment_storage import StoredAttachment
 
 
 MAX_EXTRACTED_CHARACTERS = 8_000
+MAX_PDF_EXTRACTED_CHARACTERS = 32_000
 MAX_XLSX_CELL_CHARACTERS = 1_000
 MAX_XLSX_ROW_CHARACTERS = 1_100
 MAX_SUMMARY_CHARACTERS = 600
@@ -53,7 +54,7 @@ class TextBudget:
 
     @property
     def exhausted(self) -> bool:
-        return self.character_count >= self.limit
+        return max(self.character_count, self.fact_character_count) >= self.limit
 
     @property
     def text(self) -> str:
@@ -97,12 +98,17 @@ class TextBudget:
         self.character_count += len(addition)
 
     def _add_fact_source(self, value: str, separator: str) -> None:
-        if not value or self.fact_character_count >= self.limit:
+        if not value:
+            return
+        if self.fact_character_count >= self.limit:
+            self.truncated = True
             return
         prefix = separator if self.fact_parts else ""
         addition = f"{prefix}{_CONTROL_CHARACTERS.sub('', value)}"
         available = self.limit - self.fact_character_count
         bounded = addition[:available]
+        if len(addition) > available:
+            self.truncated = True
         self.fact_parts.append(bounded)
         self.fact_character_count += len(bounded)
 
@@ -172,15 +178,18 @@ def text_insight(
     metadata_facts: list[str] | None = None,
     *,
     fact_text: str | None = None,
+    price_facts: list[str] | None = None,
 ) -> AttachmentAnalysisBundle:
     """Build matching display and private model projections from bounded text."""
     sanitized = sanitize_text(text)
     if not sanitized:
         return metadata_only(item, f"{label} contains no readable text.", metadata_facts)
-    bounded = sanitized[:MAX_EXTRACTED_CHARACTERS].rstrip()
-    if len(sanitized) > MAX_EXTRACTED_CHARACTERS:
+    limit = MAX_PDF_EXTRACTED_CHARACTERS if label == 'PDF' else MAX_EXTRACTED_CHARACTERS
+    bounded = sanitized[:limit].rstrip()
+    if len(sanitized) > limit:
         limitations = [*limitations, "Character limit reached; remaining text was not parsed."]
-    facts = extract_attachment_facts(fact_text if fact_text is not None else bounded, metadata_facts)
+    facts = extract_attachment_facts(fact_text if fact_text is not None else bounded, metadata_facts,
+                                     price_facts=price_facts)
     display_insight = _insight(
         item,
         "parsed",

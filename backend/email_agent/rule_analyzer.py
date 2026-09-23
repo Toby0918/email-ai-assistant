@@ -6,6 +6,14 @@ import re
 from typing import Any
 
 from .analysis_schema import validate_analysis_result
+from .business_notice import apply_business_notice
+from .business_conditions import apply_business_conditions
+from .price_basis import price_statement_facts
+from .business_scope import apply_business_scope
+from .business_finance import apply_payment_evidence
+from .business_shipping import apply_shipping_evidence
+from .business_quality import apply_quality_evidence
+from .business_purchase import apply_purchase_evidence
 from .email_facts import EmailFacts
 from .model_text_safety import is_security_disclosure_request
 from .rule_context import build_rule_context
@@ -52,6 +60,7 @@ def build_rule_based_analysis(
     *,
     attachment_insights: list[dict[str, object]] | None = None,
     conversation_timeline: dict[str, object] | None = None,
+    visible_history: str = "",
 ) -> dict[str, Any]:
     insights = list(attachment_insights or [])
     timeline = conversation_timeline or build_conversation_timeline([], ())
@@ -94,6 +103,15 @@ def build_rule_based_analysis(
             facts=facts,
         ),
     }
+    apply_business_notice(result, clean_body, subject)
+    apply_business_conditions(result, clean_body)
+    apply_business_scope(result, clean_body)
+    apply_payment_evidence(result, clean_body, visible_history)
+    apply_shipping_evidence(result, clean_body)
+    apply_quality_evidence(result, clean_body, subject)
+    apply_purchase_evidence(result, clean_body, subject, visible_history)
+    for fact in price_statement_facts(clean_body):
+        result["decision_brief"]["key_facts"].append({"label": "计价基数", "value": fact, "source": "latest_message"})
     return validate_analysis_result(result)
 
 
@@ -232,7 +250,7 @@ def _action(action_type: str, category: str, text: str, facts: EmailFacts) -> di
         "type": action_type,
         "description": _action_description(action_type, category, text, facts),
         "owner_hint": _owner_hint(action_type, category),
-        "due_hint": facts.deadlines[0] if facts.deadlines else "today",
+        "due_hint": facts.deadlines[0] if facts.deadlines else "",
     }
 
 def _action_description(action_type: str, category: str, text: str, facts: EmailFacts) -> str:
@@ -277,7 +295,10 @@ def _fact_clause(facts: EmailFacts) -> str:
 
 
 def _contains(text: str, *keywords: str) -> bool:
-    return any(keyword in text for keyword in keywords)
+    # ETA is a token, not the middle of payment "details". The same rule
+    # keeps RCA out of names and internal out of unrelated longer words.
+    return any(re.search(r"(?<![a-z0-9_])" + re.escape(keyword) + r"(?![a-z0-9_])", text, re.I)
+               if keyword.isascii() else keyword in text for keyword in keywords)
 
 
 def _is_meeting_context(text: str) -> bool:

@@ -78,6 +78,53 @@ def run_self_test(project: Path) -> dict:
             assert window.completed_analysis is None and not window.reviewed.get()
             assert not window.draft.get("1.0", "end-1c").strip()
             assert "请先审核" in window.status.get()
+            # State-notice regressions must survive freezing and UI presentation.
+            window.paths = ()
+            notice_samples = (
+                ("Shipment status", "The shipment has been delivered to the receiving warehouse.", "已送达"),
+                ("Payment update", "Our finance team is processing the payment. We will send the bank slip once available.", "付款处理中"),
+                ("PPAP approval", "Please find attached the approved PPAP. The drawing has been updated to revision B.", "PPAP 已批准"),
+            )
+            for subject, body, expected in notice_samples:
+                window.fields["subject"].set(subject)
+                window.set_text(window.body, body, editable=True)
+                window.analyze_button.invoke()
+                deadline = time.monotonic() + 15
+                while window.busy and time.monotonic() < deadline:
+                    root.update()
+                    time.sleep(0.02)
+                assert not window.busy and window.completed_analysis is not None
+                assert expected in window.advice.get("1.0", "end-1c")
+                assert not window.completed_analysis["decision_brief"]["reply_recommendation"]["should_reply"]
+                assert "Thank you for the update." in window.draft.get("1.0", "end-1c")
+                assert not window.reviewed.get()
+                window.copy_draft()
+                assert "请先审核" in window.status.get()
+            pricing_book = Workbook()
+            pricing_book.active.append(["Material", "Crcy", "New Price", "Price Unit", "OPU", "Plant"])
+            pricing_book.active.append(["SYN-731-CP", "USD", 8400, 1000, "EA", "SITE-A"])
+            pricing_book.active.append(["SYN-732-BN", "INR", 624, 1, "KG", "SITE-B"])
+            pricing_path = Path(directory) / "synthetic-pricing.xlsx"
+            pricing_book.save(pricing_path)
+            pricing_book.close()
+            window.paths = (pricing_path,)
+            window.fields["subject"].set("Synthetic pricing and inspection review")
+            window.set_text(window.body, "Please review the attached table. Lot Qty.: 1400 Nos. "
+                            "Salt spray passed. Dimensional inspection failed on two samples.", editable=True)
+            window.analyze_button.invoke()
+            deadline = time.monotonic() + 15
+            while window.busy and time.monotonic() < deadline:
+                root.update()
+                time.sleep(0.02)
+            assert not window.busy and window.completed_analysis is not None
+            pricing_facts = window.completed_analysis['attachment_insights'][0]['key_facts']
+            assert any('8.40 USD/EA' in fact and 'SYN-731-CP' in fact for fact in pricing_facts)
+            assert any('624.00 INR/KG' in fact and 'SYN-732-BN' in fact for fact in pricing_facts)
+            advice = window.advice.get('1.0', 'end-1c')
+            assert '批次数量' in advice and '盐雾检验' in advice and '尺寸检验' in advice
+            assert not window.reviewed.get()
+            window.copy_draft()
+            assert '请先审核' in window.status.get()
             from docx import Document
             document = Document()
             document.add_paragraph("Material: brass. Finish: chrome. MOQ: 1200 pcs.")
@@ -116,6 +163,9 @@ def run_self_test(project: Path) -> dict:
                     "xlsx_window_analysis": "PASS", "changed_email_copy_gate": "PASS",
                     "delivery_rule_semantics": "PASS",
                     "draft_request_echo_rejection": "PASS",
+                    "business_notice_window_cases": 3,
+                    "business_notice_window_semantics": "PASS",
+                    "price_basis_and_scope_window_semantics": "PASS",
                     "provider_calls": 0, "live_mailbox_access": 0}
         finally:
             if root is not None:

@@ -136,7 +136,7 @@ def _decision_steps(
             "step": item["description"],
             "owner_hint": item["owner_hint"],
             "due_hint": item["due_hint"],
-            "source": "latest_message",
+            "source": "assistant_suggestion",
         }
         for item in actions[:4]
     ]
@@ -210,6 +210,8 @@ def _missing_info(
     attachment_insights: list[dict[str, object]],
 ) -> list[str]:
     items: list[str] = []
+    if _contains(text, "attachment", "attached", "附件") and not attachment_insights:
+        items.append("正文提及附件，但本次未提供可供分析的附件；内容与版本尚未核验。")
     if _contains(text, "attachment", "attached", "附件") and "附件元数据" in text:
         items.append("当前仅看到附件元数据，尚未读取附件正文")
     if _has_risk(risks, "commitment_risk"):
