@@ -12,6 +12,7 @@ const fields = {
   priority: document.querySelector("#priority"),
   summary: document.querySelector("#summary"),
   category: document.querySelector("#category"),
+  confidence: document.querySelector("#confidence"),
   engine: document.querySelector("#engine"),
   decisionBrief: document.querySelector("#decision-brief"),
   conversationTimeline: document.querySelector("#conversation-timeline"),

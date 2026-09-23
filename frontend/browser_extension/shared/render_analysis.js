@@ -18,6 +18,8 @@
     unknown: "未知",
   };
 
+  const CONFIDENCE_LABELS = { high: "高", medium: "中", low: "低" };
+
   const RISK_LABELS = {
     payment_risk: "付款风险",
     delivery_risk: "交付/物流风险",
@@ -104,19 +106,22 @@
   const ATTACHMENT_POSIX_PATH_MARKER_PATTERN = /(^|[\s="'(=：])\/[A-Za-z0-9._-]/;
 
   function renderAnalysis(fields, analysis) {
-    const engine = engineSnapshot(analysis.analysis_engine);
+    const engine = engineSnapshot(ownDataProperty(analysis, "analysis_engine", "object"));
     const presentation = enginePresentation(engine);
+    const decision = stringRecord(analysis, ["priority", "category", "summary"]);
+    const briefValue = ownDataProperty(analysis, "decision_brief", "object");
+    const brief = decisionBriefSnapshot(briefValue);
     const risks = recordList(analysis, "risk_flags", ["type", "level", "evidence", "recommendation"])
       .filter((risk) => formatRiskType(risk.type) && formatRiskLevel(risk.level));
-    renderTaskCard(fields, analysis, engine, presentation);
-    setFieldText(fields.priority, formatPriority(analysis.priority));
-    setFieldText(fields.summary, textOrFallback(analysis.summary, "未返回摘要"));
-    setFieldText(fields.category, formatCategory(analysis.category));
+    renderTaskCard(fields, brief, decision, engine, presentation);
+    setFieldText(fields.priority, formatPriority(decision.priority));
+    setFieldText(fields.summary, textOrFallback(decision.summary, "未返回摘要"));
+    setFieldText(fields.category, formatCategory(decision.category));
     if (fields.engine) {
       fields.engine.textContent = presentation.label;
     }
     if (fields.decisionBrief) {
-      renderDecisionBrief(fields.decisionBrief, ownDataProperty(analysis, "decision_brief", "object"));
+      renderDecisionBrief(fields.decisionBrief, briefValue);
     }
     if (fields.conversationTimeline) {
       renderConversationTimeline(fields.conversationTimeline, analysis.conversation_timeline);
@@ -146,6 +151,7 @@
     setFieldText(fields.priority, "-");
     setFieldText(fields.summary, "暂无分析");
     setFieldText(fields.category, "-");
+    setFieldText(fields.confidence, "-");
     setFieldText(fields.conclusion, "暂无分析");
     setFieldText(fields.currentRequest, "-");
     renderPlaceholderIfPresent(fields.nextSteps);
@@ -180,18 +186,18 @@
     renderPlaceholderIfPresent(fields.draftReviewReasons);
   }
 
-  function renderTaskCard(fields, analysis, engine, presentation) {
-    const brief = decisionBriefSnapshot(ownDataProperty(analysis, "decision_brief", "object"));
+  function renderTaskCard(fields, brief, decision, engine, presentation) {
+    setFieldText(fields.confidence, formatConfidence(brief.confidence));
     setFieldText(fields.conclusion, textOrFallback(
       brief.one_line_conclusion,
-      textOrFallback(analysis.summary, "暂无分析结论"),
+      textOrFallback(decision.summary, "暂无分析结论"),
     ));
     setFieldText(fields.currentRequest, textOrFallback(brief.requested_outcome, "暂无明确请求"));
     renderTaskSteps(fields.nextSteps, brief.next_steps);
     renderTaskFacts(fields.keyFacts, brief.key_facts);
     renderMustCheck(fields.mustCheck, brief.must_check, brief.missing_info);
     renderEngineBanner(fields.fallbackBanner, presentation);
-    renderTechnicalDetails(fields.technicalDetails, analysis, engine, presentation);
+    renderTechnicalDetails(fields.technicalDetails, decision, engine, presentation);
   }
 
   function renderTaskSteps(field, steps) {
@@ -286,17 +292,17 @@
     field.textContent = reason;
   }
 
-  function renderTechnicalDetails(field, analysis, engine, presentation) {
+  function renderTechnicalDetails(field, decision, engine, presentation) {
     if (!field) {
       return;
     }
-    const scope = {
+    const scope = allowlistedLabel({
       current_only: "仅当前邮件",
       relevant_history: "当前邮件与相关历史",
-    }[engine.contextScope];
+    }, engine.contextScope, "");
     const lines = [
-      `优先级：${formatPriority(analysis.priority)}`,
-      `分类：${formatCategory(analysis.category)}`,
+      `优先级：${formatPriority(decision.priority)}`,
+      `分类：${formatCategory(decision.category)}`,
       `分析引擎：${presentation.label}`,
     ];
     if (presentation.fallbackReason) {
@@ -722,11 +728,7 @@
   }
 
   function formatConfidence(value) {
-    return {
-      high: "高",
-      medium: "中",
-      low: "低",
-    }[value] || textOrFallback(value, "");
+    return allowlistedLabel(CONFIDENCE_LABELS, value);
   }
 
   function renderListField(field, value, formatter) {
@@ -847,13 +849,16 @@
   }
 
   function formatPriority(value) {
-    const text = textOrFallback(value, "");
-    return text ? PRIORITY_LABELS[text] || text : "-";
+    return allowlistedLabel(PRIORITY_LABELS, value);
   }
 
   function formatCategory(value) {
-    const text = textOrFallback(value, "");
-    return text ? CATEGORY_LABELS[text] || text : "-";
+    return allowlistedLabel(CATEGORY_LABELS, value);
+  }
+
+  function allowlistedLabel(labels, value, fallback = "未确认") {
+    return typeof value === "string" && Object.prototype.hasOwnProperty.call(labels, value)
+      ? labels[value] : fallback;
   }
 
   function formatRiskType(value) {

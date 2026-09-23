@@ -136,6 +136,25 @@ details > summary {
   color: var(--action-console-muted);
 }
 
+.decision-signals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  min-width: 0;
+}
+
+.decision-signals__item {
+  min-width: 0;
+  max-width: 100%;
+  border: 1px solid var(--action-console-border);
+  border-radius: 8px;
+  padding: 5px 9px;
+  background: var(--action-console-panel);
+  color: var(--action-console-heading);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
 .action-queue {
   display: grid;
   gap: 12px;
